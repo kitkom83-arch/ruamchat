@@ -41,6 +41,8 @@ import {
   sendAgentMessage,
   setConversationFollowUp,
   setPrimaryContactIdentity,
+  markAiSuggestionWrong,
+  suggestAiReply,
   takeOverConversation,
   unlinkContactIdentity,
   updateContact,
@@ -528,6 +530,36 @@ describe("frontend API client", () => {
     expect(after.knowledgeBaseIds).toEqual(["kb-api"]);
   });
 
+  it("sends x-tenant-id for AI suggested reply and feedback requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(aiSuggestionResponse("ai-run-1", "conv-web")))
+      .mockResolvedValueOnce(jsonResponse(aiFeedbackResponse("feedback-1", "ai-run-1", "conv-web")));
+
+    const suggestion = await suggestAiReply("conv-web");
+    const feedback = await markAiSuggestionWrong(suggestion.suggestionId, { feedbackType: "mark_wrong" });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/ai/conversations/conv-web/suggest", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/ai/suggestions/ai-run-1/feedback", expect.objectContaining({ method: "POST" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ feedbackType: "mark_wrong" });
+    expect(suggestion).toMatchObject({
+      suggestionId: "ai-run-1",
+      conversationId: "conv-web",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      externalCalls: 0
+    });
+    expect(feedback.feedbackType).toBe("mark_wrong");
+    expect(JSON.stringify(suggestion)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+  });
+
+  it("surfaces AI suggestion API failures without returning mock suggestions", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "AI unavailable" }, 503));
+
+    await expect(suggestAiReply("conv-web")).rejects.toThrow("API request failed (503): AI unavailable");
+  });
+
   it("returns readable API errors", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Conversation not found" }, 404));
 
@@ -838,5 +870,53 @@ function roomAiPolicyResponse(roomId: string) {
     handoffOnHighRisk: true,
     knowledgeBaseIds: [],
     updatedAt: "2026-05-21T04:00:00.000Z"
+  };
+}
+
+function aiSuggestionResponse(id: string, conversationId: string) {
+  return {
+    suggestionId: id,
+    aiRunId: id,
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    conversationId,
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
+    summary: "Customer asks for pricing.",
+    suggestedReply: "ราคาเริ่มต้นตามแพ็กเกจครับ",
+    intent: "pricing",
+    confidence: 0.9,
+    riskLevel: "low",
+    nextAction: "suggest_reply",
+    requiresHuman: false,
+    sources: [{
+      id: "doc-price",
+      title: "Pricing FAQ",
+      category: "price_rules",
+      matchReason: "Matched keywords: price",
+      sourceType: "knowledge_doc",
+      sourceUrl: null
+    }],
+    status: "completed",
+    error: null,
+    externalCalls: 0,
+    generatedAt: "2026-05-21T04:00:00.000Z"
+  };
+}
+
+function aiFeedbackResponse(id: string, suggestionId: string, conversationId: string) {
+  return {
+    feedbackId: id,
+    suggestionId,
+    aiRunId: suggestionId,
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    conversationId,
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
+    feedbackType: "mark_wrong",
+    actionType: "feedback.mark_wrong",
+    externalCalls: 0,
+    createdAt: "2026-05-21T04:00:00.000Z"
   };
 }

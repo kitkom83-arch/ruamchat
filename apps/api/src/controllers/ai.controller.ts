@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
 import {
+  aiSuggestionFeedbackRequestSchema,
   createKnowledgeBaseRequestSchema,
   createKnowledgeChunkRequestSchema,
   createKnowledgeDocumentRequestSchema,
@@ -88,7 +89,23 @@ export class AiController {
   }
 
   @Post("conversations/:conversationId/suggest")
-  async suggest(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.ai.suggest(tenant, conversationId);
+  async suggest(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.ai.suggest(requireTenantId(tenant), conversationId);
   }
+
+  @Post("suggestions/:suggestionId/feedback")
+  async feedback(
+    @Param("suggestionId") suggestionId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.ai.markWrong(requireTenantId(tenant), suggestionId, userId, aiSuggestionFeedbackRequestSchema.parse(body ?? {}));
+  }
+}
+
+function requireTenantId(tenant: string | undefined) {
+  const tenantId = tenant?.trim();
+  if (!tenantId) throw new BadRequestException("x-tenant-id is required");
+  return tenantId;
 }

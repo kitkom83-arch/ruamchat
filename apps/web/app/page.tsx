@@ -39,6 +39,7 @@ import type { Contact, LeadStatus } from "@ai-omni/shared";
 import Link from "next/link";
 import {
   appendStoredDemoMessage,
+  applyAiSuggestionToConversation,
   applyApiSentMessagesToConversation,
   applyLocalAgentMessageToConversation,
   filterConversations,
@@ -168,6 +169,8 @@ import {
   sendAgentMessage as sendApiAgentMessage,
   setConversationFollowUp,
   setPrimaryContactIdentity as setApiPrimaryContactIdentity,
+  markAiSuggestionWrong as markApiAiSuggestionWrong,
+  suggestAiReply,
   takeOverConversation as takeOverApiConversation,
   testRunApiFlow,
   unlinkContactIdentity as unlinkApiContactIdentity,
@@ -251,6 +254,8 @@ export default function InboxDashboard() {
   const [apiStatusHistory, setApiStatusHistory] = useState<ConversationStatusHistory[]>([]);
   const [apiAuditError, setApiAuditError] = useState("");
   const [apiStatusHistoryError, setApiStatusHistoryError] = useState("");
+  const [apiAiLoading, setApiAiLoading] = useState(false);
+  const [apiAiError, setApiAiError] = useState("");
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0] ?? platformRooms[0];
   const visibleConversations = useMemo(() => {
@@ -405,6 +410,42 @@ export default function InboxDashboard() {
     return () => {
       active = false;
       window.clearInterval(timer);
+    };
+  }, [apiMode, selectedConversation?.id]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    if (!selectedConversation?.id) {
+      setApiAiError("");
+      setApiAiLoading(false);
+      return;
+    }
+    let active = true;
+    const conversationId = selectedConversation.id;
+    setApiAiLoading(true);
+    setApiAiError("");
+    suggestAiReply(conversationId)
+      .then((suggestion) => {
+        if (!active) return;
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === conversationId
+              ? applyAiSuggestionToConversation(conversation, suggestion)
+              : conversation
+          )
+        );
+        setAiActionStatus("AI suggestion loaded from API");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setApiAiError(readableApiError(error));
+        setAiActionStatus("AI suggestion API error");
+      })
+      .finally(() => {
+        if (active) setApiAiLoading(false);
+      });
+    return () => {
+      active = false;
     };
   }, [apiMode, selectedConversation?.id]);
 
@@ -744,25 +785,76 @@ export default function InboxDashboard() {
   function useAiDraft() {
     if (!selectedConversation) return;
     setComposer(getAiDraftText(selectedConversation));
-    updateAdminStore(recordUseAiDraft(adminStore, selectedConversation.id));
-    setAiActionStatus(getAiPanelMockActionStatus("use_ai_draft", selectedConversation));
+    if (!apiMode) updateAdminStore(recordUseAiDraft(adminStore, selectedConversation.id));
+    setAiActionStatus(apiMode ? "AI draft filled composer only. No message sent." : getAiPanelMockActionStatus("use_ai_draft", selectedConversation));
   }
 
   function copySuggestedReply() {
     if (!selectedConversation) return;
-    void navigator.clipboard?.writeText(getAiDraftText(selectedConversation));
-    setAiActionStatus(getAiPanelMockActionStatus("copy_suggested_reply", selectedConversation));
+    const draft = getAiDraftText(selectedConversation);
+    void navigator.clipboard?.writeText(draft);
+    if (apiMode) setComposer(draft);
+    setAiActionStatus(apiMode ? "Suggested reply copied and filled without outbound send" : getAiPanelMockActionStatus("copy_suggested_reply", selectedConversation));
   }
 
   function viewAiSource() {
+    if (apiMode && selectedConversation) {
+      const firstSource = selectedConversation.aiAnalysis?.matchedKnowledge?.[0];
+      setAiActionStatus(firstSource ? `API source: ${firstSource.title} (${firstSource.category})` : "No safe API source metadata");
+      return;
+    }
     setAiActionStatus(getAiPanelMockActionStatus("view_source", selectedConversation));
   }
 
-  function regenerateDraft() {
+  async function regenerateDraft() {
+    if (!selectedConversation) return;
+    if (apiMode) {
+      setApiAiLoading(true);
+      setApiAiError("");
+      try {
+        const suggestion = await suggestAiReply(selectedConversation.id);
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === selectedConversation.id
+              ? applyAiSuggestionToConversation(conversation, suggestion)
+              : conversation
+          )
+        );
+        setAiActionStatus("Draft regenerated through safe API. externalCalls=0");
+      } catch (error) {
+        setApiAiError(readableApiError(error));
+        setAiActionStatus("Regenerate API error");
+      } finally {
+        setApiAiLoading(false);
+      }
+      return;
+    }
     setAiActionStatus("Draft regenerated in demo mode");
   }
 
-  function markAiWrong() {
+  async function markAiWrong() {
+    if (!selectedConversation) return;
+    if (apiMode) {
+      const suggestionId = selectedConversation.aiSuggestionId;
+      if (!suggestionId) {
+        setAiActionStatus("No API suggestion id available to mark wrong");
+        return;
+      }
+      setApiAiLoading(true);
+      setApiAiError("");
+      try {
+        await markApiAiSuggestionWrong(suggestionId, { feedbackType: "mark_wrong" });
+        const logs = await getConversationAuditLogs(selectedConversation.id);
+        setApiAuditLogs(logs);
+        setAiActionStatus("Marked wrong and persisted API feedback/audit");
+      } catch (error) {
+        setApiAiError(readableApiError(error));
+        setAiActionStatus("Mark as Wrong API error");
+      } finally {
+        setApiAiLoading(false);
+      }
+      return;
+    }
     setAiActionStatus(getAiPanelMockActionStatus("mark_wrong", selectedConversation));
   }
 
@@ -1408,6 +1500,8 @@ export default function InboxDashboard() {
               : selectedContact ? getContactConversations(selectedContact, conversations) : []
           }
           aiActionStatus={aiActionStatus}
+          aiLoading={apiAiLoading}
+          aiError={apiAiError}
           adminStore={adminStore}
           assignedAgentName={apiMode ? apiCustomer360?.owner ?? "Unassigned" : selectedAssignedAgent?.name ?? "Unassigned"}
           apiMode={apiMode}
@@ -1622,6 +1716,8 @@ function CustomerPanel({
   contact,
   relatedConversations,
   aiActionStatus,
+  aiLoading,
+  aiError,
   assignedAgentName,
   apiMode,
   customerLoading,
@@ -1684,6 +1780,8 @@ function CustomerPanel({
   contact: Contact | null;
   relatedConversations: ConversationCard[];
   aiActionStatus: string;
+  aiLoading: boolean;
+  aiError: string;
   adminStore: AdminStore;
   assignedAgentName: string;
   apiMode: boolean;
@@ -2034,6 +2132,8 @@ function CustomerPanel({
           <Bot size={17} />
           <h3>AI Summary</h3>
         </div>
+        {apiMode && aiLoading && <p className="noteText">Loading AI suggestion from API...</p>}
+        {apiMode && aiError && <EmptyState title="AI suggestion API error" body={aiError} />}
         <p className="summaryText">{conversation.aiSummary}</p>
         <dl className="aiGrid">
           <div><dt>AI Decision</dt><dd>{conversation.aiDecision}</dd></div>
@@ -2043,6 +2143,7 @@ function CustomerPanel({
           <div><dt>Next action</dt><dd>{conversation.nextAction}</dd></div>
           <div><dt>Suggested reply</dt><dd>{conversation.aiAnalysis?.reply ?? conversation.nextAction}</dd></div>
           <div><dt>Requires human</dt><dd>{conversation.aiAnalysis?.requiresHuman ? "Yes" : conversation.aiStatus === "Need Human" ? "Yes" : "No"}</dd></div>
+          {apiMode && <div><dt>External calls</dt><dd>{conversation.aiSuggestionExternalCalls ?? 0}</dd></div>}
         </dl>
         <div className="sourceList">
           <strong>Knowledge Sources</strong>
@@ -2058,11 +2159,11 @@ function CustomerPanel({
           )}
         </div>
         <div className="aiActionGrid">
-          <button type="button" onClick={onViewSource}>View Source</button>
-          <button type="button" onClick={onCopySuggestedReply}>Copy Suggested Reply</button>
-          <button type="button" onClick={onUseDraft}>Use AI Draft</button>
-          <button type="button" onClick={onMarkWrong}>Mark as Wrong</button>
-          <button type="button" onClick={onRegenerate}>Regenerate Draft</button>
+          <button type="button" onClick={onViewSource} disabled={aiLoading}>View Source</button>
+          <button type="button" onClick={onCopySuggestedReply} disabled={aiLoading}>Copy Suggested Reply</button>
+          <button type="button" onClick={onUseDraft} disabled={aiLoading}>Use AI Draft</button>
+          <button type="button" onClick={onMarkWrong} disabled={aiLoading}>Mark as Wrong</button>
+          <button type="button" onClick={onRegenerate} disabled={aiLoading}>Regenerate Draft</button>
           <button type="button" onClick={onTakeOver}>Take Over</button>
         </div>
         <p className="aiActionStatus">{aiActionStatus}</p>
