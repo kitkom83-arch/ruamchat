@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildWebchatDemoConversation,
+  applyAiSuggestionToConversation,
   applyApiSentMessagesToConversation,
   applyLocalAgentMessageToConversation,
   createChatMessage,
@@ -211,6 +212,45 @@ describe("Inbox Rooms mock filtering", () => {
     expect(updated[0]?.messages).toEqual([
       expect.objectContaining({ id: "msg-agent-api", sender: "agent", body: "รับเรื่องแล้วครับ" })
     ]);
+  });
+
+  it("maps API-mode AI summary and suggestion without adding outbound messages", () => {
+    const conversation = { ...mockConversations[0]!, id: "conv-api", messages: [] };
+    const mapped = applyAiSuggestionToConversation(conversation, {
+      suggestionId: "ai-run-1",
+      aiRunId: "ai-run-1",
+      tenantId: "00000000-0000-4000-8000-000000000001",
+      conversationId: "conv-api",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      summary: "API summary from backend",
+      suggestedReply: "API safe draft only",
+      intent: "product_info",
+      confidence: 0.82,
+      riskLevel: "low",
+      nextAction: "suggest_reply",
+      requiresHuman: false,
+      sources: [{
+        id: "doc-api",
+        title: "API Knowledge",
+        category: "faq",
+        matchReason: "Matched backend source",
+        sourceType: "knowledge_doc",
+        sourceUrl: null
+      }],
+      status: "completed",
+      error: null,
+      externalCalls: 0,
+      generatedAt: "2026-05-21T04:00:00.000Z"
+    });
+
+    expect(mapped.aiSummary).toBe("API summary from backend");
+    expect(mapped.aiSuggestionId).toBe("ai-run-1");
+    expect(getAiDraftText(mapped)).toBe("API safe draft only");
+    expect(mapped.messages).toEqual([]);
+    expect(mapped.aiSuggestionExternalCalls).toBe(0);
+    expect(JSON.stringify(mapped.aiAnalysis?.matchedKnowledge)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer/i);
   });
 
   it("does not add a local/mock message when API-mode send fails before mapping", () => {

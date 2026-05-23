@@ -1,6 +1,6 @@
 # RUN_REPORT_LATEST.md
 
-Current status: Sprint 28 FINAL PASS
+Current status: Sprint 29 FINAL PASS
 
 ## Completed reports
 
@@ -13,23 +13,23 @@ Current status: Sprint 28 FINAL PASS
 - SPRINT_26_REPORT.md
 - SPRINT_27_REPORT.md
 - SPRINT_28_REPORT.md
+- SPRINT_29_REPORT.md
 
 ## Latest validation baseline
 
-- Sprint 28 FINAL PASS
+- Sprint 29 FINAL PASS
 - typecheck passed
-- tests passed: 32 files / 275 tests
+- tests passed: 33 files / 284 tests
 - build passed
-- smoke:sprint28 passed
+- smoke:sprint29 passed
 - externalCalls: 0
-- Matching Automations API mode verified
-- Run Flow dry-run verified
-- persisted flow run verified
-- flow_run_dry_run audit verified
+- AI Suggested Reply API mode persisted
+- feedback/audit persistence verified
 - platform/account/room preserved
-- API mode no silent mock fallback verified
+- API mode no silent mock AI fallback verified
+- no real OpenAI call observed
 - no real provider outbound observed
 
-## Known infrastructure issue
+## Current branch
 
-C:\Users\ADMIN\ruamchat is still not a git repository, so no commit was attempted.
+sprint-29-ai-suggested-reply

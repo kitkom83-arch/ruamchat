@@ -1,17 +1,18 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import OpenAI from "openai";
 import {
   AIDecision,
   aiDecisionJsonSchema,
   createFallbackAiDecision,
+  createKnowledgeAwareMockAiDecision,
   createMockAiDecision,
   parseAiDecisionWithFallback,
-  shouldAutoSend,
-  shouldHandoff
+  type KnowledgeCategory,
+  type KnowledgeItem
 } from "@ai-omni/shared";
 import { Prisma } from "@prisma/client";
+import { AuditService } from "./audit.service.js";
 import { ConversationService } from "./conversation.service.js";
-import { OutboundQueueService } from "./outbound-queue.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const promptVersion = "ai-router-v1";
@@ -21,11 +22,14 @@ export class OpenAiOrchestratorService {
   private readonly client?: OpenAI;
 
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(ConversationService)
     private readonly conversations: ConversationService,
-    private readonly outboundQueue: OutboundQueueService
+    @Inject(AuditService)
+    private readonly audit: AuditService
   ) {
-    if (process.env.OPENAI_API_KEY) {
+    if (process.env.OPENAI_API_KEY && process.env.OPENAI_ALLOW_REAL_CALLS === "true" && process.env.NODE_ENV !== "test") {
       this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     }
   }
@@ -43,7 +47,8 @@ export class OpenAiOrchestratorService {
       take: 8
     });
 
-    const latestUserMessage = recentMessages.find((message) => message.senderType === "user");
+    const orderedRecentMessages = recentMessages.reverse();
+    const latestUserMessage = [...orderedRecentMessages].reverse().find((message) => message.senderType === "user");
     const model = process.env.OPENAI_MODEL ?? "gpt-5.4-mini";
     let decision: AIDecision;
     let status: "completed" | "failed" = "completed";
@@ -51,7 +56,7 @@ export class OpenAiOrchestratorService {
 
     try {
       decision = this.client
-        ? await this.callOpenAI(model, recentMessages.reverse(), knowledge)
+        ? await this.callOpenAI(model, orderedRecentMessages, knowledge)
         : this.fallbackDecision(latestUserMessage?.text ?? "", knowledge);
     } catch (err) {
       status = "failed";
@@ -73,34 +78,109 @@ export class OpenAiOrchestratorService {
       }
     });
 
-    await this.applySafeAutomaticActions(tenantId, conversation.contact.id, aiRun.id, decision);
-
     const room = conversation.room;
-    if (shouldAutoSend(decision, room.aiMode, room.requireCitationsForAutoReply)) {
-      const message = await this.prisma.message.create({
-        data: {
-          tenantId,
-          conversationId,
-          channelAccountId: room.channelAccountId,
-          platformMessageId: `ai-${aiRun.id}`,
-          senderType: "ai",
-          messageType: "text",
-          text: decision.reply
-        }
-      });
-      await this.outboundQueue.enqueueOutbound(message.id);
-      await this.prisma.conversation.update({
-        where: { id: conversationId },
-        data: { unread: false, unreplied: false, aiState: "ai_active", lastMessageAt: new Date() }
-      });
-    } else if (shouldHandoff(decision)) {
-      await this.prisma.conversation.update({
-        where: { id: conversationId },
-        data: { aiState: "need_human", priority: mapConversationPriority(decision.priority) }
-      });
-    }
+    const sources = safeSuggestionSources(decision, knowledge);
+    const payload = this.mapSuggestedReply(aiRun, conversation, sources, decision, status, error ?? null);
 
-    return { aiRunId: aiRun.id, decision, status, error };
+    await this.prisma.aiAction.create({
+      data: {
+        aiRunId: aiRun.id,
+        type: "suggested_reply.generated",
+        status: "completed",
+        payload: payload as unknown as Prisma.InputJsonValue
+      }
+    });
+    await this.audit.record({
+      tenantId,
+      conversationId,
+      action: "ai.suggested_reply.generated",
+      entityType: "ai_suggestion",
+      entityId: aiRun.id,
+      metadata: {
+        tenantId,
+        conversationId,
+        platform: room.platform,
+        channelAccountId: room.channelAccountId,
+        roomId: conversation.roomId,
+        actionType: "suggested_reply.generated",
+        suggestionId: aiRun.id,
+        intent: decision.intent,
+        confidence: decision.confidence,
+        riskLevel: decision.riskLevel,
+        externalCalls: 0,
+        timestamp: aiRun.createdAt.toISOString()
+      }
+    });
+
+    return payload;
+  }
+
+  async markWrong(tenantId: string, suggestionId: string, actorUserId: string | undefined, request: { feedbackType?: "mark_wrong"; note?: string }) {
+    const aiRun = await this.prisma.aiRun.findFirst({
+      where: { id: suggestionId, tenantId },
+      include: {
+        conversation: {
+          include: {
+            room: { include: { channelAccount: true } },
+            contact: { include: { identities: true, tags: { include: { tag: true } } } },
+            contactIdentity: true
+          }
+        }
+      }
+    });
+    if (!aiRun) {
+      throw new NotFoundException("AI suggestion not found");
+    }
+    const foundRun = aiRun!;
+    const conversation = foundRun.conversation;
+    const feedbackType = request.feedbackType ?? "mark_wrong";
+    const action = await this.prisma.aiAction.create({
+      data: {
+        aiRunId: foundRun.id,
+        type: "feedback.mark_wrong",
+        status: "completed",
+        payload: {
+          feedbackType,
+          note: request.note ?? null,
+          externalCalls: 0
+        }
+      }
+    });
+    await this.audit.record({
+      tenantId,
+      actorUserId,
+      conversationId: conversation.id,
+      action: "ai.feedback.mark_wrong",
+      entityType: "ai_suggestion",
+      entityId: foundRun.id,
+      metadata: {
+        tenantId,
+        conversationId: conversation.id,
+        platform: conversation.room.platform,
+        channelAccountId: conversation.room.channelAccountId,
+        roomId: conversation.roomId,
+        actionType: "feedback.mark_wrong",
+        suggestionId: foundRun.id,
+        feedbackType,
+        externalCalls: 0,
+        timestamp: action.createdAt.toISOString()
+      }
+    });
+
+    return {
+      feedbackId: action.id,
+      suggestionId: foundRun.id,
+      aiRunId: foundRun.id,
+      tenantId,
+      conversationId: conversation.id,
+      platform: conversation.room.platform,
+      channelAccountId: conversation.room.channelAccountId,
+      roomId: conversation.roomId,
+      feedbackType,
+      actionType: "feedback.mark_wrong",
+      externalCalls: 0,
+      createdAt: action.createdAt.toISOString()
+    };
   }
 
   private async callOpenAI(model: string, messages: Array<{ senderType: string; text: string | null }>, knowledge: Array<{ id: string; title: string; body: string }>) {
@@ -147,15 +227,49 @@ export class OpenAiOrchestratorService {
     return parseAiDecisionWithFallback(JSON.parse(text), "OpenAI output did not match AI schema");
   }
 
-  private fallbackDecision(text: string, knowledge: Array<{ id: string; title: string }>, forced = false): AIDecision {
+  private fallbackDecision(text: string, knowledge: Array<{ id: string; title: string; category: string; body: string; updatedAt: Date }>, forced = false): AIDecision {
     if (forced || !text.trim()) {
       return createFallbackAiDecision(forced ? "OpenAI request failed" : "No latest user message");
     }
 
-    const decision = createMockAiDecision(text);
+    const knowledgeItems = knowledge.map(mapKnowledgeDocToItem);
+    const decision = knowledgeItems.length > 0
+      ? createKnowledgeAwareMockAiDecision(text, knowledgeItems)
+      : createMockAiDecision(text);
     return knowledge.length === 0 && decision.confidence < 0.85
       ? { ...decision, requiresHuman: true, nextAction: "handoff", tags: [...decision.tags, "needs-human"] }
       : decision;
+  }
+
+  private mapSuggestedReply(
+    aiRun: { id: string; tenantId: string; conversationId: string; createdAt: Date },
+    conversation: { id: string; tenantId: string; roomId: string; room: { platform: string; channelAccountId: string } },
+    sources: ReturnType<typeof safeSuggestionSources>,
+    decision: AIDecision,
+    status: "completed" | "failed",
+    error: string | null
+  ) {
+    return {
+      suggestionId: aiRun.id,
+      aiRunId: aiRun.id,
+      tenantId: aiRun.tenantId,
+      conversationId: conversation.id,
+      platform: conversation.room.platform,
+      channelAccountId: conversation.room.channelAccountId,
+      roomId: conversation.roomId,
+      summary: decision.summary,
+      suggestedReply: decision.reply,
+      intent: decision.intent,
+      confidence: decision.confidence,
+      riskLevel: decision.riskLevel,
+      nextAction: decision.nextAction,
+      requiresHuman: decision.requiresHuman,
+      sources,
+      status,
+      error,
+      externalCalls: 0,
+      generatedAt: aiRun.createdAt.toISOString()
+    };
   }
 
   private async applySafeAutomaticActions(tenantId: string, contactId: string, aiRunId: string, decision: AIDecision) {
@@ -189,4 +303,46 @@ export class OpenAiOrchestratorService {
 
 function mapConversationPriority(priority: "low" | "medium" | "high" | "urgent") {
   return priority === "medium" ? "normal" : priority;
+}
+
+function safeSuggestionSources(decision: AIDecision, knowledge: Array<{ id: string; title: string; category: string; sourceUrl: string | null }>) {
+  const knowledgeById = new Map(knowledge.map((item) => [item.id, item]));
+  return (decision.matchedKnowledge ?? []).slice(0, 4).map((source) => {
+    const doc = knowledgeById.get(source.id);
+    return {
+      id: source.id,
+      title: source.title,
+      category: source.category,
+      matchReason: source.matchReason,
+      sourceType: doc ? "knowledge_doc" : "knowledge",
+      sourceUrl: doc?.sourceUrl ?? null
+    };
+  });
+}
+
+function mapKnowledgeDocToItem(doc: { id: string; title: string; category: string; body: string; updatedAt: Date }): KnowledgeItem {
+  const category = normalizeKnowledgeCategory(doc.category);
+  return {
+    id: doc.id,
+    title: doc.title,
+    category,
+    body: doc.body || doc.title,
+    status: "active",
+    tags: [category],
+    updatedAt: doc.updatedAt.toISOString()
+  };
+}
+
+function normalizeKnowledgeCategory(category: string): KnowledgeCategory {
+  const allowed: KnowledgeCategory[] = [
+    "business_info",
+    "faq",
+    "product_service",
+    "price_rules",
+    "sales_script",
+    "support_policy",
+    "forbidden_answers",
+    "ai_persona"
+  ];
+  return allowed.includes(category as KnowledgeCategory) ? category as KnowledgeCategory : "faq";
 }

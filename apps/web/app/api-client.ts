@@ -8,6 +8,9 @@ import {
   analyticsOverviewSchema,
   analyticsSlaSchema,
   analyticsTasksSchema,
+  aiSuggestedReplySchema,
+  aiSuggestionFeedbackRequestSchema,
+  aiSuggestionFeedbackSchema,
   apiHealthSchema,
   coreConversationCardSchema,
   coreConversationTabSchema,
@@ -83,6 +86,9 @@ import {
   type AnalyticsOverview,
   type AnalyticsSla,
   type AnalyticsTasks,
+  type AiSuggestedReply,
+  type AiSuggestionFeedback,
+  type AiSuggestionFeedbackRequest,
   type ApiHealth,
   type BroadcastAudiencePreviewRequest,
   type BroadcastAudiencePreviewResult,
@@ -454,6 +460,20 @@ export async function updateRoomAiPolicy(roomId: string, payload: RoomAiPolicyPa
   const body = roomAiPolicyPatchSchema.parse(payload);
   return request(`/rooms/${encodeURIComponent(roomId)}/ai-policy`, roomAiPolicySchema, {
     method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function suggestAiReply(conversationId: string): Promise<AiSuggestedReply> {
+  return request(`/ai/conversations/${encodeURIComponent(conversationId)}/suggest`, aiSuggestedReplySchema, {
+    method: "POST"
+  });
+}
+
+export async function markAiSuggestionWrong(suggestionId: string, payload: AiSuggestionFeedbackRequest = { feedbackType: "mark_wrong" }): Promise<AiSuggestionFeedback> {
+  const body = aiSuggestionFeedbackRequestSchema.parse(payload);
+  return request(`/ai/suggestions/${encodeURIComponent(suggestionId)}/feedback`, aiSuggestionFeedbackSchema, {
+    method: "POST",
     body: JSON.stringify(body)
   });
 }

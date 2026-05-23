@@ -154,3 +154,30 @@ Validation:
 
 Remaining:
 - Project folder is not a git repository; no commit attempted.
+
+---
+
+# Sprint 29 FINAL PASS
+
+AI Suggested Reply + Feedback now runs through backend API mode with tenant-scoped persisted suggestion records, feedback persistence, safe audit logs, and no-real-OpenAI behavior by default.
+
+Validation:
+- typecheck passed
+- tests passed: 33 files / 284 tests
+- build passed
+- smoke:sprint29 passed
+- externalCalls: 0
+- AI suggest passed
+- AI feedback passed
+- audit persistence verified
+- safe response checks passed
+- platform/account/room preserved
+- Use AI Draft filled composer only
+- Regenerate Draft returned safe API result
+- Mark as Wrong persisted feedback and audit
+- API-off no silent mock AI fallback passed
+- no real provider outbound observed
+- no real OpenAI call observed
+
+Remaining:
+- None for Sprint 29.

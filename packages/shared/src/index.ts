@@ -1096,6 +1096,64 @@ export const aiDecisionSchema = z.object({
 }).strict();
 export type AIDecision = z.infer<typeof aiDecisionSchema>;
 
+export const aiSuggestionSourceSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  matchReason: z.string().default(""),
+  sourceType: z.string().min(1).optional(),
+  sourceUrl: z.string().nullable().optional()
+}).strict();
+export type AiSuggestionSource = z.infer<typeof aiSuggestionSourceSchema>;
+
+export const aiSuggestedReplySchema = z.object({
+  suggestionId: z.string().min(1),
+  aiRunId: z.string().min(1),
+  tenantId: z.string().min(1),
+  conversationId: z.string().min(1),
+  platform: platformSchema,
+  channelAccountId: z.string().min(1),
+  roomId: z.string().min(1),
+  summary: z.string(),
+  suggestedReply: z.string(),
+  intent: aiIntentSchema,
+  confidence: z.number().min(0).max(1),
+  riskLevel: z.enum(["low", "medium", "high"]),
+  nextAction: aiNextActionSchema,
+  requiresHuman: z.boolean(),
+  sources: z.array(aiSuggestionSourceSchema).default([]),
+  status: z.enum(["completed", "failed"]),
+  error: z.string().nullable(),
+  externalCalls: z.literal(0),
+  generatedAt: z.string().datetime()
+}).strict();
+export type AiSuggestedReply = z.infer<typeof aiSuggestedReplySchema>;
+
+export const aiSuggestionFeedbackTypeSchema = z.enum(["mark_wrong"]);
+export type AiSuggestionFeedbackType = z.infer<typeof aiSuggestionFeedbackTypeSchema>;
+
+export const aiSuggestionFeedbackRequestSchema = z.object({
+  feedbackType: aiSuggestionFeedbackTypeSchema.default("mark_wrong"),
+  note: z.string().trim().max(500).optional()
+}).strict();
+export type AiSuggestionFeedbackRequest = z.input<typeof aiSuggestionFeedbackRequestSchema>;
+
+export const aiSuggestionFeedbackSchema = z.object({
+  feedbackId: z.string().min(1),
+  suggestionId: z.string().min(1),
+  aiRunId: z.string().min(1),
+  tenantId: z.string().min(1),
+  conversationId: z.string().min(1),
+  platform: platformSchema,
+  channelAccountId: z.string().min(1),
+  roomId: z.string().min(1),
+  feedbackType: aiSuggestionFeedbackTypeSchema,
+  actionType: z.string().min(1),
+  externalCalls: z.literal(0),
+  createdAt: z.string().datetime()
+}).strict();
+export type AiSuggestionFeedback = z.infer<typeof aiSuggestionFeedbackSchema>;
+
 export const aiDecisionJsonSchema = {
   type: "object",
   additionalProperties: false,
