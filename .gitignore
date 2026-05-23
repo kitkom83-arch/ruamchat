@@ -40,3 +40,6 @@ packages/shared/dist/
 *.log
 *.pid
 .tmp*
+
+# TypeScript incremental cache
+*.tsbuildinfo
