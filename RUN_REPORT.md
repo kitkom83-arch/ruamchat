@@ -211,3 +211,39 @@ Validation:
 Remaining:
 - None blocking for Sprint 30.
 - Smoke intentionally persisted safe local tag: sprint30-smoke.
+
+---
+
+# Sprint 31 FINAL PASS
+
+Inbox conversation search, filters, sorting, pagination, and platform/account/room scoped list results now run through backend API mode with tenant-scoped persisted data and no silent mock fallback.
+
+Validation:
+- typecheck passed
+- tests passed: 34 files / 300 tests
+- build passed
+- smoke:sprint31 passed: 24/24 checks
+- externalCalls: 0
+- GET /health passed
+- GET /rooms passed
+- conversation list no filters passed
+- search keyword passed
+- platform filter passed
+- status filter passed
+- priority filter passed
+- pagination limit passed
+- impossible filter returned empty API state
+- impossible filter did not return mock fallback
+- required fields preserved: conversation id / platform / channelAccountId / roomId
+- conversations were not collapsed across platform/account/room
+- API-on UI search/filter verified
+- API-on platform/account/room separation verified
+- API-off showed Failed to fetch
+- API-off no silent mock conversation fallback verified
+- no token/secret exposure observed
+- no provider outbound observed
+- no Prisma schema change
+
+Remaining:
+- None for Sprint 31.
+- API was intentionally stopped for API-off verification.

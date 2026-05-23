@@ -209,6 +209,10 @@ const aiStatusClass: Record<AiStatus, string> = {
 const adminFilterIds = new Set<ConversationFilter>(["my", "unassigned", "sla_warning", "sla_breached", "follow_up", "closed", "spam"]);
 const priorityOptions: ConversationPriority[] = ["low", "medium", "high", "urgent"];
 const statusOptions: ConversationStatus[] = ["open", "pending", "follow_up", "resolved", "closed", "spam"];
+const conversationStatusFilterOptions: Array<"all" | ConversationStatus> = ["all", "open", "pending", "follow_up", "closed", "spam"];
+const conversationPriorityFilterOptions: Array<"all" | ConversationPriority> = ["all", "low", "medium", "high", "urgent"];
+const slaFilterOptions: Array<"all" | "ok" | "warning" | "breached"> = ["all", "ok", "warning", "breached"];
+const apiConversationPageSize = 25;
 const apiAgentIds: Record<string, string> = {
   "agent-may": "00000000-0000-4000-8000-000000000011",
   "agent-ton": "00000000-0000-4000-8000-000000000012",
@@ -223,6 +227,15 @@ export default function InboxDashboard() {
   const [selectedConversationId, setSelectedConversationId] = useState("");
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [tab, setTab] = useState<InboxTab>("human");
+  const [roomSearch, setRoomSearch] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | ConversationStatus>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | ConversationPriority>("all");
+  const [unreadFilter, setUnreadFilter] = useState<"all" | "unread" | "read">("all");
+  const [slaFilter, setSlaFilter] = useState<"all" | "ok" | "warning" | "breached">("all");
+  const [sortOrder, setSortOrder] = useState<"latest_desc" | "latest_asc" | "updated_desc" | "updated_asc">("latest_desc");
+  const [conversationLimit, setConversationLimit] = useState(apiConversationPageSize);
+  const [hasMoreApiConversations, setHasMoreApiConversations] = useState(false);
   const [conversations, setConversations] = useState<ConversationCard[]>(() => apiMode ? [] : mockConversations);
   const [contacts, setContacts] = useState(mockContacts);
   const [adminStore, setAdminStore] = useState<AdminStore>(() => createDefaultAdminStore());
@@ -258,6 +271,14 @@ export default function InboxDashboard() {
   const [apiAiError, setApiAiError] = useState("");
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0] ?? platformRooms[0];
+  const displayedRooms = useMemo(() => {
+    const needle = roomSearch.trim().toLowerCase();
+    if (!needle) return rooms;
+    return rooms.filter((room) =>
+      [room.platformLabel, room.accountName, room.roomName, room.id]
+        .some((value) => value.toLowerCase().includes(needle))
+    );
+  }, [roomSearch, rooms]);
   const visibleConversations = useMemo(() => {
     if (apiMode) return scopeApiConversationsToRoom(conversations, selectedRoom.id);
     const baseFilter = adminFilterIds.has(filter) ? "all" : filter;
@@ -265,8 +286,16 @@ export default function InboxDashboard() {
     const adminFiltered = isAdminConversationFilter(filter)
       ? filterAdminConversations(roomScoped, adminStore, filter)
       : roomScoped;
-    return sortConversationsByPriority(filterConversationsByAgent(adminFiltered, adminStore, agentFilter), adminStore);
-  }, [adminStore, agentFilter, apiMode, conversations, filter, selectedRoom.id, tab]);
+    const agentFiltered = filterConversationsByAgent(adminFiltered, adminStore, agentFilter);
+    const searched = filterConversationCardsByKeyword(agentFiltered, conversationSearch);
+    const statusFiltered = statusFilter === "all" ? searched : searched.filter((conversation) => conversation.status === statusFilter);
+    const priorityFiltered = priorityFilter === "all" ? statusFiltered : statusFiltered.filter((conversation) => conversation.priority === priorityFilter);
+    const unreadFiltered = unreadFilter === "all"
+      ? priorityFiltered
+      : priorityFiltered.filter((conversation) => unreadFilter === "unread" ? conversation.unreadCount > 0 : conversation.unreadCount === 0);
+    const slaFiltered = slaFilter === "all" ? unreadFiltered : unreadFiltered.filter((conversation) => (conversation.slaStatus ?? "ok") === slaFilter);
+    return sortConversationCards(slaFiltered, sortOrder, adminStore);
+  }, [adminStore, agentFilter, apiMode, conversations, conversationSearch, filter, priorityFilter, selectedRoom.id, slaFilter, sortOrder, statusFilter, tab, unreadFilter]);
 
   const selectedConversation =
     visibleConversations.find((conversation) => conversation.id === selectedConversationId) ?? visibleConversations[0] ?? null;
@@ -345,23 +374,40 @@ export default function InboxDashboard() {
   }, [apiMode]);
 
   useEffect(() => {
+    setConversationLimit(apiConversationPageSize);
+  }, [agentFilter, conversationSearch, filter, priorityFilter, selectedRoomId, slaFilter, sortOrder, statusFilter, tab, unreadFilter]);
+
+  useEffect(() => {
     if (!apiMode || !selectedRoomId || !rooms.some((room) => room.id === selectedRoomId)) return;
     let active = true;
     const requestedRoomId = selectedRoomId;
+    const requestedRoom = rooms.find((room) => room.id === requestedRoomId);
     setApiLoading(true);
     getConversations(requestedRoomId, {
       tab,
       filter,
-      agentId: agentFilter === "all" ? undefined : apiAgentIds[agentFilter] ?? agentFilter
+      agentId: agentFilter === "all" ? undefined : apiAgentIds[agentFilter] ?? agentFilter,
+      search: conversationSearch,
+      platform: requestedRoom?.platform,
+      channelAccountId: requestedRoom?.channelAccountId,
+      status: statusFilter,
+      priority: priorityFilter,
+      unread: unreadFilter,
+      slaStatus: slaFilter,
+      sort: sortOrder,
+      limit: conversationLimit,
+      offset: 0
     })
       .then((items) => {
         if (!active) return;
         setConversations(scopeApiConversationsToRoom(items.map((item) => mapApiConversationToCard(item)), requestedRoomId));
+        setHasMoreApiConversations(items.length === conversationLimit);
         setApiError("");
       })
       .catch((error) => {
         if (active) {
           setConversations([]);
+          setHasMoreApiConversations(false);
           setApiError(readableApiError(error));
         }
       })
@@ -371,7 +417,7 @@ export default function InboxDashboard() {
     return () => {
       active = false;
     };
-  }, [agentFilter, apiMode, filter, rooms, selectedRoomId, tab]);
+  }, [agentFilter, apiMode, conversationLimit, conversationSearch, filter, priorityFilter, rooms, selectedRoomId, slaFilter, sortOrder, statusFilter, tab, unreadFilter]);
 
   useEffect(() => {
     if (!apiMode || !selectedConversation?.id) return;
@@ -1307,11 +1353,11 @@ export default function InboxDashboard() {
 
         <label className="searchBox">
           <Search size={16} />
-          <input placeholder="Search room" aria-label="Search room" />
+          <input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder="Search room" aria-label="Search room" />
         </label>
 
         <div className="roomGroups">
-          {rooms.map((room) => (
+          {displayedRooms.map((room) => (
             <section className="platformGroup" key={room.id}>
               <button className="platformHeader" type="button">
                 <span>{room.platformLabel}</span>
@@ -1373,6 +1419,16 @@ export default function InboxDashboard() {
           ))}
         </div>
 
+        <label className="searchBox queueSearch">
+          <Search size={16} />
+          <input
+            value={conversationSearch}
+            onChange={(event) => setConversationSearch(event.target.value)}
+            placeholder="Search conversations"
+            aria-label="Search conversations"
+          />
+        </label>
+
         <label className="agentFilter">
           <span>Agent</span>
           <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} aria-label="Filter by agent">
@@ -1382,6 +1438,44 @@ export default function InboxDashboard() {
             ))}
           </select>
         </label>
+
+        <div className="queueSelectGrid" aria-label="Conversation search filters">
+          <label>
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | ConversationStatus)} aria-label="Filter by status">
+              {conversationStatusFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Priority</span>
+            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as "all" | ConversationPriority)} aria-label="Filter by priority">
+              {conversationPriorityFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Read</span>
+            <select value={unreadFilter} onChange={(event) => setUnreadFilter(event.target.value as "all" | "unread" | "read")} aria-label="Filter by read state">
+              <option value="all">all</option>
+              <option value="unread">unread</option>
+              <option value="read">read</option>
+            </select>
+          </label>
+          <label>
+            <span>SLA</span>
+            <select value={slaFilter} onChange={(event) => setSlaFilter(event.target.value as "all" | "ok" | "warning" | "breached")} aria-label="Filter by SLA">
+              {slaFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc")} aria-label="Sort conversations">
+              <option value="latest_desc">latest first</option>
+              <option value="latest_asc">latest last</option>
+              <option value="updated_desc">updated first</option>
+              <option value="updated_asc">updated last</option>
+            </select>
+          </label>
+        </div>
 
         <div className="conversationList">
           {visibleConversations.length === 0 ? (
@@ -1405,6 +1499,11 @@ export default function InboxDashboard() {
             ))
           )}
         </div>
+        {apiMode && hasMoreApiConversations && (
+          <button className="loadMoreButton" type="button" onClick={() => setConversationLimit((current) => current + apiConversationPageSize)} disabled={apiLoading}>
+            {apiLoading ? "Loading..." : "Load more"}
+          </button>
+        )}
       </section>
 
       <section className="chatPanel" aria-label="Chat Window">
@@ -2276,6 +2375,34 @@ function getApiSlaDisplay(conversation: ConversationCard) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function filterConversationCardsByKeyword(conversations: ConversationCard[], keyword: string) {
+  const needle = keyword.trim().toLowerCase();
+  if (!needle) return conversations;
+  return conversations.filter((conversation) =>
+    [
+      conversation.id,
+      conversation.roomId,
+      conversation.channelAccountId ?? "",
+      conversation.platformLabel,
+      conversation.accountName,
+      conversation.customerName,
+      conversation.customerEmail,
+      conversation.customerPhone,
+      conversation.lastMessage,
+      ...conversation.tags
+    ].some((value) => value.toLowerCase().includes(needle))
+  );
+}
+
+function sortConversationCards(
+  conversations: ConversationCard[],
+  sortOrder: "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc",
+  adminStore: AdminStore
+) {
+  if (sortOrder === "latest_desc" || sortOrder === "updated_desc") return sortConversationsByPriority(conversations, adminStore);
+  return [...sortConversationsByPriority(conversations, adminStore)].reverse();
 }
 
 function formatAuditTimelineContext(metadata: Record<string, unknown>) {

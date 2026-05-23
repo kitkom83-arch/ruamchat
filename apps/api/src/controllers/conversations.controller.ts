@@ -14,8 +14,6 @@ import {
 import { ConversationService } from "../services/conversation.service.js";
 import { CustomerService } from "../services/customer.service.js";
 
-const defaultTenantId = "00000000-0000-4000-8000-000000000001";
-
 @Controller("conversations")
 export class ConversationsController {
   constructor(
@@ -24,8 +22,8 @@ export class ConversationsController {
   ) {}
 
   @Get(":conversationId/messages")
-  async messages(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.conversations.getMessages(tenant, conversationId);
+  async messages(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.conversations.getMessages(requireTenantId(tenant), conversationId);
   }
 
   @Get(":conversationId/customer-360")
@@ -34,33 +32,33 @@ export class ConversationsController {
   }
 
   @Get(":conversationId/notes")
-  async notes(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.conversations.getNotes(tenant, conversationId);
+  async notes(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.conversations.getNotes(requireTenantId(tenant), conversationId);
   }
 
   @Post(":conversationId/notes")
   async createNote(
     @Param("conversationId") conversationId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId,
+    @Headers("x-tenant-id") tenant: string | undefined,
     @Headers("x-user-id") userId?: string
   ) {
-    return this.conversations.createNote(tenant, conversationId, userId, createInternalNoteRequestSchema.parse(body));
+    return this.conversations.createNote(requireTenantId(tenant), conversationId, userId, createInternalNoteRequestSchema.parse(body));
   }
 
   @Get(":conversationId/tasks")
-  async tasks(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.conversations.getTasks(tenant, conversationId);
+  async tasks(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.conversations.getTasks(requireTenantId(tenant), conversationId);
   }
 
   @Post(":conversationId/tasks")
   async createTask(
     @Param("conversationId") conversationId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId,
+    @Headers("x-tenant-id") tenant: string | undefined,
     @Headers("x-user-id") userId?: string
   ) {
-    return this.conversations.createTask(tenant, conversationId, userId, createTaskRequestSchema.parse(body));
+    return this.conversations.createTask(requireTenantId(tenant), conversationId, userId, createTaskRequestSchema.parse(body));
   }
 
   @Post(":conversationId/messages")
@@ -204,18 +202,18 @@ export class TasksController {
   async updateTask(
     @Param("taskId") taskId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId,
+    @Headers("x-tenant-id") tenant: string | undefined,
     @Headers("x-user-id") userId?: string
   ) {
-    return this.conversations.updateTask(tenant, taskId, userId, updateTaskRequestSchema.parse(body));
+    return this.conversations.updateTask(requireTenantId(tenant), taskId, userId, updateTaskRequestSchema.parse(body));
   }
 
   @Patch(":taskId/complete")
   async completeTask(
     @Param("taskId") taskId: string,
-    @Headers("x-tenant-id") tenant = defaultTenantId,
+    @Headers("x-tenant-id") tenant: string | undefined,
     @Headers("x-user-id") userId?: string
   ) {
-    return this.conversations.completeTask(tenant, taskId, userId);
+    return this.conversations.completeTask(requireTenantId(tenant), taskId, userId);
   }
 }

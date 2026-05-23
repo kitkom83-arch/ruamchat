@@ -775,6 +775,43 @@ h3 {
   font-size: 13px;
 }
 
+.queueSearch {
+  margin: 12px 0;
+}
+
+.queueSelectGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.queueSelectGrid label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.queueSelectGrid select {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.loadMoreButton {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .roomGroups {
   display: grid;
   gap: 16px;
