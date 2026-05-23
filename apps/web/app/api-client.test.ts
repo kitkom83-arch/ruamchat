@@ -121,6 +121,50 @@ describe("frontend API client", () => {
     expect(conversations[0]?.roomId).toBe("room-webchat");
   });
 
+  it("serializes API-mode inbox search filters and pagination with the tenant header", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse([
+      conversationResponse("conv-web")
+    ]));
+
+    await getConversations("room-webchat", {
+      tab: "human",
+      filter: "all",
+      search: "pricing question",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      status: "open",
+      priority: "high",
+      unread: "unread",
+      slaStatus: "warning",
+      sort: "updated_desc",
+      limit: 25,
+      offset: 50
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/rooms/room-webchat/conversations");
+    expect(url.searchParams.get("tab")).toBe("human");
+    expect(url.searchParams.get("filter")).toBe("all");
+    expect(url.searchParams.get("search")).toBe("pricing question");
+    expect(url.searchParams.get("platform")).toBe("webchat");
+    expect(url.searchParams.get("channelAccountId")).toBe("00000000-0000-4000-8000-000000000020");
+    expect(url.searchParams.get("status")).toBe("open");
+    expect(url.searchParams.get("priority")).toBe("high");
+    expect(url.searchParams.get("unread")).toBe("true");
+    expect(url.searchParams.get("slaStatus")).toBe("warning");
+    expect(url.searchParams.get("sort")).toBe("updated_desc");
+    expect(url.searchParams.get("limit")).toBe("25");
+    expect(url.searchParams.get("offset")).toBe("50");
+    expectTenantHeaderForAll(fetchMock);
+  });
+
+  it("surfaces inbox search API failures instead of returning mock conversations", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "search unavailable" }, 503));
+
+    await expect(getConversations("room-webchat", { search: "impossible" }))
+      .rejects.toThrow("API request failed (503): search unavailable");
+  });
+
   it("creates sent_mock agent replies through the API", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({
       id: "msg-agent",

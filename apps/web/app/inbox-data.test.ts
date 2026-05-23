@@ -10,6 +10,7 @@ import {
   getAiPanelMockActionStatus,
   getQuickRepliesForMode,
   mapApiConversationToCard,
+  mapApiRoomToPlatformRoom,
   mergeDemoConversation,
   mockConversations,
   quickReplies,
@@ -154,6 +155,59 @@ describe("Inbox Rooms mock filtering", () => {
       roomId: "room-line-main",
       accountName: "LINE OA Main"
     });
+  });
+
+  it("maps API rooms with channel account identifiers for API-mode platform filters", () => {
+    const room = mapApiRoomToPlatformRoom({
+      id: "room-line-main",
+      platform: "line",
+      platformLabel: "LINE",
+      channelAccountId: "00000000-0000-4000-8000-000000000022",
+      accountName: "LINE OA Main",
+      roomName: "LINE OA Main",
+      accent: "#16a34a",
+      conversationCount: 2
+    });
+
+    expect(room).toMatchObject({
+      id: "room-line-main",
+      platform: "line",
+      channelAccountId: "00000000-0000-4000-8000-000000000022",
+      accountName: "LINE OA Main"
+    });
+  });
+
+  it("renders persisted API search results as room-scoped cards instead of mock conversations", () => {
+    const apiCards = [
+      mapApiConversationToCard({
+        id: "conv-api-pricing",
+        roomId: "room-webchat",
+        tab: "human",
+        platform: "webchat",
+        platformLabel: "Webchat",
+        channelAccountId: "00000000-0000-4000-8000-000000000020",
+        accountName: "Main Website",
+        customerName: "Persisted Pricing Lead",
+        customerEmail: "pricing@example.local",
+        customerPhone: "-",
+        lastMessage: "pricing question from API",
+        lastMessageAt: "2026-05-21T04:00:00.000Z",
+        lastMessageTime: "11:00",
+        unreadCount: 1,
+        assignedAgent: null,
+        tags: [],
+        aiStatus: "Need Human",
+        priority: "high",
+        status: "open",
+        unreplied: true
+      })
+    ];
+
+    const visible = scopeApiConversationsToRoom(apiCards, "room-webchat");
+
+    expect(visible.map((conversation) => conversation.customerName)).toEqual(["Persisted Pricing Lead"]);
+    expect(visible.some((conversation) => conversation.id.startsWith("conv-web-"))).toBe(false);
+    expect(JSON.stringify(visible)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer/i);
   });
 
   it("does not merge mock conversations into API-mode platform rooms", () => {

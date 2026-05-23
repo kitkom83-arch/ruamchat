@@ -58,6 +58,7 @@ export class ConversationService {
       id: room.id,
       platform: room.platform,
       platformLabel: platformLabel(room.platform),
+      channelAccountId: room.channelAccountId,
       accountName: room.channelAccount.displayName,
       roomName: room.name,
       accent: platformAccent(room.platform),
@@ -73,12 +74,23 @@ export class ConversationService {
     tab?: CoreConversationTab;
     agentId?: string;
     search?: string;
+    platform?: Platform;
+    channelAccountId?: string;
+    status?: "open" | "pending" | "follow_up" | "resolved" | "closed" | "spam";
+    priority?: "low" | "medium" | "high" | "urgent";
+    unread?: boolean;
+    slaStatus?: "ok" | "warning" | "breached";
+    sort?: "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc";
+    limit?: number;
+    offset?: number;
   }) {
+    await this.ensureRoom(input.tenantId, input.roomId);
     const where: Prisma.ConversationWhereInput = {
       tenantId: input.tenantId,
       roomId: input.roomId
     };
     const andFilters: Prisma.ConversationWhereInput[] = [];
+    const roomFilters: Prisma.RoomWhereInput = {};
 
     if (input.filter === "my" || input.filter === "my_inbox") where.assignedUserId = input.agentId ?? input.userId ?? "__none__";
     if (input.filter === "unassigned") where.assignedUserId = null;
@@ -109,16 +121,36 @@ export class ConversationService {
     if (input.filter === "spam") where.status = "spam";
     if (!["closed", "spam"].includes(input.filter)) where.status = { notIn: ["closed", "spam"] };
     if (input.agentId && !["my", "my_inbox"].includes(input.filter)) where.assignedUserId = input.agentId;
+    if (input.platform) roomFilters.platform = input.platform;
+    if (input.channelAccountId?.trim()) roomFilters.channelAccountId = input.channelAccountId.trim();
+    if (input.status) {
+      if (input.status === "follow_up") {
+        where.followUpAt = { not: null };
+        where.status = { notIn: ["closed", "spam"] };
+      } else if (input.status === "resolved") {
+        where.status = "closed";
+      } else {
+        where.status = input.status;
+      }
+    }
+    if (input.priority) where.priority = normalizePrismaPriority(input.priority);
+    if (input.unread !== undefined) where.unread = input.unread;
+    if (input.slaStatus) where.slaStatus = input.slaStatus;
     if (input.tab === "bot") where.aiState = "ai_active";
     if (input.search?.trim()) {
       const search = input.search.trim();
       andFilters.push({
         OR: [
           { contact: { displayName: { contains: search, mode: "insensitive" } } },
+          { contact: { email: { contains: search, mode: "insensitive" } } },
+          { contact: { phone: { contains: search, mode: "insensitive" } } },
+          { contactIdentity: { displayName: { contains: search, mode: "insensitive" } } },
+          { contactIdentity: { externalUserId: { contains: search, mode: "insensitive" } } },
           { messages: { some: { text: { contains: search, mode: "insensitive" } } } }
         ]
       });
     }
+    if (Object.keys(roomFilters).length > 0) where.room = { is: roomFilters };
     if (andFilters.length > 0) where.AND = andFilters;
 
     const conversations = await this.prisma.conversation.findMany({
@@ -130,7 +162,9 @@ export class ConversationService {
         room: { include: { channelAccount: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 }
       },
-      orderBy: { lastMessageAt: "desc" }
+      orderBy: conversationSort(input.sort),
+      skip: input.offset,
+      take: input.limit
     });
 
     return conversations.map((conversation) => {
@@ -1246,6 +1280,13 @@ function normalizePrismaPriority(priority: UpdateConversationPriorityRequest["pr
     throw new BadRequestException("Invalid conversation priority. Allowed values: low, normal, high, urgent");
   }
   return priority === "medium" ? "normal" : priority;
+}
+
+function conversationSort(sort: "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc" | undefined): Prisma.ConversationOrderByWithRelationInput[] {
+  if (sort === "latest_asc") return [{ lastMessageAt: "asc" }, { updatedAt: "asc" }];
+  if (sort === "updated_desc") return [{ updatedAt: "desc" }, { lastMessageAt: "desc" }];
+  if (sort === "updated_asc") return [{ updatedAt: "asc" }, { lastMessageAt: "asc" }];
+  return [{ lastMessageAt: "desc" }, { updatedAt: "desc" }];
 }
 
 function mapSenderType(senderType: SenderType) {

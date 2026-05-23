@@ -164,6 +164,15 @@ type ConversationFilters = {
   filter?: ConversationFilter;
   agentId?: string;
   search?: string;
+  platform?: Platform | "all";
+  channelAccountId?: string;
+  status?: "all" | "open" | "pending" | "follow_up" | "resolved" | "closed" | "spam";
+  priority?: "all" | "low" | "medium" | "high" | "urgent";
+  unread?: "all" | "unread" | "read";
+  slaStatus?: "all" | "ok" | "warning" | "breached";
+  sort?: "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc";
+  limit?: number;
+  offset?: number;
 };
 
 type WebchatMessagePayload = WebchatInboundRequest & {
@@ -486,6 +495,15 @@ export async function getConversations(roomId: string, filters: ConversationFilt
   params.set("filter", filter);
   if (filters.agentId) params.set("agentId", filters.agentId);
   if (filters.search?.trim()) params.set("search", filters.search.trim());
+  if (filters.platform && filters.platform !== "all") params.set("platform", filters.platform);
+  if (filters.channelAccountId?.trim()) params.set("channelAccountId", filters.channelAccountId.trim());
+  if (filters.status && filters.status !== "all") params.set("status", filters.status);
+  if (filters.priority && filters.priority !== "all") params.set("priority", filters.priority);
+  if (filters.unread && filters.unread !== "all") params.set("unread", filters.unread === "unread" ? "true" : "false");
+  if (filters.slaStatus && filters.slaStatus !== "all") params.set("slaStatus", filters.slaStatus);
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) params.set("offset", String(filters.offset));
   return request(`/rooms/${encodeURIComponent(roomId)}/conversations?${params.toString()}`, coreConversationCardSchema.array());
 }
 

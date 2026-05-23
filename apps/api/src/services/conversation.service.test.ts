@@ -73,19 +73,33 @@ function buildService() {
       })
     },
     conversation: {
-      findMany: vi.fn(async ({ where }) => conversations.filter((item) => {
+      findMany: vi.fn(async ({ where, skip, take }) => conversations.filter((item) => {
+        if (where.tenantId && item.tenantId !== where.tenantId) return false;
         if (where.roomId && item.roomId !== where.roomId) return false;
+        const roomFilter = where.room?.is;
+        if (roomFilter?.platform && item.room.platform !== roomFilter.platform) return false;
+        if (roomFilter?.channelAccountId && item.room.channelAccountId !== roomFilter.channelAccountId) return false;
         if (where.aiState && item.aiState !== where.aiState) return false;
         if (where.assignedUserId !== undefined && item.assignedUserId !== where.assignedUserId) return false;
         if (typeof where.status === "string" && item.status !== where.status) return false;
         if (where.status?.notIn?.includes(item.status)) return false;
+        if (where.priority && item.priority !== where.priority) return false;
         if (where.unread !== undefined && item.unread !== where.unread) return false;
         if (where.unreplied !== undefined && item.unreplied !== where.unreplied) return false;
+        if (where.slaStatus && item.slaStatus !== where.slaStatus) return false;
+        if (where.followUpAt?.not === null && item.followUpAt === null) return false;
         if (Array.isArray(where.AND)) {
           return where.AND.every((clause: any) => {
             if (clause.OR?.[0]?.contact) {
               const search = clause.OR[0].contact.displayName.contains.toLowerCase();
-              return item.contact.displayName.toLowerCase().includes(search) || item.messages.some((msg: Record<string, any>) => msg.text.toLowerCase().includes(search));
+              return [
+                item.contact.displayName,
+                item.contact.email ?? "",
+                item.contact.phone ?? "",
+                item.contactIdentity.displayName ?? "",
+                item.contactIdentity.externalUserId ?? ""
+              ].some((value) => value.toLowerCase().includes(search)) ||
+                item.messages.some((msg: Record<string, any>) => msg.text.toLowerCase().includes(search));
             }
             if (clause.OR?.some((entry: any) => entry.slaStatus === "warning")) return item.slaStatus === "warning";
             if (clause.OR?.some((entry: any) => entry.slaStatus === "breached")) return item.slaStatus === "breached" || Boolean(item.slaBreachedAt);
@@ -93,7 +107,7 @@ function buildService() {
           });
         }
         return true;
-      })),
+      }).slice(skip ?? 0, take === undefined ? undefined : (skip ?? 0) + take)),
       findFirst: vi.fn(async ({ where }) => conversations.find((item) => item.id === where.id && item.tenantId === where.tenantId) ?? null),
       update: vi.fn(async ({ where, data }) => {
         const index = conversations.findIndex((item) => item.id === where.id);
@@ -275,6 +289,13 @@ describe("ConversationService core API", () => {
       "facebook/Page หลัก",
       "instagram/IG ร้านค้า"
     ]);
+    expect(rooms.map((item) => item.channelAccountId)).toEqual([
+      webchatAccountId,
+      telegramAccountId,
+      lineAccountId,
+      facebookAccountId,
+      instagramAccountId
+    ]);
   });
 
   it("does not return Telegram conversations in the Webchat room", async () => {
@@ -361,6 +382,85 @@ describe("ConversationService core API", () => {
     expect(telegramUnreplied.map((item) => item.id)).toEqual(["conv-telegram-need-human"]);
     expect(lineUnread.every((item) => item.roomId === lineRoomId)).toBe(true);
     expect(telegramUnreplied.every((item) => item.roomId === telegramRoomId)).toBe(true);
+  });
+
+  it("applies API conversation list query filters without dropping platform account room context", async () => {
+    const { service } = buildService();
+
+    const conversations = await service.listConversations({
+      tenantId,
+      roomId: telegramRoomId,
+      filter: "all",
+      tab: "human",
+      search: "pricing",
+      platform: "telegram",
+      channelAccountId: telegramAccountId,
+      status: "open",
+      priority: "medium",
+      unread: true,
+      slaStatus: "ok",
+      sort: "updated_desc",
+      limit: 10,
+      offset: 0
+    });
+
+    expect(conversations.map((item) => item.id)).toEqual(["conv-telegram-need-human"]);
+    expect(conversations[0]).toMatchObject({
+      id: "conv-telegram-need-human",
+      platform: "telegram",
+      channelAccountId: telegramAccountId,
+      roomId: telegramRoomId,
+      status: "open",
+      priority: "medium"
+    });
+    expect(JSON.stringify(conversations)).not.toMatch(/accessToken|accessTokenCiphertext|webhookSecret|botToken|apiKey|Bearer/i);
+  });
+
+  it("does not merge same-keyword conversations across platform account room boundaries", async () => {
+    const { service } = buildService();
+
+    const webchat = await service.listConversations({ tenantId, roomId: webchatRoomId, filter: "all", tab: "human", search: "shared pricing question" });
+    const telegram = await service.listConversations({ tenantId, roomId: telegramRoomId, filter: "all", tab: "human", search: "shared pricing question" });
+
+    expect(webchat).toEqual([]);
+    expect(telegram.map((item) => `${item.platform}/${item.channelAccountId}/${item.roomId}/${item.id}`)).toEqual([
+      `telegram/${telegramAccountId}/${telegramRoomId}/conv-telegram-need-human`
+    ]);
+  });
+
+  it("returns an empty API result for impossible filters without synthesizing mock data", async () => {
+    const { service } = buildService();
+
+    const conversations = await service.listConversations({
+      tenantId,
+      roomId: webchatRoomId,
+      filter: "all",
+      tab: "human",
+      search: "definitely-impossible-sprint31"
+    });
+
+    expect(conversations).toEqual([]);
+  });
+
+  it("paginates API conversation list results when a limit is supplied", async () => {
+    const { service } = buildService();
+
+    const first = await service.listConversations({ tenantId, roomId: telegramRoomId, filter: "closed", tab: "human", limit: 1, offset: 0 });
+    const second = await service.listConversations({ tenantId, roomId: telegramRoomId, filter: "closed", tab: "human", limit: 1, offset: 1 });
+
+    expect(first.map((item) => item.id)).toEqual(["conv-telegram-closed"]);
+    expect(second).toEqual([]);
+  });
+
+  it("rejects conversation list queries outside the tenant scope", async () => {
+    const { service } = buildService();
+
+    await expect(service.listConversations({
+      tenantId: "00000000-0000-4000-8000-000000009999",
+      roomId: webchatRoomId,
+      filter: "all",
+      tab: "human"
+    })).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("returns only messages for the requested conversation", async () => {

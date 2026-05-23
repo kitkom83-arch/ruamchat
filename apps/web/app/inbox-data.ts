@@ -10,6 +10,7 @@ export type MessageSender = "customer" | "agent" | "ai" | "ai_draft" | "automati
 export type PlatformRoom = {
   id: string;
   platform: InboxPlatform;
+  channelAccountId?: string;
   platformLabel: string;
   accountName: string;
   roomName: string;
@@ -486,6 +487,7 @@ export function mapApiRoomToPlatformRoom(room: CoreRoom): PlatformRoom {
   return {
     id: room.id,
     platform: room.platform,
+    channelAccountId: room.channelAccountId,
     platformLabel: room.platformLabel,
     accountName: room.accountName,
     roomName: room.roomName,
