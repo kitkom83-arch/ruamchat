@@ -1,0 +1,17 @@
+{
+  "update_id": 7001,
+  "message": {
+    "message_id": 42,
+    "date": 1779236400,
+    "text": "ขอราคาแพ็กเกจ Pro ผ่าน Telegram",
+    "from": {
+      "id": 55201,
+      "first_name": "Krit",
+      "username": "krit_demo"
+    },
+    "chat": {
+      "id": 55201,
+      "type": "private"
+    }
+  }
+}

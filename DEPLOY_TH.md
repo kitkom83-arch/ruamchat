@@ -1,0 +1,215 @@
+# คู่มือ Deploy ขึ้น VPS ด้วย Docker
+
+คู่มือนี้ใช้สำหรับติดตั้งระบบ AI Omnichannel Chat Rooms บน VPS จริง โดยใช้ Docker Compose, PostgreSQL, Redis, MinIO, API, Worker, Web dashboard และ Caddy สำหรับ HTTPS อัตโนมัติ
+
+## 1. สิ่งที่ต้องเตรียม
+
+- VPS Ubuntu 22.04 หรือ 24.04
+- Domain หรือ subdomain เช่น `chat.example.com`
+- DNS `A record` ของโดเมนชี้มาที่ IP ของ VPS แล้ว
+- Port `80` และ `443` เปิดจาก firewall/security group
+- Docker และ Docker Compose plugin ติดตั้งบน VPS
+
+เช็กบน VPS:
+
+```bash
+docker --version
+docker compose version
+```
+
+## 2. ส่งโปรเจกต์ขึ้น VPS
+
+ตัวอย่างใช้ `scp` จากเครื่องเราไป VPS:
+
+```bash
+scp -r ./รวมแชท root@YOUR_VPS_IP:/opt/aiomni
+```
+
+จากนั้น ssh เข้า VPS:
+
+```bash
+ssh root@YOUR_VPS_IP
+cd /opt/aiomni
+```
+
+ถ้าใช้ Git อยู่แล้ว ให้ clone repo ลง `/opt/aiomni` แทนได้
+
+## 3. สร้างไฟล์ env production
+
+```bash
+cp .env.production.example .env.production
+```
+
+แก้ไฟล์:
+
+```bash
+nano .env.production
+```
+
+ค่าที่ต้องเปลี่ยนก่อนรันจริง:
+
+```text
+APP_DOMAIN=chat.example.com
+APP_URL=https://chat.example.com
+API_URL=https://chat.example.com/api
+POSTGRES_PASSWORD=รหัสผ่านยาวๆ
+S3_ACCESS_KEY=ชื่อผู้ใช้ MinIO
+S3_SECRET_KEY=รหัสผ่าน MinIO ยาวๆ
+APP_ENCRYPTION_KEY=base64 32 bytes
+JWT_SECRET=รหัสลับยาวๆ
+OPENAI_API_KEY=sk-...
+```
+
+สร้าง `APP_ENCRYPTION_KEY`:
+
+```bash
+openssl rand -base64 32
+```
+
+สร้าง `JWT_SECRET`:
+
+```bash
+openssl rand -hex 32
+```
+
+ถ้ายังไม่ใส่ `OPENAI_API_KEY` ระบบยังเปิดได้ แต่ AI จะใช้ fallback draft สำหรับทดสอบ
+
+## 4. Build และเปิดระบบ
+
+ใช้สคริปต์ที่เตรียมไว้:
+
+```bash
+sh scripts/deploy-vps.sh
+```
+
+สคริปต์นี้จะทำ:
+
+- build image ของ API, Worker, Web
+- push schema เข้า PostgreSQL
+- seed ข้อมูลเริ่มต้น
+- เปิด service ทั้งหมด
+- แสดงสถานะ container
+
+ถ้าต้องการรันเองทีละคำสั่ง:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml build
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml up -d postgres redis minio api worker web caddy
+```
+
+## 5. เปิดใช้งาน
+
+หลัง Caddy ออก certificate สำเร็จ เปิด:
+
+```text
+https://chat.example.com
+```
+
+API ผ่าน reverse proxy:
+
+```text
+https://chat.example.com/api/rooms
+```
+
+Webhook URL สำหรับ Webchat demo:
+
+```text
+https://chat.example.com/webhooks/webchat/demo-webchat
+```
+
+Webhook URL สำหรับ Telegram:
+
+```text
+https://chat.example.com/webhooks/telegram/CHANNEL_ACCOUNT_ID
+```
+
+Webhook URL สำหรับ LINE:
+
+```text
+https://chat.example.com/webhooks/line/CHANNEL_ACCOUNT_ID
+```
+
+## 6. คำสั่งดูแลระบบ
+
+ดู container:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml ps
+```
+
+ดู log:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml logs -f api
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml logs -f worker
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml logs -f caddy
+```
+
+restart:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml restart api worker web
+```
+
+update หลังแก้โค้ด:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml build
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml run --rm migrate
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml up -d
+```
+
+หยุดระบบ:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml down
+```
+
+หยุดและลบข้อมูล database/storage ทั้งหมด:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml down -v
+```
+
+ใช้คำสั่ง `down -v` เฉพาะตอนต้องการล้างข้อมูลจริงเท่านั้น
+
+## 7. จุดที่ต้องเช็กถ้าเว็บไม่ขึ้น
+
+เช็ก DNS:
+
+```bash
+dig +short chat.example.com
+```
+
+ผลลัพธ์ต้องเป็น IP ของ VPS
+
+เช็ก firewall:
+
+```bash
+ufw status
+```
+
+ถ้าใช้ UFW:
+
+```bash
+ufw allow 80/tcp
+ufw allow 443/tcp
+```
+
+ดู log Caddy:
+
+```bash
+docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.yml logs -f caddy
+```
+
+ถ้า Caddy ขอ certificate ไม่ได้ ส่วนใหญ่เกิดจาก DNS ยังไม่ชี้มาที่ VPS หรือ port `80/443` ยังไม่เปิด
+
+## 8. ขั้นต่อไปหลัง deploy ติด
+
+1. ตั้งค่า Telegram Bot webhook มาที่ URL production
+2. ตั้งค่า LINE webhook และ verify signature
+3. ใส่ `OPENAI_API_KEY` เพื่อใช้ AI จริง
+4. เพิ่มหน้า Settings สำหรับกรอก token/channel account ผ่าน UI
+5. ทำ backup PostgreSQL รายวัน
+

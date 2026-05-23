@@ -1,0 +1,800 @@
+import {
+  agentMessageRequestSchema,
+  analyticsAgentsSchema,
+  analyticsAiSchema,
+  analyticsAuditSchema,
+  analyticsChannelsSchema,
+  analyticsConversationsSchema,
+  analyticsOverviewSchema,
+  analyticsSlaSchema,
+  analyticsTasksSchema,
+  apiHealthSchema,
+  coreConversationCardSchema,
+  coreConversationTabSchema,
+  coreMessageSchema,
+  coreRoomSchema,
+  contactIdentitySchema,
+  contactSchema,
+  conversationAuditLogSchema,
+  conversationStatusHistorySchema,
+  broadcastAudiencePreviewRequestSchema,
+  broadcastAudiencePreviewResultSchema,
+  broadcastCampaignSchema,
+  broadcastSendLogSchema,
+  broadcastSendResultSchema,
+  broadcastSendTestRequestSchema,
+  broadcastSegmentSchema,
+  createKnowledgeBaseRequestSchema,
+  createKnowledgeChunkRequestSchema,
+  createKnowledgeDocumentRequestSchema,
+  createBroadcastCampaignRequestSchema,
+  createBroadcastSegmentRequestSchema,
+  createFlowRequestSchema,
+  createInternalNoteRequestSchema,
+  createContactRequestSchema,
+  createTaskRequestSchema,
+  customer360Schema,
+  conversationFilterSchema,
+  followUpConversationRequestSchema,
+  flowRunSchema,
+  flowSchema,
+  flowTestRunRequestSchema,
+  flowTestRunResultSchema,
+  internalNoteSchema,
+  knowledgeBaseSchema,
+  knowledgeChunkSchema,
+  knowledgeDocumentSchema,
+  linkContactIdentityRequestSchema,
+  roomAiPolicyPatchSchema,
+  roomAiPolicySchema,
+  scheduleBroadcastCampaignRequestSchema,
+  setPrimaryIdentityRequestSchema,
+  settingsChannelAccountSchema,
+  settingsCannedReplySchema,
+  settingsSlaPolicySchema,
+  settingsTeamMemberSchema,
+  unlinkContactIdentityRequestSchema,
+  updateBroadcastCampaignRequestSchema,
+  updateBroadcastSegmentRequestSchema,
+  updateKnowledgeBaseRequestSchema,
+  updateKnowledgeChunkRequestSchema,
+  updateKnowledgeDocumentRequestSchema,
+  updateFlowRequestSchema,
+  updateFlowStatusRequestSchema,
+  updateConversationPriorityRequestSchema,
+  updateConversationReadStateRequestSchema,
+  updateConversationSlaRequestSchema,
+  updateConversationStatusRequestSchema,
+  updateContactRequestSchema,
+  updateSettingsChannelAccountRequestSchema,
+  updateSettingsCannedReplyRequestSchema,
+  updateSettingsSlaPolicyRequestSchema,
+  updateSettingsTeamMemberRequestSchema,
+  updateTaskRequestSchema,
+  webchatInboundRequestSchema,
+  webchatInboundResponseSchema,
+  workflowTaskSchema,
+  type AgentMessageRequest,
+  type AnalyticsAgents,
+  type AnalyticsAi,
+  type AnalyticsAudit,
+  type AnalyticsChannels,
+  type AnalyticsConversations,
+  type AnalyticsOverview,
+  type AnalyticsSla,
+  type AnalyticsTasks,
+  type ApiHealth,
+  type BroadcastAudiencePreviewRequest,
+  type BroadcastAudiencePreviewResult,
+  type BroadcastCampaign,
+  type BroadcastSendLog,
+  type BroadcastSendResult,
+  type BroadcastSendTestRequest,
+  type BroadcastSegment,
+  type ConversationAuditLog,
+  type CreateBroadcastCampaignRequest,
+  type CreateBroadcastSegmentRequest,
+  type CreateInternalNoteRequest,
+  type ConversationFilter,
+  type CoreConversationCard,
+  type CoreConversationTab,
+  type CoreMessage,
+  type CoreRoom,
+  type Contact,
+  type ContactIdentity,
+  type CreateContactRequest,
+  type CreateFlowRequest,
+  type CreateKnowledgeBaseRequest,
+  type CreateKnowledgeChunkRequest,
+  type CreateKnowledgeDocumentRequest,
+  type CreateTaskRequest,
+  type Customer360,
+  type FollowUpConversationRequest,
+  type Flow,
+  type FlowRun,
+  type FlowTestRunRequest,
+  type FlowTestRunResult,
+  type InternalNote,
+  type KnowledgeBase,
+  type KnowledgeChunk,
+  type KnowledgeDocument,
+  type LinkContactIdentityRequest,
+  type Platform,
+  type RoomAiPolicy,
+  type RoomAiPolicyPatch,
+  type ScheduleBroadcastCampaignRequest,
+  type SetPrimaryIdentityRequest,
+  type SettingsChannelAccount,
+  type SettingsCannedReply,
+  type SettingsSlaPolicy,
+  type SettingsTeamMember,
+  type ConversationStatusHistory,
+  type UpdateConversationPriorityRequest,
+  type UpdateConversationReadStateRequest,
+  type UpdateConversationSlaRequest,
+  type UpdateConversationStatusRequest,
+  type UnlinkContactIdentityRequest,
+  type UpdateBroadcastCampaignRequest,
+  type UpdateBroadcastSegmentRequest,
+  type UpdateContactRequest,
+  type UpdateSettingsChannelAccountRequest,
+  type UpdateSettingsCannedReplyRequest,
+  type UpdateSettingsSlaPolicyRequest,
+  type UpdateSettingsTeamMemberRequest,
+  type UpdateFlowRequest,
+  type UpdateFlowStatusRequest,
+  type UpdateKnowledgeBaseRequest,
+  type UpdateKnowledgeChunkRequest,
+  type UpdateKnowledgeDocumentRequest,
+  type UpdateTaskRequest,
+  type WebchatInboundRequest,
+  type WebchatInboundResponse,
+  type WorkflowTask
+} from "@ai-omni/shared";
+import { getApiBaseUrl, getApiTenantId } from "./data-mode";
+
+type ConversationFilters = {
+  tab?: CoreConversationTab;
+  filter?: ConversationFilter;
+  agentId?: string;
+  search?: string;
+};
+
+type WebchatMessagePayload = WebchatInboundRequest & {
+  channelAccountId?: string;
+};
+
+type AnalyticsQuery = {
+  from?: string;
+  to?: string;
+  platform?: Platform | "all";
+  roomId?: string;
+  agentId?: string;
+};
+
+export const defaultApiUserId = "00000000-0000-4000-8000-000000000011";
+
+export async function getApiHealth(): Promise<ApiHealth> {
+  return request("/health", apiHealthSchema);
+}
+
+export async function getAnalyticsOverview(query: AnalyticsQuery = {}): Promise<AnalyticsOverview> {
+  return request(analyticsPath("/analytics/overview", query), analyticsOverviewSchema);
+}
+
+export async function getAnalyticsConversations(query: AnalyticsQuery = {}): Promise<AnalyticsConversations> {
+  return request(analyticsPath("/analytics/conversations", query), analyticsConversationsSchema);
+}
+
+export async function getAnalyticsChannels(query: AnalyticsQuery = {}): Promise<AnalyticsChannels> {
+  return request(analyticsPath("/analytics/channels", query), analyticsChannelsSchema);
+}
+
+export async function getAnalyticsAgents(query: AnalyticsQuery = {}): Promise<AnalyticsAgents> {
+  return request(analyticsPath("/analytics/agents", query), analyticsAgentsSchema);
+}
+
+export async function getAnalyticsSla(query: AnalyticsQuery = {}): Promise<AnalyticsSla> {
+  return request(analyticsPath("/analytics/sla", query), analyticsSlaSchema);
+}
+
+export async function getAnalyticsAi(query: AnalyticsQuery = {}): Promise<AnalyticsAi> {
+  return request(analyticsPath("/analytics/ai", query), analyticsAiSchema);
+}
+
+export async function getAnalyticsTasks(query: AnalyticsQuery = {}): Promise<AnalyticsTasks> {
+  return request(analyticsPath("/analytics/tasks", query), analyticsTasksSchema);
+}
+
+export async function getAnalyticsAudit(query: AnalyticsQuery = {}): Promise<AnalyticsAudit> {
+  return request(analyticsPath("/analytics/audit", query), analyticsAuditSchema);
+}
+
+export async function getFlows(): Promise<Flow[]> {
+  return request("/flows", flowSchema.array());
+}
+
+export async function createApiFlow(payload: CreateFlowRequest): Promise<Flow> {
+  const body = createFlowRequestSchema.parse(payload);
+  return request("/flows", flowSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getFlow(flowId: string): Promise<Flow> {
+  return request(`/flows/${encodeURIComponent(flowId)}`, flowSchema);
+}
+
+export async function updateApiFlow(flowId: string, payload: UpdateFlowRequest): Promise<Flow> {
+  const body = updateFlowRequestSchema.parse(payload);
+  return request(`/flows/${encodeURIComponent(flowId)}`, flowSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteApiFlow(flowId: string): Promise<Flow> {
+  return request(`/flows/${encodeURIComponent(flowId)}`, flowSchema, {
+    method: "DELETE"
+  });
+}
+
+export async function duplicateApiFlow(flowId: string): Promise<Flow> {
+  return request(`/flows/${encodeURIComponent(flowId)}/duplicate`, flowSchema, {
+    method: "POST"
+  });
+}
+
+export async function updateApiFlowStatus(flowId: string, payload: UpdateFlowStatusRequest): Promise<Flow> {
+  const body = updateFlowStatusRequestSchema.parse(payload);
+  return request(`/flows/${encodeURIComponent(flowId)}/status`, flowSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getFlowRuns(flowId: string): Promise<FlowRun[]> {
+  return request(`/flows/${encodeURIComponent(flowId)}/runs`, flowRunSchema.array());
+}
+
+export async function testRunApiFlow(flowId: string, payload: FlowTestRunRequest): Promise<FlowTestRunResult> {
+  const body = flowTestRunRequestSchema.parse(payload);
+  return request(`/flows/${encodeURIComponent(flowId)}/test-run`, flowTestRunResultSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getBroadcastCampaigns(): Promise<BroadcastCampaign[]> {
+  return request("/broadcasts/campaigns", broadcastCampaignSchema.array());
+}
+
+export async function createBroadcastCampaign(payload: CreateBroadcastCampaignRequest): Promise<BroadcastCampaign> {
+  const body = createBroadcastCampaignRequestSchema.parse(payload);
+  return request("/broadcasts/campaigns", broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getBroadcastCampaign(campaignId: string): Promise<BroadcastCampaign> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}`, broadcastCampaignSchema);
+}
+
+export async function updateBroadcastCampaign(campaignId: string, payload: UpdateBroadcastCampaignRequest): Promise<BroadcastCampaign> {
+  const body = updateBroadcastCampaignRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}`, broadcastCampaignSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteBroadcastCampaign(campaignId: string): Promise<BroadcastCampaign> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}`, broadcastCampaignSchema, {
+    method: "DELETE"
+  });
+}
+
+export async function duplicateBroadcastCampaign(campaignId: string): Promise<BroadcastCampaign> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/duplicate`, broadcastCampaignSchema, {
+    method: "POST"
+  });
+}
+
+export async function previewBroadcastAudience(campaignId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {
+  const body = broadcastAudiencePreviewRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/audience-preview`, broadcastAudiencePreviewResultSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function scheduleBroadcastCampaign(campaignId: string, payload: ScheduleBroadcastCampaignRequest): Promise<BroadcastCampaign> {
+  const body = scheduleBroadcastCampaignRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/schedule`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function sendBroadcastTest(campaignId: string, payload: BroadcastSendTestRequest = {}): Promise<BroadcastSendResult> {
+  const body = broadcastSendTestRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/send-test`, broadcastSendResultSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function sendBroadcastNow(campaignId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastSendResult> {
+  const body = broadcastAudiencePreviewRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/send-now`, broadcastSendResultSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getBroadcastSendLogs(campaignId: string): Promise<BroadcastSendLog[]> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/send-logs`, broadcastSendLogSchema.array());
+}
+
+export async function getBroadcastSegments(): Promise<BroadcastSegment[]> {
+  return request("/broadcasts/segments", broadcastSegmentSchema.array());
+}
+
+export async function createBroadcastSegment(payload: CreateBroadcastSegmentRequest): Promise<BroadcastSegment> {
+  const body = createBroadcastSegmentRequestSchema.parse(payload);
+  return request("/broadcasts/segments", broadcastSegmentSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateBroadcastSegment(segmentId: string, payload: UpdateBroadcastSegmentRequest): Promise<BroadcastSegment> {
+  const body = updateBroadcastSegmentRequestSchema.parse(payload);
+  return request(`/broadcasts/segments/${encodeURIComponent(segmentId)}`, broadcastSegmentSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteBroadcastSegment(segmentId: string): Promise<BroadcastSegment> {
+  return request(`/broadcasts/segments/${encodeURIComponent(segmentId)}`, broadcastSegmentSchema, {
+    method: "DELETE"
+  });
+}
+
+export async function getRooms(): Promise<CoreRoom[]> {
+  return request("/rooms", coreRoomSchema.array());
+}
+
+export async function getKnowledgeBases(): Promise<KnowledgeBase[]> {
+  return request("/ai/knowledge-bases", knowledgeBaseSchema.array());
+}
+
+export async function createKnowledgeBase(payload: CreateKnowledgeBaseRequest): Promise<KnowledgeBase> {
+  const body = createKnowledgeBaseRequestSchema.parse(payload);
+  return request("/ai/knowledge-bases", knowledgeBaseSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateKnowledgeBase(knowledgeBaseId: string, payload: UpdateKnowledgeBaseRequest): Promise<KnowledgeBase> {
+  const body = updateKnowledgeBaseRequestSchema.parse(payload);
+  return request(`/ai/knowledge-bases/${encodeURIComponent(knowledgeBaseId)}`, knowledgeBaseSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteKnowledgeBase(knowledgeBaseId: string): Promise<KnowledgeBase> {
+  return request(`/ai/knowledge-bases/${encodeURIComponent(knowledgeBaseId)}`, knowledgeBaseSchema, {
+    method: "DELETE"
+  });
+}
+
+export async function getKnowledgeDocuments(knowledgeBaseId: string): Promise<KnowledgeDocument[]> {
+  return request(`/ai/knowledge-bases/${encodeURIComponent(knowledgeBaseId)}/documents`, knowledgeDocumentSchema.array());
+}
+
+export async function createKnowledgeDocument(knowledgeBaseId: string, payload: CreateKnowledgeDocumentRequest): Promise<KnowledgeDocument> {
+  const body = createKnowledgeDocumentRequestSchema.parse(payload);
+  return request(`/ai/knowledge-bases/${encodeURIComponent(knowledgeBaseId)}/documents`, knowledgeDocumentSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateKnowledgeDocument(documentId: string, payload: UpdateKnowledgeDocumentRequest): Promise<KnowledgeDocument> {
+  const body = updateKnowledgeDocumentRequestSchema.parse(payload);
+  return request(`/ai/documents/${encodeURIComponent(documentId)}`, knowledgeDocumentSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteKnowledgeDocument(documentId: string): Promise<KnowledgeDocument> {
+  return request(`/ai/documents/${encodeURIComponent(documentId)}`, knowledgeDocumentSchema, {
+    method: "DELETE"
+  });
+}
+
+export async function getKnowledgeChunks(documentId: string): Promise<KnowledgeChunk[]> {
+  return request(`/ai/documents/${encodeURIComponent(documentId)}/chunks`, knowledgeChunkSchema.array());
+}
+
+export async function createKnowledgeChunk(documentId: string, payload: CreateKnowledgeChunkRequest): Promise<KnowledgeChunk> {
+  const body = createKnowledgeChunkRequestSchema.parse(payload);
+  return request(`/ai/documents/${encodeURIComponent(documentId)}/chunks`, knowledgeChunkSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateKnowledgeChunk(chunkId: string, payload: UpdateKnowledgeChunkRequest): Promise<KnowledgeChunk> {
+  const body = updateKnowledgeChunkRequestSchema.parse(payload);
+  return request(`/ai/chunks/${encodeURIComponent(chunkId)}`, knowledgeChunkSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function deleteKnowledgeChunk(chunkId: string): Promise<{ id: string; deleted: true }> {
+  return requestRaw(`/ai/chunks/${encodeURIComponent(chunkId)}`, {
+    method: "DELETE"
+  }) as Promise<{ id: string; deleted: true }>;
+}
+
+export async function getRoomAiPolicy(roomId: string): Promise<RoomAiPolicy> {
+  return request(`/rooms/${encodeURIComponent(roomId)}/ai-policy`, roomAiPolicySchema);
+}
+
+export async function updateRoomAiPolicy(roomId: string, payload: RoomAiPolicyPatch): Promise<RoomAiPolicy> {
+  const body = roomAiPolicyPatchSchema.parse(payload);
+  return request(`/rooms/${encodeURIComponent(roomId)}/ai-policy`, roomAiPolicySchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getConversations(roomId: string, filters: ConversationFilters = {}): Promise<CoreConversationCard[]> {
+  const params = new URLSearchParams();
+  const tab = coreConversationTabSchema.catch("human").parse(filters.tab);
+  const filter = conversationFilterSchema.catch("all").parse(filters.filter);
+  params.set("tab", tab);
+  params.set("filter", filter);
+  if (filters.agentId) params.set("agentId", filters.agentId);
+  if (filters.search?.trim()) params.set("search", filters.search.trim());
+  return request(`/rooms/${encodeURIComponent(roomId)}/conversations?${params.toString()}`, coreConversationCardSchema.array());
+}
+
+export async function getConversationMessages(conversationId: string): Promise<CoreMessage[]> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, coreMessageSchema.array());
+}
+
+export async function getCustomer360(conversationId: string): Promise<Customer360> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/customer-360`, customer360Schema);
+}
+
+export async function getConversationNotes(conversationId: string): Promise<InternalNote[]> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/notes`, internalNoteSchema.array());
+}
+
+export async function createConversationNote(conversationId: string, payload: CreateInternalNoteRequest): Promise<InternalNote> {
+  const body = createInternalNoteRequestSchema.parse(payload);
+  return request(`/conversations/${encodeURIComponent(conversationId)}/notes`, internalNoteSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getConversationTasks(conversationId: string): Promise<WorkflowTask[]> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/tasks`, workflowTaskSchema.array());
+}
+
+export async function createConversationWorkflowTask(conversationId: string, payload: CreateTaskRequest): Promise<WorkflowTask> {
+  const body = createTaskRequestSchema.parse(payload);
+  return request(`/conversations/${encodeURIComponent(conversationId)}/tasks`, workflowTaskSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateConversationWorkflowTask(taskId: string, payload: UpdateTaskRequest): Promise<WorkflowTask> {
+  const body = updateTaskRequestSchema.parse(payload);
+  return request(`/tasks/${encodeURIComponent(taskId)}`, workflowTaskSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function completeConversationWorkflowTask(taskId: string): Promise<WorkflowTask> {
+  return request(`/tasks/${encodeURIComponent(taskId)}/complete`, workflowTaskSchema, {
+    method: "PATCH"
+  });
+}
+
+export async function assignConversation(conversationId: string, userId: string | null): Promise<CoreConversationCard> {
+  return mutateConversation(conversationId, "assign", { userId });
+}
+
+export async function takeOverConversation(conversationId: string): Promise<CoreConversationCard> {
+  return mutateConversation(conversationId, "takeover", undefined);
+}
+
+export async function returnConversationToAi(conversationId: string): Promise<CoreConversationCard> {
+  return mutateConversation(conversationId, "return-to-ai", undefined, [{ tab: "bot", filter: "all" }]);
+}
+
+export async function setConversationFollowUp(conversationId: string, payload: FollowUpConversationRequest = {}): Promise<CoreConversationCard> {
+  const body = followUpConversationRequestSchema.parse(payload);
+  return mutateConversation(conversationId, "follow-up", body);
+}
+
+export async function closeConversation(conversationId: string): Promise<CoreConversationCard> {
+  return mutateConversation(conversationId, "close", undefined, [{ tab: "human", filter: "closed" }, { tab: "bot", filter: "closed" }]);
+}
+
+export async function updateConversationStatus(conversationId: string, payload: UpdateConversationStatusRequest): Promise<CoreConversationCard> {
+  const body = updateConversationStatusRequestSchema.parse(payload);
+  const filters = body.status === "closed"
+    ? [{ tab: "human" as const, filter: "closed" as const }, { tab: "bot" as const, filter: "closed" as const }]
+    : body.status === "spam"
+      ? [{ tab: "human" as const, filter: "spam" as const }, { tab: "bot" as const, filter: "spam" as const }]
+      : [{ tab: "human" as const, filter: "all" as const }, { tab: "bot" as const, filter: "all" as const }];
+  return patchConversation(conversationId, "status", body, filters);
+}
+
+export async function updateConversationPriority(conversationId: string, payload: UpdateConversationPriorityRequest): Promise<CoreConversationCard> {
+  const body = updateConversationPriorityRequestSchema.parse(payload);
+  return patchConversation(conversationId, "priority", body);
+}
+
+export async function updateConversationReadState(conversationId: string, payload: UpdateConversationReadStateRequest): Promise<CoreConversationCard> {
+  const body = updateConversationReadStateRequestSchema.parse(payload);
+  return patchConversation(conversationId, "read-state", body);
+}
+
+export async function updateConversationSla(conversationId: string, payload: UpdateConversationSlaRequest): Promise<CoreConversationCard> {
+  const body = updateConversationSlaRequestSchema.parse(payload);
+  return patchConversation(conversationId, "sla", body);
+}
+
+export async function getConversationAuditLogs(conversationId: string): Promise<ConversationAuditLog[]> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/audit-logs`, conversationAuditLogSchema.array());
+}
+
+export async function getConversationStatusHistory(conversationId: string): Promise<ConversationStatusHistory[]> {
+  return request(`/conversations/${encodeURIComponent(conversationId)}/status-history`, conversationStatusHistorySchema.array());
+}
+
+export async function sendAgentMessage(conversationId: string, text: string): Promise<CoreMessage> {
+  const body: AgentMessageRequest = agentMessageRequestSchema.parse({ text, senderType: "agent" });
+  return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, coreMessageSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function createWebchatMessage(payload: WebchatMessagePayload): Promise<WebchatInboundResponse> {
+  const { channelAccountId = "demo-webchat", ...message } = payload;
+  const body = webchatInboundRequestSchema.parse(message);
+  return request(`/webhooks/webchat/${encodeURIComponent(channelAccountId)}`, webchatInboundResponseSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function createContact(payload: CreateContactRequest): Promise<Contact> {
+  const body = createContactRequestSchema.parse(payload);
+  return request("/contacts", contactSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getContacts(): Promise<Contact[]> {
+  return request("/contacts", contactSchema.array());
+}
+
+export async function getSettingsChannels(): Promise<SettingsChannelAccount[]> {
+  return request("/settings/channels", settingsChannelAccountSchema.array());
+}
+
+export async function getSettingsChannel(channelAccountId: string): Promise<SettingsChannelAccount> {
+  return request(`/settings/channels/${encodeURIComponent(channelAccountId)}`, settingsChannelAccountSchema);
+}
+
+export async function updateSettingsChannel(channelAccountId: string, payload: UpdateSettingsChannelAccountRequest): Promise<SettingsChannelAccount> {
+  const body = updateSettingsChannelAccountRequestSchema.parse(payload);
+  return request(`/settings/channels/${encodeURIComponent(channelAccountId)}`, settingsChannelAccountSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getSettingsTeam(): Promise<SettingsTeamMember[]> {
+  return request("/settings/team", settingsTeamMemberSchema.array());
+}
+
+export async function getSettingsTeamMember(agentId: string): Promise<SettingsTeamMember> {
+  return request(`/settings/team/${encodeURIComponent(agentId)}`, settingsTeamMemberSchema);
+}
+
+export async function updateSettingsTeamMember(agentId: string, payload: UpdateSettingsTeamMemberRequest): Promise<SettingsTeamMember> {
+  const body = updateSettingsTeamMemberRequestSchema.parse(payload);
+  return request(`/settings/team/${encodeURIComponent(agentId)}`, settingsTeamMemberSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getSettingsSlaPolicies(): Promise<SettingsSlaPolicy[]> {
+  return request("/settings/sla-policies", settingsSlaPolicySchema.array());
+}
+
+export async function getSettingsSlaPolicy(policyId: string): Promise<SettingsSlaPolicy> {
+  return request(`/settings/sla-policies/${encodeURIComponent(policyId)}`, settingsSlaPolicySchema);
+}
+
+export async function updateSettingsSlaPolicy(policyId: string, payload: UpdateSettingsSlaPolicyRequest): Promise<SettingsSlaPolicy> {
+  const body = updateSettingsSlaPolicyRequestSchema.parse(payload);
+  return request(`/settings/sla-policies/${encodeURIComponent(policyId)}`, settingsSlaPolicySchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getSettingsCannedReplies(): Promise<SettingsCannedReply[]> {
+  return request("/settings/canned-replies", settingsCannedReplySchema.array());
+}
+
+export async function getSettingsCannedReply(replyId: string): Promise<SettingsCannedReply> {
+  return request(`/settings/canned-replies/${encodeURIComponent(replyId)}`, settingsCannedReplySchema);
+}
+
+export async function updateSettingsCannedReply(replyId: string, payload: UpdateSettingsCannedReplyRequest): Promise<SettingsCannedReply> {
+  const body = updateSettingsCannedReplyRequestSchema.parse(payload);
+  return request(`/settings/canned-replies/${encodeURIComponent(replyId)}`, settingsCannedReplySchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getContact(contactId: string): Promise<Contact> {
+  return request(`/contacts/${encodeURIComponent(contactId)}`, contactSchema);
+}
+
+export async function getContactIdentities(contactId: string): Promise<ContactIdentity[]> {
+  return request(`/contacts/${encodeURIComponent(contactId)}/identities`, contactIdentitySchema.array());
+}
+
+export async function getContactConversations(contactId: string): Promise<CoreConversationCard[]> {
+  return request(`/contacts/${encodeURIComponent(contactId)}/conversations`, coreConversationCardSchema.array());
+}
+
+export async function updateContact(contactId: string, payload: UpdateContactRequest): Promise<Contact> {
+  const body = updateContactRequestSchema.parse(payload);
+  return request(`/contacts/${encodeURIComponent(contactId)}`, contactSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function linkContactIdentity(contactId: string, payload: LinkContactIdentityRequest): Promise<Contact> {
+  const body = linkContactIdentityRequestSchema.parse(payload);
+  return request(`/contacts/${encodeURIComponent(contactId)}/identities/link`, contactSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function unlinkContactIdentity(contactId: string, payload: UnlinkContactIdentityRequest): Promise<Contact> {
+  const body = unlinkContactIdentityRequestSchema.parse(payload);
+  return request(`/contacts/${encodeURIComponent(contactId)}/identities/unlink`, contactSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function setPrimaryContactIdentity(contactId: string, payload: SetPrimaryIdentityRequest): Promise<Contact> {
+  const body = setPrimaryIdentityRequestSchema.parse(payload);
+  return request(`/contacts/${encodeURIComponent(contactId)}/primary-identity`, contactSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+async function mutateConversation(
+  conversationId: string,
+  action: "assign" | "takeover" | "return-to-ai" | "follow-up" | "close",
+  body: unknown,
+  preferredFilters: ConversationFilters[] = []
+): Promise<CoreConversationCard> {
+  const response = await requestRaw(`/conversations/${encodeURIComponent(conversationId)}/${action}`, {
+    method: "POST",
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return refetchMutatedConversation(conversationId, response, preferredFilters, action);
+}
+
+async function patchConversation(
+  conversationId: string,
+  action: "status" | "priority" | "read-state" | "sla",
+  body: unknown,
+  preferredFilters: ConversationFilters[] = []
+): Promise<CoreConversationCard> {
+  const response = await requestRaw(`/conversations/${encodeURIComponent(conversationId)}/${action}`, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+  return refetchMutatedConversation(conversationId, response, preferredFilters, action);
+}
+
+async function refetchMutatedConversation(
+  conversationId: string,
+  response: unknown,
+  preferredFilters: ConversationFilters[],
+  action: string
+) {
+  const data = response as { roomId?: string };
+  if (!data.roomId) throw new Error(`API response shape is invalid for /conversations/${conversationId}/${action}`);
+  const fallbackFilters: ConversationFilters[] = [
+    { tab: "human", filter: "all" },
+    { tab: "bot", filter: "all" },
+    { tab: "human", filter: "closed" },
+    { tab: "bot", filter: "closed" },
+    { tab: "human", filter: "spam" },
+    { tab: "bot", filter: "spam" },
+    { tab: "human", filter: "follow_up" },
+    { tab: "bot", filter: "follow_up" }
+  ];
+  for (const filters of [...preferredFilters, ...fallbackFilters]) {
+    const cards = await getConversations(data.roomId, filters);
+    const card = cards.find((item) => item.id === conversationId);
+    if (card) return card;
+  }
+  throw new Error(`Updated conversation ${conversationId} was not returned by the API`);
+}
+
+async function request<T>(path: string, schema: { parse(value: unknown): T }, init: RequestInit = {}) {
+  const data = await requestRaw(path, init);
+  try {
+    return schema.parse(data);
+  } catch {
+    throw new Error(`API response shape is invalid for ${path}`);
+  }
+}
+
+async function requestRaw(path: string, init: RequestInit = {}) {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      "x-tenant-id": getApiTenantId(),
+      "x-user-id": defaultApiUserId,
+      ...init.headers
+    }
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const detail = typeof data?.message === "string" ? data.message : response.statusText;
+    throw new Error(`API request failed (${response.status}): ${detail}`);
+  }
+
+  return data;
+}
+
+function analyticsPath(path: string, query: AnalyticsQuery) {
+  const params = new URLSearchParams();
+  if (query.from) params.set("from", query.from);
+  if (query.to) params.set("to", query.to);
+  if (query.platform && query.platform !== "all") params.set("platform", query.platform);
+  if (query.roomId && query.roomId !== "all") params.set("roomId", query.roomId);
+  if (query.agentId && query.agentId !== "all") params.set("agentId", query.agentId);
+  const search = params.toString();
+  return search ? `${path}?${search}` : path;
+}

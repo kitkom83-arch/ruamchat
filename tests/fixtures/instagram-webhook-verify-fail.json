@@ -1,0 +1,8 @@
+{
+  "query": {
+    "hub.mode": "subscribe",
+    "hub.verify_token": "wrong_verify_token",
+    "hub.challenge": "ig-challenge-123"
+  },
+  "expectedStatus": 401
+}

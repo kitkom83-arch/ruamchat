@@ -1,0 +1,23 @@
+{
+  "destination": "UdemoLineOaMain",
+  "events": [
+    {
+      "type": "message",
+      "webhookEventId": "line-event-0001",
+      "deliveryContext": {
+        "isRedelivery": true
+      },
+      "timestamp": 1779236400000,
+      "source": {
+        "type": "user",
+        "userId": "UlineCustomer001"
+      },
+      "replyToken": "mock-redelivery-reply-token",
+      "message": {
+        "id": "line-msg-0001-redelivered",
+        "type": "text",
+        "text": "ขอราคาแพ็กเกจ Pro ผ่าน LINE"
+      }
+    }
+  ]
+}

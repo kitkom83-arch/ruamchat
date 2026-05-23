@@ -1,0 +1,699 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Platform {
+  webchat
+  telegram
+  line
+  facebook
+  instagram
+}
+
+enum MessageType {
+  text
+  image
+  audio
+  file
+  event
+}
+
+enum SenderType {
+  user
+  agent
+  ai
+  system
+}
+
+enum ConversationStatus {
+  open
+  pending
+  closed
+  spam
+}
+
+enum ConversationPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ConversationSlaStatus {
+  ok
+  warning
+  breached
+}
+
+enum AiMode {
+  off
+  suggest
+  auto_faq
+  auto_sales
+  ai_agent
+  human_first
+}
+
+enum AiRunStatus {
+  completed
+  failed
+}
+
+enum RoleName {
+  owner
+  admin
+  supervisor
+  agent
+  ai_trainer
+  viewer
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channelAccounts ChannelAccount[]
+  rooms           Room[]
+  users           TeamMembership[]
+  contacts        Contact[]
+  conversations   Conversation[]
+  messages        Message[]
+  tasks           Task[]
+  auditLogs       AuditLog[]
+  conversationStatusHistory ConversationStatusHistory[]
+  knowledgeDocs   KnowledgeDoc[]
+  knowledgeBases  KnowledgeBase[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks KnowledgeChunk[]
+  roomKnowledgeBases RoomKnowledgeBase[]
+  flows           Flow[]
+  flowRuns        FlowRun[]
+  broadcastCampaigns BroadcastCampaign[]
+  broadcastSegments  BroadcastSegment[]
+  broadcastSendLogs  BroadcastSendLog[]
+  slaPolicies     SlaPolicy[]
+  cannedReplies   CannedReply[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships TeamMembership[]
+  assignedConversations Conversation[] @relation("AssignedConversations")
+  sentMessages Message[] @relation("AgentMessages")
+}
+
+model TeamMembership {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  role      RoleName
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, role])
+}
+
+model SlaPolicy {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  name                  String
+  description           String   @default("")
+  status                String   @default("active")
+  priorityScope         String   @default("all")
+  firstResponseMinutes  Int
+  resolutionMinutes     Int
+  businessHoursMode     String   @default("always")
+  escalationRole        String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, priorityScope])
+}
+
+model CannedReply {
+  id             String   @id @default(uuid())
+  tenantId       String
+  title          String
+  category       String
+  shortcut       String
+  bodyTemplate   String
+  tags           String[] @default([])
+  platformScope  String[] @default([])
+  roomScope      String[] @default([])
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, shortcut])
+  @@index([tenantId, status])
+  @@index([tenantId, category])
+}
+
+model ChannelAccount {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  platform              Platform
+  displayName           String
+  externalAccountId     String?
+  accountKey            String?  @unique
+  accessTokenCiphertext String?
+  webhookSecret         String?
+  status                String   @default("active")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rooms  Room[]
+  contactIdentities ContactIdentity[]
+  messages Message[]
+
+  @@index([tenantId, platform])
+}
+
+model Room {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  platform              Platform
+  channelAccountId      String
+  name                  String
+  aiMode                AiMode   @default(suggest)
+  autoReplyThreshold    Float    @default(0.85)
+  draftThreshold        Float    @default(0.6)
+  requireCitationsForAutoReply Boolean @default(true)
+  handoffOnHighRisk     Boolean @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  knowledgeBases RoomKnowledgeBase[]
+
+  @@unique([tenantId, platform, channelAccountId])
+  @@index([tenantId, platform])
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  tenantId    String
+  displayName String
+  email       String?
+  phone       String?
+  leadStatus  String   @default("new")
+  ownerUserId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  identities ContactIdentity[]
+  conversations Conversation[]
+  tags ContactTag[]
+  tasks Task[]
+
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+}
+
+model ContactIdentity {
+  id               String   @id @default(uuid())
+  tenantId         String
+  contactId        String
+  platform         Platform
+  channelAccountId String
+  externalUserId   String
+  displayName      String?
+  profileUrl       String?
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([tenantId, platform, channelAccountId, externalUserId])
+  @@index([tenantId, contactId])
+}
+
+model IdentityLinkSuggestion {
+  id                String   @id @default(uuid())
+  tenantId          String
+  sourceIdentityId  String
+  targetContactId   String
+  reason            String
+  confidence        Float
+  status            String   @default("pending")
+  createdAt         DateTime @default(now())
+  reviewedAt        DateTime?
+  reviewedByUserId  String?
+
+  @@index([tenantId, status])
+}
+
+model Conversation {
+  id                String   @id @default(uuid())
+  tenantId          String
+  roomId            String
+  contactId         String
+  contactIdentityId String
+  externalConversationId String?
+  status            ConversationStatus @default(open)
+  priority          ConversationPriority @default(normal)
+  assignedUserId    String?
+  aiState           String @default("idle")
+  unread            Boolean @default(true)
+  unreplied         Boolean @default(true)
+  followUpAt        DateTime?
+  slaDueAt          DateTime?
+  slaBreachedAt     DateTime?
+  slaStatus         ConversationSlaStatus @default(ok)
+  firstResponseDueAt DateTime?
+  resolutionDueAt   DateTime?
+  lastMessageAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contactIdentity ContactIdentity @relation(fields: [contactIdentityId], references: [id], onDelete: Cascade)
+  assignedUser User? @relation("AssignedConversations", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  messages Message[]
+  internalNotes InternalNote[]
+  assignments Assignment[]
+  tasks Task[]
+  aiRuns AiRun[]
+  auditLogs AuditLog[]
+  statusHistory ConversationStatusHistory[]
+  flowRuns FlowRun[]
+
+  @@index([tenantId, roomId, status, lastMessageAt])
+  @@index([tenantId, roomId, slaStatus, slaDueAt])
+  @@index([tenantId, assignedUserId])
+}
+
+model Flow {
+  id                String   @id @default(uuid())
+  tenantId          String
+  name              String
+  description       String   @default("")
+  status            String   @default("draft")
+  triggerType       String
+  triggerConfigJson Json
+  conditionsJson    Json
+  actionsJson       Json
+  createdByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs FlowRun[]
+
+  @@index([tenantId, status, updatedAt])
+  @@index([tenantId, triggerType])
+}
+
+model FlowRun {
+  id             String   @id @default(uuid())
+  tenantId       String
+  flowId         String
+  conversationId String?
+  status         String
+  inputJson      Json
+  outputJson     Json
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, flowId, createdAt])
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model BroadcastCampaign {
+  id              String   @id @default(uuid())
+  tenantId        String
+  name            String
+  description     String   @default("")
+  status          String   @default("draft")
+  channelPlatform Platform
+  channelAccountId String?
+  segmentId       String?
+  contentJson     Json
+  scheduleAt      DateTime?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sendLogs BroadcastSendLog[]
+
+  @@index([tenantId, status, updatedAt])
+  @@index([tenantId, channelPlatform])
+  @@index([tenantId, segmentId])
+}
+
+model BroadcastSegment {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  description    String   @default("")
+  rulesJson      Json
+  estimatedCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, updatedAt])
+}
+
+model BroadcastSendLog {
+  id                String   @id @default(uuid())
+  tenantId          String
+  campaignId        String
+  contactId         String?
+  contactIdentityId String?
+  platform          Platform
+  channelAccountId  String?
+  status            String
+  reason            String?
+  payloadJson       Json?
+  createdAt         DateTime @default(now())
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaign BroadcastCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, campaignId, createdAt])
+  @@index([tenantId, status, createdAt])
+}
+
+model ConversationStatusHistory {
+  id             String   @id @default(uuid())
+  tenantId       String
+  conversationId String
+  actorUserId    String?
+  fromStatus     ConversationStatus?
+  toStatus       ConversationStatus
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model Message {
+  id                String   @id @default(uuid())
+  tenantId          String
+  conversationId    String
+  channelAccountId  String
+  platformMessageId String
+  senderType        SenderType
+  agentUserId       String?
+  messageType       MessageType
+  text              String?
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channelAccount ChannelAccount @relation(fields: [channelAccountId], references: [id], onDelete: Cascade)
+  agentUser User? @relation("AgentMessages", fields: [agentUserId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
+
+  @@unique([channelAccountId, platformMessageId])
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model Attachment {
+  id          String   @id @default(uuid())
+  messageId   String
+  type        MessageType
+  url         String?
+  storageKey  String?
+  filename    String?
+  mimeType    String?
+  sizeBytes   Int?
+  createdAt   DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id             String   @id @default(uuid())
+  tenantId       String?
+  conversationId String
+  userId         String?
+  assignedByUserId String?
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, status])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  color     String   @default("#64748b")
+  createdAt DateTime @default(now())
+
+  contacts ContactTag[]
+
+  @@unique([tenantId, name])
+}
+
+model ContactTag {
+  id        String   @id @default(uuid())
+  contactId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tagId])
+}
+
+model InternalNote {
+  id             String   @id @default(uuid())
+  tenantId       String
+  conversationId String
+  contactId      String?
+  authorUserId   String?
+  body           String
+  visibility     String   @default("team")
+  pinned         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([tenantId, conversationId])
+  @@index([tenantId, contactId])
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  tenantId       String
+  conversationId String
+  contactId      String
+  title          String
+  status         String   @default("open")
+  assigneeUserId String?
+  createdByUserId String?
+  dueAt          DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, status])
+  @@index([tenantId, contactId, status])
+}
+
+model KnowledgeDoc {
+  id              String   @id @default(uuid())
+  tenantId         String
+  title            String
+  category         String
+  body             String
+  sourceUrl        String?
+  openaiFileId     String?
+  vectorStoreId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId, category])
+}
+
+model KnowledgeBase {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  description   String   @default("")
+  status        String   @default("active")
+  documentCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documents KnowledgeDocument[]
+  rooms RoomKnowledgeBase[]
+
+  @@index([tenantId, status])
+}
+
+model KnowledgeDocument {
+  id              String   @id @default(uuid())
+  tenantId        String
+  knowledgeBaseId String
+  title           String
+  sourceType      String   @default("manual")
+  sourceUrl       String?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  chunks KnowledgeChunk[]
+
+  @@index([tenantId, knowledgeBaseId, status])
+}
+
+model KnowledgeChunk {
+  id           String   @id @default(uuid())
+  tenantId     String
+  documentId   String
+  content      String
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentId])
+}
+
+model RoomKnowledgeBase {
+  id              String   @id @default(uuid())
+  tenantId        String
+  roomId          String
+  knowledgeBaseId String
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, roomId, knowledgeBaseId])
+  @@index([tenantId, roomId])
+  @@index([tenantId, knowledgeBaseId])
+}
+
+model AiRun {
+  id             String   @id @default(uuid())
+  tenantId       String
+  conversationId String
+  messageId      String?
+  status         AiRunStatus
+  model          String
+  promptVersion  String
+  confidence     Float?
+  decision       Json?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  toolCalls AiToolCall[]
+  actions AiAction[]
+
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model AiToolCall {
+  id        String   @id @default(uuid())
+  aiRunId   String
+  name      String
+  input     Json
+  output    Json?
+  approved  Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  aiRun AiRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+}
+
+model AiAction {
+  id        String   @id @default(uuid())
+  aiRunId   String
+  type      String
+  payload   Json
+  status    String @default("queued")
+  createdAt DateTime @default(now())
+
+  aiRun AiRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+}
+
+model SavedReply {
+  id        String   @id @default(uuid())
+  tenantId  String
+  title     String
+  body      String
+  shortcut  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, title])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  conversationId String?
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  beforeJson  Json?
+  afterJson   Json?
+  metadata    Json?
+  metadataJson Json?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([tenantId, action, createdAt])
+  @@index([tenantId, conversationId, createdAt])
+}

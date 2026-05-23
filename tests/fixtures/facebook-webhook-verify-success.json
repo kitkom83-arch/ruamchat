@@ -1,0 +1,8 @@
+{
+  "query": {
+    "hub.mode": "subscribe",
+    "hub.verify_token": "test_verify_token",
+    "hub.challenge": "fb-challenge-123"
+  },
+  "expectedBody": "fb-challenge-123"
+}

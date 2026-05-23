@@ -1,0 +1,56 @@
+{
+  "name": "ai-omnichannel-chat-rooms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-first omnichannel chat rooms MVP with separated platform rooms and Customer 360.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:api": "npm --workspace @ai-omni/api run dev",
+    "dev:web": "npm --workspace @ai-omni/web run dev",
+    "dev:worker": "npm --workspace @ai-omni/worker run dev",
+    "local:infra": "docker compose -p aiomni-dev -f docker-compose.dev.yml up -d postgres redis",
+    "local:setup": "npm install && npm run prisma:generate && npm run local:infra && npm run db:push:docker && npm run db:seed && npm run build",
+    "local:api": "npm --workspace @ai-omni/api run start",
+    "local:web": "npm --workspace @ai-omni/web run start:local",
+    "local:worker": "npm --workspace @ai-omni/worker run start",
+    "local:start": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "local:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "postinstall": "npm run prisma:generate",
+    "test": "vitest run",
+    "typecheck": "npm --workspace @ai-omni/shared run build && npm run typecheck:workspaces",
+    "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
+    "prisma:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:push:docker": "powershell -ExecutionPolicy Bypass -File scripts/db-push-docker.ps1",
+    "db:seed": "npm --workspace @ai-omni/api run seed",
+    "smoke:sprint21": "node scripts/smoke-sprint21-api.mjs",
+    "smoke:sprint22": "node scripts/smoke-sprint22-api.mjs",
+    "smoke:sprint23": "node scripts/smoke-sprint23-api.mjs",
+    "smoke:sprint24": "node scripts/smoke-sprint24-api.mjs",
+    "smoke:sprint25": "node scripts/smoke-sprint25-api.mjs",
+    "smoke:sprint26": "node scripts/smoke-sprint26-api.mjs",
+    "smoke:sprint27": "node scripts/smoke-sprint27-api.mjs",
+    "smoke:sprint28": "node scripts/smoke-sprint28-api.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.1",
+    "cross-env": "^10.1.0",
+    "prisma": "^6.19.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.14"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "prisma": {
+    "seed": "tsx apps/api/prisma/seed.ts"
+  }
+}

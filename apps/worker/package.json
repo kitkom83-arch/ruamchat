@@ -1,0 +1,19 @@
+{
+  "name": "@ai-omni/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-omni/shared": "file:../../packages/shared",
+    "@prisma/client": "^6.19.0",
+    "bullmq": "^5.65.0",
+    "ioredis": "^5.8.2",
+    "openai": "^6.10.0"
+  }
+}

@@ -1,0 +1,13 @@
+:80 {
+  handle_path /api/* {
+    reverse_proxy api:4000
+  }
+
+  handle /webhooks/* {
+    reverse_proxy api:4000
+  }
+
+  handle {
+    reverse_proxy web:3000
+  }
+}

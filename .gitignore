@@ -1,0 +1,42 @@
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+coverage
+**/coverage
+test-results
+**/test-results
+playwright-report
+**/playwright-report
+
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.log
+.turbo
+.DS_Store
+
+# local secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+apps/api/.env
+apps/web/.env.local
+
+# dependencies
+node_modules/
+
+# build outputs
+apps/web/.next/
+apps/api/dist/
+apps/worker/dist/
+packages/shared/dist/
+
+# temp/log files
+*.log
+*.pid
+.tmp*

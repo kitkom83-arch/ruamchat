@@ -1,0 +1,24 @@
+{
+  "name": "@ai-omni/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --webpack --port 3012",
+    "build": "cross-env NODE_ENV=production next build --webpack",
+    "start": "next start --port 3000",
+    "start:local": "next start --port 3012",
+    "typecheck": "next typegen && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-omni/shared": "file:../../packages/shared",
+    "lucide-react": "^0.556.0",
+    "next": "^16.0.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
+  }
+}

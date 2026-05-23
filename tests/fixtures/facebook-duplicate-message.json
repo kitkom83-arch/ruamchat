@@ -1,0 +1,20 @@
+{
+  "object": "page",
+  "entry": [
+    {
+      "id": "fb-page-main",
+      "time": 1779236400000,
+      "messaging": [
+        {
+          "sender": { "id": "fb-user-381" },
+          "recipient": { "id": "fb-page-main" },
+          "timestamp": 1779236400000,
+          "message": {
+            "mid": "fb-mid-0001",
+            "text": "ขอราคาแพ็กเกจผ่าน Facebook"
+          }
+        }
+      ]
+    }
+  ]
+}

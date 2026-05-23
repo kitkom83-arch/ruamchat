@@ -1,0 +1,20 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "ig-shop",
+      "time": 1779236400000,
+      "messaging": [
+        {
+          "sender": { "id": "ig-user-mint" },
+          "recipient": { "id": "ig-shop" },
+          "timestamp": 1779236400000,
+          "message": {
+            "mid": "ig-mid-0001",
+            "text": "ส่งรูปสินค้าใน DM แล้ว ขอราคา wholesale"
+          }
+        }
+      ]
+    }
+  ]
+}
