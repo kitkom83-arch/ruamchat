@@ -7,11 +7,15 @@ import {
   UnlinkContactIdentityRequest
 } from "@ai-omni/shared";
 import { ConversationPriority, ConversationStatus, Platform, Prisma } from "@prisma/client";
+import { AuditService } from "./audit.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 @Injectable()
 export class CustomerService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AuditService) private readonly audit: AuditService
+  ) {}
 
   async listContacts(tenantId: string) {
     const contacts = await this.prisma.contact.findMany({
@@ -197,7 +201,7 @@ export class CustomerService {
     };
   }
 
-  async createContact(tenantId: string, request: CreateContactRequest) {
+  async createContact(tenantId: string, request: CreateContactRequest, actorUserId?: string) {
     const contact = await this.prisma.$transaction(async (tx) => {
       const saved = await tx.contact.create({
         data: {
@@ -215,11 +219,25 @@ export class CustomerService {
       }
       return saved;
     });
+    await this.recordContactAudit({
+      tenantId,
+      actorUserId,
+      contactId: contact.id,
+      action: "contact.created",
+      metadata: {
+        contactId: contact.id,
+        displayName: request.displayName,
+        leadStatus: request.leadStatus ?? "new",
+        tags: request.tags ?? [],
+        identity: request.identity ? safeIdentityRequest(request.identity) : null,
+        externalCalls: 0
+      }
+    });
     return this.getContact(tenantId, contact.id);
   }
 
-  async updateContact(tenantId: string, contactId: string, request: UpdateContactRequest) {
-    await this.ensureContact(tenantId, contactId);
+  async updateContact(tenantId: string, contactId: string, request: UpdateContactRequest, actorUserId?: string) {
+    const before = await this.getContact(tenantId, contactId);
     await this.prisma.$transaction(async (tx) => {
       await tx.contact.update({
         where: { id: contactId },
@@ -233,19 +251,60 @@ export class CustomerService {
       });
       if (request.tags) await this.replaceTags(tx, tenantId, contactId, request.tags);
     });
-    return this.getContact(tenantId, contactId);
+    const after = await this.getContact(tenantId, contactId);
+    await this.recordContactAudit({
+      tenantId,
+      actorUserId,
+      contactId,
+      action: "contact.updated",
+      beforeJson: contactAuditSnapshot(before),
+      afterJson: contactAuditSnapshot(after),
+      metadata: {
+        contactId,
+        changedFields: Object.keys(request),
+        externalCalls: 0
+      }
+    });
+    return after;
   }
 
-  async linkIdentity(tenantId: string, contactId: string, request: LinkContactIdentityRequest) {
+  async linkIdentity(tenantId: string, contactId: string, request: LinkContactIdentityRequest, actorUserId?: string) {
     await this.ensureContact(tenantId, contactId);
+    const beforeIdentity = await this.findIdentityForLinkRequest(tenantId, request);
+    const beforeContactId = beforeIdentity?.contactId ?? null;
     await this.prisma.$transaction(async (tx) => {
       await this.linkIdentityTx(tx, tenantId, contactId, request);
     });
+    const linkedIdentity = await this.findIdentityForLinkRequest(tenantId, request);
+    if (linkedIdentity) {
+      await this.recordContactAudit({
+        tenantId,
+        actorUserId,
+        contactId,
+        identityId: linkedIdentity.id,
+        action: "contact.identity_linked",
+        beforeJson: beforeIdentity ? identityAuditSnapshot(beforeIdentity) : null,
+        afterJson: identityAuditSnapshot(linkedIdentity),
+        metadata: {
+          contactId,
+          identityId: linkedIdentity.id,
+          previousContactId: beforeContactId,
+          platform: linkedIdentity.platform,
+          channelAccountId: linkedIdentity.channelAccountId,
+          externalUserId: linkedIdentity.externalUserId,
+          externalCalls: 0
+        }
+      });
+    }
     return this.getContact(tenantId, contactId);
   }
 
-  async unlinkIdentity(tenantId: string, contactId: string, request: UnlinkContactIdentityRequest) {
+  async unlinkIdentity(tenantId: string, contactId: string, request: UnlinkContactIdentityRequest, actorUserId?: string) {
     await this.ensureContact(tenantId, contactId);
+    const beforeIdentity = await this.prisma.contactIdentity.findFirst({
+      where: { id: request.identityId, tenantId, contactId },
+      include: { channelAccount: true }
+    });
     await this.prisma.$transaction(async (tx) => {
       const identity = await tx.contactIdentity.findFirst({
         where: { id: request.identityId, tenantId, contactId },
@@ -277,18 +336,141 @@ export class CustomerService {
         });
       }
     });
+    const afterIdentity = await this.prisma.contactIdentity.findFirst({
+      where: { id: request.identityId, tenantId },
+      include: { channelAccount: true }
+    });
+    if (beforeIdentity && afterIdentity) {
+      await this.recordContactAudit({
+        tenantId,
+        actorUserId,
+        contactId,
+        identityId: beforeIdentity.id,
+        action: "contact.identity_unlinked",
+        beforeJson: identityAuditSnapshot(beforeIdentity),
+        afterJson: identityAuditSnapshot(afterIdentity),
+        metadata: {
+          contactId,
+          identityId: beforeIdentity.id,
+          newContactId: afterIdentity.contactId,
+          platform: beforeIdentity.platform,
+          channelAccountId: beforeIdentity.channelAccountId,
+          externalUserId: beforeIdentity.externalUserId,
+          externalCalls: 0
+        }
+      });
+    }
     return this.getContact(tenantId, contactId);
   }
 
-  async setPrimaryIdentity(tenantId: string, contactId: string, request: SetPrimaryIdentityRequest) {
+  async setPrimaryIdentity(tenantId: string, contactId: string, request: SetPrimaryIdentityRequest, actorUserId?: string) {
     await this.ensureContact(tenantId, contactId);
     const identity = await this.prisma.contactIdentity.findFirst({ where: { id: request.identityId, tenantId, contactId } });
     if (!identity) throw new NotFoundException("Contact identity not found");
+    const beforeIdentities = await this.prisma.contactIdentity.findMany({
+      where: { tenantId, contactId },
+      include: { channelAccount: true }
+    });
     await this.prisma.$transaction(async (tx) => {
       await tx.contactIdentity.updateMany({ where: { tenantId, contactId }, data: { isPrimary: false } });
       await tx.contactIdentity.update({ where: { id: request.identityId }, data: { isPrimary: true } });
     });
+    const afterIdentity = await this.prisma.contactIdentity.findFirst({
+      where: { id: request.identityId, tenantId, contactId },
+      include: { channelAccount: true }
+    });
+    if (afterIdentity) {
+      await this.recordContactAudit({
+        tenantId,
+        actorUserId,
+        contactId,
+        identityId: request.identityId,
+        action: "contact.primary_identity_set",
+        beforeJson: { identities: beforeIdentities.map(identityAuditSnapshot) },
+        afterJson: identityAuditSnapshot(afterIdentity),
+        metadata: {
+          contactId,
+          identityId: request.identityId,
+          platform: afterIdentity.platform,
+          channelAccountId: afterIdentity.channelAccountId,
+          externalUserId: afterIdentity.externalUserId,
+          externalCalls: 0
+        }
+      });
+    }
     return this.getContact(tenantId, contactId);
+  }
+
+  private async findIdentityForLinkRequest(tenantId: string, request: LinkContactIdentityRequest) {
+    if (request.identityId) {
+      return this.prisma.contactIdentity.findFirst({
+        where: { tenantId, id: request.identityId },
+        include: { channelAccount: true }
+      });
+    }
+    if (!request.platform || !request.channelAccountId || !request.externalUserId) return null;
+    return this.prisma.contactIdentity.findUnique({
+      where: {
+        tenantId_platform_channelAccountId_externalUserId: {
+          tenantId,
+          platform: request.platform as Platform,
+          channelAccountId: request.channelAccountId,
+          externalUserId: request.externalUserId
+        }
+      },
+      include: { channelAccount: true }
+    });
+  }
+
+  private async recordContactAudit(input: {
+    tenantId: string;
+    actorUserId?: string;
+    contactId: string;
+    identityId?: string;
+    action: string;
+    beforeJson?: Prisma.InputJsonValue | null;
+    afterJson?: Prisma.InputJsonValue | null;
+    metadata: Prisma.InputJsonValue;
+  }) {
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        tenantId: input.tenantId,
+        OR: [
+          { contactId: input.contactId },
+          input.identityId ? { contactIdentityId: input.identityId } : { id: "__none__" }
+        ]
+      },
+      include: { room: true },
+      orderBy: { lastMessageAt: "desc" },
+      take: 12
+    });
+    const auditTargets = conversations.length > 0 ? conversations : [null];
+    await Promise.all(auditTargets.map((conversation) => {
+      const context = conversation
+        ? {
+            conversationId: conversation.id,
+            platform: conversation.room.platform,
+            channelAccountId: conversation.room.channelAccountId,
+            roomId: conversation.roomId
+          }
+        : {};
+      return this.audit.record({
+        tenantId: input.tenantId,
+        actorUserId: input.actorUserId,
+        conversationId: conversation?.id ?? null,
+        action: input.action,
+        entityType: "contact",
+        entityId: input.contactId,
+        beforeJson: input.beforeJson ?? undefined,
+        afterJson: input.afterJson ?? undefined,
+        metadata: {
+          ...(input.metadata as Record<string, unknown>),
+          tenantId: input.tenantId,
+          actionType: input.action,
+          ...context
+        }
+      });
+    }));
   }
 
   private async ensureContact(tenantId: string, contactId: string) {
@@ -420,6 +602,78 @@ function mapIdentity(identity: {
     avatarUrl: identity.profileUrl ?? undefined,
     isPrimary: identity.isPrimary,
     lastSeenAt: identity.updatedAt.toISOString()
+  };
+}
+
+function safeIdentityRequest(identity: {
+  identityId?: string;
+  platform?: Platform | string;
+  channelAccountId?: string;
+  externalUserId?: string;
+  displayName?: string;
+  profileUrl?: string;
+  isPrimary?: boolean;
+}) {
+  const result: Record<string, Prisma.InputJsonValue | null> = {
+    isPrimary: Boolean(identity.isPrimary),
+    externalCalls: 0
+  };
+  if (identity.identityId) result.identityId = identity.identityId;
+  if (identity.platform) result.platform = identity.platform;
+  if (identity.channelAccountId) result.channelAccountId = identity.channelAccountId;
+  if (identity.externalUserId) result.externalUserId = identity.externalUserId;
+  if (identity.displayName) result.displayName = identity.displayName;
+  if (identity.profileUrl) result.profileUrl = identity.profileUrl;
+  return result as Prisma.InputJsonObject;
+}
+
+function identityAuditSnapshot(identity: {
+  id: string;
+  contactId: string;
+  platform: Platform;
+  channelAccountId: string;
+  externalUserId: string;
+  displayName: string | null;
+  profileUrl: string | null;
+  isPrimary: boolean;
+}) {
+  return {
+    id: identity.id,
+    contactId: identity.contactId,
+    platform: identity.platform,
+    channelAccountId: identity.channelAccountId,
+    externalUserId: identity.externalUserId,
+    displayName: identity.displayName,
+    profileUrl: identity.profileUrl,
+    isPrimary: identity.isPrimary
+  };
+}
+
+function contactAuditSnapshot(contact: {
+  id: string;
+  displayName: string;
+  email?: string;
+  phone?: string;
+  leadStatus: string;
+  ownerAgent?: string;
+  tags: string[];
+  identities: Array<{ id: string; platform: Platform; channelAccountId: string; externalUserId: string; isPrimary: boolean }>;
+}) {
+  return {
+    id: contact.id,
+    displayName: contact.displayName,
+    email: contact.email ?? null,
+    phone: contact.phone ?? null,
+    leadStatus: contact.leadStatus,
+    ownerAgent: contact.ownerAgent ?? null,
+    tags: contact.tags,
+    identities: contact.identities.map((identity) => ({
+      id: identity.id,
+      platform: identity.platform,
+      channelAccountId: identity.channelAccountId,
+      externalUserId: identity.externalUserId,
+      isPrimary: identity.isPrimary
+    }))
   };
 }
 

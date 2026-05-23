@@ -60,7 +60,7 @@ describe("CustomerService Customer 360 API", () => {
   });
 
   it("links identities without moving conversations across rooms", async () => {
-    const { service, store } = buildService();
+    const { service, store, audit } = buildService();
 
     await service.linkIdentity(tenantId, "contact-web", { identityId: "identity-telegram", isPrimary: false });
 
@@ -71,6 +71,21 @@ describe("CustomerService Customer 360 API", () => {
     const customer360 = await service.getCustomer360(tenantId, "conv-web");
     expect(customer360.identities.map((identity) => identity.externalUserId).sort()).toEqual(["telegram-user", "web-user"]);
     expect(customer360.recentConversations.map((conversation) => conversation.id).sort()).toEqual(["conv-telegram", "conv-web"]);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      conversationId: "conv-telegram",
+      action: "contact.identity_linked",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        contactId: "contact-web",
+        identityId: "identity-telegram",
+        platform: "telegram",
+        channelAccountId: telegramAccountId,
+        roomId: telegramRoomId,
+        externalCalls: 0
+      })
+    }));
   });
 
   it("keeps Webchat and Telegram rooms stable when linking by identity fields", async () => {
@@ -114,24 +129,76 @@ describe("CustomerService Customer 360 API", () => {
   });
 
   it("unlinks identities into a standalone contact without deleting conversation threads", async () => {
-    const { service, store } = buildService();
+    const { service, store, audit } = buildService();
     await service.linkIdentity(tenantId, "contact-web", { identityId: "identity-telegram" });
+    audit.record.mockClear();
 
     const contact = await service.unlinkIdentity(tenantId, "contact-web", { identityId: "identity-telegram" });
 
     expect(contact.identities.map((identity) => identity.id)).toEqual(["identity-web"]);
     expect(store.identities.find((identity) => identity.id === "identity-telegram")?.contactId).not.toBe("contact-web");
     expect(store.conversations.find((conversation) => conversation.id === "conv-telegram")?.roomId).toBe(telegramRoomId);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      conversationId: "conv-telegram",
+      action: "contact.identity_unlinked",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        contactId: "contact-web",
+        identityId: "identity-telegram",
+        platform: "telegram",
+        channelAccountId: telegramAccountId,
+        roomId: telegramRoomId,
+        externalCalls: 0
+      })
+    }));
   });
 
   it("sets one primary identity per contact", async () => {
-    const { service } = buildService();
+    const { service, audit } = buildService();
     await service.linkIdentity(tenantId, "contact-web", { identityId: "identity-telegram" });
+    audit.record.mockClear();
 
     const contact = await service.setPrimaryIdentity(tenantId, "contact-web", { identityId: "identity-telegram" });
 
     expect(contact.identities.find((identity) => identity.id === "identity-telegram")?.isPrimary).toBe(true);
     expect(contact.identities.find((identity) => identity.id === "identity-web")?.isPrimary).toBe(false);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      action: "contact.primary_identity_set",
+      metadata: expect.objectContaining({
+        contactId: "contact-web",
+        identityId: "identity-telegram",
+        platform: "telegram",
+        channelAccountId: telegramAccountId,
+        externalCalls: 0
+      })
+    }));
+  });
+
+  it("audits safe contact profile changes without token or secret fields", async () => {
+    const { service, audit } = buildService();
+
+    await service.updateContact(tenantId, "contact-web", { leadStatus: "qualified", tags: ["vip"] }, "agent-demo");
+
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      actorUserId: "agent-demo",
+      conversationId: "conv-web",
+      action: "contact.updated",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        contactId: "contact-web",
+        changedFields: ["leadStatus", "tags"],
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        externalCalls: 0
+      })
+    }));
+    expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
   });
 
   it("returns readable errors for unknown conversation/contact and unsafe unlink", async () => {
@@ -177,7 +244,10 @@ function buildService() {
     conversation: {
       findFirst: vi.fn(async ({ where }) => store.conversations.find((item) => item.id === where.id && item.tenantId === where.tenantId) ? enrichConversation(store, store.conversations.find((item) => item.id === where.id)!) : null),
       findMany: vi.fn(async ({ where }) => {
-        const identityIds = where.OR?.flatMap((clause: any) => clause.contactIdentityId?.in ?? []) ?? [];
+        const identityIds = where.OR?.flatMap((clause: any) => [
+          ...(clause.contactIdentityId?.in ?? []),
+          ...(clause.contactIdentityId ? [clause.contactIdentityId] : [])
+        ]) ?? [];
         const contactIds = new Set(where.OR?.map((clause: any) => clause.contactId).filter(Boolean) ?? []);
         return store.conversations
           .filter((item) => item.tenantId === where.tenantId && (contactIds.has(item.contactId) || identityIds.includes(item.contactIdentityId)))
@@ -301,7 +371,15 @@ function buildService() {
     }
   };
 
-  return { service: new CustomerService(prisma as never), prisma, store };
+  let auditCount = 0;
+  const audit = {
+    record: vi.fn(async (input) => {
+      auditCount += 1;
+      return { id: `audit-${auditCount}`, ...input };
+    })
+  };
+
+  return { service: new CustomerService(prisma as never, audit as never), prisma, store, audit };
 }
 
 function account(id: string, platform: string, displayName: string) {
