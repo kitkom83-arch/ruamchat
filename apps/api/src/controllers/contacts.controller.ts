@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
 import {
   createContactRequestSchema,
   linkContactIdentityRequestSchema,
@@ -8,70 +8,82 @@ import {
 } from "@ai-omni/shared";
 import { CustomerService } from "../services/customer.service.js";
 
-const defaultTenantId = "00000000-0000-4000-8000-000000000001";
-
 @Controller("contacts")
 export class ContactsController {
   constructor(@Inject(CustomerService) private readonly customers: CustomerService) {}
 
   @Get()
-  async list(@Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.listContacts(tenant);
+  async list(@Headers("x-tenant-id") tenant: string | undefined) {
+    return this.customers.listContacts(requireTenantId(tenant));
   }
 
   @Get(":contactId")
-  async detail(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.getContact(tenant, contactId);
+  async detail(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.customers.getContact(requireTenantId(tenant), contactId);
   }
 
   @Get(":contactId/identities")
-  async identities(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.getContactIdentities(tenant, contactId);
+  async identities(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.customers.getContactIdentities(requireTenantId(tenant), contactId);
   }
 
   @Get(":contactId/conversations")
-  async conversations(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.getContactConversations(tenant, contactId);
+  async conversations(@Param("contactId") contactId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.customers.getContactConversations(requireTenantId(tenant), contactId);
   }
 
   @Post()
-  async create(@Body() body: unknown, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.createContact(tenant, createContactRequestSchema.parse(body));
+  async create(
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.customers.createContact(requireTenantId(tenant), createContactRequestSchema.parse(body), userId);
   }
 
   @Patch(":contactId")
   async update(
     @Param("contactId") contactId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.customers.updateContact(tenant, contactId, updateContactRequestSchema.parse(body));
+    return this.customers.updateContact(requireTenantId(tenant), contactId, updateContactRequestSchema.parse(body), userId);
   }
 
   @Post(":contactId/identities/link")
   async linkIdentity(
     @Param("contactId") contactId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.customers.linkIdentity(tenant, contactId, linkContactIdentityRequestSchema.parse(body));
+    return this.customers.linkIdentity(requireTenantId(tenant), contactId, linkContactIdentityRequestSchema.parse(body), userId);
   }
 
   @Post(":contactId/identities/unlink")
   async unlinkIdentity(
     @Param("contactId") contactId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.customers.unlinkIdentity(tenant, contactId, unlinkContactIdentityRequestSchema.parse(body));
+    return this.customers.unlinkIdentity(requireTenantId(tenant), contactId, unlinkContactIdentityRequestSchema.parse(body), userId);
   }
 
   @Patch(":contactId/primary-identity")
   async setPrimaryIdentity(
     @Param("contactId") contactId: string,
     @Body() body: unknown,
-    @Headers("x-tenant-id") tenant = defaultTenantId
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.customers.setPrimaryIdentity(tenant, contactId, setPrimaryIdentityRequestSchema.parse(body));
+    return this.customers.setPrimaryIdentity(requireTenantId(tenant), contactId, setPrimaryIdentityRequestSchema.parse(body), userId);
   }
+}
+
+function requireTenantId(tenant: string | undefined) {
+  const tenantId = tenant?.trim();
+  if (!tenantId) throw new BadRequestException("x-tenant-id is required");
+  return tenantId;
 }

@@ -593,6 +593,24 @@ export default function InboxDashboard() {
     setApiCustomer360((current) => current ? { ...current, contact, identities: contact.identities } : current);
   }
 
+  async function runApiContactAction(action: () => Promise<Contact>, successMessage: string) {
+    setApiActionLoading(true);
+    try {
+      const contact = await action();
+      applyApiContact(contact);
+      if (selectedConversation) {
+        const customer360 = await getCustomer360(selectedConversation.id);
+        setApiCustomer360(customer360);
+        await refreshApiConversationTimeline(selectedConversation.id);
+      }
+      setAiActionStatus(successMessage);
+    } catch (error) {
+      setAiActionStatus(readableApiError(error));
+    } finally {
+      setApiActionLoading(false);
+    }
+  }
+
   function updateAdminStore(nextStore: AdminStore) {
     setAdminStore(nextStore);
     saveStoredAdminStore(nextStore);
@@ -1147,12 +1165,10 @@ export default function InboxDashboard() {
   async function changeLeadStatus(leadStatus: LeadStatus) {
     if (!selectedContact) return;
     if (apiMode) {
-      try {
-        applyApiContact(await updateApiContact(selectedContact.id, { leadStatus }));
-        setAiActionStatus(`Lead status updated to ${leadStatus}`);
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+      await runApiContactAction(
+        () => updateApiContact(selectedContact.id, { leadStatus }),
+        `Lead status updated to ${leadStatus}`
+      );
       return;
     }
     updateContacts(updateContactLeadStatus(contacts, selectedContact.id, leadStatus));
@@ -1162,12 +1178,10 @@ export default function InboxDashboard() {
   async function addCrmTag() {
     if (!selectedContact) return;
     if (apiMode) {
-      try {
-        applyApiContact(await updateApiContact(selectedContact.id, { tags: Array.from(new Set([...selectedContact.tags, "vip"])) }));
-        setAiActionStatus("CRM tag added");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+      await runApiContactAction(
+        () => updateApiContact(selectedContact.id, { tags: Array.from(new Set([...selectedContact.tags, "vip"])) }),
+        "CRM tag added"
+      );
       return;
     }
     updateContacts(addContactTag(contacts, selectedContact.id, "vip"));
@@ -1177,12 +1191,10 @@ export default function InboxDashboard() {
   async function removeCrmTag(tag: string) {
     if (!selectedContact) return;
     if (apiMode) {
-      try {
-        applyApiContact(await updateApiContact(selectedContact.id, { tags: selectedContact.tags.filter((item) => item !== tag) }));
-        setAiActionStatus("CRM tag removed");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+      await runApiContactAction(
+        () => updateApiContact(selectedContact.id, { tags: selectedContact.tags.filter((item) => item !== tag) }),
+        "CRM tag removed"
+      );
       return;
     }
     updateContacts(removeContactTag(contacts, selectedContact.id, tag));
@@ -1192,17 +1204,15 @@ export default function InboxDashboard() {
   async function linkCurrentIdentity() {
     if (!selectedConversation || !selectedContact) return;
     if (apiMode && apiCustomer360) {
-      try {
-        applyApiContact(await linkApiContactIdentity(selectedContact.id, {
+      await runApiContactAction(
+        () => linkApiContactIdentity(selectedContact.id, {
           platform: apiCustomer360.source.platform,
           channelAccountId: apiCustomer360.source.channelAccountId,
           externalUserId: apiCustomer360.source.externalUserId,
           displayName: apiCustomer360.source.displayName
-        }));
-        setAiActionStatus("Current identity linked without moving conversation rooms");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+        }),
+        "Current identity linked without moving conversation rooms"
+      );
       return;
     }
     updateContacts(linkIdentityToContact(contacts, selectedContact.id, createIdentityFromConversation(selectedConversation)));
@@ -1212,7 +1222,7 @@ export default function InboxDashboard() {
   async function createContactFromCurrentIdentity() {
     if (!selectedConversation) return;
     if (apiMode && apiCustomer360) {
-      try {
+      await runApiContactAction(async () => {
         const contact = await createApiContact({
           displayName: apiCustomer360.source.displayName,
           leadStatus: "new",
@@ -1225,11 +1235,8 @@ export default function InboxDashboard() {
             isPrimary: true
           }
         });
-        applyApiContact(contact);
-        setAiActionStatus("New CRM contact created from current identity");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+        return contact;
+      }, "New CRM contact created from current identity");
       return;
     }
     updateContacts(createContactFromIdentity(contacts, createIdentityFromConversation(selectedConversation)));
@@ -1240,12 +1247,10 @@ export default function InboxDashboard() {
     if (!selectedContact || selectedContact.identities.length <= 1) return;
     const identity = selectedContact.identities[selectedContact.identities.length - 1];
     if (apiMode) {
-      try {
-        applyApiContact(await unlinkApiContactIdentity(selectedContact.id, { identityId: identity.id }));
-        setAiActionStatus("Identity unlinked; conversations remain in their platform rooms");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+      await runApiContactAction(
+        () => unlinkApiContactIdentity(selectedContact.id, { identityId: identity.id }),
+        "Identity unlinked; conversations remain in their platform rooms"
+      );
       return;
     }
     updateContacts(unlinkIdentity(contacts, selectedContact.id, identity.id));
@@ -1255,12 +1260,10 @@ export default function InboxDashboard() {
   async function setFirstIdentityPrimary() {
     if (!selectedContact || selectedContact.identities.length === 0) return;
     if (apiMode) {
-      try {
-        applyApiContact(await setApiPrimaryContactIdentity(selectedContact.id, { identityId: selectedContact.identities[0].id }));
-        setAiActionStatus("Primary identity updated");
-      } catch (error) {
-        setAiActionStatus(readableApiError(error));
-      }
+      await runApiContactAction(
+        () => setApiPrimaryContactIdentity(selectedContact.id, { identityId: selectedContact.identities[0].id }),
+        "Primary identity updated"
+      );
       return;
     }
     updateContacts(setPrimaryIdentity(contacts, selectedContact.id, selectedContact.identities[0].id));
@@ -2041,8 +2044,11 @@ function CustomerPanel({
           {relatedConversations.map((item) => (
             <div key={item.id} className="identityRow">
               <strong>{item.platformLabel} / {item.accountName}</strong>
-              <span>{item.id}</span>
-              <small>{item.lastMessage} / {item.closed ? "closed" : "open"}</small>
+              <span>{item.id} / {item.roomId}</span>
+              <small>
+                {item.channelAccountId ? `${item.channelAccountId} / ` : ""}
+                {item.lastMessage} / {item.closed ? "closed" : "open"}
+              </small>
             </div>
           ))}
           {relatedConversations.length === 0 && <p className="noteText">No linked conversations yet</p>}

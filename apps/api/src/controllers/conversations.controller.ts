@@ -29,8 +29,8 @@ export class ConversationsController {
   }
 
   @Get(":conversationId/customer-360")
-  async customer360(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant = defaultTenantId) {
-    return this.customers.getCustomer360(tenant, conversationId);
+  async customer360(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.customers.getCustomer360(requireTenantId(tenant), conversationId);
   }
 
   @Get(":conversationId/notes")

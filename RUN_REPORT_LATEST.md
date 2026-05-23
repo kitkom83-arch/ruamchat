@@ -1,6 +1,6 @@
 # RUN_REPORT_LATEST.md
 
-Current status: Sprint 29 FINAL PASS
+Current status: Sprint 30 FINAL PASS
 
 ## Completed reports
 
@@ -14,22 +14,26 @@ Current status: Sprint 29 FINAL PASS
 - SPRINT_27_REPORT.md
 - SPRINT_28_REPORT.md
 - SPRINT_29_REPORT.md
+- SPRINT_30_REPORT.md
 
 ## Latest validation baseline
 
-- Sprint 29 FINAL PASS
+- Sprint 30 FINAL PASS
 - typecheck passed
-- tests passed: 33 files / 284 tests
+- tests passed: 33 files / 288 tests
 - build passed
-- smoke:sprint29 passed
+- smoke:sprint30 passed: 24/24 checks
 - externalCalls: 0
-- AI Suggested Reply API mode persisted
-- feedback/audit persistence verified
-- platform/account/room preserved
-- API mode no silent mock AI fallback verified
-- no real OpenAI call observed
-- no real provider outbound observed
+- Customer 360 API mode hardened
+- linked identities verified
+- related conversations preserve conversation id / platform / channelAccountId / roomId
+- identity grouping does not merge conversations into one cross-platform thread
+- contact.updated audit visibility verified
+- API mode no silent mock Customer 360 fallback verified
+- no token/secret exposure observed
+- no provider outbound observed
+- no Prisma schema change
 
 ## Current branch
 
-sprint-29-ai-suggested-reply
+sprint-30-customer-360-or-next-scope

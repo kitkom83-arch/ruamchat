@@ -9,6 +9,7 @@ import {
   getAiDraftText,
   getAiPanelMockActionStatus,
   getQuickRepliesForMode,
+  mapApiConversationToCard,
   mergeDemoConversation,
   mockConversations,
   quickReplies,
@@ -120,6 +121,39 @@ describe("Inbox Rooms mock filtering", () => {
     expect(scopeApiConversationsToRoom(apiConversations, "room-telegram").map((conversation) => conversation.id)).toEqual(["api-telegram"]);
     expect(scopeApiConversationsToRoom([], "room-webchat")).toEqual([]);
     expect(scopeApiConversationsToRoom(apiConversations, "room-empty")).toEqual([]);
+  });
+
+  it("maps API Customer 360 related conversations with platform account and room identifiers", () => {
+    const card = mapApiConversationToCard({
+      id: "conv-api-line",
+      roomId: "room-line-main",
+      tab: "human",
+      platform: "line",
+      platformLabel: "LINE",
+      channelAccountId: "00000000-0000-4000-8000-000000000022",
+      accountName: "LINE OA Main",
+      customerName: "Persisted LINE Customer",
+      customerEmail: "-",
+      customerPhone: "-",
+      lastMessage: "line hello",
+      lastMessageAt: "2026-05-21T04:00:00.000Z",
+      lastMessageTime: "11:00",
+      unreadCount: 1,
+      assignedAgent: null,
+      tags: [],
+      aiStatus: "Need Human",
+      priority: "medium",
+      status: "open",
+      unreplied: true
+    });
+
+    expect(card).toMatchObject({
+      id: "conv-api-line",
+      platform: "line",
+      channelAccountId: "00000000-0000-4000-8000-000000000022",
+      roomId: "room-line-main",
+      accountName: "LINE OA Main"
+    });
   });
 
   it("does not merge mock conversations into API-mode platform rooms", () => {

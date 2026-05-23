@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { ContactsController } from "./contacts.controller.js";
 
@@ -34,5 +35,34 @@ describe("ContactsController", () => {
     expect(customers.getContact).toHaveBeenCalledWith(tenantId, "contact-api");
     expect(customers.getContactIdentities).toHaveBeenCalledWith(tenantId, "contact-api");
     expect(customers.getContactConversations).toHaveBeenCalledWith(tenantId, "contact-api");
+  });
+
+  it("requires x-tenant-id for contact reads and mutations", async () => {
+    const customers = {
+      listContacts: vi.fn(),
+      getContact: vi.fn(),
+      getContactIdentities: vi.fn(),
+      getContactConversations: vi.fn(),
+      createContact: vi.fn(),
+      updateContact: vi.fn(),
+      linkIdentity: vi.fn(),
+      unlinkIdentity: vi.fn(),
+      setPrimaryIdentity: vi.fn()
+    };
+    const controller = new ContactsController(customers as never);
+
+    await expect(controller.list(undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.detail("contact-api", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.identities("contact-api", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.conversations("contact-api", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.create({ displayName: "API Contact" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.update("contact-api", { leadStatus: "new" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.linkIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.unlinkIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.setPrimaryIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(customers.listContacts).not.toHaveBeenCalled();
+    expect(customers.createContact).not.toHaveBeenCalled();
+    expect(customers.linkIdentity).not.toHaveBeenCalled();
   });
 });

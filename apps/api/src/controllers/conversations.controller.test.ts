@@ -63,4 +63,13 @@ describe("ConversationsController manual reply", () => {
     expect(conversations.getAuditLogs).not.toHaveBeenCalled();
     expect(conversations.getStatusHistory).not.toHaveBeenCalled();
   });
+
+  it("requires x-tenant-id for Customer 360 reads", async () => {
+    const customers = { getCustomer360: vi.fn() };
+    const controller = new ConversationsController({} as never, customers as never);
+
+    await expect(controller.customer360("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(customers.getCustomer360).not.toHaveBeenCalled();
+  });
 });

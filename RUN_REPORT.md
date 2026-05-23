@@ -181,3 +181,33 @@ Validation:
 
 Remaining:
 - None for Sprint 29.
+
+---
+
+# Sprint 30 FINAL PASS
+
+Customer 360 now runs in hardened backend API mode with tenant-scoped persisted profile data, linked identities, separated related conversations, safe persisted contact updates, and audit-visible customer actions.
+
+Validation:
+- typecheck passed
+- tests passed: 33 files / 288 tests
+- build passed
+- smoke:sprint30 passed: 24/24 checks
+- externalCalls: 0
+- Customer 360 profile loaded from API
+- linked identities loaded
+- related conversations preserved conversation id / platform / channelAccountId / roomId
+- conversations were not collapsed into one cross-platform thread
+- persisted contact update verified
+- contact.updated audit visibility verified
+- API-on UI verified
+- refresh persistence verified
+- API-off showed Failed to fetch
+- API-off no silent mock customer fallback verified
+- no secret fields visible
+- no provider outbound observed
+- no Prisma schema change
+
+Remaining:
+- None blocking for Sprint 30.
+- Smoke intentionally persisted safe local tag: sprint30-smoke.

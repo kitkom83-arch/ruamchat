@@ -33,6 +33,8 @@ export type ChatMessage = {
 export type ConversationCard = {
   id: string;
   roomId: string;
+  platform?: InboxPlatform;
+  channelAccountId?: string;
   tab: InboxTab;
   customerName: string;
   customerEmail: string;
@@ -499,6 +501,8 @@ export function mapApiConversationToCard(conversation: CoreConversationCard, mes
   return {
     id: conversation.id,
     roomId: conversation.roomId,
+    platform: conversation.platform,
+    channelAccountId: conversation.channelAccountId,
     tab: conversation.tab,
     customerName: conversation.customerName,
     customerEmail: conversation.customerEmail || "-",
