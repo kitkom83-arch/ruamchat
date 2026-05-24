@@ -45,6 +45,7 @@ import {
   suggestAiReply,
   takeOverConversation,
   unlinkContactIdentity,
+  updateBroadcastConsent,
   updateContact,
   updateConversationPriority,
   updateConversationReadState,
@@ -196,6 +197,14 @@ describe("frontend API client", () => {
     expectTenantHeaderForAll(fetchMock);
     expect(customer360.contact.id).toBe("contact-api");
     expect(customer360.identities[0]?.externalUserId).toBe("visitor-api");
+    expect(customer360.broadcastHistorySummary.rows[0]).toMatchObject({
+      campaignName: "Persisted campaign",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(customer360.broadcastHistorySummary)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
   });
 
   it("surfaces Customer 360 API errors instead of silently returning mock data", async () => {
@@ -247,6 +256,26 @@ describe("frontend API client", () => {
     expect(linked.identities[0]?.id).toBe("identity-linked");
     expect(primary.id).toBe("contact-created");
     expect(unlinked.id).toBe("contact-created");
+  });
+
+  it("sends tenant-scoped broadcast opt-out updates to the API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ ...contactResponse("contact-api"), optOutBroadcast: true, suppressedReason: "customer_requested" }));
+
+    const contact = await updateBroadcastConsent("contact-api", { optOut: true, conversationId: "conv-web" });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/contacts/contact-api/broadcast-consent", expect.objectContaining({ method: "PATCH" }));
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.headers).toEqual(expect.objectContaining({ "x-tenant-id": defaultTenantId }));
+    expect(JSON.parse(String(init?.body))).toEqual({ optOut: true, conversationId: "conv-web" });
+    expect(contact.optOutBroadcast).toBe(true);
+    expectTenantHeaderForAll(fetchMock);
+  });
+
+  it("does not fake local opt-out state when broadcast consent API fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Consent unavailable" }, 503));
+
+    await expect(updateBroadcastConsent("contact-api", { optOut: true, conversationId: "conv-web" })).rejects.toThrow("API request failed (503): Consent unavailable");
   });
 
   it("gets contact directory endpoints with the tenant header", async () => {
@@ -755,7 +784,40 @@ function customer360Response(conversationId: string, contactId: string) {
     }],
     notes: [],
     tasks: [],
-    broadcastHistorySummary: { lastCampaignName: null, sentMockCount: 0, optOut: false },
+    broadcastHistorySummary: {
+      contactId,
+      customerId: contactId,
+      identityId: "identity-api",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      conversationId,
+      lastCampaignId: "campaign-api",
+      lastCampaignName: "Persisted campaign",
+      sentMockCount: 1,
+      optOut: false,
+      externalCalls: 0,
+      rows: [{
+        id: "send-log-api",
+        contactId,
+        customerId: contactId,
+        identityId: "identity-api",
+        campaignId: "campaign-api",
+        campaignName: "Persisted campaign",
+        campaignStatus: "sent",
+        platform: "webchat",
+        channelAccountId: "00000000-0000-4000-8000-000000000020",
+        roomId: "room-webchat",
+        conversationId,
+        status: "sent_mock",
+        reason: "safe mock send only; no external outbound call was made",
+        sentAt: "2026-05-21T04:00:00.000Z",
+        queuedAt: null,
+        mockOnly: true,
+        safe: true,
+        externalCalls: 0
+      }]
+    },
     source: {
       platform: "webchat",
       channelAccountId: "00000000-0000-4000-8000-000000000020",

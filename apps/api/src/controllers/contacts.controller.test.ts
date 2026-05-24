@@ -16,7 +16,8 @@ describe("ContactsController", () => {
         platform: "line",
         channelAccountId: "00000000-0000-4000-8000-000000000022",
         accountName: "LINE OA Main"
-      }])
+      }]),
+      updateBroadcastConsent: vi.fn(async () => ({ id: "contact-api", optOutBroadcast: true }))
     };
     const controller = new ContactsController(customers as never);
 
@@ -30,11 +31,16 @@ describe("ContactsController", () => {
       channelAccountId: "00000000-0000-4000-8000-000000000022",
       accountName: "LINE OA Main"
     })]);
+    await expect(controller.updateBroadcastConsent("contact-api", { optOut: true, conversationId: "conv-api" }, tenantId, "user-1")).resolves.toEqual({
+      id: "contact-api",
+      optOutBroadcast: true
+    });
 
     expect(customers.listContacts).toHaveBeenCalledWith(tenantId);
     expect(customers.getContact).toHaveBeenCalledWith(tenantId, "contact-api");
     expect(customers.getContactIdentities).toHaveBeenCalledWith(tenantId, "contact-api");
     expect(customers.getContactConversations).toHaveBeenCalledWith(tenantId, "contact-api");
+    expect(customers.updateBroadcastConsent).toHaveBeenCalledWith(tenantId, "contact-api", { optOut: true, conversationId: "conv-api" }, "user-1");
   });
 
   it("requires x-tenant-id for contact reads and mutations", async () => {
@@ -47,7 +53,8 @@ describe("ContactsController", () => {
       updateContact: vi.fn(),
       linkIdentity: vi.fn(),
       unlinkIdentity: vi.fn(),
-      setPrimaryIdentity: vi.fn()
+      setPrimaryIdentity: vi.fn(),
+      updateBroadcastConsent: vi.fn()
     };
     const controller = new ContactsController(customers as never);
 
@@ -60,9 +67,11 @@ describe("ContactsController", () => {
     await expect(controller.linkIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.unlinkIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.setPrimaryIdentity("contact-api", { identityId: "identity-api" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.updateBroadcastConsent("contact-api", { optOut: true }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
 
     expect(customers.listContacts).not.toHaveBeenCalled();
     expect(customers.createContact).not.toHaveBeenCalled();
     expect(customers.linkIdentity).not.toHaveBeenCalled();
+    expect(customers.updateBroadcastConsent).not.toHaveBeenCalled();
   });
 });

@@ -614,9 +614,39 @@ export const customer360SourceSchema = z.object({
 export type Customer360Source = z.infer<typeof customer360SourceSchema>;
 
 export const broadcastHistorySummarySchema = z.object({
+  contactId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional(),
+  identityId: z.string().min(1).nullable().optional(),
+  platform: platformSchema.optional(),
+  channelAccountId: z.string().min(1).nullable().optional(),
+  roomId: z.string().min(1).nullable().optional(),
+  conversationId: z.string().min(1).nullable().optional(),
+  lastCampaignId: z.string().min(1).nullable().optional(),
   lastCampaignName: z.string().nullable(),
   sentMockCount: z.number().int().nonnegative(),
-  optOut: z.boolean().default(false)
+  optOut: z.boolean().default(false),
+  suppressedReason: z.string().min(1).optional(),
+  externalCalls: z.literal(0).default(0),
+  rows: z.array(z.object({
+    id: z.string().min(1),
+    contactId: z.string().min(1).nullable(),
+    customerId: z.string().min(1).nullable().optional(),
+    identityId: z.string().min(1).nullable(),
+    campaignId: z.string().min(1),
+    campaignName: z.string().min(1).nullable(),
+    campaignStatus: z.enum(["draft", "scheduled", "sending", "sent", "paused", "archived", "cancelled", "failed"]).nullable(),
+    platform: platformSchema,
+    channelAccountId: z.string().min(1).nullable(),
+    roomId: z.string().min(1).nullable(),
+    conversationId: z.string().min(1).nullable(),
+    status: z.enum(["queued_mock", "sent_mock", "skipped_mock", "failed_mock"]),
+    reason: z.string().nullable(),
+    sentAt: z.string().datetime().nullable(),
+    queuedAt: z.string().datetime().nullable(),
+    mockOnly: z.boolean(),
+    safe: z.boolean(),
+    externalCalls: z.literal(0)
+  }).strict()).default([])
 }).strict();
 export type BroadcastHistorySummary = z.infer<typeof broadcastHistorySummarySchema>;
 
@@ -672,6 +702,12 @@ export const setPrimaryIdentityRequestSchema = z.object({
   identityId: z.string().min(1)
 }).strict();
 export type SetPrimaryIdentityRequest = z.input<typeof setPrimaryIdentityRequestSchema>;
+
+export const updateBroadcastConsentRequestSchema = z.object({
+  optOut: z.boolean(),
+  conversationId: z.string().min(1).optional()
+}).strict();
+export type UpdateBroadcastConsentRequest = z.input<typeof updateBroadcastConsentRequestSchema>;
 
 export const broadcastCampaignStatusSchema = z.enum(["draft", "scheduled", "sending", "sent", "paused", "archived", "cancelled", "failed"]);
 export type BroadcastCampaignStatus = z.infer<typeof broadcastCampaignStatusSchema>;

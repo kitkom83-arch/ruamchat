@@ -4,6 +4,7 @@ import {
   linkContactIdentityRequestSchema,
   setPrimaryIdentityRequestSchema,
   unlinkContactIdentityRequestSchema,
+  updateBroadcastConsentRequestSchema,
   updateContactRequestSchema
 } from "@ai-omni/shared";
 import { CustomerService } from "../services/customer.service.js";
@@ -79,6 +80,16 @@ export class ContactsController {
     @Headers("x-user-id") userId?: string
   ) {
     return this.customers.setPrimaryIdentity(requireTenantId(tenant), contactId, setPrimaryIdentityRequestSchema.parse(body), userId);
+  }
+
+  @Patch(":contactId/broadcast-consent")
+  async updateBroadcastConsent(
+    @Param("contactId") contactId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.customers.updateBroadcastConsent(requireTenantId(tenant), contactId, updateBroadcastConsentRequestSchema.parse(body), userId);
   }
 }
 

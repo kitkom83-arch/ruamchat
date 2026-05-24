@@ -174,6 +174,7 @@ import {
   takeOverConversation as takeOverApiConversation,
   testRunApiFlow,
   unlinkContactIdentity as unlinkApiContactIdentity,
+  updateBroadcastConsent,
   updateConversationPriority,
   updateConversationReadState,
   updateConversationSla,
@@ -217,6 +218,16 @@ const apiAgentIds: Record<string, string> = {
   "agent-may": "00000000-0000-4000-8000-000000000011",
   "agent-ton": "00000000-0000-4000-8000-000000000012",
   "agent-beam": "00000000-0000-4000-8000-000000000013"
+};
+
+type BroadcastHistoryPanelRow = {
+  id: string;
+  campaignName: string;
+  platform: string;
+  channelAccountId?: string | null;
+  roomId?: string | null;
+  status: string;
+  at?: string | null;
 };
 
 export default function InboxDashboard() {
@@ -1316,10 +1327,28 @@ export default function InboxDashboard() {
     setAiActionStatus("Primary identity updated");
   }
 
-  function toggleSelectedBroadcastOptOut() {
+  async function toggleSelectedBroadcastOptOut() {
     if (!selectedContact) return;
     if (apiMode) {
-      setAiActionStatus("Broadcast opt-out remains local/mock-only in Sprint 14 API mode");
+      setApiActionLoading(true);
+      try {
+        const nextOptOut = !selectedContact.optOutBroadcast;
+        const contact = await updateBroadcastConsent(selectedContact.id, {
+          optOut: nextOptOut,
+          conversationId: selectedConversation?.id
+        });
+        applyApiContact(contact);
+        if (selectedConversation) {
+          const customer360 = await getCustomer360(selectedConversation.id);
+          setApiCustomer360(customer360);
+          await refreshApiConversationTimeline(selectedConversation.id);
+        }
+        setAiActionStatus(nextOptOut ? "Broadcast opt-out persisted through API" : "Broadcast opt-in persisted through API");
+      } catch (error) {
+        setAiActionStatus(readableApiError(error));
+      } finally {
+        setApiActionLoading(false);
+      }
       return;
     }
     updateContacts(toggleContactBroadcastOptOut(contacts, selectedContact.id, !selectedContact.optOutBroadcast));
@@ -1624,8 +1653,9 @@ export default function InboxDashboard() {
           matchingFlows={matchingFlows}
           recentFlowRuns={recentFlowRuns}
           lastFlowResult={lastFlowResult}
-          broadcastHistory={apiMode ? [] : selectedContact ? getBroadcastHistoryForContact(broadcastStore, selectedContact.id) : []}
+          broadcastHistoryRows={apiMode ? mapApiBroadcastHistoryRows(apiCustomer360?.broadcastHistorySummary.rows ?? []) : selectedContact ? mapLocalBroadcastHistoryRows(getBroadcastHistoryForContact(broadcastStore, selectedContact.id)) : []}
           lastBroadcastCampaignName={apiMode ? apiCustomer360?.broadcastHistorySummary.lastCampaignName ?? "No sent_mock campaign" : selectedContact ? getLastCampaignReceived(broadcastStore, selectedContact.id)?.name ?? "No sent_mock campaign" : "No sent_mock campaign"}
+          broadcastHistorySummary={apiMode ? apiCustomer360?.broadcastHistorySummary ?? null : null}
           noteDraft={noteDraft}
           noteVisibility={noteVisibility}
           onUseDraft={useAiDraft}
@@ -1839,8 +1869,9 @@ function CustomerPanel({
   matchingFlows,
   recentFlowRuns,
   lastFlowResult,
-  broadcastHistory,
+  broadcastHistoryRows,
   lastBroadcastCampaignName,
+  broadcastHistorySummary,
   noteDraft,
   noteVisibility,
   onUseDraft,
@@ -1904,8 +1935,9 @@ function CustomerPanel({
   matchingFlows: ReturnType<typeof getMatchingFlows>;
   recentFlowRuns: ReturnType<typeof getFlowRunHistory>;
   lastFlowResult: FlowTestRunResult | FlowRunTestResult | null;
-  broadcastHistory: ReturnType<typeof getBroadcastHistoryForContact>;
+  broadcastHistoryRows: BroadcastHistoryPanelRow[];
   lastBroadcastCampaignName: string;
+  broadcastHistorySummary: Customer360["broadcastHistorySummary"] | null;
   noteDraft: string;
   noteVisibility: InternalNoteVisibility;
   onUseDraft: () => void;
@@ -2016,12 +2048,13 @@ function CustomerPanel({
         <dl className="profileGrid">
           <div><dt>Opt-out</dt><dd>{contact?.optOutBroadcast ? `Yes / ${contact.suppressedReason ?? "suppressed"}` : "No"}</dd></div>
           <div><dt>Last campaign</dt><dd>{lastBroadcastCampaignName}</dd></div>
+          {apiMode && <div><dt>External calls</dt><dd>{broadcastHistorySummary?.externalCalls ?? 0}</dd></div>}
         </dl>
-        <button className="smallPanelButton" type="button" onClick={onToggleBroadcastOptOut} disabled={!contact}>{contact?.optOutBroadcast ? "Allow mock broadcast" : "Opt out mock"}</button>
-        {apiMode && <p className="noteText">Broadcast actions remain local/mock-only in Sprint 14 API mode.</p>}
+        <button className="smallPanelButton" type="button" onClick={onToggleBroadcastOptOut} disabled={!contact || workflowLoading}>{contact?.optOutBroadcast ? "Allow broadcast" : "Opt out broadcast"}</button>
+        {apiMode && <p className="noteText">Broadcast consent and history are loaded from the API for this tenant. Provider outbound remains disabled.</p>}
         <div className="miniList">
-          {broadcastHistory.slice(0, 3).map((item) => <p key={item.recipient.id}>{item.campaign?.name ?? item.recipient.campaignId} / {item.recipient.platform} / {item.recipient.status}</p>)}
-          {broadcastHistory.length === 0 && <p>No broadcast history yet</p>}
+          {broadcastHistoryRows.slice(0, 3).map((item) => <p key={item.id}>{item.campaignName} / {item.platform} / {item.status}{item.roomId ? ` / ${item.roomId}` : ""}</p>)}
+          {broadcastHistoryRows.length === 0 && <p>{apiMode ? "No persisted API broadcast history yet" : "No broadcast history yet"}</p>}
         </div>
       </section>
 
@@ -2358,6 +2391,29 @@ function mapApiAuditLogs(logs: ConversationAuditLog[]): ReturnType<typeof getAud
     targetId: log.conversationId ?? "",
     metadata: isRecord(log.metadataJson) ? log.metadataJson : {},
     createdAt: log.createdAt
+  }));
+}
+
+function mapApiBroadcastHistoryRows(rows: Customer360["broadcastHistorySummary"]["rows"]): BroadcastHistoryPanelRow[] {
+  return rows.map((row) => ({
+    id: row.id,
+    campaignName: row.campaignName ?? row.campaignId,
+    platform: row.platform,
+    channelAccountId: row.channelAccountId,
+    roomId: row.roomId,
+    status: row.status,
+    at: row.sentAt ?? row.queuedAt
+  }));
+}
+
+function mapLocalBroadcastHistoryRows(rows: ReturnType<typeof getBroadcastHistoryForContact>): BroadcastHistoryPanelRow[] {
+  return rows.map((item) => ({
+    id: item.recipient.id,
+    campaignName: item.campaign?.name ?? item.recipient.campaignId,
+    platform: item.recipient.platform,
+    roomId: item.recipient.roomId,
+    status: item.recipient.status,
+    at: item.recipient.updatedAt ?? item.recipient.createdAt
   }));
 }
 

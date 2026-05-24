@@ -58,6 +58,7 @@ import {
   settingsTeamMemberSchema,
   unlinkContactIdentityRequestSchema,
   updateBroadcastCampaignRequestSchema,
+  updateBroadcastConsentRequestSchema,
   updateBroadcastSegmentRequestSchema,
   updateKnowledgeBaseRequestSchema,
   updateKnowledgeChunkRequestSchema,
@@ -141,6 +142,7 @@ import {
   type UpdateConversationStatusRequest,
   type UnlinkContactIdentityRequest,
   type UpdateBroadcastCampaignRequest,
+  type UpdateBroadcastConsentRequest,
   type UpdateBroadcastSegmentRequest,
   type UpdateContactRequest,
   type UpdateSettingsChannelAccountRequest,
@@ -739,6 +741,14 @@ export async function unlinkContactIdentity(contactId: string, payload: UnlinkCo
 export async function setPrimaryContactIdentity(contactId: string, payload: SetPrimaryIdentityRequest): Promise<Contact> {
   const body = setPrimaryIdentityRequestSchema.parse(payload);
   return request(`/contacts/${encodeURIComponent(contactId)}/primary-identity`, contactSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateBroadcastConsent(contactId: string, payload: UpdateBroadcastConsentRequest): Promise<Contact> {
+  const body = updateBroadcastConsentRequestSchema.parse(payload);
+  return request(`/contacts/${encodeURIComponent(contactId)}/broadcast-consent`, contactSchema, {
     method: "PATCH",
     body: JSON.stringify(body)
   });
