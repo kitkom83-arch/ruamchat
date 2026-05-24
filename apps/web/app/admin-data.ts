@@ -320,12 +320,12 @@ export function returnConversationToAi(store: AdminStore, conversationId: string
   }));
 }
 
-export function createConversationTask(store: AdminStore, conversationId: string, contactId: string, actorId = currentMockAgentId, at = new Date()) {
+export function createConversationTask(store: AdminStore, conversationId: string, contactId: string, actorId = currentMockAgentId, at = new Date(), title = "Follow up customer") {
   const task: AdminTask = {
     id: `task-${conversationId}-${at.getTime()}`,
     conversationId,
     contactId,
-    title: "Follow up customer",
+    title,
     status: "open",
     createdBy: actorId,
     createdAt: at.toISOString()
@@ -724,9 +724,25 @@ function createNote(
   createdBy = currentMockAgentId,
   createdAt = baseTime
 ): InternalNote {
-  return { id, conversationId, contactId, body, visibility, createdBy, createdAt, updatedAt: createdAt, pinned };
+  return { id, conversationId, contactId, ...mockConversationContext(conversationId), body, visibility, createdBy, createdAt, updatedAt: createdAt, pinned };
 }
 
 function createAuditLog(id: string, actorId: string, action: string, targetType: string, targetId: string, metadata: Record<string, unknown>, createdAt: string): AuditLog {
   return { id, actorId, action, targetType, targetId, metadata, createdAt };
+}
+
+function mockConversationContext(conversationId: string) {
+  if (conversationId.includes("telegram")) {
+    return { platform: "telegram" as const, channelAccountId: "telegram-bot-007237", roomId: "telegram-bot-007237" };
+  }
+  if (conversationId.includes("line")) {
+    return { platform: "line" as const, channelAccountId: "line-oa-main", roomId: "line-oa-main" };
+  }
+  if (conversationId.includes("facebook")) {
+    return { platform: "facebook" as const, channelAccountId: "facebook-page-main", roomId: "facebook-page-main" };
+  }
+  if (conversationId.includes("instagram")) {
+    return { platform: "instagram" as const, channelAccountId: "instagram-shop", roomId: "instagram-shop" };
+  }
+  return { platform: "webchat" as const, channelAccountId: "webchat-main", roomId: "webchat-main" };
 }

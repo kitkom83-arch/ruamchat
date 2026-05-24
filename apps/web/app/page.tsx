@@ -127,10 +127,8 @@ import {
   type BroadcastStore
 } from "./broadcast-data";
 import {
-  addContactNote,
   addContactTag,
   createContactFromIdentity,
-  createContactTask,
   createIdentityFromConversation,
   findContactForConversation,
   getContactConversations,
@@ -183,6 +181,16 @@ import {
 } from "./api-client";
 import { dataMode, isApiMode, isMockMode } from "./data-mode";
 import { findCannedReplyInList, getCannedRepliesForMode, mapSettingsCannedReplyToCannedReply, resolveCannedReplyComposerDraft, searchCannedReplyList } from "./settings-data";
+import {
+  actionFeedbackClassName,
+  actionFeedbackDurationMs,
+  buildNoteSavePayload,
+  buildTaskSavePayload,
+  getWorkflowEditorCopy,
+  shouldShowActionFeedback,
+  type InboxActionFeedbackKey,
+  type InboxWorkflowEditorMode
+} from "./inbox-action-feedback";
 
 const tabOptions: Array<{ id: InboxTab; label: string }> = [
   { id: "human", label: "Human" },
@@ -258,8 +266,14 @@ export default function InboxDashboard() {
   const [aiActionStatus, setAiActionStatus] = useState("AI actions ready");
   const [cannedSearch, setCannedSearch] = useState("");
   const [cannedCategory, setCannedCategory] = useState("all");
+  const [activeWorkflowEditor, setActiveWorkflowEditor] = useState<InboxWorkflowEditorMode | null>(null);
+  const [workflowEditorActionKey, setWorkflowEditorActionKey] = useState<InboxActionFeedbackKey | null>(null);
+  const [workflowEditorError, setWorkflowEditorError] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [noteVisibility, setNoteVisibility] = useState<InternalNoteVisibility>("team");
+  const [taskTitleDraft, setTaskTitleDraft] = useState("");
+  const [taskDescriptionDraft, setTaskDescriptionDraft] = useState("");
+  const [taskPriorityDraft, setTaskPriorityDraft] = useState<ConversationPriority>("medium");
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [apiCustomer360, setApiCustomer360] = useState<Customer360 | null>(null);
@@ -280,6 +294,7 @@ export default function InboxDashboard() {
   const [apiStatusHistoryError, setApiStatusHistoryError] = useState("");
   const [apiAiLoading, setApiAiLoading] = useState(false);
   const [apiAiError, setApiAiError] = useState("");
+  const [lastActionFeedback, setLastActionFeedback] = useState<InboxActionFeedbackKey | null>(null);
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0] ?? platformRooms[0];
   const displayedRooms = useMemo(() => {
@@ -341,6 +356,19 @@ export default function InboxDashboard() {
       return visibleConversations[0]?.id ?? "";
     });
   }, [visibleConversations]);
+
+  useEffect(() => {
+    if (!lastActionFeedback) return;
+    const timeoutId = window.setTimeout(() => setLastActionFeedback(null), actionFeedbackDurationMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastActionFeedback]);
+
+  useEffect(() => {
+    if (!activeWorkflowEditor) return;
+    window.requestAnimationFrame(() => {
+      document.querySelector(".workflowEditorPanel")?.scrollIntoView({ block: "nearest" });
+    });
+  }, [activeWorkflowEditor]);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -684,86 +712,141 @@ export default function InboxDashboard() {
     setSelectedConversationId("");
   }
 
-  async function assignSelectedTo(agentId: string) {
+  function markActionFeedback(actionKey: InboxActionFeedbackKey, outcome: "opened" | "succeeded" = "succeeded") {
+    if (shouldShowActionFeedback(outcome)) setLastActionFeedback(actionKey);
+  }
+
+  function openAddNoteFlow(actionKey: InboxActionFeedbackKey) {
+    if (!selectedConversation) return;
+    setActiveWorkflowEditor("note");
+    setWorkflowEditorActionKey(actionKey);
+    setWorkflowEditorError("");
+    setNoteDraft("");
+    setAiActionStatus("Add note flow opened");
+    markActionFeedback(actionKey, "opened");
+  }
+
+  function openCreateTaskFlow(actionKey: InboxActionFeedbackKey) {
+    if (!selectedConversation) return;
+    setActiveWorkflowEditor("task");
+    setWorkflowEditorActionKey(actionKey);
+    setWorkflowEditorError("");
+    setTaskTitleDraft("");
+    setTaskDescriptionDraft("");
+    setTaskPriorityDraft(selectedPriority);
+    setAiActionStatus("Create task flow opened");
+    markActionFeedback(actionKey, "opened");
+  }
+
+  function cancelWorkflowEditor() {
+    setActiveWorkflowEditor(null);
+    setWorkflowEditorActionKey(null);
+    setWorkflowEditorError("");
+    setNoteDraft("");
+    setTaskTitleDraft("");
+    setTaskDescriptionDraft("");
+    setTaskPriorityDraft("medium");
+    setAiActionStatus("Workflow cancelled");
+  }
+
+  async function assignSelectedTo(agentId: string, actionKey: InboxActionFeedbackKey = "assign") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Assignment persisted");
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Assignment persisted", actionKey);
       return;
     }
     updateAdminStore(assignConversation(adminStore, selectedConversation.id, agentId));
     setAiActionStatus(`Assigned to ${adminStore.agents.find((agent) => agent.id === agentId)?.name ?? agentId}`);
+    markActionFeedback(actionKey);
   }
 
-  async function transferSelectedTo(agentId: string) {
+  async function transferSelectedTo(agentId: string, actionKey: InboxActionFeedbackKey = "transfer") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Transfer persisted");
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Transfer persisted", actionKey);
       return;
     }
     updateAdminStore(transferConversation(adminStore, selectedConversation.id, agentId));
     setAiActionStatus(`Transferred to ${adminStore.agents.find((agent) => agent.id === agentId)?.name ?? agentId}`);
+    markActionFeedback(actionKey);
   }
 
-  async function unassignSelected() {
+  async function unassignSelected(actionKey: InboxActionFeedbackKey = "unassign") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, null), "Conversation unassigned in API");
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, null), "Conversation unassigned in API", actionKey);
       return;
     }
     updateAdminStore(unassignConversation(adminStore, selectedConversation.id));
     setAiActionStatus("Conversation unassigned");
+    markActionFeedback(actionKey);
   }
 
-  async function changePriority(priority: ConversationPriority) {
+  async function changePriority(priority: ConversationPriority, actionKey: InboxActionFeedbackKey = "priority") {
     if (!selectedConversation) return;
     if (apiMode) {
       await runApiConversationAction(async () => updateConversationPriority(selectedConversation.id, {
         priority: priority === "medium" ? "normal" : priority
-      }), `Priority changed to ${priority}`);
+      }), `Priority changed to ${priority}`, actionKey);
       return;
     }
     updateAdminStore(setConversationPriority(adminStore, selectedConversation.id, priority));
     setAiActionStatus(`Priority changed to ${priority}`);
+    markActionFeedback(actionKey);
   }
 
-  async function changeConversationStatus(status: ConversationStatus) {
+  async function changeConversationStatus(status: ConversationStatus, actionKey: InboxActionFeedbackKey = "status") {
     if (!selectedConversation) return;
     if (apiMode) {
       if (status === "follow_up") {
-        await runApiConversationAction(async () => setConversationFollowUp(selectedConversation.id), "Follow-up persisted");
+        await runApiConversationAction(async () => setConversationFollowUp(selectedConversation.id), "Follow-up persisted", actionKey);
         return;
       }
       if (status === "resolved") {
-        await runApiConversationAction(async () => closeApiConversation(selectedConversation.id), "Conversation closed in API");
+        await runApiConversationAction(async () => closeApiConversation(selectedConversation.id), "Conversation closed in API", actionKey);
         return;
       }
-      await runApiConversationAction(async () => updateConversationStatus(selectedConversation.id, { status }), `Status changed to ${status}`);
+      await runApiConversationAction(async () => updateConversationStatus(selectedConversation.id, { status }), `Status changed to ${status}`, actionKey);
       return;
     }
     updateAdminStore(setConversationStatus(adminStore, selectedConversation.id, status));
     setAiActionStatus(`Status changed to ${status}`);
+    markActionFeedback(actionKey);
   }
 
   async function addConversationNote() {
-    if (!selectedConversation || !noteDraft.trim()) return;
+    const payload = buildNoteSavePayload(noteDraft, noteVisibility);
+    if (!selectedConversation || !payload) return;
+    setLastActionFeedback(null);
+    setWorkflowEditorError("");
     if (apiMode) {
       setApiActionLoading(true);
       try {
-        const note = await createConversationNote(selectedConversation.id, { body: noteDraft.trim(), visibility: noteVisibility });
+        const note = await createConversationNote(selectedConversation.id, payload);
         setApiConversationNotes((current) => [note, ...current]);
         setNoteDraft("");
+        setActiveWorkflowEditor(null);
+        setWorkflowEditorActionKey(null);
+        await refreshApiWorkflowAfterMutation(selectedConversation.id);
         setApiWorkflowError("");
         setAiActionStatus("Internal note persisted");
+        markActionFeedback("note-save");
       } catch (error) {
-        setApiWorkflowError(readableApiError(error));
+        const message = readableApiError(error);
+        setApiWorkflowError(message);
+        setWorkflowEditorError(message);
+        setLastActionFeedback(null);
       } finally {
         setApiActionLoading(false);
       }
       return;
     }
-    updateAdminStore(addInternalNote(adminStore, selectedConversation.id, selectedContactId, noteDraft.trim(), noteVisibility));
+    updateAdminStore(addInternalNote(adminStore, selectedConversation.id, selectedContactId, payload.body, payload.visibility));
     setNoteDraft("");
+    setActiveWorkflowEditor(null);
+    setWorkflowEditorActionKey(null);
     setAiActionStatus("Internal note added");
+    markActionFeedback("note-save");
   }
 
   function editLatestNote() {
@@ -933,77 +1016,82 @@ export default function InboxDashboard() {
     setAiActionStatus(getAiPanelMockActionStatus("mark_wrong", selectedConversation));
   }
 
-  async function takeOverFromAi() {
+  async function takeOverFromAi(actionKey: InboxActionFeedbackKey = "take-over") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => takeOverApiConversation(selectedConversation.id), "Human takeover persisted");
+      await runApiConversationAction(async () => takeOverApiConversation(selectedConversation.id), "Human takeover persisted", actionKey);
       return;
     }
     updateAdminStore(takeOverConversation(adminStore, selectedConversation.id));
     setAiActionStatus("Human takeover active");
+    markActionFeedback(actionKey);
   }
 
-  async function returnToAi() {
+  async function returnToAi(actionKey: InboxActionFeedbackKey = "return-to-ai") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => returnApiConversationToAi(selectedConversation.id), "Returned to AI in API");
+      await runApiConversationAction(async () => returnApiConversationToAi(selectedConversation.id), "Returned to AI in API", actionKey);
       return;
     }
     updateAdminStore(returnConversationToAi(adminStore, selectedConversation.id));
     setAiActionStatus("Returned to AI mock mode");
+    markActionFeedback(actionKey);
   }
 
-  async function assignToMe() {
+  async function assignToMe(actionKey: InboxActionFeedbackKey = "assign-to-me") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, defaultApiUserId), "Assigned to me in API");
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, defaultApiUserId), "Assigned to me in API", actionKey);
       return;
     }
     updateAdminStore(assignConversation(adminStore, selectedConversation.id, currentMockAgentId));
     setAiActionStatus("Assigned to me");
+    markActionFeedback(actionKey);
   }
 
-  async function markFollowUp() {
+  async function markFollowUp(actionKey: InboxActionFeedbackKey = "follow-up") {
     if (apiMode && selectedConversation) {
-      await runApiConversationAction(async () => setConversationFollowUp(selectedConversation.id), "Follow-up persisted");
+      await runApiConversationAction(async () => setConversationFollowUp(selectedConversation.id), "Follow-up persisted", actionKey);
       return;
     }
-    await changeConversationStatus("follow_up");
+    await changeConversationStatus("follow_up", actionKey);
   }
 
-  async function markResolved() {
-    await changeConversationStatus("resolved");
+  async function markResolved(actionKey: InboxActionFeedbackKey = "resolved") {
+    await changeConversationStatus("resolved", actionKey);
   }
 
-  async function reopenCase() {
-    await changeConversationStatus("open");
+  async function reopenCase(actionKey: InboxActionFeedbackKey = "reopen") {
+    await changeConversationStatus("open", actionKey);
   }
 
-  async function markRead() {
+  async function markRead(actionKey: InboxActionFeedbackKey = "read") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => updateConversationReadState(selectedConversation.id, { unread: false }), "Marked read in API");
+      await runApiConversationAction(async () => updateConversationReadState(selectedConversation.id, { unread: false }), "Marked read in API", actionKey);
       return;
     }
     setConversations((current) =>
       current.map((conversation) => conversation.id === selectedConversation.id ? { ...conversation, unreadCount: 0 } : conversation)
     );
     setAiActionStatus("Marked read");
+    markActionFeedback(actionKey);
   }
 
-  async function markReplied() {
+  async function markReplied(actionKey: InboxActionFeedbackKey = "replied") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => updateConversationReadState(selectedConversation.id, { unreplied: false }), "Marked replied in API");
+      await runApiConversationAction(async () => updateConversationReadState(selectedConversation.id, { unreplied: false }), "Marked replied in API", actionKey);
       return;
     }
     setConversations((current) =>
       current.map((conversation) => conversation.id === selectedConversation.id ? { ...conversation, unreplied: false } : conversation)
     );
     setAiActionStatus("Marked replied");
+    markActionFeedback(actionKey);
   }
 
-  async function setDueSoonSla() {
+  async function setDueSoonSla(actionKey: InboxActionFeedbackKey = "sla-soon") {
     if (!selectedConversation) return;
     const dueAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     if (apiMode) {
@@ -1012,36 +1100,54 @@ export default function InboxDashboard() {
         firstResponseDueAt: dueAt,
         resolutionDueAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         slaStatus: "warning"
-      }), "SLA updated in API");
+      }), "SLA updated in API", actionKey);
       return;
     }
     setAiActionStatus("SLA update is local-only in mock mode");
+    markActionFeedback(actionKey);
   }
 
-  async function createAdminTask() {
-    if (!selectedConversation) return;
+  async function saveWorkflowTask() {
+    const payload = buildTaskSavePayload(taskTitleDraft);
+    if (!selectedConversation || !payload) return;
+    setLastActionFeedback(null);
+    setWorkflowEditorError("");
     if (apiMode) {
       setApiActionLoading(true);
       try {
         const task = await createConversationWorkflowTask(selectedConversation.id, {
-          title: `Follow up ${selectedConversation.customerName}`,
+          title: payload.title,
           assigneeUserId: defaultApiUserId
         });
         setApiConversationTasks((current) => [mapApiWorkflowTaskToAdminTask(task), ...current]);
+        setTaskTitleDraft("");
+        setTaskDescriptionDraft("");
+        setActiveWorkflowEditor(null);
+        setWorkflowEditorActionKey(null);
+        await refreshApiWorkflowAfterMutation(selectedConversation.id);
         setApiWorkflowError("");
         setAiActionStatus("Task persisted");
+        markActionFeedback("task-save");
       } catch (error) {
-        setApiWorkflowError(readableApiError(error));
+        const message = readableApiError(error);
+        setApiWorkflowError(message);
+        setWorkflowEditorError(message);
+        setLastActionFeedback(null);
       } finally {
         setApiActionLoading(false);
       }
       return;
     }
-    updateAdminStore(createConversationTask(adminStore, selectedConversation.id, selectedContactId));
+    updateAdminStore(createConversationTask(adminStore, selectedConversation.id, selectedContactId, currentMockAgentId, new Date(), payload.title));
+    setTaskTitleDraft("");
+    setTaskDescriptionDraft("");
+    setActiveWorkflowEditor(null);
+    setWorkflowEditorActionKey(null);
     setAiActionStatus("Task created");
+    markActionFeedback("task-save");
   }
 
-  async function runApiConversationAction(action: () => Promise<CoreConversationCard>, successMessage: string) {
+  async function runApiConversationAction(action: () => Promise<CoreConversationCard>, successMessage: string, actionKey?: InboxActionFeedbackKey) {
     setApiActionLoading(true);
     try {
       const card = mapApiConversationToCard(await action(), selectedConversation?.messages ?? []);
@@ -1060,6 +1166,7 @@ export default function InboxDashboard() {
       setApiError("");
       setApiWorkflowError("");
       setAiActionStatus(successMessage);
+      if (actionKey) markActionFeedback(actionKey);
       await refreshApiConversationTimeline(card.id);
     } catch (error) {
       const message = readableApiError(error);
@@ -1089,6 +1196,18 @@ export default function InboxDashboard() {
       setApiStatusHistory([]);
       setApiStatusHistoryError(readableApiError(statusHistoryResult.reason));
     }
+  }
+
+  async function refreshApiWorkflowAfterMutation(conversationId: string) {
+    const [notesResult, tasksResult, customerResult] = await Promise.allSettled([
+      getConversationNotes(conversationId),
+      getConversationTasks(conversationId),
+      getCustomer360(conversationId)
+    ]);
+    if (notesResult.status === "fulfilled") setApiConversationNotes(notesResult.value);
+    if (tasksResult.status === "fulfilled") setApiConversationTasks(tasksResult.value.map(mapApiWorkflowTaskToAdminTask));
+    if (customerResult.status === "fulfilled") setApiCustomer360(customerResult.value);
+    await refreshApiConversationTimeline(conversationId);
   }
 
   function buildSelectedFlowInput(flow: Flow) {
@@ -1144,54 +1263,6 @@ export default function InboxDashboard() {
     void navigator.clipboard?.writeText(selectedConversation.aiSummary);
     updateAdminStore(copyConversationSummary(adminStore, selectedConversation.id));
     setAiActionStatus("Summary copied");
-  }
-
-  async function addCrmNote() {
-    if (!selectedContact) return;
-    if (apiMode) {
-      if (!selectedConversation) return;
-      setApiActionLoading(true);
-      try {
-        const note = await createConversationNote(selectedConversation.id, {
-          body: `Internal note from ${selectedConversation.platformLabel} conversation`,
-          visibility: "team"
-        });
-        setApiConversationNotes((current) => [note, ...current]);
-        setAiActionStatus("CRM note persisted as internal note");
-        setApiWorkflowError("");
-      } catch (error) {
-        setApiWorkflowError(readableApiError(error));
-      } finally {
-        setApiActionLoading(false);
-      }
-      return;
-    }
-    updateContacts(addContactNote(contacts, selectedContact.id, `Internal note from ${selectedConversation?.platformLabel ?? "Inbox"} conversation`));
-    setAiActionStatus("CRM note added");
-  }
-
-  async function createCrmTask() {
-    if (!selectedContact) return;
-    if (apiMode) {
-      if (!selectedConversation) return;
-      setApiActionLoading(true);
-      try {
-        const task = await createConversationWorkflowTask(selectedConversation.id, {
-          title: `Follow up ${selectedContact.displayName}`,
-          assigneeUserId: defaultApiUserId
-        });
-        setApiConversationTasks((current) => [mapApiWorkflowTaskToAdminTask(task), ...current]);
-        setAiActionStatus("CRM task persisted");
-        setApiWorkflowError("");
-      } catch (error) {
-        setApiWorkflowError(readableApiError(error));
-      } finally {
-        setApiActionLoading(false);
-      }
-      return;
-    }
-    updateContacts(createContactTask(contacts, selectedContact.id, `Follow up ${selectedContact.displayName}`));
-    setAiActionStatus("CRM task created");
   }
 
   async function markFirstTaskDone() {
@@ -1545,22 +1616,23 @@ export default function InboxDashboard() {
           status={selectedStatus}
           sla={selectedSla}
           collision={apiMode ? null : selectedCollision}
-          onAssignToMe={assignToMe}
-          onUnassign={unassignSelected}
-          onAssign={assignSelectedTo}
-          onTransfer={transferSelectedTo}
-          onPriorityChange={changePriority}
-          onStatusChange={changeConversationStatus}
-          onTakeOver={takeOverFromAi}
-          onReturnToAi={returnToAi}
-          onMarkFollowUp={markFollowUp}
-          onMarkResolved={markResolved}
-          onReopen={reopenCase}
-          onMarkRead={markRead}
-          onMarkReplied={markReplied}
-          onSetDueSoonSla={setDueSoonSla}
-          onCreateTask={createAdminTask}
-          onAddNote={() => setNoteDraft("ติดตามจาก quick action")}
+          activeActionKey={lastActionFeedback}
+          onAssignToMe={() => assignToMe("assign-to-me")}
+          onUnassign={() => unassignSelected("unassign")}
+          onAssign={(agentId) => assignSelectedTo(agentId, "assign")}
+          onTransfer={(agentId) => transferSelectedTo(agentId, "transfer")}
+          onPriorityChange={(priority) => changePriority(priority, "priority")}
+          onStatusChange={(status) => changeConversationStatus(status, "status")}
+          onTakeOver={() => takeOverFromAi("take-over")}
+          onReturnToAi={() => returnToAi("return-to-ai")}
+          onMarkFollowUp={() => markFollowUp("follow-up")}
+          onMarkResolved={() => markResolved("resolved")}
+          onReopen={() => reopenCase("reopen")}
+          onMarkRead={() => markRead("read")}
+          onMarkReplied={() => markReplied("replied")}
+          onSetDueSoonSla={() => setDueSoonSla("sla-soon")}
+          onCreateTask={() => openCreateTaskFlow("toolbar-create-task")}
+          onAddNote={() => openAddNoteFlow("toolbar-add-note")}
           onCopySummary={copySummary}
         />
         <div className="messageTimeline">
@@ -1656,6 +1728,11 @@ export default function InboxDashboard() {
           broadcastHistoryRows={apiMode ? mapApiBroadcastHistoryRows(apiCustomer360?.broadcastHistorySummary.rows ?? []) : selectedContact ? mapLocalBroadcastHistoryRows(getBroadcastHistoryForContact(broadcastStore, selectedContact.id)) : []}
           lastBroadcastCampaignName={apiMode ? apiCustomer360?.broadcastHistorySummary.lastCampaignName ?? "No sent_mock campaign" : selectedContact ? getLastCampaignReceived(broadcastStore, selectedContact.id)?.name ?? "No sent_mock campaign" : "No sent_mock campaign"}
           broadcastHistorySummary={apiMode ? apiCustomer360?.broadcastHistorySummary ?? null : null}
+          activeWorkflowEditor={activeWorkflowEditor}
+          workflowEditorError={workflowEditorError}
+          taskTitleDraft={taskTitleDraft}
+          taskDescriptionDraft={taskDescriptionDraft}
+          taskPriorityDraft={taskPriorityDraft}
           noteDraft={noteDraft}
           noteVisibility={noteVisibility}
           onUseDraft={useAiDraft}
@@ -1663,26 +1740,33 @@ export default function InboxDashboard() {
           onViewSource={viewAiSource}
           onRegenerate={regenerateDraft}
           onMarkWrong={markAiWrong}
-          onTakeOver={takeOverFromAi}
-          onReturnToAi={returnToAi}
-          onAssignToMe={assignToMe}
-          onMarkFollowUp={markFollowUp}
-          onMarkResolved={markResolved}
-          onReopen={reopenCase}
-          onMarkRead={markRead}
-          onMarkReplied={markReplied}
-          onSetDueSoonSla={setDueSoonSla}
-          onCreateAdminTask={createAdminTask}
+          activeActionKey={lastActionFeedback}
+          onTakeOver={() => takeOverFromAi("take-over")}
+          onReturnToAi={() => returnToAi("return-to-ai")}
+          onAssignToMe={() => assignToMe("assign-to-me")}
+          onMarkFollowUp={() => markFollowUp("follow-up")}
+          onMarkResolved={() => markResolved("resolved")}
+          onReopen={() => reopenCase("reopen")}
+          onMarkRead={() => markRead("read")}
+          onMarkReplied={() => markReplied("replied")}
+          onSetDueSoonSla={() => setDueSoonSla("sla-soon")}
+          onCreateAdminTask={() => openCreateTaskFlow("quick-create-task")}
           onRunFlow={runSelectedFlow}
           onCopySummary={copySummary}
-          onAddNote={addCrmNote}
+          onAddNote={() => openAddNoteFlow("customer-add-note")}
+          onQuickAddNote={() => openAddNoteFlow("quick-add-note")}
           onAddInternalNote={addConversationNote}
+          onSaveWorkflowTask={saveWorkflowTask}
+          onCancelWorkflowEditor={cancelWorkflowEditor}
           onEditInternalNote={editLatestNote}
           onDeleteInternalNote={deleteLatestNote}
           onPinInternalNote={pinLatestNote}
           onNoteDraftChange={setNoteDraft}
           onNoteVisibilityChange={setNoteVisibility}
-          onCreateTask={createCrmTask}
+          onTaskTitleDraftChange={setTaskTitleDraft}
+          onTaskDescriptionDraftChange={setTaskDescriptionDraft}
+          onTaskPriorityDraftChange={setTaskPriorityDraft}
+          onCreateTask={() => openCreateTaskFlow("customer-create-task")}
           onMarkTaskDone={markFirstTaskDone}
           onLeadStatusChange={changeLeadStatus}
           onAddTag={addCrmTag}
@@ -1752,6 +1836,7 @@ function ChatHeader({
   status,
   sla,
   collision,
+  activeActionKey,
   onAssignToMe,
   onUnassign,
   onAssign,
@@ -1778,6 +1863,7 @@ function ChatHeader({
   status: ConversationStatus;
   sla: { status: string; text: string } | null;
   collision: ReturnType<typeof getCollisionWarning> | null;
+  activeActionKey: InboxActionFeedbackKey | null;
   onAssignToMe: () => void;
   onUnassign: () => void;
   onAssign: (agentId: string) => void;
@@ -1811,31 +1897,31 @@ function ChatHeader({
         </div>
       </div>
       <div className="chatActions">
-        <button type="button" onClick={onTakeOver} disabled={!conversation}><UserRoundCheck size={15} /> Take Over</button>
-        <button type="button" onClick={onReturnToAi} disabled={!conversation}><Bot size={15} /> Return to AI</button>
-        <button type="button" onClick={onAssignToMe} disabled={!conversation}><UserPlus size={15} /> Assign to Me</button>
-        <button type="button" onClick={onUnassign} disabled={!conversation}><UserMinus size={15} /> Unassign</button>
-        <button type="button" onClick={onMarkFollowUp} disabled={!conversation}><Clock3 size={15} /> Follow Up</button>
-        <button type="button" onClick={onMarkResolved} disabled={!conversation}><CheckCircle2 size={15} /> Resolved</button>
-        <button type="button" onClick={onReopen} disabled={!conversation}><RotateCcw size={15} /> Reopen</button>
-        <button type="button" onClick={onMarkRead} disabled={!conversation}><CheckCircle2 size={15} /> Read</button>
-        <button type="button" onClick={onMarkReplied} disabled={!conversation}><MessageSquareText size={15} /> Replied</button>
-        <button type="button" onClick={onSetDueSoonSla} disabled={!conversation}><Clock3 size={15} /> SLA Soon</button>
-        <button type="button" onClick={onCreateTask} disabled={!conversation}><Clipboard size={15} /> Create Task</button>
-        <button type="button" onClick={onAddNote} disabled={!conversation}><Edit3 size={15} /> Add Note</button>
+        <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={!conversation}><UserRoundCheck size={15} /> Take Over</button>
+        <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi} disabled={!conversation}><Bot size={15} /> Return to AI</button>
+        <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={!conversation}><UserPlus size={15} /> Assign to Me</button>
+        <button className={actionFeedbackClassName("unassign", activeActionKey)} type="button" onClick={onUnassign} disabled={!conversation}><UserMinus size={15} /> Unassign</button>
+        <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={!conversation}><Clock3 size={15} /> Follow Up</button>
+        <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved} disabled={!conversation}><CheckCircle2 size={15} /> Resolved</button>
+        <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen} disabled={!conversation}><RotateCcw size={15} /> Reopen</button>
+        <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={!conversation}><CheckCircle2 size={15} /> Read</button>
+        <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={!conversation}><MessageSquareText size={15} /> Replied</button>
+        <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={!conversation}><Clock3 size={15} /> SLA Soon</button>
+        <button className={actionFeedbackClassName("toolbar-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={!conversation}><Clipboard size={15} /> Create Task</button>
+        <button className={actionFeedbackClassName("toolbar-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={!conversation}><Edit3 size={15} /> Add Note</button>
         <button type="button" onClick={onCopySummary} disabled={!conversation}><Copy size={15} /> Copy Summary</button>
-        <select value="" onChange={(event) => event.target.value && onAssign(event.target.value)} disabled={!conversation} aria-label="Assign conversation">
+        <select className={actionFeedbackClassName("assign", activeActionKey)} value="" onChange={(event) => event.target.value && onAssign(event.target.value)} disabled={!conversation} aria-label="Assign conversation">
           <option value="">Assign</option>
           {adminStore.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
-        <select value="" onChange={(event) => event.target.value && onTransfer(event.target.value)} disabled={!conversation} aria-label="Transfer conversation">
+        <select className={actionFeedbackClassName("transfer", activeActionKey)} value="" onChange={(event) => event.target.value && onTransfer(event.target.value)} disabled={!conversation} aria-label="Transfer conversation">
           <option value="">Transfer</option>
           {adminStore.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
-        <select value={priority} onChange={(event) => onPriorityChange(event.target.value as ConversationPriority)} disabled={!conversation} aria-label="Change priority">
+        <select className={actionFeedbackClassName("priority", activeActionKey)} value={priority} onChange={(event) => onPriorityChange(event.target.value as ConversationPriority)} disabled={!conversation} aria-label="Change priority">
           {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select value={status} onChange={(event) => onStatusChange(event.target.value as ConversationStatus)} disabled={!conversation} aria-label="Change status">
+        <select className={actionFeedbackClassName("status", activeActionKey)} value={status} onChange={(event) => onStatusChange(event.target.value as ConversationStatus)} disabled={!conversation} aria-label="Change status">
           {statusOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
       </div>
@@ -1872,6 +1958,11 @@ function CustomerPanel({
   broadcastHistoryRows,
   lastBroadcastCampaignName,
   broadcastHistorySummary,
+  activeWorkflowEditor,
+  workflowEditorError,
+  taskTitleDraft,
+  taskDescriptionDraft,
+  taskPriorityDraft,
   noteDraft,
   noteVisibility,
   onUseDraft,
@@ -1879,6 +1970,7 @@ function CustomerPanel({
   onViewSource,
   onRegenerate,
   onMarkWrong,
+  activeActionKey,
   onTakeOver,
   onReturnToAi,
   onAssignToMe,
@@ -1892,12 +1984,18 @@ function CustomerPanel({
   onRunFlow,
   onCopySummary,
   onAddNote,
+  onQuickAddNote,
   onAddInternalNote,
+  onSaveWorkflowTask,
+  onCancelWorkflowEditor,
   onEditInternalNote,
   onDeleteInternalNote,
   onPinInternalNote,
   onNoteDraftChange,
   onNoteVisibilityChange,
+  onTaskTitleDraftChange,
+  onTaskDescriptionDraftChange,
+  onTaskPriorityDraftChange,
   onCreateTask,
   onMarkTaskDone,
   onLeadStatusChange,
@@ -1938,6 +2036,11 @@ function CustomerPanel({
   broadcastHistoryRows: BroadcastHistoryPanelRow[];
   lastBroadcastCampaignName: string;
   broadcastHistorySummary: Customer360["broadcastHistorySummary"] | null;
+  activeWorkflowEditor: InboxWorkflowEditorMode | null;
+  workflowEditorError: string;
+  taskTitleDraft: string;
+  taskDescriptionDraft: string;
+  taskPriorityDraft: ConversationPriority;
   noteDraft: string;
   noteVisibility: InternalNoteVisibility;
   onUseDraft: () => void;
@@ -1945,6 +2048,7 @@ function CustomerPanel({
   onViewSource: () => void;
   onRegenerate: () => void;
   onMarkWrong: () => void;
+  activeActionKey: InboxActionFeedbackKey | null;
   onTakeOver: () => void;
   onReturnToAi: () => void;
   onAssignToMe: () => void;
@@ -1958,12 +2062,18 @@ function CustomerPanel({
   onRunFlow: (flowId: string) => void;
   onCopySummary: () => void;
   onAddNote: () => void;
+  onQuickAddNote: () => void;
   onAddInternalNote: () => void;
+  onSaveWorkflowTask: () => void;
+  onCancelWorkflowEditor: () => void;
   onEditInternalNote: () => void;
   onDeleteInternalNote: () => void;
   onPinInternalNote: () => void;
   onNoteDraftChange: (value: string) => void;
   onNoteVisibilityChange: (value: InternalNoteVisibility) => void;
+  onTaskTitleDraftChange: (value: string) => void;
+  onTaskDescriptionDraftChange: (value: string) => void;
+  onTaskPriorityDraftChange: (value: ConversationPriority) => void;
   onCreateTask: () => void;
   onMarkTaskDone: () => void;
   onLeadStatusChange: (leadStatus: LeadStatus) => void;
@@ -2030,8 +2140,8 @@ function CustomerPanel({
         </dl>
         <div className="crmActionGrid">
           <Link href={contact ? `/contacts?contact=${contact.id}` : "/contacts"} className="crmLinkButton"><ExternalLink size={14} /> Open Full Contact</Link>
-          <button type="button" onClick={onAddNote} disabled={!contact || workflowLoading}>Add Note</button>
-          <button type="button" onClick={onCreateTask} disabled={!contact || workflowLoading}>Create Task</button>
+          <button className={actionFeedbackClassName("customer-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={workflowLoading}>Add Note</button>
+          <button className={actionFeedbackClassName("customer-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={workflowLoading}>Create Task</button>
           <button type="button" onClick={onLinkIdentity} disabled={!contact}>Link Identity</button>
           <button type="button" onClick={onCreateContact}>Create New Contact</button>
           <button type="button" onClick={onUnlinkIdentity} disabled={!contact || contact.identities.length <= 1}>Unlink Identity</button>
@@ -2039,6 +2149,28 @@ function CustomerPanel({
           <button type="button" onClick={() => onLeadStatusChange("follow_up")} disabled={!contact}>Set Follow Up</button>
         </div>
       </section>
+
+      {activeWorkflowEditor && (
+        <WorkflowEditorPanel
+          mode={activeWorkflowEditor}
+          activeActionKey={activeActionKey}
+          workflowLoading={workflowLoading}
+          workflowError={workflowEditorError || workflowError}
+          noteDraft={noteDraft}
+          noteVisibility={noteVisibility}
+          taskTitleDraft={taskTitleDraft}
+          taskDescriptionDraft={taskDescriptionDraft}
+          taskPriorityDraft={taskPriorityDraft}
+          onNoteDraftChange={onNoteDraftChange}
+          onNoteVisibilityChange={onNoteVisibilityChange}
+          onTaskTitleDraftChange={onTaskTitleDraftChange}
+          onTaskDescriptionDraftChange={onTaskDescriptionDraftChange}
+          onTaskPriorityDraftChange={onTaskPriorityDraftChange}
+          onSaveNote={onAddInternalNote}
+          onSaveTask={onSaveWorkflowTask}
+          onCancel={onCancelWorkflowEditor}
+        />
+      )}
 
       <section className="panelBlock">
         <div className="blockHeader">
@@ -2064,16 +2196,17 @@ function CustomerPanel({
           <h3>Quick actions</h3>
         </div>
         <div className="aiActionGrid">
-          <button type="button" onClick={onAssignToMe} disabled={workflowLoading}>Assign to Me</button>
-          <button type="button" onClick={onTakeOver} disabled={workflowLoading}>Take Over</button>
-          <button type="button" onClick={onReturnToAi}>Return to AI</button>
-          <button type="button" onClick={onMarkFollowUp} disabled={workflowLoading}>Mark Follow Up</button>
-          <button type="button" onClick={onMarkResolved}>Mark Resolved</button>
-          <button type="button" onClick={onReopen}>Reopen</button>
-          <button type="button" onClick={onMarkRead} disabled={workflowLoading}>Mark Read</button>
-          <button type="button" onClick={onMarkReplied} disabled={workflowLoading}>Mark Replied</button>
-          <button type="button" onClick={onSetDueSoonSla} disabled={workflowLoading}>SLA Due Soon</button>
-          <button type="button" onClick={onCreateAdminTask} disabled={workflowLoading}>Create Task</button>
+          <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={workflowLoading}>Assign to Me</button>
+          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={workflowLoading}>Take Over</button>
+          <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi}>Return to AI</button>
+          <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={workflowLoading}>Mark Follow Up</button>
+          <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved}>Mark Resolved</button>
+          <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen}>Reopen</button>
+          <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={workflowLoading}>Mark Read</button>
+          <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={workflowLoading}>Mark Replied</button>
+          <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={workflowLoading}>SLA Due Soon</button>
+          <button className={actionFeedbackClassName("quick-add-note", activeActionKey)} type="button" onClick={onQuickAddNote} disabled={workflowLoading}>Add Note</button>
+          <button className={actionFeedbackClassName("quick-create-task", activeActionKey)} type="button" onClick={onCreateAdminTask} disabled={workflowLoading}>Create Task</button>
           <button type="button" onClick={onCopySummary}>Copy Summary</button>
         </div>
       </section>
@@ -2125,12 +2258,12 @@ function CustomerPanel({
           <h3>Internal notes</h3>
         </div>
         <div className="noteEditor">
-          <textarea value={noteDraft} onChange={(event) => onNoteDraftChange(event.target.value)} placeholder="Add internal note" />
+          <textarea value={noteDraft} onChange={(event) => onNoteDraftChange(event.target.value)} placeholder="Write an internal note..." />
           <select value={noteVisibility} onChange={(event) => onNoteVisibilityChange(event.target.value as InternalNoteVisibility)}>
             <option value="team">Team</option>
             <option value="supervisor">Supervisor</option>
           </select>
-          <button type="button" onClick={onAddInternalNote} disabled={!noteDraft.trim() || workflowLoading}>Add Note</button>
+          <button className={actionFeedbackClassName("internal-note-save", activeActionKey)} type="button" onClick={onAddInternalNote} disabled={!noteDraft.trim() || workflowLoading}>Add Note</button>
         </div>
         <div className="inlineActions">
           <button type="button" onClick={onPinInternalNote} disabled={notes.length === 0 || apiMode}><Pin size={13} /> Pin</button>
@@ -2302,11 +2435,109 @@ function CustomerPanel({
           <button type="button" onClick={onUseDraft} disabled={aiLoading}>Use AI Draft</button>
           <button type="button" onClick={onMarkWrong} disabled={aiLoading}>Mark as Wrong</button>
           <button type="button" onClick={onRegenerate} disabled={aiLoading}>Regenerate Draft</button>
-          <button type="button" onClick={onTakeOver}>Take Over</button>
+          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver}>Take Over</button>
         </div>
         <p className="aiActionStatus">{aiActionStatus}</p>
       </section>
     </>
+  );
+}
+
+function WorkflowEditorPanel({
+  mode,
+  activeActionKey,
+  workflowLoading,
+  workflowError,
+  noteDraft,
+  noteVisibility,
+  taskTitleDraft,
+  taskDescriptionDraft,
+  taskPriorityDraft,
+  onNoteDraftChange,
+  onNoteVisibilityChange,
+  onTaskTitleDraftChange,
+  onTaskDescriptionDraftChange,
+  onTaskPriorityDraftChange,
+  onSaveNote,
+  onSaveTask,
+  onCancel
+}: {
+  mode: InboxWorkflowEditorMode;
+  activeActionKey: InboxActionFeedbackKey | null;
+  workflowLoading: boolean;
+  workflowError: string;
+  noteDraft: string;
+  noteVisibility: InternalNoteVisibility;
+  taskTitleDraft: string;
+  taskDescriptionDraft: string;
+  taskPriorityDraft: ConversationPriority;
+  onNoteDraftChange: (value: string) => void;
+  onNoteVisibilityChange: (value: InternalNoteVisibility) => void;
+  onTaskTitleDraftChange: (value: string) => void;
+  onTaskDescriptionDraftChange: (value: string) => void;
+  onTaskPriorityDraftChange: (value: ConversationPriority) => void;
+  onSaveNote: () => void;
+  onSaveTask: () => void;
+  onCancel: () => void;
+}) {
+  const copy = getWorkflowEditorCopy(mode);
+  const isNote = mode === "note";
+  const noteCopy = getWorkflowEditorCopy("note");
+  const taskCopy = getWorkflowEditorCopy("task");
+  return (
+    <section className="panelBlock workflowEditorPanel" aria-label={copy.title}>
+      <div className="blockHeader">
+        {isNote ? <FileText size={17} /> : <Clipboard size={17} />}
+        <h3>{copy.title}</h3>
+      </div>
+      {isNote ? (
+        <div className="workflowForm">
+          <textarea
+            autoFocus
+            value={noteDraft}
+            onChange={(event) => onNoteDraftChange(event.target.value)}
+            placeholder={noteCopy.bodyPlaceholder}
+            aria-label="Internal note text"
+          />
+          <select value={noteVisibility} onChange={(event) => onNoteVisibilityChange(event.target.value as InternalNoteVisibility)} aria-label="Note visibility">
+            <option value="team">Team</option>
+            <option value="supervisor">Supervisor</option>
+          </select>
+          <div className="workflowButtonRow">
+            <button className={actionFeedbackClassName("note-save", activeActionKey)} type="button" onClick={onSaveNote} disabled={!noteDraft.trim() || workflowLoading}>
+              {workflowLoading ? "Saving..." : noteCopy.primaryLabel}
+            </button>
+            <button type="button" onClick={onCancel} disabled={workflowLoading}>{noteCopy.cancelLabel}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="workflowForm">
+          <input
+            autoFocus
+            value={taskTitleDraft}
+            onChange={(event) => onTaskTitleDraftChange(event.target.value)}
+            placeholder={taskCopy.titlePlaceholder}
+            aria-label="Task title"
+          />
+          <textarea
+            value={taskDescriptionDraft}
+            onChange={(event) => onTaskDescriptionDraftChange(event.target.value)}
+            placeholder={taskCopy.descriptionPlaceholder}
+            aria-label="Task details"
+          />
+          <select value={taskPriorityDraft} onChange={(event) => onTaskPriorityDraftChange(event.target.value as ConversationPriority)} aria-label="Task priority">
+            {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <div className="workflowButtonRow">
+            <button className={actionFeedbackClassName("task-save", activeActionKey)} type="button" onClick={onSaveTask} disabled={!taskTitleDraft.trim() || workflowLoading}>
+              {workflowLoading ? "Creating..." : taskCopy.primaryLabel}
+            </button>
+            <button type="button" onClick={onCancel} disabled={workflowLoading}>{taskCopy.cancelLabel}</button>
+          </div>
+        </div>
+      )}
+      {workflowError && <p className="noteText workflowError">{workflowError}</p>}
+    </section>
   );
 }
 

@@ -1,6 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import { ConversationsController } from "./conversations.controller.js";
+import { ConversationsController, TasksController } from "./conversations.controller.js";
 
 describe("ConversationsController manual reply", () => {
   it("requires x-tenant-id before sending a manual reply", async () => {
@@ -71,5 +71,41 @@ describe("ConversationsController manual reply", () => {
     await expect(controller.customer360("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
 
     expect(customers.getCustomer360).not.toHaveBeenCalled();
+  });
+
+  it("requires x-tenant-id for note and task workflow endpoints", async () => {
+    const conversations = {
+      getNotes: vi.fn(),
+      createNote: vi.fn(),
+      getTasks: vi.fn(),
+      createTask: vi.fn()
+    };
+    const controller = new ConversationsController(conversations as never, {} as never);
+
+    await expect(controller.notes("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.createNote("conv-1", { body: "note", visibility: "team" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.tasks("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.createTask("conv-1", { title: "task" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(conversations.getNotes).not.toHaveBeenCalled();
+    expect(conversations.createNote).not.toHaveBeenCalled();
+    expect(conversations.getTasks).not.toHaveBeenCalled();
+    expect(conversations.createTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("TasksController workflow updates", () => {
+  it("requires x-tenant-id for task update endpoints", async () => {
+    const conversations = {
+      updateTask: vi.fn(),
+      completeTask: vi.fn()
+    };
+    const controller = new TasksController(conversations as never);
+
+    await expect(controller.updateTask("task-1", { status: "done" }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.completeTask("task-1", undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(conversations.updateTask).not.toHaveBeenCalled();
+    expect(conversations.completeTask).not.toHaveBeenCalled();
   });
 });

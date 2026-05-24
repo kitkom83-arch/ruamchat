@@ -278,3 +278,39 @@ Validation:
 
 Remaining:
 - None for Sprint 32.
+
+---
+
+# Sprint 33 FINAL PASS
+
+Inbox and Customer 360 Notes + Tasks now run through backend API mode with tenant-scoped persisted records, safe DTOs, audit visibility, refresh persistence, visible editors, green click feedback, and no silent mock fallback.
+
+Validation:
+- typecheck passed
+- tests passed: 35 files / 318 tests
+- build passed
+- smoke:sprint33 passed: 31/31 checks
+- externalCalls: 0
+- Customer 360 loaded from API
+- created note through backend API
+- refetch confirmed persisted note
+- created task through backend API
+- refetch confirmed persisted task
+- note/task responses preserve platform/account/room context
+- audit log exists for note action
+- audit log exists for task action
+- audit externalCalls = 0
+- Add Note editor opened visibly
+- Create Task editor opened visibly
+- Customer 360 Add Note/Create Task opened the correct workflow
+- Quick actions Create Task opened the correct workflow
+- API-on UI note/task persistence verified
+- API-off showed Failed to fetch
+- API-off no fake local note/task fallback verified
+- no token/secret exposure observed
+- no provider outbound observed
+- no Prisma schema change
+
+Remaining:
+- None for Sprint 33.
+- API was intentionally stopped for API-off verification.

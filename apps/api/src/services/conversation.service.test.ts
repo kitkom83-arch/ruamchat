@@ -550,7 +550,7 @@ describe("ConversationService core API", () => {
   });
 
   it("creates and lists persisted internal notes for a conversation", async () => {
-    const { service, audit } = buildService();
+    const { service, audit, auditLogs } = buildService();
 
     const created = await service.createNote(tenantId, "conv-web-need-human", "00000000-0000-4000-8000-000000000011", {
       body: "Follow pricing context",
@@ -561,16 +561,25 @@ describe("ConversationService core API", () => {
     expect(created).toMatchObject({
       conversationId: "conv-web-need-human",
       contactId: "conv-web-need-human-contact",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
       body: "Follow pricing context",
       visibility: "team",
       createdBy: "00000000-0000-4000-8000-000000000011"
     });
     expect(notes.map((note) => note.id)).toEqual([created.id]);
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "note.created", tenantId, conversationId: "conv-web-need-human" }));
+    expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "note.created"), "note.created", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
+    expect(auditLogs.find((log) => log.action === "note.created")?.afterJson).toEqual(expect.objectContaining({
+      id: created.id,
+      contactId: "conv-web-need-human-contact",
+      externalCalls: 0
+    }));
   });
 
   it("creates and completes persisted workflow tasks", async () => {
-    const { service, audit } = buildService();
+    const { service, audit, auditLogs } = buildService();
 
     const created = await service.createTask(tenantId, "conv-web-need-human", "00000000-0000-4000-8000-000000000011", {
       title: "Send pricing follow-up",
@@ -581,6 +590,9 @@ describe("ConversationService core API", () => {
     expect(created).toMatchObject({
       conversationId: "conv-web-need-human",
       contactId: "conv-web-need-human-contact",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
       title: "Send pricing follow-up",
       status: "open"
     });
@@ -588,6 +600,8 @@ describe("ConversationService core API", () => {
     expect(completed.completedAt).toBeTruthy();
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "task.created", tenantId, conversationId: "conv-web-need-human" }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "task.completed", tenantId, conversationId: "conv-web-need-human" }));
+    expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "task.created"), "task.created", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
+    expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "task.completed"), "task.completed", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
   });
 
   it("persists assignment, takeover, and follow-up state with scoped action audit metadata", async () => {
