@@ -143,8 +143,8 @@ Manual validation used local PostgreSQL on port 55433 because port 55432 was blo
 
 ## Git
 
-- Working tree contains Sprint 33 edits.
-- No commit made yet.
+- Sprint 33 closeout is scoped to the listed Sprint 33 source, test, smoke, package, and report files.
+- Local-only/generated runtime files must remain uncommitted.
 
 ## Remaining issues
 
