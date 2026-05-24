@@ -416,11 +416,37 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-new", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-new/complete", expect.objectContaining({ method: "PATCH" }));
     expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ body: "persist this", visibility: "team" });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ title: "Follow up" });
     expect(notes[0]?.id).toBe("note-api");
     expect(note.id).toBe("note-new");
+    expect(note).toMatchObject({
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat"
+    });
     expect(tasks[0]?.id).toBe("task-api");
+    expect(task).toMatchObject({
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat"
+    });
     expect(updatedTask.title).toBe("Updated task");
     expect(completed.status).toBe("done");
+  });
+
+  it("does not fake local note/task state when workflow API mutations fail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "Note unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "Task unavailable" }, 503));
+
+    await expect(createConversationNote("conv-web", { body: "do not fake", visibility: "team" }))
+      .rejects.toThrow("API request failed (503): Note unavailable");
+    await expect(createConversationWorkflowTask("conv-web", { title: "Do not fake" }))
+      .rejects.toThrow("API request failed (503): Task unavailable");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectTenantHeaderForAll(fetchMock);
   });
 
   it("persists assignment, takeover, return-to-AI, and follow-up without mock fallback", async () => {
@@ -859,6 +885,9 @@ function internalNoteResponse(id: string) {
     id,
     conversationId: "conv-web",
     contactId: "contact-api",
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
     body: "persist this",
     visibility: "team",
     createdBy: "00000000-0000-4000-8000-000000000011",
@@ -873,6 +902,9 @@ function taskResponse(id: string) {
     id,
     conversationId: "conv-web",
     contactId: "contact-api",
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
     title: "Follow up",
     status: "open",
     assigneeUserId: null,

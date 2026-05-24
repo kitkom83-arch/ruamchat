@@ -614,6 +614,8 @@ button {
 }
 
 button:disabled,
+input:disabled,
+select:disabled,
 textarea:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -1174,6 +1176,19 @@ h3 {
   padding: 0 9px;
   font-size: 12px;
   font-weight: 800;
+}
+
+.chatActions button.actionSuccess,
+.chatActions select.actionSuccess,
+.aiActionGrid button.actionSuccess,
+.crmActionGrid button.actionSuccess,
+.workflowForm button.actionSuccess,
+.noteEditor button.actionSuccess,
+.smallPanelButton.actionSuccess {
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #166534;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.16);
 }
 
 .messageTimeline {
@@ -2264,6 +2279,55 @@ dd {
 .noteEditor {
   align-items: stretch;
   margin-bottom: 8px;
+}
+
+.workflowEditorPanel {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.workflowForm {
+  display: grid;
+  gap: 8px;
+}
+
+.workflowForm textarea,
+.workflowForm input,
+.workflowForm select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 9px;
+  font-size: 13px;
+}
+
+.workflowForm textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.workflowButtonRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.workflowButtonRow button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #334155;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workflowError {
+  margin-top: 8px;
+  color: #b91c1c;
 }
 
 .noteEditor textarea {

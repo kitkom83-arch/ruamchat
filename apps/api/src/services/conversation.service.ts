@@ -214,7 +214,7 @@ export class ConversationService {
       where: { tenantId, conversationId },
       orderBy: { createdAt: "desc" }
     });
-    return notes.map((note) => this.mapInternalNote(note, conversation.contactId));
+    return notes.map((note) => this.mapInternalNote(note, conversation));
   }
 
   async createNote(tenantId: string, conversationId: string, actorUserId: string | undefined, request: CreateInternalNoteRequest) {
@@ -234,25 +234,32 @@ export class ConversationService {
       actorUserId,
       conversationId,
       action: "note.created",
-      entityType: "conversation",
-      entityId: conversationId,
-      metadata: { noteId: note.id }
+      entityType: "internal_note",
+      entityId: note.id,
+      afterJson: noteAuditSnapshot(note, conversation),
+      metadata: conversationAuditMetadata(conversation, "note.created", actorUserId, {
+        noteId: note.id,
+        contactId: conversation.contactId,
+        customerId: conversation.contactId,
+        visibility: note.visibility
+      })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return this.mapInternalNote(note, conversation.contactId);
+    return this.mapInternalNote(note, conversation);
   }
 
   async getTasks(tenantId: string, conversationId: string) {
-    await this.ensureConversation(tenantId, conversationId);
+    const conversation = await this.ensureConversation(tenantId, conversationId);
     const tasks = await this.prisma.task.findMany({
       where: { tenantId, conversationId },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }]
     });
-    return tasks.map(mapTask);
+    return tasks.map((task) => mapTask(task, conversation));
   }
 
   async createTask(tenantId: string, conversationId: string, actorUserId: string | undefined, request: CreateTaskRequest) {
     const conversation = await this.ensureConversation(tenantId, conversationId);
+    if (request.assigneeUserId) await this.ensureTenantUser(tenantId, request.assigneeUserId, "Assignee user not found");
     const task = await this.prisma.task.create({
       data: {
         tenantId,
@@ -269,12 +276,19 @@ export class ConversationService {
       actorUserId,
       conversationId,
       action: "task.created",
-      entityType: "conversation",
-      entityId: conversationId,
-      metadata: { taskId: task.id }
+      entityType: "task",
+      entityId: task.id,
+      afterJson: taskAuditSnapshot(task, conversation),
+      metadata: conversationAuditMetadata(conversation, "task.created", actorUserId, {
+        taskId: task.id,
+        contactId: conversation.contactId,
+        customerId: conversation.contactId,
+        status: task.status,
+        assigneeUserId: task.assigneeUserId
+      })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return mapTask(task);
+    return mapTask(task, conversation);
   }
 
   async ingest(message: NormalizedInboundMessage) {
@@ -631,6 +645,8 @@ export class ConversationService {
   async updateTask(tenantId: string, taskId: string, actorUserId: string | undefined, request: UpdateTaskRequest) {
     const task = await this.prisma.task.findFirst({ where: { tenantId, id: taskId } });
     if (!task) throw new NotFoundException("Task not found");
+    const conversation = await this.ensureConversation(tenantId, task.conversationId);
+    if (request.assigneeUserId) await this.ensureTenantUser(tenantId, request.assigneeUserId, "Assignee user not found");
     const status = request.status;
     const updated = await this.prisma.task.update({
       where: { id: taskId },
@@ -647,12 +663,21 @@ export class ConversationService {
       actorUserId,
       conversationId: task.conversationId,
       action: status === "done" ? "task.completed" : "task.updated",
-      entityType: "conversation",
-      entityId: task.conversationId,
-      metadata: { taskId, status }
+      entityType: "task",
+      entityId: taskId,
+      beforeJson: taskAuditSnapshot(task, conversation),
+      afterJson: taskAuditSnapshot(updated, conversation),
+      metadata: conversationAuditMetadata(conversation, status === "done" ? "task.completed" : "task.updated", actorUserId, {
+        taskId,
+        contactId: conversation.contactId,
+        customerId: conversation.contactId,
+        fromStatus: task.status,
+        toStatus: updated.status,
+        assigneeUserId: updated.assigneeUserId
+      })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId: task.conversationId });
-    return mapTask(updated);
+    return mapTask(updated, conversation);
   }
 
   async completeTask(tenantId: string, taskId: string, actorUserId: string | undefined) {
@@ -1031,11 +1056,14 @@ export class ConversationService {
     pinned: boolean;
     createdAt: Date;
     updatedAt: Date;
-  }, fallbackContactId: string) {
+  }, conversation: ConversationContext) {
     return {
       id: note.id,
       conversationId: note.conversationId,
-      contactId: note.contactId ?? fallbackContactId,
+      contactId: note.contactId ?? conversation.contactId,
+      platform: conversation.room.platform,
+      channelAccountId: conversation.room.channelAccountId,
+      roomId: conversation.roomId,
       body: note.body,
       visibility: note.visibility === "supervisor" ? "supervisor" as const : "team" as const,
       createdBy: note.authorUserId ?? "system",
@@ -1045,6 +1073,14 @@ export class ConversationService {
     };
   }
 }
+
+type ConversationContext = {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  contactId: string;
+  room: { platform: Platform; channelAccountId: string };
+};
 
 function mapTask(task: {
   id: string;
@@ -1058,11 +1094,14 @@ function mapTask(task: {
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-}) {
+}, conversation: ConversationContext) {
   return {
     id: task.id,
     conversationId: task.conversationId,
     contactId: task.contactId,
+    platform: conversation.room.platform,
+    channelAccountId: conversation.room.channelAccountId,
+    roomId: conversation.roomId,
     title: task.title,
     status: task.status === "done" || task.status === "cancelled" ? task.status : "open",
     assigneeUserId: task.assigneeUserId,
@@ -1071,6 +1110,70 @@ function mapTask(task: {
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString()
+  };
+}
+
+function noteAuditSnapshot(note: {
+  id: string;
+  conversationId: string;
+  contactId: string | null;
+  authorUserId: string | null;
+  body: string;
+  visibility: string;
+  pinned: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}, conversation: ConversationContext) {
+  return {
+    id: note.id,
+    tenantId: conversation.tenantId,
+    conversationId: note.conversationId,
+    contactId: note.contactId ?? conversation.contactId,
+    customerId: note.contactId ?? conversation.contactId,
+    platform: conversation.room.platform,
+    channelAccountId: conversation.room.channelAccountId,
+    roomId: conversation.roomId,
+    authorUserId: note.authorUserId,
+    body: note.body,
+    visibility: note.visibility,
+    pinned: note.pinned,
+    createdAt: note.createdAt.toISOString(),
+    updatedAt: note.updatedAt.toISOString(),
+    externalCalls: 0
+  };
+}
+
+function taskAuditSnapshot(task: {
+  id: string;
+  conversationId: string;
+  contactId: string;
+  title: string;
+  status: string;
+  assigneeUserId: string | null;
+  createdByUserId: string | null;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}, conversation: ConversationContext) {
+  return {
+    id: task.id,
+    tenantId: conversation.tenantId,
+    conversationId: task.conversationId,
+    contactId: task.contactId,
+    customerId: task.contactId,
+    platform: conversation.room.platform,
+    channelAccountId: conversation.room.channelAccountId,
+    roomId: conversation.roomId,
+    title: task.title,
+    status: task.status,
+    assigneeUserId: task.assigneeUserId,
+    createdByUserId: task.createdByUserId,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    externalCalls: 0
   };
 }
 
