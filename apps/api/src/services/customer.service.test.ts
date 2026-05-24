@@ -24,6 +24,67 @@ describe("CustomerService Customer 360 API", () => {
       channelAccountId: webchatAccountId,
       externalUserId: "web-user"
     });
+    expect(customer360.broadcastHistorySummary).toMatchObject({
+      contactId: "contact-web",
+      customerId: "contact-web",
+      identityId: "identity-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      conversationId: "conv-web",
+      lastCampaignName: "Persisted Web Broadcast",
+      sentMockCount: 1,
+      optOut: false,
+      externalCalls: 0
+    });
+    expect(customer360.broadcastHistorySummary.rows[0]).toMatchObject({
+      campaignName: "Persisted Web Broadcast",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      conversationId: "conv-web",
+      status: "sent_mock",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(customer360.broadcastHistorySummary)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+  });
+
+  it("persists broadcast opt-out state through tenant-scoped contact audit logs", async () => {
+    const { service, audit } = buildService();
+
+    const optedOut = await service.updateBroadcastConsent(tenantId, "contact-web", { optOut: true, conversationId: "conv-web" }, "agent-demo");
+    const refreshed = await service.getCustomer360(tenantId, "conv-web");
+
+    expect(optedOut.optOutBroadcast).toBe(true);
+    expect(refreshed.contact.optOutBroadcast).toBe(true);
+    expect(refreshed.broadcastHistorySummary.optOut).toBe(true);
+    expect(refreshed.broadcastHistorySummary.suppressedReason).toBe("customer_requested");
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      actorUserId: "agent-demo",
+      action: "contact.broadcast_consent_updated",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        tenantId,
+        contactId: "contact-web",
+        customerId: "contact-web",
+        identityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        externalCalls: 0
+      })
+    }));
+    expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+  });
+
+  it("rejects broadcast consent updates for another tenant or unrelated conversation", async () => {
+    const { service } = buildService();
+
+    await expect(service.updateBroadcastConsent("00000000-0000-4000-8000-000000000099", "contact-web", { optOut: true }, "agent-demo")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.updateBroadcastConsent(tenantId, "contact-web", { optOut: true, conversationId: "conv-telegram" }, "agent-demo")).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("lists and reads contacts only for the requested tenant", async () => {
@@ -235,6 +296,25 @@ function buildService() {
     tasks: [
       task("task-web", "conv-web", "contact-web", "Follow up web visitor", "open", now)
     ],
+    campaigns: [
+      { id: "campaign-web", tenantId, name: "Persisted Web Broadcast", status: "sent", channelPlatform: "webchat", channelAccountId: webchatAccountId, createdAt: now, updatedAt: now }
+    ],
+    sendLogs: [
+      {
+        id: "send-log-web",
+        tenantId,
+        campaignId: "campaign-web",
+        contactId: "contact-web",
+        contactIdentityId: "identity-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        status: "sent_mock",
+        reason: "safe mock send only; no external outbound call was made",
+        payloadJson: { externalCalls: 0 },
+        createdAt: now
+      }
+    ],
+    auditLogs: [] as any[],
     tags: [] as Array<{ id: string; tenantId: string; name: string; color: string; createdAt: Date }>,
     contactTags: [] as Array<{ id: string; contactId: string; tagId: string; createdAt: Date }>
   };
@@ -273,6 +353,39 @@ function buildService() {
     },
     task: {
       findMany: vi.fn(async ({ where }) => store.tasks.filter((task) => task.tenantId === where.tenantId && where.conversationId.in.includes(task.conversationId)))
+    },
+    auditLog: {
+      findMany: vi.fn(async ({ where }) => store.auditLogs
+        .filter((log) =>
+          log.tenantId === where.tenantId &&
+          (!where.entityType || log.entityType === where.entityType) &&
+          (!where.action || log.action === where.action) &&
+          (!where.entityId?.in || where.entityId.in.includes(log.entityId))
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()))
+    },
+    broadcastSendLog: {
+      findMany: vi.fn(async ({ where }) => {
+        const identityIds = where.OR?.flatMap((clause: any) => clause.contactIdentityId?.in ?? []) ?? [];
+        const contactIds = new Set(where.OR?.map((clause: any) => clause.contactId).filter(Boolean) ?? []);
+        return store.sendLogs
+          .filter((log) => log.tenantId === where.tenantId && (contactIds.has(log.contactId) || identityIds.includes(log.contactIdentityId)))
+          .map((log) => ({
+            ...log,
+            campaign: store.campaigns.find((campaign) => campaign.id === log.campaignId) ?? null
+          }));
+      })
+    },
+    room: {
+      findMany: vi.fn(async ({ where }) => store.conversations
+        .filter((conversation) => conversation.tenantId === where.tenantId && where.OR?.some((item: any) =>
+          item.platform === conversation.platform && item.channelAccountId === conversation.channelAccountId
+        ))
+        .map((conversation) => ({
+          id: conversation.roomId,
+          platform: conversation.platform,
+          channelAccountId: conversation.channelAccountId
+        })))
     },
     contact: {
       findMany: vi.fn(async ({ where }) => store.contacts
@@ -375,7 +488,15 @@ function buildService() {
   const audit = {
     record: vi.fn(async (input) => {
       auditCount += 1;
-      return { id: `audit-${auditCount}`, ...input };
+      const saved = {
+        id: `audit-${auditCount}`,
+        ...input,
+        metadataJson: input.metadata,
+        metadata: input.metadata,
+        createdAt: now
+      };
+      store.auditLogs.push(saved);
+      return saved;
     })
   };
 

@@ -3,6 +3,7 @@ import {
   CreateContactRequest,
   LinkContactIdentityRequest,
   SetPrimaryIdentityRequest,
+  UpdateBroadcastConsentRequest,
   UpdateContactRequest,
   UnlinkContactIdentityRequest
 } from "@ai-omni/shared";
@@ -28,7 +29,8 @@ export class CustomerService {
       orderBy: [{ updatedAt: "desc" }, { displayName: "asc" }]
     });
     const notesByContactId = await this.getNotesByContactId(tenantId, contacts.map((contact) => contact.id));
-    return contacts.map((contact) => mapContact(contact, notesByContactId.get(contact.id) ?? [], contact.tasks));
+    const consentByContactId = await this.getBroadcastConsentByContactIds(tenantId, contacts.map((contact) => contact.id));
+    return contacts.map((contact) => mapContact(contact, notesByContactId.get(contact.id) ?? [], contact.tasks, consentByContactId.get(contact.id)));
   }
 
   async getContact(tenantId: string, contactId: string) {
@@ -42,7 +44,8 @@ export class CustomerService {
     });
     if (!contact) throw new NotFoundException("Contact not found");
     const notesByContactId = await this.getNotesByContactId(tenantId, [contact.id]);
-    return mapContact(contact, notesByContactId.get(contact.id) ?? [], contact.tasks);
+    const consentByContactId = await this.getBroadcastConsentByContactIds(tenantId, [contact.id]);
+    return mapContact(contact, notesByContactId.get(contact.id) ?? [], contact.tasks, consentByContactId.get(contact.id));
   }
 
   async getContactIdentities(tenantId: string, contactId: string) {
@@ -145,6 +148,9 @@ export class CustomerService {
         })
       : [];
 
+    const consentByContactId = await this.getBroadcastConsentByContactIds(tenantId, [contact.id]);
+    const broadcastConsent = consentByContactId.get(contact.id);
+    const broadcastHistorySummary = await this.getBroadcastHistorySummary(tenantId, contact.id, identityIds, selected, broadcastConsent);
     const mappedIdentities = contact.identities.map((identity) => mapIdentity(identity));
     const mappedNotes = notes.map((note) => ({
       id: note.id,
@@ -174,7 +180,8 @@ export class CustomerService {
       identities: mappedIdentities,
       notes: mappedNotes,
       tasks: mappedTasks,
-      optOutBroadcast: false,
+      optOutBroadcast: Boolean(broadcastConsent?.optOut),
+      suppressedReason: broadcastConsent?.suppressedReason,
       createdAt: contact.createdAt.toISOString(),
       updatedAt: contact.updatedAt.toISOString()
     };
@@ -190,7 +197,7 @@ export class CustomerService {
       recentConversations: recentConversations.map(mapConversationCard),
       notes: mappedNotes,
       tasks: mappedTasks,
-      broadcastHistorySummary: { lastCampaignName: null, sentMockCount: 0, optOut: false },
+      broadcastHistorySummary,
       source: {
         platform: selected.room.platform,
         channelAccountId: selected.room.channelAccountId,
@@ -399,6 +406,173 @@ export class CustomerService {
       });
     }
     return this.getContact(tenantId, contactId);
+  }
+
+  async updateBroadcastConsent(tenantId: string, contactId: string, request: UpdateBroadcastConsentRequest, actorUserId?: string) {
+    await this.ensureContact(tenantId, contactId);
+    let selectedConversation: Awaited<ReturnType<CustomerService["findConversationForBroadcastConsent"]>> | null = null;
+    if (request.conversationId) {
+      selectedConversation = await this.findConversationForBroadcastConsent(tenantId, contactId, request.conversationId);
+    }
+    const before = (await this.getBroadcastConsentByContactIds(tenantId, [contactId])).get(contactId) ?? { optOut: false };
+    const after = {
+      optOut: request.optOut,
+      suppressedReason: request.optOut ? "customer_requested" : undefined
+    };
+
+    await this.recordContactAudit({
+      tenantId,
+      actorUserId,
+      contactId,
+      identityId: selectedConversation?.contactIdentityId,
+      action: "contact.broadcast_consent_updated",
+      beforeJson: broadcastConsentSnapshot(before),
+      afterJson: broadcastConsentSnapshot(after),
+      metadata: {
+        contactId,
+        customerId: contactId,
+        identityId: selectedConversation?.contactIdentityId ?? null,
+        conversationId: selectedConversation?.id ?? request.conversationId ?? null,
+        platform: selectedConversation?.room.platform ?? null,
+        channelAccountId: selectedConversation?.room.channelAccountId ?? null,
+        roomId: selectedConversation?.roomId ?? null,
+        previous: broadcastConsentSnapshot(before),
+        next: broadcastConsentSnapshot(after),
+        externalCalls: 0
+      }
+    });
+
+    return this.getContact(tenantId, contactId);
+  }
+
+  private async findConversationForBroadcastConsent(tenantId: string, contactId: string, conversationId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { tenantId, id: conversationId },
+      include: {
+        room: true,
+        contactIdentity: true
+      }
+    });
+    if (!conversation) throw new NotFoundException("Conversation not found");
+    if (conversation.contactId !== contactId && conversation.contactIdentity.contactId !== contactId) {
+      throw new BadRequestException("Conversation does not belong to contact");
+    }
+    return conversation;
+  }
+
+  private async getBroadcastConsentByContactIds(tenantId: string, contactIds: string[]) {
+    const result = new Map<string, BroadcastConsent>();
+    if (contactIds.length === 0) return result;
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        tenantId,
+        entityType: "contact",
+        entityId: { in: contactIds },
+        action: "contact.broadcast_consent_updated"
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    for (const log of logs) {
+      if (!log.entityId || result.has(log.entityId)) continue;
+      const after = readObject(log.afterJson);
+      const metadata = readObject(log.metadataJson ?? log.metadata);
+      const next = readObject(metadata.next);
+      const optOut = Boolean(after.optOut ?? next.optOut);
+      const suppressedReason = typeof after.suppressedReason === "string"
+        ? after.suppressedReason
+        : typeof next.suppressedReason === "string"
+          ? next.suppressedReason
+          : undefined;
+      result.set(log.entityId, {
+        optOut,
+        suppressedReason: optOut ? suppressedReason ?? "customer_requested" : undefined,
+        updatedAt: log.createdAt
+      });
+    }
+    return result;
+  }
+
+  private async getBroadcastHistorySummary(
+    tenantId: string,
+    contactId: string,
+    identityIds: string[],
+    selected: { id: string; roomId: string; contactIdentityId: string; room: { platform: Platform; channelAccountId: string } },
+    consent?: BroadcastConsent
+  ) {
+    const logs = await this.prisma.broadcastSendLog.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { contactId },
+          identityIds.length > 0 ? { contactIdentityId: { in: identityIds } } : { id: "__none__" }
+        ]
+      },
+      include: { campaign: true },
+      orderBy: { createdAt: "desc" },
+      take: 20
+    }) as BroadcastHistoryLogRecord[];
+    const roomKeys = logs
+      .filter((log) => log.channelAccountId)
+      .map((log) => ({ platform: log.platform, channelAccountId: log.channelAccountId as string }));
+    const rooms = roomKeys.length > 0
+      ? await this.prisma.room.findMany({
+          where: {
+            tenantId,
+            OR: roomKeys.map((room) => ({
+              platform: room.platform,
+              channelAccountId: room.channelAccountId
+            }))
+          },
+          select: { id: true, platform: true, channelAccountId: true }
+        })
+      : [];
+    const roomByPlatformAccount = new Map(rooms.map((room) => [`${room.platform}:${room.channelAccountId}`, room.id]));
+    const rows = logs.map((log) => {
+      const roomId = log.channelAccountId
+        ? roomByPlatformAccount.get(`${log.platform}:${log.channelAccountId}`) ?? null
+        : null;
+      const inSelectedRoom = roomId === selected.roomId || (
+        log.platform === selected.room.platform &&
+        log.channelAccountId === selected.room.channelAccountId
+      );
+      return {
+        id: log.id,
+        contactId: log.contactId,
+        customerId: log.contactId,
+        identityId: log.contactIdentityId,
+        campaignId: log.campaignId,
+        campaignName: log.campaign?.name ?? null,
+        campaignStatus: safeCampaignStatus(log.campaign?.status),
+        platform: log.platform,
+        channelAccountId: log.channelAccountId,
+        roomId,
+        conversationId: inSelectedRoom ? selected.id : null,
+        status: safeBroadcastLogStatus(log.status),
+        reason: log.reason,
+        sentAt: log.status === "sent_mock" ? log.createdAt.toISOString() : null,
+        queuedAt: log.status === "queued_mock" ? log.createdAt.toISOString() : null,
+        mockOnly: true,
+        safe: true,
+        externalCalls: 0 as const
+      };
+    });
+    const last = rows[0] ?? null;
+    return {
+      contactId,
+      customerId: contactId,
+      identityId: selected.contactIdentityId,
+      platform: selected.room.platform,
+      channelAccountId: selected.room.channelAccountId,
+      roomId: selected.roomId,
+      conversationId: selected.id,
+      lastCampaignId: last?.campaignId ?? null,
+      lastCampaignName: last?.campaignName ?? null,
+      sentMockCount: rows.filter((row) => row.status === "sent_mock").length,
+      optOut: Boolean(consent?.optOut),
+      suppressedReason: consent?.suppressedReason,
+      externalCalls: 0 as const,
+      rows
+    };
   }
 
   private async findIdentityForLinkRequest(tenantId: string, request: LinkContactIdentityRequest) {
@@ -677,6 +851,39 @@ function contactAuditSnapshot(contact: {
   };
 }
 
+type BroadcastConsent = {
+  optOut: boolean;
+  suppressedReason?: string;
+  updatedAt?: Date;
+};
+
+type BroadcastHistoryLogRecord = {
+  id: string;
+  tenantId: string;
+  campaignId: string;
+  contactId: string | null;
+  contactIdentityId: string | null;
+  platform: Platform;
+  channelAccountId: string | null;
+  status: string;
+  reason: string | null;
+  payloadJson: Prisma.JsonValue | null;
+  createdAt: Date;
+  campaign?: {
+    id: string;
+    name: string;
+    status: string;
+  } | null;
+};
+
+function broadcastConsentSnapshot(consent: BroadcastConsent) {
+  return {
+    optOut: Boolean(consent.optOut),
+    suppressedReason: consent.optOut ? consent.suppressedReason ?? "customer_requested" : null,
+    externalCalls: 0
+  };
+}
+
 function mapContact(contact: {
   id: string;
   displayName: string;
@@ -702,7 +909,7 @@ function mapContact(contact: {
   dueAt: Date | null;
   assigneeUserId: string | null;
   createdAt: Date;
-}> = []) {
+}> = [], consent?: BroadcastConsent) {
   return {
     id: contact.id,
     displayName: contact.displayName,
@@ -729,7 +936,8 @@ function mapContact(contact: {
       ownerAgent: task.assigneeUserId ?? undefined,
       createdAt: task.createdAt.toISOString()
     })),
-    optOutBroadcast: false,
+    optOutBroadcast: Boolean(consent?.optOut),
+    suppressedReason: consent?.suppressedReason,
     createdAt: contact.createdAt.toISOString(),
     updatedAt: contact.updatedAt.toISOString()
   };
@@ -857,4 +1065,18 @@ function platformLabel(platform: Platform) {
 
 function formatApiTime(date: Date) {
   return new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function safeCampaignStatus(value: string | undefined | null) {
+  const allowed = ["draft", "scheduled", "sending", "sent", "paused", "archived", "cancelled", "failed"] as const;
+  return allowed.find((status) => status === value) ?? null;
+}
+
+function safeBroadcastLogStatus(value: string) {
+  const allowed = ["queued_mock", "sent_mock", "skipped_mock", "failed_mock"] as const;
+  return allowed.find((status) => status === value) ?? "skipped_mock";
+}
+
+function readObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

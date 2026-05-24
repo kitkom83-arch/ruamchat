@@ -247,3 +247,34 @@ Validation:
 Remaining:
 - None for Sprint 31.
 - API was intentionally stopped for API-off verification.
+
+---
+
+# Sprint 32 FINAL PASS
+
+Customer 360 Broadcast history and opt-out consent now run through backend API mode with tenant-scoped persisted consent/history state, safe DTOs, audit visibility, and no silent mock fallback.
+
+Validation:
+- typecheck passed
+- tests passed: 34 files / 304 tests
+- build passed
+- smoke:sprint32 passed: 24/24 checks
+- externalCalls: 0
+- Customer 360 loaded from API
+- broadcast history summary loaded from API
+- opt-out status loaded from API
+- safe opt-out/opt-in update persisted via API
+- refetch preserved updated opt-out state
+- audit log exists for broadcast consent action
+- audit log preserves safe context
+- broadcast context preserves platform/account/room
+- missing Customer 360 returned API error/empty state, not mock fallback
+- API-on UI Broadcast history verified
+- API-off showed Failed to fetch
+- API-off no silent mock broadcast fallback verified
+- no token/secret exposure observed
+- no provider outbound observed
+- no Prisma schema change
+
+Remaining:
+- None for Sprint 32.
