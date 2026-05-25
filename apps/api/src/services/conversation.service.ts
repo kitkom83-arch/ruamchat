@@ -646,6 +646,12 @@ export class ConversationService {
     const task = await this.prisma.task.findFirst({ where: { tenantId, id: taskId } });
     if (!task) throw new NotFoundException("Task not found");
     const conversation = await this.ensureConversation(tenantId, task.conversationId);
+    if (task.contactId !== conversation.contactId) {
+      throw new BadRequestException("Task does not belong to the conversation contact");
+    }
+    if (Object.keys(request).length === 0) {
+      throw new BadRequestException("Task update payload is empty");
+    }
     if (request.assigneeUserId) await this.ensureTenantUser(tenantId, request.assigneeUserId, "Assignee user not found");
     const status = request.status;
     const updated = await this.prisma.task.update({
@@ -671,9 +677,16 @@ export class ConversationService {
         taskId,
         contactId: conversation.contactId,
         customerId: conversation.contactId,
+        conversationId: conversation.id,
         fromStatus: task.status,
         toStatus: updated.status,
-        assigneeUserId: updated.assigneeUserId
+        previousStatus: task.status,
+        nextStatus: updated.status,
+        previousAssigneeUserId: task.assigneeUserId,
+        nextAssigneeUserId: updated.assigneeUserId,
+        previousDueAt: task.dueAt?.toISOString() ?? null,
+        nextDueAt: updated.dueAt?.toISOString() ?? null,
+        changedFields: Object.keys(request)
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId: task.conversationId });

@@ -181,7 +181,7 @@ function buildService() {
       }),
       update: vi.fn(async ({ where, data }) => {
         const index = tasks.findIndex((item) => item.id === where.id);
-        const saved = { ...tasks[index], ...data, updatedAt: new Date("2026-05-21T04:04:00.000Z") };
+        const saved = { ...tasks[index], ...stripUndefined(data), updatedAt: new Date("2026-05-21T04:04:00.000Z") };
         tasks[index] = saved;
         return saved;
       })
@@ -597,11 +597,108 @@ describe("ConversationService core API", () => {
       status: "open"
     });
     expect(completed.status).toBe("done");
+    expect(completed).toMatchObject({
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId
+    });
     expect(completed.completedAt).toBeTruthy();
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "task.created", tenantId, conversationId: "conv-web-need-human" }));
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "task.completed", tenantId, conversationId: "conv-web-need-human" }));
     expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "task.created"), "task.created", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
     expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "task.completed"), "task.completed", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
+    expect(auditLogs.find((log) => log.action === "task.completed")?.metadataJson).toEqual(expect.objectContaining({
+      taskId: created.id,
+      contactId: "conv-web-need-human-contact",
+      customerId: "conv-web-need-human-contact",
+      fromStatus: "open",
+      toStatus: "done",
+      previousStatus: "open",
+      nextStatus: "done",
+      changedFields: ["status"],
+      externalCalls: 0
+    }));
+    expect(auditLogs.find((log) => log.action === "task.completed")?.afterJson).toEqual(expect.objectContaining({
+      id: created.id,
+      tenantId,
+      conversationId: "conv-web-need-human",
+      contactId: "conv-web-need-human-contact",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      status: "done",
+      externalCalls: 0
+    }));
+    expect(JSON.stringify(completed)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|sk-[a-z0-9_-]{8,}/i);
+  });
+
+  it("updates tenant-scoped task fields and records safe lifecycle audit metadata", async () => {
+    const { service, auditLogs } = buildService();
+
+    const created = await service.createTask(tenantId, "conv-web-need-human", demoAgentUserId, {
+      title: "Initial task"
+    });
+    const updated = await service.updateTask(tenantId, created.id, demoAgentUserId, {
+      title: "Updated safe task",
+      assigneeUserId: supervisorUserId,
+      dueAt: "2026-05-22T04:00:00.000Z"
+    });
+
+    expect(updated).toMatchObject({
+      id: created.id,
+      conversationId: "conv-web-need-human",
+      contactId: "conv-web-need-human-contact",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      title: "Updated safe task",
+      status: "open",
+      assigneeUserId: supervisorUserId,
+      dueAt: "2026-05-22T04:00:00.000Z"
+    });
+    expect(auditLogs.find((log) => log.action === "task.updated")?.metadataJson).toEqual(expect.objectContaining({
+      actionType: "task.updated",
+      tenantId,
+      taskId: created.id,
+      conversationId: "conv-web-need-human",
+      contactId: "conv-web-need-human-contact",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      fromStatus: "open",
+      toStatus: "open",
+      previousAssigneeUserId: null,
+      nextAssigneeUserId: supervisorUserId,
+      nextDueAt: "2026-05-22T04:00:00.000Z",
+      changedFields: ["title", "assigneeUserId", "dueAt"],
+      externalCalls: 0
+    }));
+  });
+
+  it("does not complete tasks across tenants", async () => {
+    const { service } = buildService();
+
+    const created = await service.createTask(tenantId, "conv-web-need-human", demoAgentUserId, {
+      title: "Tenant scoped task"
+    });
+
+    await expect(service.completeTask("00000000-0000-4000-8000-000000009999", created.id, demoAgentUserId))
+      .rejects.toMatchObject({
+        constructor: NotFoundException,
+        message: "Task not found"
+      });
+  });
+
+  it("rejects empty task update payloads before mutating task state", async () => {
+    const { service, tasks } = buildService();
+
+    const created = await service.createTask(tenantId, "conv-web-need-human", demoAgentUserId, {
+      title: "Payload validation task"
+    });
+
+    await expect(service.updateTask(tenantId, created.id, demoAgentUserId, {}))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tasks.find((task) => task.id === created.id)?.status).toBe("open");
   });
 
   it("persists assignment, takeover, and follow-up state with scoped action audit metadata", async () => {

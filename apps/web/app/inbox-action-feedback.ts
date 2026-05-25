@@ -9,6 +9,7 @@ export type InboxActionFeedbackKey =
   | "quick-create-task"
   | "note-save"
   | "task-save"
+  | "task-complete"
   | "take-over"
   | "return-to-ai"
   | "assign-to-me"

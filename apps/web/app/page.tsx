@@ -1271,14 +1271,20 @@ export default function InboxDashboard() {
       const firstOpenTask = apiConversationTasks.find((task) => task.status === "open");
       if (!firstOpenTask) return;
       setApiActionLoading(true);
+      setLastActionFeedback(null);
       try {
         const task = await completeConversationWorkflowTask(firstOpenTask.id);
         const mapped = mapApiWorkflowTaskToAdminTask(task);
         setApiConversationTasks((current) => current.map((item) => item.id === mapped.id ? mapped : item));
+        if (selectedConversation) await refreshApiWorkflowAfterMutation(selectedConversation.id);
         setAiActionStatus("Task completion persisted");
         setApiWorkflowError("");
+        markActionFeedback("task-complete");
       } catch (error) {
-        setApiWorkflowError(readableApiError(error));
+        const message = readableApiError(error);
+        setApiWorkflowError(message);
+        setAiActionStatus(message);
+        setLastActionFeedback(null);
       } finally {
         setApiActionLoading(false);
       }
@@ -2297,7 +2303,7 @@ function CustomerPanel({
           {(contact?.tasks.filter((task) => task.status === "open") ?? []).slice(0, 3).map((task) => <p key={task.id}>{task.title}</p>)}
           {adminTasks.length === 0 && !contact?.tasks.some((task) => task.status === "open") && <p>No open tasks</p>}
         </div>
-        <button className="smallPanelButton" type="button" onClick={onMarkTaskDone} disabled={workflowLoading || !(apiMode ? adminTasks.length > 0 : contact?.tasks.some((task) => task.status === "open"))}>Mark first task done</button>
+        <button className={actionFeedbackClassName("task-complete", activeActionKey, "smallPanelButton")} type="button" onClick={onMarkTaskDone} disabled={workflowLoading || !(apiMode ? adminTasks.length > 0 : contact?.tasks.some((task) => task.status === "open"))}>Mark first task done</button>
       </section>
 
       <section className="panelBlock">

@@ -449,6 +449,22 @@ describe("frontend API client", () => {
     expectTenantHeaderForAll(fetchMock);
   });
 
+  it("does not fake local task lifecycle state when task update APIs fail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "Task update unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "Task complete unavailable" }, 503));
+
+    await expect(updateConversationWorkflowTask("task-api", { status: "done" }))
+      .rejects.toThrow("API request failed (503): Task update unavailable");
+    await expect(completeConversationWorkflowTask("task-api"))
+      .rejects.toThrow("API request failed (503): Task complete unavailable");
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-api", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-api/complete", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectTenantHeaderForAll(fetchMock);
+  });
+
   it("persists assignment, takeover, return-to-AI, and follow-up without mock fallback", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse({ id: "conv-web", roomId: "room-webchat" }))
