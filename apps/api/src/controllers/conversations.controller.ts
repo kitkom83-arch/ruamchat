@@ -205,7 +205,9 @@ export class TasksController {
     @Headers("x-tenant-id") tenant: string | undefined,
     @Headers("x-user-id") userId?: string
   ) {
-    return this.conversations.updateTask(requireTenantId(tenant), taskId, userId, updateTaskRequestSchema.parse(body));
+    const parsed = updateTaskRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid task update payload");
+    return this.conversations.updateTask(requireTenantId(tenant), taskId, userId, parsed.data);
   }
 
   @Patch(":taskId/complete")

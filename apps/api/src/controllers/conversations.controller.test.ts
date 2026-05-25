@@ -108,4 +108,30 @@ describe("TasksController workflow updates", () => {
     expect(conversations.updateTask).not.toHaveBeenCalled();
     expect(conversations.completeTask).not.toHaveBeenCalled();
   });
+
+  it("passes tenant-scoped task update and completion requests to the service", async () => {
+    const conversations = {
+      updateTask: vi.fn(async () => ({ id: "task-1", status: "done" })),
+      completeTask: vi.fn(async () => ({ id: "task-1", status: "done" }))
+    };
+    const controller = new TasksController(conversations as never);
+
+    await controller.updateTask("task-1", { status: "done" }, "tenant-1", "user-1");
+    await controller.completeTask("task-1", "tenant-1", "user-1");
+
+    expect(conversations.updateTask).toHaveBeenCalledWith("tenant-1", "task-1", "user-1", { status: "done" });
+    expect(conversations.completeTask).toHaveBeenCalledWith("tenant-1", "task-1", "user-1");
+  });
+
+  it("rejects invalid task update payloads", async () => {
+    const conversations = {
+      updateTask: vi.fn(),
+      completeTask: vi.fn()
+    };
+    const controller = new TasksController(conversations as never);
+
+    await expect(controller.updateTask("task-1", { status: "waiting" }, "tenant-1", "user-1")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(conversations.updateTask).not.toHaveBeenCalled();
+  });
 });

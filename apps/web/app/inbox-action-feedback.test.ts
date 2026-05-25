@@ -75,6 +75,15 @@ describe("inbox action feedback and workflow wiring", () => {
     expect(actionFeedbackClassName("toolbar-add-note", activeKey)).toBeUndefined();
   });
 
+  it("supports task completion feedback only when the completion action succeeds", () => {
+    const activeKey: InboxActionFeedbackKey = "task-complete";
+
+    expect(shouldShowActionFeedback("succeeded")).toBe(true);
+    expect(shouldShowActionFeedback("failed")).toBe(false);
+    expect(actionFeedbackClassName("task-complete", activeKey, "smallPanelButton")).toBe("smallPanelButton actionSuccess");
+    expect(actionFeedbackClassName("task-save", activeKey, "smallPanelButton")).toBe("smallPanelButton");
+  });
+
   it("keeps action feedback brief", () => {
     expect(actionFeedbackDurationMs).toBeGreaterThanOrEqual(1500);
     expect(actionFeedbackDurationMs).toBeLessThanOrEqual(2000);
