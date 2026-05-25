@@ -161,6 +161,7 @@ import {
   getFlowRuns,
   getRooms,
   getSettingsCannedReplies,
+  getTaskDashboard,
   defaultApiUserId,
   linkContactIdentity as linkApiContactIdentity,
   returnConversationToAi as returnApiConversationToAi,
@@ -181,6 +182,15 @@ import {
 } from "./api-client";
 import { dataMode, isApiMode, isMockMode } from "./data-mode";
 import { findCannedReplyInList, getCannedRepliesForMode, mapSettingsCannedReplyToCannedReply, resolveCannedReplyComposerDraft, searchCannedReplyList } from "./settings-data";
+import {
+  filterTaskDashboardRows,
+  mapApiTaskDashboardRows,
+  mapMockTaskDashboardRows,
+  taskStatusLabel,
+  type TaskDashboardDueFilter,
+  type TaskDashboardRow,
+  type TaskDashboardStatusFilter
+} from "./task-dashboard-data";
 import {
   actionFeedbackClassName,
   actionFeedbackDurationMs,
@@ -288,6 +298,15 @@ export default function InboxDashboard() {
   const [apiCannedError, setApiCannedError] = useState("");
   const [apiConversationNotes, setApiConversationNotes] = useState<ReturnType<typeof getVisibleInternalNotes>>([]);
   const [apiConversationTasks, setApiConversationTasks] = useState<AdminTask[]>([]);
+  const [apiTaskDashboardTasks, setApiTaskDashboardTasks] = useState<TaskDashboardRow[]>([]);
+  const [apiTaskDashboardLoading, setApiTaskDashboardLoading] = useState(false);
+  const [apiTaskDashboardError, setApiTaskDashboardError] = useState("");
+  const [taskDashboardStatus, setTaskDashboardStatus] = useState<TaskDashboardStatusFilter>("open");
+  const [taskDashboardDue, setTaskDashboardDue] = useState<TaskDashboardDueFilter>("all");
+  const [taskDashboardAssignee, setTaskDashboardAssignee] = useState("all");
+  const [taskDashboardVersion, setTaskDashboardVersion] = useState(0);
+  const [taskDashboardCompletingId, setTaskDashboardCompletingId] = useState("");
+  const [pendingTaskConversationId, setPendingTaskConversationId] = useState("");
   const [apiAuditLogs, setApiAuditLogs] = useState<ConversationAuditLog[]>([]);
   const [apiStatusHistory, setApiStatusHistory] = useState<ConversationStatusHistory[]>([]);
   const [apiAuditError, setApiAuditError] = useState("");
@@ -349,13 +368,33 @@ export default function InboxDashboard() {
     [cannedCategory, cannedSearch, cannedSource]
   );
   const visibleQuickReplies = getQuickRepliesForMode(dataMode);
+  const taskDashboardRows = useMemo(() => {
+    if (apiMode) return apiTaskDashboardTasks;
+    return filterTaskDashboardRows(
+      mapMockTaskDashboardRows(adminStore, conversations),
+      {
+        status: taskDashboardStatus,
+        due: taskDashboardDue,
+        assigneeUserId: taskDashboardAssignee,
+        roomId: selectedRoom.id
+      }
+    );
+  }, [adminStore, apiMode, apiTaskDashboardTasks, conversations, selectedRoom.id, taskDashboardAssignee, taskDashboardDue, taskDashboardStatus]);
 
   useEffect(() => {
+    if (pendingTaskConversationId) return;
     setSelectedConversationId((current) => {
       if (visibleConversations.some((conversation) => conversation.id === current)) return current;
       return visibleConversations[0]?.id ?? "";
     });
-  }, [visibleConversations]);
+  }, [pendingTaskConversationId, visibleConversations]);
+
+  useEffect(() => {
+    if (!pendingTaskConversationId) return;
+    if (!visibleConversations.some((conversation) => conversation.id === pendingTaskConversationId)) return;
+    setSelectedConversationId(pendingTaskConversationId);
+    setPendingTaskConversationId("");
+  }, [pendingTaskConversationId, visibleConversations]);
 
   useEffect(() => {
     if (!lastActionFeedback) return;
@@ -619,6 +658,43 @@ export default function InboxDashboard() {
       active = false;
     };
   }, [apiMode, selectedConversation?.id]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    if (!selectedRoomId) {
+      setApiTaskDashboardTasks([]);
+      setApiTaskDashboardError("");
+      setApiTaskDashboardLoading(false);
+      return;
+    }
+    let active = true;
+    setApiTaskDashboardLoading(true);
+    setApiTaskDashboardError("");
+    getTaskDashboard({
+      status: taskDashboardStatus,
+      due: taskDashboardDue,
+      assigneeUserId: taskDashboardAssignee === "all" ? undefined : apiAgentIds[taskDashboardAssignee] ?? taskDashboardAssignee,
+      roomId: selectedRoomId,
+      limit: 50,
+      offset: 0
+    })
+      .then((tasks) => {
+        if (!active) return;
+        setApiTaskDashboardTasks(mapApiTaskDashboardRows(tasks));
+        setApiTaskDashboardError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setApiTaskDashboardTasks([]);
+        setApiTaskDashboardError(readableApiError(error));
+      })
+      .finally(() => {
+        if (active) setApiTaskDashboardLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiMode, selectedRoomId, taskDashboardAssignee, taskDashboardDue, taskDashboardStatus, taskDashboardVersion]);
 
   useEffect(() => {
     if (!isMockMode()) return;
@@ -1125,6 +1201,7 @@ export default function InboxDashboard() {
         setActiveWorkflowEditor(null);
         setWorkflowEditorActionKey(null);
         await refreshApiWorkflowAfterMutation(selectedConversation.id);
+        setTaskDashboardVersion((current) => current + 1);
         setApiWorkflowError("");
         setAiActionStatus("Task persisted");
         markActionFeedback("task-save");
@@ -1139,6 +1216,7 @@ export default function InboxDashboard() {
       return;
     }
     updateAdminStore(createConversationTask(adminStore, selectedConversation.id, selectedContactId, currentMockAgentId, new Date(), payload.title));
+    setTaskDashboardStatus("open");
     setTaskTitleDraft("");
     setTaskDescriptionDraft("");
     setActiveWorkflowEditor(null);
@@ -1277,6 +1355,7 @@ export default function InboxDashboard() {
         const mapped = mapApiWorkflowTaskToAdminTask(task);
         setApiConversationTasks((current) => current.map((item) => item.id === mapped.id ? mapped : item));
         if (selectedConversation) await refreshApiWorkflowAfterMutation(selectedConversation.id);
+        setTaskDashboardVersion((current) => current + 1);
         setAiActionStatus("Task completion persisted");
         setApiWorkflowError("");
         markActionFeedback("task-complete");
@@ -1294,6 +1373,65 @@ export default function InboxDashboard() {
     if (!firstOpenTask) return;
     updateContacts(markContactTaskDone(contacts, selectedContact.id, firstOpenTask.id));
     setAiActionStatus("CRM task marked done");
+  }
+
+  function openTaskConversation(task: TaskDashboardRow) {
+    setSelectedRoomId(task.roomId);
+    setTab(task.conversationTab);
+    setFilter("all");
+    setStatusFilter("all");
+    setPriorityFilter("all");
+    setUnreadFilter("all");
+    setSlaFilter("all");
+    setConversationSearch("");
+    setPendingTaskConversationId(task.conversationId);
+    setSelectedConversationId(task.conversationId);
+    setAiActionStatus(`Opening task conversation ${task.conversationId}`);
+  }
+
+  async function completeTaskDashboardRow(task: TaskDashboardRow) {
+    if (task.status !== "open") return;
+    if (apiMode) {
+      setTaskDashboardCompletingId(task.id);
+      setApiTaskDashboardError("");
+      setLastActionFeedback(null);
+      try {
+        const completed = await completeConversationWorkflowTask(task.id);
+        const mapped = mapApiWorkflowTaskToAdminTask(completed);
+        setApiTaskDashboardTasks((current) => current.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                status: "done",
+                completedAt: completed.completedAt,
+                externalCalls: completed.externalCalls
+              }
+            : item
+        ));
+        if (selectedConversation?.id === mapped.conversationId) {
+          await refreshApiWorkflowAfterMutation(mapped.conversationId);
+        } else {
+          await refreshApiConversationTimeline(mapped.conversationId).catch(() => undefined);
+        }
+        setTaskDashboardVersion((current) => current + 1);
+        setAiActionStatus("Task completion persisted");
+        markActionFeedback("task-complete");
+      } catch (error) {
+        const message = readableApiError(error);
+        setApiTaskDashboardError(message);
+        setAiActionStatus(message);
+      } finally {
+        setTaskDashboardCompletingId("");
+      }
+      return;
+    }
+
+    updateAdminStore({
+      ...adminStore,
+      tasks: adminStore.tasks.map((item) => item.id === task.id ? { ...item, status: "done" } : item)
+    });
+    setAiActionStatus("Task marked done");
+    markActionFeedback("task-complete");
   }
 
   async function changeLeadStatus(leadStatus: LeadStatus) {
@@ -1583,6 +1721,24 @@ export default function InboxDashboard() {
           </label>
         </div>
 
+        <TaskDashboardPanel
+          apiMode={apiMode}
+          rows={taskDashboardRows}
+          loading={apiTaskDashboardLoading}
+          error={apiTaskDashboardError}
+          status={taskDashboardStatus}
+          due={taskDashboardDue}
+          assignee={taskDashboardAssignee}
+          agents={adminStore.agents}
+          completingId={taskDashboardCompletingId}
+          onStatusChange={setTaskDashboardStatus}
+          onDueChange={setTaskDashboardDue}
+          onAssigneeChange={setTaskDashboardAssignee}
+          onRefresh={() => setTaskDashboardVersion((current) => current + 1)}
+          onOpenConversation={openTaskConversation}
+          onCompleteTask={completeTaskDashboardRow}
+        />
+
         <div className="conversationList">
           {visibleConversations.length === 0 ? (
             <EmptyState
@@ -1785,6 +1941,116 @@ export default function InboxDashboard() {
         />
       </aside>
     </main>
+  );
+}
+
+function TaskDashboardPanel({
+  apiMode,
+  rows,
+  loading,
+  error,
+  status,
+  due,
+  assignee,
+  agents,
+  completingId,
+  onStatusChange,
+  onDueChange,
+  onAssigneeChange,
+  onRefresh,
+  onOpenConversation,
+  onCompleteTask
+}: {
+  apiMode: boolean;
+  rows: TaskDashboardRow[];
+  loading: boolean;
+  error: string;
+  status: TaskDashboardStatusFilter;
+  due: TaskDashboardDueFilter;
+  assignee: string;
+  agents: AdminStore["agents"];
+  completingId: string;
+  onStatusChange: (value: TaskDashboardStatusFilter) => void;
+  onDueChange: (value: TaskDashboardDueFilter) => void;
+  onAssigneeChange: (value: string) => void;
+  onRefresh: () => void;
+  onOpenConversation: (task: TaskDashboardRow) => void;
+  onCompleteTask: (task: TaskDashboardRow) => void;
+}) {
+  const openCount = rows.filter((task) => task.status === "open").length;
+  const completedCount = rows.filter((task) => task.status === "done").length;
+  return (
+    <section className="taskDashboardPanel" aria-label="Task dashboard">
+      <header className="taskDashboardHeader">
+        <div>
+          <p className="eyebrow">Task Dashboard</p>
+          <h3>{openCount} open / {completedCount} completed</h3>
+        </div>
+        <button className="iconButton" type="button" onClick={onRefresh} disabled={loading} aria-label="Refresh task dashboard">
+          <RotateCcw size={15} />
+        </button>
+      </header>
+
+      <div className="taskDashboardFilters" aria-label="Task filters">
+        <label>
+          <span>Status</span>
+          <select value={status} onChange={(event) => onStatusChange(event.target.value as TaskDashboardStatusFilter)} aria-label="Filter tasks by status">
+            <option value="open">open</option>
+            <option value="completed">completed</option>
+            <option value="all">all</option>
+          </select>
+        </label>
+        <label>
+          <span>Due</span>
+          <select value={due} onChange={(event) => onDueChange(event.target.value as TaskDashboardDueFilter)} aria-label="Filter tasks by due date">
+            <option value="all">all</option>
+            <option value="due">due</option>
+            <option value="overdue">overdue</option>
+            <option value="upcoming">upcoming</option>
+          </select>
+        </label>
+        <label>
+          <span>Assignee</span>
+          <select value={assignee} onChange={(event) => onAssigneeChange(event.target.value)} aria-label="Filter tasks by assignee">
+            <option value="all">all</option>
+            {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {apiMode && error && <EmptyState title="Task API error" body={error} />}
+      {apiMode && loading && !error && <p className="taskDashboardHint">Loading persisted tasks...</p>}
+      {!loading && !error && rows.length === 0 && <p className="taskDashboardHint">{apiMode ? "No persisted tasks returned" : "No local tasks in this view"}</p>}
+
+      {!error && rows.length > 0 && (
+        <div className="taskDashboardList">
+          {rows.slice(0, 8).map((task) => (
+            <article className="taskDashboardRow" key={task.id}>
+              <div>
+                <strong>{task.title}</strong>
+                <span>{task.platformLabel} / {task.accountName}</span>
+                <small>{task.channelAccountId} / {task.roomId} / {task.conversationId}</small>
+                <small>{task.assigneeName ?? task.assigneeUserId ?? "Unassigned"} / {task.dueAt ? formatTaskDate(task.dueAt) : "No due date"}</small>
+              </div>
+              <div className="taskDashboardActions">
+                <span className={`taskStatus ${task.status}`}>{taskStatusLabel(task.status)}</span>
+                <button type="button" onClick={() => onOpenConversation(task)}>
+                  <ExternalLink size={13} /> Open
+                </button>
+                <button
+                  className={actionFeedbackClassName("task-complete", completingId === task.id ? "task-complete" : null)}
+                  type="button"
+                  onClick={() => onCompleteTask(task)}
+                  disabled={task.status !== "open" || completingId === task.id}
+                >
+                  <CheckCircle2 size={13} /> {completingId === task.id ? "Saving" : "Done"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2703,6 +2969,10 @@ function formatAuditTimelineContext(metadata: Record<string, unknown>) {
   const channelAccountId = typeof metadata.channelAccountId === "string" ? metadata.channelAccountId : "account?";
   const roomId = typeof metadata.roomId === "string" ? metadata.roomId : "room?";
   return `${platform} / ${channelAccountId} / ${roomId}`;
+}
+
+function formatTaskDate(value: string) {
+  return new Date(value).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
 }
 
 function readableApiError(error: unknown) {

@@ -1374,6 +1374,7 @@ export type UpdateTaskRequest = z.input<typeof updateTaskRequestSchema>;
 
 export const workflowTaskSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().min(1),
   conversationId: z.string().min(1),
   contactId: z.string().min(1),
   platform: platformSchema,
@@ -1386,7 +1387,8 @@ export const workflowTaskSchema = z.object({
   dueAt: z.string().datetime().nullable(),
   completedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
+  updatedAt: z.string().datetime(),
+  externalCalls: z.literal(0).default(0)
 }).strict();
 export type WorkflowTask = z.infer<typeof workflowTaskSchema>;
 
@@ -1458,6 +1460,18 @@ export type CoreConversationTab = z.infer<typeof coreConversationTabSchema>;
 
 export const coreAiStatusSchema = z.enum(["AI Off", "Suggest", "AI Active", "Need Human", "Human Taken", "Closed"]);
 export type CoreAiStatus = z.infer<typeof coreAiStatusSchema>;
+
+export const taskDashboardItemSchema = workflowTaskSchema.extend({
+  conversationTab: coreConversationTabSchema,
+  conversationStatus: conversationStatusSchema,
+  conversationPriority: conversationPrioritySchema,
+  customerName: z.string().min(1),
+  assignedAgentName: z.string().nullable(),
+  accountName: z.string().min(1),
+  platformLabel: z.string().min(1),
+  lastMessageAt: z.string().datetime()
+}).strict();
+export type TaskDashboardItem = z.infer<typeof taskDashboardItemSchema>;
 
 export const coreConversationCardSchema = z.object({
   id: z.string().min(1),

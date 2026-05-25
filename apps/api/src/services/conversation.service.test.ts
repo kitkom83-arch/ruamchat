@@ -165,7 +165,31 @@ function buildService() {
       })
     },
     task: {
-      findMany: vi.fn(async ({ where }) => tasks.filter((item) => item.tenantId === where.tenantId && item.conversationId === where.conversationId)),
+      findMany: vi.fn(async ({ where, include, skip, take }) => {
+        const matches = tasks.filter((item) => {
+          if (where.tenantId && item.tenantId !== where.tenantId) return false;
+          if (where.conversationId && item.conversationId !== where.conversationId) return false;
+          if (typeof where.status === "string" && item.status !== where.status) return false;
+          if (where.status?.notIn?.includes(item.status)) return false;
+          if (where.assigneeUserId && item.assigneeUserId !== where.assigneeUserId) return false;
+          if (where.dueAt?.not === null && item.dueAt === null) return false;
+          if (where.dueAt?.lt && !(item.dueAt && item.dueAt < where.dueAt.lt)) return false;
+          if (where.dueAt?.gte && !(item.dueAt && item.dueAt >= where.dueAt.gte)) return false;
+          const conversationFilter = where.conversation;
+          if (conversationFilter) {
+            const conversation = conversations.find((entry) => entry.id === item.conversationId);
+            if (!conversation || conversation.tenantId !== conversationFilter.tenantId) return false;
+            if (conversationFilter.roomId && conversation.roomId !== conversationFilter.roomId) return false;
+            if (conversationFilter.room?.platform && conversation.room.platform !== conversationFilter.room.platform) return false;
+          }
+          return true;
+        }).slice(skip ?? 0, take === undefined ? undefined : (skip ?? 0) + take);
+        if (!include?.conversation) return matches;
+        return matches.map((item) => ({
+          ...item,
+          conversation: conversations.find((conversation) => conversation.id === item.conversationId)
+        }));
+      }),
       findFirst: vi.fn(async ({ where }) => tasks.find((item) => item.tenantId === where.tenantId && item.id === where.id) ?? null),
       create: vi.fn(async ({ data }) => {
         const saved = {
@@ -673,6 +697,47 @@ describe("ConversationService core API", () => {
       changedFields: ["title", "assigneeUserId", "dueAt"],
       externalCalls: 0
     }));
+  });
+
+  it("lists tenant-scoped task dashboard rows with conversation context", async () => {
+    const { service } = buildService();
+
+    const webTask = await service.createTask(tenantId, "conv-web-need-human", demoAgentUserId, {
+      title: "Dashboard open task",
+      assigneeUserId: demoAgentUserId,
+      dueAt: "2026-05-22T04:00:00.000Z"
+    });
+    const telegramTask = await service.createTask(tenantId, "conv-telegram-need-human", supervisorUserId, {
+      title: "Dashboard completed task",
+      assigneeUserId: supervisorUserId
+    });
+    await service.completeTask(tenantId, telegramTask.id, supervisorUserId);
+
+    const webOpen = await service.listTasks({ tenantId, roomId: webchatRoomId, status: "open" });
+    const completed = await service.listTasks({ tenantId, status: "done" });
+
+    expect(webOpen.map((task) => task.id)).toEqual([webTask.id]);
+    expect(webOpen[0]).toMatchObject({
+      tenantId,
+      conversationId: "conv-web-need-human",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      conversationTab: "human",
+      conversationStatus: "open",
+      conversationPriority: "medium",
+      customerName: "Need Human Visitor",
+      assigneeUserId: demoAgentUserId,
+      externalCalls: 0
+    });
+    expect(completed.map((task) => task.id)).toContain(telegramTask.id);
+    expect(completed.find((task) => task.id === telegramTask.id)).toMatchObject({
+      status: "done",
+      platform: "telegram",
+      channelAccountId: telegramAccountId,
+      roomId: telegramRoomId
+    });
+    expect(JSON.stringify([...webOpen, ...completed])).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|password|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
   });
 
   it("does not complete tasks across tenants", async () => {

@@ -95,6 +95,59 @@ describe("ConversationsController manual reply", () => {
 });
 
 describe("TasksController workflow updates", () => {
+  it("requires x-tenant-id for task dashboard reads", async () => {
+    const conversations = {
+      listTasks: vi.fn()
+    };
+    const controller = new TasksController(conversations as never);
+
+    await expect(controller.listTasks(undefined, "open")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(conversations.listTasks).not.toHaveBeenCalled();
+  });
+
+  it("passes tenant-scoped task dashboard filters to the service", async () => {
+    const conversations = {
+      listTasks: vi.fn(async () => [])
+    };
+    const controller = new TasksController(conversations as never);
+
+    await controller.listTasks(
+      "tenant-1",
+      "completed",
+      "overdue",
+      "00000000-0000-4000-8000-000000000011",
+      "room-webchat",
+      "webchat",
+      "25",
+      "0"
+    );
+
+    expect(conversations.listTasks).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      status: "done",
+      due: "overdue",
+      assigneeUserId: "00000000-0000-4000-8000-000000000011",
+      roomId: "room-webchat",
+      platform: "webchat",
+      limit: 25,
+      offset: 0
+    });
+  });
+
+  it("rejects invalid task dashboard filters", async () => {
+    const conversations = {
+      listTasks: vi.fn()
+    };
+    const controller = new TasksController(conversations as never);
+
+    await expect(controller.listTasks("tenant-1", "waiting")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.listTasks("tenant-1", "open", "late")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.listTasks("tenant-1", "open", "all", undefined, undefined, "invalid")).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(conversations.listTasks).not.toHaveBeenCalled();
+  });
+
   it("requires x-tenant-id for task update endpoints", async () => {
     const conversations = {
       updateTask: vi.fn(),

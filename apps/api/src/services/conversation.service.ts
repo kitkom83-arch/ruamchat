@@ -257,6 +257,59 @@ export class ConversationService {
     return tasks.map((task) => mapTask(task, conversation));
   }
 
+  async listTasks(input: {
+    tenantId: string;
+    status?: "open" | "done" | "cancelled";
+    due?: "due" | "overdue" | "upcoming";
+    assigneeUserId?: string;
+    roomId?: string;
+    platform?: Platform;
+    limit?: number;
+    offset?: number;
+    now?: Date;
+  }) {
+    if (input.assigneeUserId) await this.ensureTenantUser(input.tenantId, input.assigneeUserId, "Assignee user not found");
+    const conversationWhere: Prisma.ConversationWhereInput = {
+      tenantId: input.tenantId,
+      ...(input.roomId ? { roomId: input.roomId } : {}),
+      ...(input.platform ? { room: { platform: input.platform } } : {})
+    };
+    const where: Prisma.TaskWhereInput = {
+      tenantId: input.tenantId,
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.assigneeUserId ? { assigneeUserId: input.assigneeUserId } : {}),
+      conversation: conversationWhere
+    };
+    if (input.due) {
+      const now = input.now ?? new Date();
+      where.dueAt = input.due === "overdue"
+        ? { lt: now }
+        : input.due === "upcoming"
+          ? { gte: now }
+          : { not: null };
+      if (input.due === "overdue") where.status = { notIn: ["done", "cancelled"] };
+    }
+
+    const tasks = await this.prisma.task.findMany({
+      where,
+      include: {
+        conversation: {
+          include: {
+            room: { include: { channelAccount: true } },
+            contact: true,
+            contactIdentity: true,
+            assignedUser: true
+          }
+        }
+      },
+      orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
+      skip: input.offset,
+      take: input.limit
+    });
+
+    return tasks.map((task) => mapTaskDashboardItem(task, task.conversation));
+  }
+
   async createTask(tenantId: string, conversationId: string, actorUserId: string | undefined, request: CreateTaskRequest) {
     const conversation = await this.ensureConversation(tenantId, conversationId);
     if (request.assigneeUserId) await this.ensureTenantUser(tenantId, request.assigneeUserId, "Assignee user not found");
@@ -1092,11 +1145,20 @@ type ConversationContext = {
   tenantId: string;
   roomId: string;
   contactId: string;
+  status?: ConversationStatus;
+  priority?: ConversationPriority;
+  aiState?: string;
+  lastMessageAt?: Date;
+  followUpAt?: Date | null;
+  assignedUser?: { name: string } | null;
+  contact?: { displayName: string } | null;
+  contactIdentity?: { displayName: string | null } | null;
   room: { platform: Platform; channelAccountId: string };
 };
 
 function mapTask(task: {
   id: string;
+  tenantId: string;
   conversationId: string;
   contactId: string;
   title: string;
@@ -1110,6 +1172,7 @@ function mapTask(task: {
 }, conversation: ConversationContext) {
   return {
     id: task.id,
+    tenantId: task.tenantId,
     conversationId: task.conversationId,
     contactId: task.contactId,
     platform: conversation.room.platform,
@@ -1122,7 +1185,46 @@ function mapTask(task: {
     dueAt: task.dueAt?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString()
+    updatedAt: task.updatedAt.toISOString(),
+    externalCalls: 0 as const
+  };
+}
+
+function mapTaskDashboardItem(task: {
+  id: string;
+  tenantId: string;
+  conversationId: string;
+  contactId: string;
+  title: string;
+  status: string;
+  assigneeUserId: string | null;
+  createdByUserId: string | null;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}, conversation: ConversationContext & {
+  status: ConversationStatus;
+  priority: ConversationPriority;
+  aiState: string;
+  lastMessageAt: Date;
+  followUpAt: Date | null;
+  assignedUser: { name: string } | null;
+  contact: { displayName: string };
+  contactIdentity: { displayName: string | null };
+  room: { platform: Platform; channelAccountId: string; channelAccount: { displayName: string } };
+}) {
+  const base = mapTask(task, conversation);
+  return {
+    ...base,
+    conversationTab: mapAiStatus(conversation.aiState, conversation.status) === "AI Active" ? "bot" as const : "human" as const,
+    conversationStatus: mapStatus(conversation.status, conversation.followUpAt),
+    conversationPriority: mapPriority(conversation.priority),
+    customerName: conversation.contactIdentity.displayName ?? conversation.contact.displayName,
+    assignedAgentName: conversation.assignedUser?.name ?? null,
+    accountName: conversation.room.channelAccount.displayName,
+    platformLabel: platformLabel(conversation.room.platform),
+    lastMessageAt: conversation.lastMessageAt.toISOString()
   };
 }
 
@@ -1361,7 +1463,7 @@ function sanitizeAuditValue(value: unknown): unknown {
 }
 
 function looksRawSecret(value: string) {
-  return /sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(value);
+  return /(^|[^a-z])sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(value);
 }
 
 function mapRoomAiPolicy(room: {
