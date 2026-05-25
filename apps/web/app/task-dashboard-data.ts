@@ -1,4 +1,4 @@
-import type { TaskDashboardItem } from "@ai-omni/shared";
+import type { ConversationPriority, TaskDashboardItem } from "@ai-omni/shared";
 import type { AdminStore } from "./admin-data";
 import type { ConversationCard } from "./inbox-data";
 
@@ -19,6 +19,7 @@ export type TaskDashboardRow = {
   accountName: string;
   customerName: string;
   conversationTab: "human" | "bot";
+  conversationPriority: ConversationPriority;
   assigneeUserId: string | null;
   assigneeName: string | null;
   dueAt: string | null;
@@ -43,6 +44,7 @@ export function mapApiTaskDashboardRows(tasks: TaskDashboardItem[]): TaskDashboa
     accountName: task.accountName,
     customerName: task.customerName,
     conversationTab: task.conversationTab,
+    conversationPriority: task.conversationPriority,
     assigneeUserId: task.assigneeUserId,
     assigneeName: task.assignedAgentName,
     dueAt: task.dueAt,
@@ -72,9 +74,10 @@ export function mapMockTaskDashboardRows(store: AdminStore, conversations: Conve
       accountName: conversation.accountName,
       customerName: conversation.customerName,
       conversationTab: conversation.tab,
+      conversationPriority: conversation.priority,
       assigneeUserId: agent?.id ?? null,
       assigneeName: agent?.name ?? null,
-      dueAt: null,
+      dueAt: task.dueAt ?? null,
       completedAt: task.status === "done" ? task.createdAt : null,
       createdAt: task.createdAt,
       externalCalls: 0 as const,

@@ -667,6 +667,10 @@ describe("ConversationService core API", () => {
       assigneeUserId: supervisorUserId,
       dueAt: "2026-05-22T04:00:00.000Z"
     });
+    const cleared = await service.updateTask(tenantId, created.id, demoAgentUserId, {
+      assigneeUserId: null,
+      dueAt: null
+    });
 
     expect(updated).toMatchObject({
       id: created.id,
@@ -680,7 +684,20 @@ describe("ConversationService core API", () => {
       assigneeUserId: supervisorUserId,
       dueAt: "2026-05-22T04:00:00.000Z"
     });
-    expect(auditLogs.find((log) => log.action === "task.updated")?.metadataJson).toEqual(expect.objectContaining({
+    expect(cleared).toMatchObject({
+      id: created.id,
+      assigneeUserId: null,
+      dueAt: null,
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      externalCalls: 0
+    });
+    const firstUpdateLog = auditLogs.find((log) =>
+      log.action === "task.updated" &&
+      log.metadataJson?.nextAssigneeUserId === supervisorUserId
+    );
+    expect(firstUpdateLog?.metadataJson).toEqual(expect.objectContaining({
       actionType: "task.updated",
       tenantId,
       taskId: created.id,
@@ -712,11 +729,14 @@ describe("ConversationService core API", () => {
       assigneeUserId: supervisorUserId
     });
     await service.completeTask(tenantId, telegramTask.id, supervisorUserId);
+    await service.updatePriority(tenantId, "conv-web-need-human", demoAgentUserId, { priority: "urgent" });
 
     const webOpen = await service.listTasks({ tenantId, roomId: webchatRoomId, status: "open" });
+    const overdueForAssignee = await service.listTasks({ tenantId, roomId: webchatRoomId, status: "open", due: "overdue", assigneeUserId: demoAgentUserId });
     const completed = await service.listTasks({ tenantId, status: "done" });
 
     expect(webOpen.map((task) => task.id)).toEqual([webTask.id]);
+    expect(overdueForAssignee.map((task) => task.id)).toEqual([webTask.id]);
     expect(webOpen[0]).toMatchObject({
       tenantId,
       conversationId: "conv-web-need-human",
@@ -725,9 +745,10 @@ describe("ConversationService core API", () => {
       roomId: webchatRoomId,
       conversationTab: "human",
       conversationStatus: "open",
-      conversationPriority: "medium",
+      conversationPriority: "urgent",
       customerName: "Need Human Visitor",
       assigneeUserId: demoAgentUserId,
+      dueAt: "2026-05-22T04:00:00.000Z",
       externalCalls: 0
     });
     expect(completed.map((task) => task.id)).toContain(telegramTask.id);

@@ -169,10 +169,18 @@ describe("TasksController workflow updates", () => {
     };
     const controller = new TasksController(conversations as never);
 
-    await controller.updateTask("task-1", { status: "done" }, "tenant-1", "user-1");
+    await controller.updateTask("task-1", {
+      status: "done",
+      assigneeUserId: "00000000-0000-4000-8000-000000000011",
+      dueAt: "2026-05-22T04:00:00.000Z"
+    }, "tenant-1", "user-1");
     await controller.completeTask("task-1", "tenant-1", "user-1");
 
-    expect(conversations.updateTask).toHaveBeenCalledWith("tenant-1", "task-1", "user-1", { status: "done" });
+    expect(conversations.updateTask).toHaveBeenCalledWith("tenant-1", "task-1", "user-1", {
+      status: "done",
+      assigneeUserId: "00000000-0000-4000-8000-000000000011",
+      dueAt: "2026-05-22T04:00:00.000Z"
+    });
     expect(conversations.completeTask).toHaveBeenCalledWith("tenant-1", "task-1", "user-1");
   });
 

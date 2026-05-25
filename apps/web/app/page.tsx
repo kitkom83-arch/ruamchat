@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { CannedReply, ConversationAuditLog, ConversationFilter, ConversationPriority, ConversationStatus, ConversationStatusHistory, CoreConversationCard, Customer360, Flow, FlowTestRunResult, InternalNoteVisibility } from "@ai-omni/shared";
+import type { CannedReply, ConversationAuditLog, ConversationFilter, ConversationPriority, ConversationStatus, ConversationStatusHistory, CoreConversationCard, Customer360, Flow, FlowTestRunResult, InternalNoteVisibility, UpdateTaskRequest } from "@ai-omni/shared";
 import type { Contact, LeadStatus } from "@ai-omni/shared";
 import Link from "next/link";
 import {
@@ -178,6 +178,7 @@ import {
   updateConversationReadState,
   updateConversationSla,
   updateConversationStatus,
+  updateConversationWorkflowTask,
   updateContact as updateApiContact
 } from "./api-client";
 import { dataMode, isApiMode, isMockMode } from "./data-mode";
@@ -237,6 +238,7 @@ const apiAgentIds: Record<string, string> = {
   "agent-ton": "00000000-0000-4000-8000-000000000012",
   "agent-beam": "00000000-0000-4000-8000-000000000013"
 };
+const unassignedTaskAssignee = "unassigned";
 
 type BroadcastHistoryPanelRow = {
   id: string;
@@ -284,6 +286,8 @@ export default function InboxDashboard() {
   const [taskTitleDraft, setTaskTitleDraft] = useState("");
   const [taskDescriptionDraft, setTaskDescriptionDraft] = useState("");
   const [taskPriorityDraft, setTaskPriorityDraft] = useState<ConversationPriority>("medium");
+  const [taskAssigneeDraft, setTaskAssigneeDraft] = useState(currentMockAgentId);
+  const [taskDueDraft, setTaskDueDraft] = useState("");
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [apiCustomer360, setApiCustomer360] = useState<Customer360 | null>(null);
@@ -306,6 +310,7 @@ export default function InboxDashboard() {
   const [taskDashboardAssignee, setTaskDashboardAssignee] = useState("all");
   const [taskDashboardVersion, setTaskDashboardVersion] = useState(0);
   const [taskDashboardCompletingId, setTaskDashboardCompletingId] = useState("");
+  const [taskDashboardUpdatingId, setTaskDashboardUpdatingId] = useState("");
   const [pendingTaskConversationId, setPendingTaskConversationId] = useState("");
   const [apiAuditLogs, setApiAuditLogs] = useState<ConversationAuditLog[]>([]);
   const [apiStatusHistory, setApiStatusHistory] = useState<ConversationStatusHistory[]>([]);
@@ -368,6 +373,10 @@ export default function InboxDashboard() {
     [cannedCategory, cannedSearch, cannedSource]
   );
   const visibleQuickReplies = getQuickRepliesForMode(dataMode);
+  const taskAssigneeAgents = useMemo(
+    () => apiMode ? adminStore.agents.filter((agent) => apiAgentIds[agent.id]) : adminStore.agents,
+    [adminStore.agents, apiMode]
+  );
   const taskDashboardRows = useMemo(() => {
     if (apiMode) return apiTaskDashboardTasks;
     return filterTaskDashboardRows(
@@ -401,6 +410,12 @@ export default function InboxDashboard() {
     const timeoutId = window.setTimeout(() => setLastActionFeedback(null), actionFeedbackDurationMs);
     return () => window.clearTimeout(timeoutId);
   }, [lastActionFeedback]);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    if (agentFilter !== "all" && !apiUserIdForAgentId(agentFilter)) setAgentFilter("all");
+    if (taskDashboardAssignee !== "all" && !apiUserIdForAgentId(taskDashboardAssignee)) setTaskDashboardAssignee("all");
+  }, [agentFilter, apiMode, taskDashboardAssignee]);
 
   useEffect(() => {
     if (!activeWorkflowEditor) return;
@@ -810,6 +825,8 @@ export default function InboxDashboard() {
     setTaskTitleDraft("");
     setTaskDescriptionDraft("");
     setTaskPriorityDraft(selectedPriority);
+    setTaskAssigneeDraft(currentMockAgentId);
+    setTaskDueDraft("");
     setAiActionStatus("Create task flow opened");
     markActionFeedback(actionKey, "opened");
   }
@@ -822,13 +839,21 @@ export default function InboxDashboard() {
     setTaskTitleDraft("");
     setTaskDescriptionDraft("");
     setTaskPriorityDraft("medium");
+    setTaskAssigneeDraft(currentMockAgentId);
+    setTaskDueDraft("");
     setAiActionStatus("Workflow cancelled");
   }
 
   async function assignSelectedTo(agentId: string, actionKey: InboxActionFeedbackKey = "assign") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Assignment persisted", actionKey);
+      const userId = apiUserIdForAgentId(agentId);
+      if (!userId) {
+        setApiError("Selected agent is not available in API mode");
+        setAiActionStatus("Selected agent is not available in API mode");
+        return;
+      }
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, userId), "Assignment persisted", actionKey);
       return;
     }
     updateAdminStore(assignConversation(adminStore, selectedConversation.id, agentId));
@@ -839,7 +864,13 @@ export default function InboxDashboard() {
   async function transferSelectedTo(agentId: string, actionKey: InboxActionFeedbackKey = "transfer") {
     if (!selectedConversation) return;
     if (apiMode) {
-      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, apiAgentIds[agentId] ?? defaultApiUserId), "Transfer persisted", actionKey);
+      const userId = apiUserIdForAgentId(agentId);
+      if (!userId) {
+        setApiError("Selected agent is not available in API mode");
+        setAiActionStatus("Selected agent is not available in API mode");
+        return;
+      }
+      await runApiConversationAction(async () => assignApiConversation(selectedConversation.id, userId), "Transfer persisted", actionKey);
       return;
     }
     updateAdminStore(transferConversation(adminStore, selectedConversation.id, agentId));
@@ -1184,20 +1215,41 @@ export default function InboxDashboard() {
   }
 
   async function saveWorkflowTask() {
-    const payload = buildTaskSavePayload(taskTitleDraft);
+    const dueAt = dateTimeLocalInputToIso(taskDueDraft);
+    if (taskDueDraft.trim() && !dueAt) {
+      setWorkflowEditorError("Enter a valid task due date");
+      return;
+    }
+    const assigneeUserId = apiMode
+      ? taskAssigneeDraft === unassignedTaskAssignee ? null : apiUserIdForAgentId(taskAssigneeDraft)
+      : taskAssigneeDraft === unassignedTaskAssignee ? null : taskAssigneeDraft;
+    if (apiMode && taskAssigneeDraft !== unassignedTaskAssignee && !assigneeUserId) {
+      setWorkflowEditorError("Selected assignee is not available in API mode");
+      return;
+    }
+    const payload = buildTaskSavePayload(taskTitleDraft, assigneeUserId, dueAt);
     if (!selectedConversation || !payload) return;
     setLastActionFeedback(null);
     setWorkflowEditorError("");
     if (apiMode) {
       setApiActionLoading(true);
       try {
-        const task = await createConversationWorkflowTask(selectedConversation.id, {
-          title: payload.title,
-          assigneeUserId: defaultApiUserId
-        });
+        const task = await createConversationWorkflowTask(selectedConversation.id, payload);
+        if (taskPriorityDraft !== selectedPriority) {
+          const updatedCard = await updateConversationPriority(selectedConversation.id, {
+            priority: taskPriorityDraft === "medium" ? "normal" : taskPriorityDraft
+          });
+          setConversations((current) => current.map((conversation) =>
+            conversation.id === updatedCard.id
+              ? mapApiConversationToCard(updatedCard, conversation.messages)
+              : conversation
+          ));
+        }
         setApiConversationTasks((current) => [mapApiWorkflowTaskToAdminTask(task), ...current]);
         setTaskTitleDraft("");
         setTaskDescriptionDraft("");
+        setTaskAssigneeDraft(currentMockAgentId);
+        setTaskDueDraft("");
         setActiveWorkflowEditor(null);
         setWorkflowEditorActionKey(null);
         await refreshApiWorkflowAfterMutation(selectedConversation.id);
@@ -1215,10 +1267,17 @@ export default function InboxDashboard() {
       }
       return;
     }
-    updateAdminStore(createConversationTask(adminStore, selectedConversation.id, selectedContactId, currentMockAgentId, new Date(), payload.title));
+    let nextStore = createConversationTask(adminStore, selectedConversation.id, selectedContactId, currentMockAgentId, new Date(), payload.title, dueAt);
+    nextStore = payload.assigneeUserId
+      ? assignConversation(nextStore, selectedConversation.id, payload.assigneeUserId)
+      : unassignConversation(nextStore, selectedConversation.id);
+    if (taskPriorityDraft !== selectedPriority) nextStore = setConversationPriority(nextStore, selectedConversation.id, taskPriorityDraft);
+    updateAdminStore(nextStore);
     setTaskDashboardStatus("open");
     setTaskTitleDraft("");
     setTaskDescriptionDraft("");
+    setTaskAssigneeDraft(currentMockAgentId);
+    setTaskDueDraft("");
     setActiveWorkflowEditor(null);
     setWorkflowEditorActionKey(null);
     setAiActionStatus("Task created");
@@ -1432,6 +1491,87 @@ export default function InboxDashboard() {
     });
     setAiActionStatus("Task marked done");
     markActionFeedback("task-complete");
+  }
+
+  async function updateTaskDashboardRow(task: TaskDashboardRow, patch: UpdateTaskRequest, actionKey: InboxActionFeedbackKey) {
+    if (apiMode) {
+      setTaskDashboardUpdatingId(task.id);
+      setApiTaskDashboardError("");
+      setLastActionFeedback(null);
+      try {
+        const updated = await updateConversationWorkflowTask(task.id, patch);
+        setApiTaskDashboardTasks((current) => current.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                title: updated.title,
+                status: updated.status,
+                assigneeUserId: updated.assigneeUserId,
+                dueAt: updated.dueAt,
+                completedAt: updated.completedAt,
+                externalCalls: updated.externalCalls
+              }
+            : item
+        ));
+        if (selectedConversation?.id === updated.conversationId) {
+          await refreshApiWorkflowAfterMutation(updated.conversationId);
+        } else {
+          await refreshApiConversationTimeline(updated.conversationId).catch(() => undefined);
+        }
+        setTaskDashboardVersion((current) => current + 1);
+        setAiActionStatus(actionKey === "task-assign" ? "Task assignee persisted" : "Task due date persisted");
+        markActionFeedback(actionKey);
+      } catch (error) {
+        const message = readableApiError(error);
+        setApiTaskDashboardError(message);
+        setAiActionStatus(message);
+      } finally {
+        setTaskDashboardUpdatingId("");
+      }
+      return;
+    }
+
+    let nextStore: AdminStore = {
+      ...adminStore,
+      tasks: adminStore.tasks.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              dueAt: patch.dueAt === undefined ? item.dueAt : patch.dueAt
+            }
+          : item
+      )
+    };
+    if (patch.assigneeUserId !== undefined) {
+      nextStore = patch.assigneeUserId
+        ? assignConversation(nextStore, task.conversationId, patch.assigneeUserId)
+        : unassignConversation(nextStore, task.conversationId);
+    }
+    updateAdminStore(nextStore);
+    setAiActionStatus(actionKey === "task-assign" ? "Task assignee updated" : "Task due date updated");
+    markActionFeedback(actionKey);
+  }
+
+  async function changeTaskDashboardAssignee(task: TaskDashboardRow, agentId: string) {
+    const assigneeUserId = apiMode
+      ? agentId === unassignedTaskAssignee ? null : apiUserIdForAgentId(agentId)
+      : agentId === unassignedTaskAssignee ? null : agentId;
+    if (apiMode && agentId !== unassignedTaskAssignee && !assigneeUserId) {
+      setApiTaskDashboardError("Selected assignee is not available in API mode");
+      setAiActionStatus("Selected assignee is not available in API mode");
+      return;
+    }
+    await updateTaskDashboardRow(task, { assigneeUserId }, "task-assign");
+  }
+
+  async function changeTaskDashboardDue(task: TaskDashboardRow, value: string) {
+    const dueAt = dateTimeLocalInputToIso(value);
+    if (value.trim() && !dueAt) {
+      setApiTaskDashboardError("Enter a valid task due date");
+      setAiActionStatus("Enter a valid task due date");
+      return;
+    }
+    await updateTaskDashboardRow(task, { dueAt }, "task-due");
   }
 
   async function changeLeadStatus(leadStatus: LeadStatus) {
@@ -1677,7 +1817,7 @@ export default function InboxDashboard() {
           <span>Agent</span>
           <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} aria-label="Filter by agent">
             <option value="all">All agents</option>
-            {adminStore.agents.map((agent) => (
+            {taskAssigneeAgents.map((agent) => (
               <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>
             ))}
           </select>
@@ -1729,14 +1869,17 @@ export default function InboxDashboard() {
           status={taskDashboardStatus}
           due={taskDashboardDue}
           assignee={taskDashboardAssignee}
-          agents={adminStore.agents}
+          agents={taskAssigneeAgents}
           completingId={taskDashboardCompletingId}
+          updatingId={taskDashboardUpdatingId}
           onStatusChange={setTaskDashboardStatus}
           onDueChange={setTaskDashboardDue}
           onAssigneeChange={setTaskDashboardAssignee}
           onRefresh={() => setTaskDashboardVersion((current) => current + 1)}
           onOpenConversation={openTaskConversation}
           onCompleteTask={completeTaskDashboardRow}
+          onTaskAssigneeChange={changeTaskDashboardAssignee}
+          onTaskDueChange={changeTaskDashboardDue}
         />
 
         <div className="conversationList">
@@ -1772,7 +1915,7 @@ export default function InboxDashboard() {
         <ChatHeader
           room={selectedRoom}
           conversation={selectedConversation}
-          adminStore={adminStore}
+          assignableAgents={taskAssigneeAgents}
           assignedAgentName={selectedAssignedAgentName}
           priority={selectedPriority}
           status={selectedStatus}
@@ -1867,7 +2010,6 @@ export default function InboxDashboard() {
           aiActionStatus={aiActionStatus}
           aiLoading={apiAiLoading}
           aiError={apiAiError}
-          adminStore={adminStore}
           assignedAgentName={apiMode ? apiCustomer360?.owner ?? "Unassigned" : selectedAssignedAgent?.name ?? "Unassigned"}
           apiMode={apiMode}
           customerLoading={apiCustomerLoading}
@@ -1895,6 +2037,9 @@ export default function InboxDashboard() {
           taskTitleDraft={taskTitleDraft}
           taskDescriptionDraft={taskDescriptionDraft}
           taskPriorityDraft={taskPriorityDraft}
+          taskAssigneeDraft={taskAssigneeDraft}
+          taskDueDraft={taskDueDraft}
+          taskAssigneeAgents={taskAssigneeAgents}
           noteDraft={noteDraft}
           noteVisibility={noteVisibility}
           onUseDraft={useAiDraft}
@@ -1928,6 +2073,8 @@ export default function InboxDashboard() {
           onTaskTitleDraftChange={setTaskTitleDraft}
           onTaskDescriptionDraftChange={setTaskDescriptionDraft}
           onTaskPriorityDraftChange={setTaskPriorityDraft}
+          onTaskAssigneeDraftChange={setTaskAssigneeDraft}
+          onTaskDueDraftChange={setTaskDueDraft}
           onCreateTask={() => openCreateTaskFlow("customer-create-task")}
           onMarkTaskDone={markFirstTaskDone}
           onLeadStatusChange={changeLeadStatus}
@@ -1954,12 +2101,15 @@ function TaskDashboardPanel({
   assignee,
   agents,
   completingId,
+  updatingId,
   onStatusChange,
   onDueChange,
   onAssigneeChange,
   onRefresh,
   onOpenConversation,
-  onCompleteTask
+  onCompleteTask,
+  onTaskAssigneeChange,
+  onTaskDueChange
 }: {
   apiMode: boolean;
   rows: TaskDashboardRow[];
@@ -1970,12 +2120,15 @@ function TaskDashboardPanel({
   assignee: string;
   agents: AdminStore["agents"];
   completingId: string;
+  updatingId: string;
   onStatusChange: (value: TaskDashboardStatusFilter) => void;
   onDueChange: (value: TaskDashboardDueFilter) => void;
   onAssigneeChange: (value: string) => void;
   onRefresh: () => void;
   onOpenConversation: (task: TaskDashboardRow) => void;
   onCompleteTask: (task: TaskDashboardRow) => void;
+  onTaskAssigneeChange: (task: TaskDashboardRow, agentId: string) => void;
+  onTaskDueChange: (task: TaskDashboardRow, dueAt: string) => void;
 }) {
   const openCount = rows.filter((task) => task.status === "open").length;
   const completedCount = rows.filter((task) => task.status === "done").length;
@@ -2031,6 +2184,38 @@ function TaskDashboardPanel({
                 <span>{task.platformLabel} / {task.accountName}</span>
                 <small>{task.channelAccountId} / {task.roomId} / {task.conversationId}</small>
                 <small>{task.assigneeName ?? task.assigneeUserId ?? "Unassigned"} / {task.dueAt ? formatTaskDate(task.dueAt) : "No due date"}</small>
+                <small>Priority: {task.conversationPriority}</small>
+              </div>
+              <div className="taskDashboardEditGrid">
+                <label>
+                  <span>Assignee</span>
+                  <select
+                    value={task.source === "api" ? localAgentIdForApiUserId(task.assigneeUserId) : task.assigneeUserId ?? unassignedTaskAssignee}
+                    onChange={(event) => onTaskAssigneeChange(task, event.target.value)}
+                    disabled={updatingId === task.id || task.status !== "open"}
+                    aria-label={`Assign task ${task.title}`}
+                  >
+                    <option value={unassignedTaskAssignee}>Unassigned</option>
+                    {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Due date</span>
+                  <input
+                    type="datetime-local"
+                    value={toDateTimeLocalValue(task.dueAt)}
+                    onChange={(event) => onTaskDueChange(task, event.target.value)}
+                    disabled={updatingId === task.id || task.status !== "open"}
+                    aria-label={`Task due date ${task.title}`}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onTaskDueChange(task, "")}
+                  disabled={updatingId === task.id || task.status !== "open" || !task.dueAt}
+                >
+                  Clear
+                </button>
               </div>
               <div className="taskDashboardActions">
                 <span className={`taskStatus ${task.status}`}>{taskStatusLabel(task.status)}</span>
@@ -2041,7 +2226,7 @@ function TaskDashboardPanel({
                   className={actionFeedbackClassName("task-complete", completingId === task.id ? "task-complete" : null)}
                   type="button"
                   onClick={() => onCompleteTask(task)}
-                  disabled={task.status !== "open" || completingId === task.id}
+                  disabled={task.status !== "open" || completingId === task.id || updatingId === task.id}
                 >
                   <CheckCircle2 size={13} /> {completingId === task.id ? "Saving" : "Done"}
                 </button>
@@ -2102,7 +2287,7 @@ function ConversationButton({
 function ChatHeader({
   room,
   conversation,
-  adminStore,
+  assignableAgents,
   assignedAgentName,
   priority,
   status,
@@ -2129,7 +2314,7 @@ function ChatHeader({
 }: {
   room: PlatformRoom;
   conversation: ConversationCard | null;
-  adminStore: AdminStore;
+  assignableAgents: AdminStore["agents"];
   assignedAgentName: string | null;
   priority: ConversationPriority;
   status: ConversationStatus;
@@ -2184,11 +2369,11 @@ function ChatHeader({
         <button type="button" onClick={onCopySummary} disabled={!conversation}><Copy size={15} /> Copy Summary</button>
         <select className={actionFeedbackClassName("assign", activeActionKey)} value="" onChange={(event) => event.target.value && onAssign(event.target.value)} disabled={!conversation} aria-label="Assign conversation">
           <option value="">Assign</option>
-          {adminStore.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
+          {assignableAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
         <select className={actionFeedbackClassName("transfer", activeActionKey)} value="" onChange={(event) => event.target.value && onTransfer(event.target.value)} disabled={!conversation} aria-label="Transfer conversation">
           <option value="">Transfer</option>
-          {adminStore.agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
+          {assignableAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
         <select className={actionFeedbackClassName("priority", activeActionKey)} value={priority} onChange={(event) => onPriorityChange(event.target.value as ConversationPriority)} disabled={!conversation} aria-label="Change priority">
           {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -2235,6 +2420,9 @@ function CustomerPanel({
   taskTitleDraft,
   taskDescriptionDraft,
   taskPriorityDraft,
+  taskAssigneeDraft,
+  taskDueDraft,
+  taskAssigneeAgents,
   noteDraft,
   noteVisibility,
   onUseDraft,
@@ -2268,6 +2456,8 @@ function CustomerPanel({
   onTaskTitleDraftChange,
   onTaskDescriptionDraftChange,
   onTaskPriorityDraftChange,
+  onTaskAssigneeDraftChange,
+  onTaskDueDraftChange,
   onCreateTask,
   onMarkTaskDone,
   onLeadStatusChange,
@@ -2285,7 +2475,6 @@ function CustomerPanel({
   aiActionStatus: string;
   aiLoading: boolean;
   aiError: string;
-  adminStore: AdminStore;
   assignedAgentName: string;
   apiMode: boolean;
   customerLoading: boolean;
@@ -2313,6 +2502,9 @@ function CustomerPanel({
   taskTitleDraft: string;
   taskDescriptionDraft: string;
   taskPriorityDraft: ConversationPriority;
+  taskAssigneeDraft: string;
+  taskDueDraft: string;
+  taskAssigneeAgents: AdminStore["agents"];
   noteDraft: string;
   noteVisibility: InternalNoteVisibility;
   onUseDraft: () => void;
@@ -2346,6 +2538,8 @@ function CustomerPanel({
   onTaskTitleDraftChange: (value: string) => void;
   onTaskDescriptionDraftChange: (value: string) => void;
   onTaskPriorityDraftChange: (value: ConversationPriority) => void;
+  onTaskAssigneeDraftChange: (value: string) => void;
+  onTaskDueDraftChange: (value: string) => void;
   onCreateTask: () => void;
   onMarkTaskDone: () => void;
   onLeadStatusChange: (leadStatus: LeadStatus) => void;
@@ -2433,11 +2627,16 @@ function CustomerPanel({
           taskTitleDraft={taskTitleDraft}
           taskDescriptionDraft={taskDescriptionDraft}
           taskPriorityDraft={taskPriorityDraft}
+          taskAssigneeDraft={taskAssigneeDraft}
+          taskDueDraft={taskDueDraft}
+          taskAssigneeAgents={taskAssigneeAgents}
           onNoteDraftChange={onNoteDraftChange}
           onNoteVisibilityChange={onNoteVisibilityChange}
           onTaskTitleDraftChange={onTaskTitleDraftChange}
           onTaskDescriptionDraftChange={onTaskDescriptionDraftChange}
           onTaskPriorityDraftChange={onTaskPriorityDraftChange}
+          onTaskAssigneeDraftChange={onTaskAssigneeDraftChange}
+          onTaskDueDraftChange={onTaskDueDraftChange}
           onSaveNote={onAddInternalNote}
           onSaveTask={onSaveWorkflowTask}
           onCancel={onCancelWorkflowEditor}
@@ -2725,11 +2924,16 @@ function WorkflowEditorPanel({
   taskTitleDraft,
   taskDescriptionDraft,
   taskPriorityDraft,
+  taskAssigneeDraft,
+  taskDueDraft,
+  taskAssigneeAgents,
   onNoteDraftChange,
   onNoteVisibilityChange,
   onTaskTitleDraftChange,
   onTaskDescriptionDraftChange,
   onTaskPriorityDraftChange,
+  onTaskAssigneeDraftChange,
+  onTaskDueDraftChange,
   onSaveNote,
   onSaveTask,
   onCancel
@@ -2743,11 +2947,16 @@ function WorkflowEditorPanel({
   taskTitleDraft: string;
   taskDescriptionDraft: string;
   taskPriorityDraft: ConversationPriority;
+  taskAssigneeDraft: string;
+  taskDueDraft: string;
+  taskAssigneeAgents: AdminStore["agents"];
   onNoteDraftChange: (value: string) => void;
   onNoteVisibilityChange: (value: InternalNoteVisibility) => void;
   onTaskTitleDraftChange: (value: string) => void;
   onTaskDescriptionDraftChange: (value: string) => void;
   onTaskPriorityDraftChange: (value: ConversationPriority) => void;
+  onTaskAssigneeDraftChange: (value: string) => void;
+  onTaskDueDraftChange: (value: string) => void;
   onSaveNote: () => void;
   onSaveTask: () => void;
   onCancel: () => void;
@@ -2800,6 +3009,18 @@ function WorkflowEditorPanel({
           <select value={taskPriorityDraft} onChange={(event) => onTaskPriorityDraftChange(event.target.value as ConversationPriority)} aria-label="Task priority">
             {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
+          <div className="workflowInlineGrid">
+            <select value={taskAssigneeDraft} onChange={(event) => onTaskAssigneeDraftChange(event.target.value)} aria-label="Task assignee">
+              <option value={unassignedTaskAssignee}>Unassigned</option>
+              {taskAssigneeAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+            </select>
+            <input
+              type="datetime-local"
+              value={taskDueDraft}
+              onChange={(event) => onTaskDueDraftChange(event.target.value)}
+              aria-label="Task due date"
+            />
+          </div>
           <div className="workflowButtonRow">
             <button className={actionFeedbackClassName("task-save", activeActionKey)} type="button" onClick={onSaveTask} disabled={!taskTitleDraft.trim() || workflowLoading}>
               {workflowLoading ? "Creating..." : taskCopy.primaryLabel}
@@ -2872,6 +3093,7 @@ function mapApiWorkflowTaskToAdminTask(task: {
   title: string;
   status: "open" | "done" | "cancelled";
   createdByUserId: string | null;
+  dueAt?: string | null;
   createdAt: string;
 }): AdminTask {
   return {
@@ -2881,7 +3103,8 @@ function mapApiWorkflowTaskToAdminTask(task: {
     title: task.title,
     status: task.status === "done" ? "done" : "open",
     createdBy: task.createdByUserId ?? "system",
-    createdAt: task.createdAt
+    createdAt: task.createdAt,
+    dueAt: task.dueAt ?? null
   };
 }
 
@@ -2973,6 +3196,31 @@ function formatAuditTimelineContext(metadata: Record<string, unknown>) {
 
 function formatTaskDate(value: string) {
   return new Date(value).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
+}
+
+function apiUserIdForAgentId(agentId: string) {
+  return apiAgentIds[agentId] ?? null;
+}
+
+function localAgentIdForApiUserId(userId: string | null) {
+  if (!userId) return unassignedTaskAssignee;
+  return Object.entries(apiAgentIds).find(([, apiUserId]) => apiUserId === userId)?.[0] ?? unassignedTaskAssignee;
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function dateTimeLocalInputToIso(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
 }
 
 function readableApiError(error: unknown) {

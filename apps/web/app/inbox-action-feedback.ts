@@ -10,6 +10,8 @@ export type InboxActionFeedbackKey =
   | "note-save"
   | "task-save"
   | "task-complete"
+  | "task-assign"
+  | "task-due"
   | "take-over"
   | "return-to-ai"
   | "assign-to-me"
@@ -64,9 +66,14 @@ export function buildNoteSavePayload(body: string, visibility: "team" | "supervi
   return trimmed ? { body: trimmed, visibility } : null;
 }
 
-export function buildTaskSavePayload(title: string) {
+export function buildTaskSavePayload(title: string, assigneeUserId?: string | null, dueAt?: string | null) {
   const trimmed = title.trim();
-  return trimmed ? { title: trimmed } : null;
+  if (!trimmed) return null;
+  return {
+    title: trimmed,
+    ...(assigneeUserId !== undefined ? { assigneeUserId } : {}),
+    ...(dueAt !== undefined ? { dueAt } : {})
+  };
 }
 
 export function shouldShowActionFeedback(outcome: ActionFeedbackOutcome) {

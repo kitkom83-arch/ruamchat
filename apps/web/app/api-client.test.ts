@@ -397,19 +397,21 @@ describe("frontend API client", () => {
   });
 
   it("persists internal notes and tasks through workflow API endpoints", async () => {
+    const assigneeUserId = "00000000-0000-4000-8000-000000000011";
+    const dueAt = "2026-05-22T04:00:00.000Z";
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([internalNoteResponse("note-api")]))
       .mockResolvedValueOnce(jsonResponse(internalNoteResponse("note-new")))
       .mockResolvedValueOnce(jsonResponse([taskResponse("task-api")]))
-      .mockResolvedValueOnce(jsonResponse(taskResponse("task-new")))
-      .mockResolvedValueOnce(jsonResponse({ ...taskResponse("task-new"), title: "Updated task" }))
+      .mockResolvedValueOnce(jsonResponse({ ...taskResponse("task-new"), assigneeUserId, dueAt }))
+      .mockResolvedValueOnce(jsonResponse({ ...taskResponse("task-new"), title: "Updated task", assigneeUserId: null, dueAt: null }))
       .mockResolvedValueOnce(jsonResponse({ ...taskResponse("task-new"), status: "done", completedAt: "2026-05-21T04:05:00.000Z" }));
 
     const notes = await getConversationNotes("conv-web");
     const note = await createConversationNote("conv-web", { body: "persist this", visibility: "team" });
     const tasks = await getConversationTasks("conv-web");
-    const task = await createConversationWorkflowTask("conv-web", { title: "Follow up" });
-    const updatedTask = await updateConversationWorkflowTask(task.id, { title: "Updated task" });
+    const task = await createConversationWorkflowTask("conv-web", { title: "Follow up", assigneeUserId, dueAt });
+    const updatedTask = await updateConversationWorkflowTask(task.id, { title: "Updated task", assigneeUserId: null, dueAt: null });
     const completed = await completeConversationWorkflowTask(task.id);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/conversations/conv-web/notes", expect.objectContaining({ method: "POST" }));
@@ -418,7 +420,8 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-new/complete", expect.objectContaining({ method: "PATCH" }));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ body: "persist this", visibility: "team" });
-    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ title: "Follow up" });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ title: "Follow up", assigneeUserId, dueAt });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ title: "Updated task", assigneeUserId: null, dueAt: null });
     expect(notes[0]?.id).toBe("note-api");
     expect(note.id).toBe("note-new");
     expect(note).toMatchObject({
@@ -433,6 +436,8 @@ describe("frontend API client", () => {
       roomId: "room-webchat"
     });
     expect(updatedTask.title).toBe("Updated task");
+    expect(updatedTask.assigneeUserId).toBeNull();
+    expect(updatedTask.dueAt).toBeNull();
     expect(completed.status).toBe("done");
   });
 
