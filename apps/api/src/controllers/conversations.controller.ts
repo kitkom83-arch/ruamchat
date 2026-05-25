@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import {
   agentMessageRequestSchema,
   assignConversationRequestSchema,
   createInternalNoteRequestSchema,
   createTaskRequestSchema,
   followUpConversationRequestSchema,
+  platformSchema,
   updateConversationPriorityRequestSchema,
   updateConversationReadStateRequestSchema,
   updateConversationSlaRequestSchema,
@@ -198,6 +199,31 @@ function requireTenantId(tenant: string | undefined) {
 export class TasksController {
   constructor(@Inject(ConversationService) private readonly conversations: ConversationService) {}
 
+  @Get()
+  async listTasks(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query("status") status = "all",
+    @Query("due") due = "all",
+    @Query("assigneeUserId") assigneeUserId?: string,
+    @Query("roomId") roomId?: string,
+    @Query("platform") platform?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    const parsedPlatform = platform ? platformSchema.safeParse(platform) : null;
+    if (parsedPlatform && !parsedPlatform.success) throw new BadRequestException("Invalid task platform filter");
+    return this.conversations.listTasks({
+      tenantId: requireTenantId(tenant),
+      status: parseTaskStatus(status),
+      due: parseTaskDue(due),
+      assigneeUserId: normalizeOptional(assigneeUserId),
+      roomId: normalizeOptional(roomId),
+      platform: parsedPlatform?.data,
+      limit: parseLimit(limit),
+      offset: parseOffset(offset)
+    });
+  }
+
   @Patch(":taskId")
   async updateTask(
     @Param("taskId") taskId: string,
@@ -218,4 +244,36 @@ export class TasksController {
   ) {
     return this.conversations.completeTask(requireTenantId(tenant), taskId, userId);
   }
+}
+
+function parseTaskStatus(status: string | undefined) {
+  if (!status || status === "all") return undefined;
+  if (status === "completed") return "done" as const;
+  if (status === "open" || status === "done" || status === "cancelled") return status;
+  throw new BadRequestException("Invalid task status filter");
+}
+
+function parseTaskDue(due: string | undefined) {
+  if (!due || due === "all") return undefined;
+  if (due === "due" || due === "overdue" || due === "upcoming") return due;
+  throw new BadRequestException("Invalid task due filter");
+}
+
+function parseLimit(limit: string | undefined) {
+  if (limit === undefined) return undefined;
+  const value = Number(limit);
+  if (!Number.isInteger(value) || value < 1 || value > 100) throw new BadRequestException("Invalid limit");
+  return value;
+}
+
+function parseOffset(offset: string | undefined) {
+  if (offset === undefined) return undefined;
+  const value = Number(offset);
+  if (!Number.isInteger(value) || value < 0) throw new BadRequestException("Invalid offset");
+  return value;
+}
+
+function normalizeOptional(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed !== "all" ? trimmed : undefined;
 }

@@ -56,6 +56,7 @@ import {
   settingsCannedReplySchema,
   settingsSlaPolicySchema,
   settingsTeamMemberSchema,
+  taskDashboardItemSchema,
   unlinkContactIdentityRequestSchema,
   updateBroadcastCampaignRequestSchema,
   updateBroadcastConsentRequestSchema,
@@ -135,6 +136,7 @@ import {
   type SettingsCannedReply,
   type SettingsSlaPolicy,
   type SettingsTeamMember,
+  type TaskDashboardItem,
   type ConversationStatusHistory,
   type UpdateConversationPriorityRequest,
   type UpdateConversationReadStateRequest,
@@ -187,6 +189,16 @@ type AnalyticsQuery = {
   platform?: Platform | "all";
   roomId?: string;
   agentId?: string;
+};
+
+type TaskDashboardFilters = {
+  status?: "all" | "open" | "completed" | "done" | "cancelled";
+  due?: "all" | "due" | "overdue" | "upcoming";
+  assigneeUserId?: string;
+  roomId?: string;
+  platform?: Platform | "all";
+  limit?: number;
+  offset?: number;
 };
 
 export const defaultApiUserId = "00000000-0000-4000-8000-000000000011";
@@ -531,6 +543,19 @@ export async function createConversationNote(conversationId: string, payload: Cr
 
 export async function getConversationTasks(conversationId: string): Promise<WorkflowTask[]> {
   return request(`/conversations/${encodeURIComponent(conversationId)}/tasks`, workflowTaskSchema.array());
+}
+
+export async function getTaskDashboard(filters: TaskDashboardFilters = {}): Promise<TaskDashboardItem[]> {
+  const params = new URLSearchParams();
+  if (filters.status && filters.status !== "all") params.set("status", filters.status);
+  if (filters.due && filters.due !== "all") params.set("due", filters.due);
+  if (filters.assigneeUserId?.trim() && filters.assigneeUserId !== "all") params.set("assigneeUserId", filters.assigneeUserId.trim());
+  if (filters.roomId?.trim() && filters.roomId !== "all") params.set("roomId", filters.roomId.trim());
+  if (filters.platform && filters.platform !== "all") params.set("platform", filters.platform);
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) params.set("offset", String(filters.offset));
+  const search = params.toString();
+  return request(`/tasks${search ? `?${search}` : ""}`, taskDashboardItemSchema.array());
 }
 
 export async function createConversationWorkflowTask(conversationId: string, payload: CreateTaskRequest): Promise<WorkflowTask> {

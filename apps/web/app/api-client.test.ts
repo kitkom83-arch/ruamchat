@@ -34,6 +34,7 @@ import {
   getSettingsSlaPolicy,
   getSettingsTeam,
   getSettingsTeamMember,
+  getTaskDashboard,
   getRoomAiPolicy,
   getRooms,
   linkContactIdentity,
@@ -463,6 +464,46 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/tasks/task-api/complete", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expectTenantHeaderForAll(fetchMock);
+  });
+
+  it("loads API task dashboard rows with tenant and conversation context", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse([
+      taskDashboardResponse("task-dashboard-open", "conv-web")
+    ]));
+
+    const rows = await getTaskDashboard({
+      status: "open",
+      due: "overdue",
+      assigneeUserId: "00000000-0000-4000-8000-000000000011",
+      roomId: "room-webchat",
+      limit: 25,
+      offset: 0
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/tasks");
+    expect(url.searchParams.get("status")).toBe("open");
+    expect(url.searchParams.get("due")).toBe("overdue");
+    expect(url.searchParams.get("assigneeUserId")).toBe("00000000-0000-4000-8000-000000000011");
+    expect(url.searchParams.get("roomId")).toBe("room-webchat");
+    expect(url.searchParams.get("limit")).toBe("25");
+    expectTenantHeaderForAll(fetchMock);
+    expect(rows[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      conversationId: "conv-web",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      status: "open",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(rows)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
+  });
+
+  it("surfaces task dashboard API failures without returning local task rows", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Tasks unavailable" }, 503));
+
+    await expect(getTaskDashboard({ status: "open" })).rejects.toThrow("API request failed (503): Tasks unavailable");
   });
 
   it("persists assignment, takeover, return-to-AI, and follow-up without mock fallback", async () => {
@@ -916,6 +957,7 @@ function internalNoteResponse(id: string) {
 function taskResponse(id: string) {
   return {
     id,
+    tenantId: defaultTenantId,
     conversationId: "conv-web",
     contactId: "contact-api",
     platform: "webchat",
@@ -928,7 +970,23 @@ function taskResponse(id: string) {
     dueAt: null,
     completedAt: null,
     createdAt: "2026-05-21T04:00:00.000Z",
-    updatedAt: "2026-05-21T04:00:00.000Z"
+    updatedAt: "2026-05-21T04:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function taskDashboardResponse(id: string, conversationId: string) {
+  return {
+    ...taskResponse(id),
+    conversationId,
+    conversationTab: "human",
+    conversationStatus: "open",
+    conversationPriority: "medium",
+    customerName: "API Contact",
+    assignedAgentName: "May",
+    accountName: "Main Website",
+    platformLabel: "Webchat",
+    lastMessageAt: "2026-05-21T04:00:00.000Z"
   };
 }
 
