@@ -38,6 +38,7 @@ export type AdminTask = {
   status: "open" | "done";
   createdBy: string;
   createdAt: string;
+  dueAt?: string | null;
 };
 
 export type AdminStore = {
@@ -320,7 +321,15 @@ export function returnConversationToAi(store: AdminStore, conversationId: string
   }));
 }
 
-export function createConversationTask(store: AdminStore, conversationId: string, contactId: string, actorId = currentMockAgentId, at = new Date(), title = "Follow up customer") {
+export function createConversationTask(
+  store: AdminStore,
+  conversationId: string,
+  contactId: string,
+  actorId = currentMockAgentId,
+  at = new Date(),
+  title = "Follow up customer",
+  dueAt?: string | null
+) {
   const task: AdminTask = {
     id: `task-${conversationId}-${at.getTime()}`,
     conversationId,
@@ -328,7 +337,8 @@ export function createConversationTask(store: AdminStore, conversationId: string
     title,
     status: "open",
     createdBy: actorId,
-    createdAt: at.toISOString()
+    createdAt: at.toISOString(),
+    dueAt: dueAt ?? null
   };
 
   return {

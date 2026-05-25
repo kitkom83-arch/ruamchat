@@ -55,6 +55,16 @@ describe("inbox action feedback and workflow wiring", () => {
 
   it("builds a saveable task payload from typed task title", () => {
     expect(buildTaskSavePayload(" Sprint 33 UI safe task ")).toEqual({ title: "Sprint 33 UI safe task" });
+    expect(buildTaskSavePayload(" Assign follow-up ", "00000000-0000-4000-8000-000000000011", "2026-05-22T04:00:00.000Z")).toEqual({
+      title: "Assign follow-up",
+      assigneeUserId: "00000000-0000-4000-8000-000000000011",
+      dueAt: "2026-05-22T04:00:00.000Z"
+    });
+    expect(buildTaskSavePayload(" Unassigned follow-up ", null, null)).toEqual({
+      title: "Unassigned follow-up",
+      assigneeUserId: null,
+      dueAt: null
+    });
     expect(buildTaskSavePayload("   ")).toBeNull();
   });
 

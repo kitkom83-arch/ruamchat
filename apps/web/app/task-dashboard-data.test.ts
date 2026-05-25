@@ -47,6 +47,7 @@ describe("task dashboard data", () => {
       channelAccountId: "channel-web",
       roomId: "room-web",
       status: "open",
+      conversationPriority: "high",
       externalCalls: 0,
       source: "api"
     });
@@ -77,6 +78,8 @@ describe("task dashboard data", () => {
       platform: "webchat",
       roomId: "webchat-main",
       status: "open",
+      conversationPriority: "high",
+      dueAt: null,
       source: "mock",
       externalCalls: 0
     });
