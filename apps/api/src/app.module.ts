@@ -21,6 +21,7 @@ import { FlowService } from "./services/flow.service.js";
 import { KnowledgeBaseService } from "./services/knowledge-base.service.js";
 import { NormalizerService } from "./services/normalizer.service.js";
 import { OpenAiOrchestratorService } from "./services/openai-orchestrator.service.js";
+import { OutboundConsentService } from "./services/outbound-consent.service.js";
 import { OutboundQueueService } from "./services/outbound-queue.service.js";
 import { PrismaService } from "./services/prisma.service.js";
 import { RealtimeGateway } from "./services/realtime.gateway.js";
@@ -41,6 +42,7 @@ import { SettingsService } from "./services/settings.service.js";
     KnowledgeBaseService,
     NormalizerService,
     OpenAiOrchestratorService,
+    OutboundConsentService,
     OutboundQueueService,
     PrismaService,
     RealtimeGateway,

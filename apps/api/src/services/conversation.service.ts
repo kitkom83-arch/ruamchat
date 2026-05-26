@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   AgentMessageRequest,
   AssignConversationRequest,
@@ -19,6 +19,7 @@ import {
 import { ConversationPriority, ConversationSlaStatus, ConversationStatus, Platform, Prisma, SenderType } from "@prisma/client";
 import crypto from "node:crypto";
 import { AuditService } from "./audit.service.js";
+import { OutboundConsentService, consentSnapshot } from "./outbound-consent.service.js";
 import { OutboundQueueService } from "./outbound-queue.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { RealtimeGateway } from "./realtime.gateway.js";
@@ -32,6 +33,8 @@ export class ConversationService {
     private readonly prisma: PrismaService,
     @Inject(AuditService)
     private readonly audit: AuditService,
+    @Inject(OutboundConsentService)
+    private readonly outboundConsent: OutboundConsentService,
     @Inject(OutboundQueueService)
     private readonly outboundQueue: OutboundQueueService,
     @Inject(RealtimeGateway)
@@ -501,6 +504,32 @@ export class ConversationService {
     const conversation = await this.ensureConversation(tenantId, conversationId);
     const text = request.text.trim();
     if (!text) throw new BadRequestException("Message text is required");
+    const consentContext = await this.outboundConsent.getConversationContext({
+      tenantId,
+      conversationId,
+      contactId: conversation.contactId,
+      platform: conversation.room.platform,
+      channelAccountId: conversation.room.channelAccountId,
+      roomId: conversation.roomId
+    });
+    const decision = this.outboundConsent.decide(consentContext.consent, "support");
+    if (decision.blocked && decision.reason) {
+      await this.outboundConsent.recordBlocked({
+        action: "outbound.blocked",
+        intent: "support",
+        actorUserId,
+        entityType: "outbound_message",
+        entityId: conversationId,
+        context: consentContext,
+        reason: decision.reason,
+        metadata: {
+          source: "manual_reply",
+          deliveryStatus: "blocked",
+          textLength: text.length
+        }
+      });
+      throw new ForbiddenException("Outbound blocked by customer consent state");
+    }
     const message = await this.prisma.message.create({
       data: {
         tenantId,
@@ -535,6 +564,9 @@ export class ConversationService {
       platform: conversation.room.platform,
       channelAccountId: conversation.room.channelAccountId,
       roomId: conversation.roomId,
+      contactId: conversation.contactId,
+      customerId: conversation.contactId,
+      consent: consentSnapshot(consentContext.consent),
       conversationId,
       externalConversationId: conversation.externalConversationId,
       externalUserId: conversation.contactIdentity.externalUserId,

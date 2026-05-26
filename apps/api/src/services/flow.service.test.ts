@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FlowsController } from "../controllers/flows.controller.js";
 import { AuditService } from "./audit.service.js";
 import { FlowService } from "./flow.service.js";
+import { OutboundConsentService } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const tenantId = "00000000-0000-4000-8000-000000000001";
@@ -81,6 +82,47 @@ describe("FlowService persistence APIs", () => {
         })
       }));
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("suppresses automation outbound-like actions when do-not-contact is enabled", async () => {
+    await withFlowRuntime(async ({ controller, outboundConsent, prisma }) => {
+      outboundConsent.setConsent({ optOut: false, doNotContact: true, suppressedReason: "do_not_contact" });
+
+      const result = await controller.testRun("flow-active", {
+        conversationId: "conv-web",
+        contactId: "contact-web",
+        message: "ขอราคาแพ็กเกจ",
+        platform: "webchat",
+        roomId: "room-webchat",
+        triggerType: "keyword",
+        businessHours: true
+      }, tenantId);
+
+      expect(result.state.externalCalls).toEqual([]);
+      expect(result.state.actionResults).toContainEqual(expect.objectContaining({
+        actionType: "send_message",
+        status: "skipped_mock",
+        metadata: expect.objectContaining({
+          blocked: true,
+          reason: "do_not_contact",
+          externalCalls: 0
+        })
+      }));
+      expect(result.state.auditLogsCreated.some((log) => log.action === "automation.outbound_blocked")).toBe(true);
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          action: "flow_run_dry_run",
+          metadata: expect.objectContaining({
+            contactId: "contact-web",
+            platform: "webchat",
+            channelAccountId: "channel-web",
+            roomId: "room-webchat",
+            blockedReason: "do_not_contact",
+            externalCalls: 0
+          })
+        })
+      }));
     });
   });
 
@@ -168,12 +210,14 @@ async function withFlowRuntime<T>(
 
 async function buildFlowRuntime() {
   const prisma = buildPrismaFake();
+  const outboundConsent = buildOutboundConsentFake(prisma);
 
   @Module({
     controllers: [FlowsController],
     providers: [
       AuditService,
       FlowService,
+      { provide: OutboundConsentService, useValue: outboundConsent },
       { provide: PrismaService, useValue: prisma }
     ]
   })
@@ -183,8 +227,55 @@ async function buildFlowRuntime() {
   return {
     controller: app.get(FlowsController),
     service: app.get(FlowService),
+    outboundConsent,
     prisma,
     close: () => app.close()
+  };
+}
+
+function buildOutboundConsentFake(prisma: ReturnType<typeof buildPrismaFake>) {
+  let consent = { optOut: false, doNotContact: false, suppressedReason: undefined as string | undefined };
+  return {
+    setConsent: (next: typeof consent) => {
+      consent = next;
+    },
+    getConversationContext: vi.fn(async (input: Record<string, any>) => ({
+      tenantId: input.tenantId,
+      contactId: input.contactId,
+      customerId: input.contactId,
+      conversationId: input.conversationId,
+      platform: input.platform,
+      channelAccountId: input.channelAccountId,
+      roomId: input.roomId,
+      consent
+    })),
+    decide: vi.fn((value: typeof consent, intent: "support" | "marketing" | "automation") => {
+      if (value.doNotContact) return { blocked: true, reason: "do_not_contact" };
+      if ((intent === "marketing" || intent === "automation") && value.optOut) return { blocked: true, reason: "marketing_opt_out" };
+      return { blocked: false, reason: null };
+    }),
+    recordBlocked: vi.fn(async (input: Record<string, any>) => prisma.auditLog.create({
+      data: {
+        tenantId: input.context.tenantId,
+        conversationId: input.context.conversationId,
+        action: input.action,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        metadata: {
+          blocked: true,
+          blockedReason: input.reason,
+          tenantId: input.context.tenantId,
+          contactId: input.context.contactId,
+          customerId: input.context.customerId,
+          conversationId: input.context.conversationId,
+          platform: input.context.platform,
+          channelAccountId: input.context.channelAccountId,
+          roomId: input.context.roomId,
+          externalCalls: 0,
+          ...(input.metadata ?? {})
+        }
+      }
+    }))
   };
 }
 

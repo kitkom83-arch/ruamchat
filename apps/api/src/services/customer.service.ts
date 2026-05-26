@@ -173,6 +173,7 @@ export class CustomerService {
       notes: mappedNotes,
       tasks: mappedTasks,
       optOutBroadcast: Boolean(broadcastConsent?.optOut),
+      doNotContact: Boolean(broadcastConsent?.doNotContact),
       suppressedReason: broadcastConsent?.suppressedReason,
       createdAt: contact.createdAt.toISOString(),
       updatedAt: contact.updatedAt.toISOString()
@@ -341,8 +342,13 @@ export class CustomerService {
 
     const before = (await this.getBroadcastConsentByContactIds(tenantId, [selectedContact.id])).get(selectedContact.id) ?? { optOut: false };
     const after = {
-      optOut: request.optOut,
-      suppressedReason: request.optOut ? "customer_requested" : undefined
+      optOut: request.optOut ?? before.optOut,
+      doNotContact: request.doNotContact ?? before.doNotContact ?? false,
+      suppressedReason: request.doNotContact ?? before.doNotContact
+        ? "do_not_contact"
+        : request.optOut ?? before.optOut
+          ? "customer_requested"
+          : undefined
     };
     const action = "customer360.consent_updated";
 
@@ -516,7 +522,8 @@ export class CustomerService {
     const before = (await this.getBroadcastConsentByContactIds(tenantId, [contactId])).get(contactId) ?? { optOut: false };
     const after = {
       optOut: request.optOut,
-      suppressedReason: request.optOut ? "customer_requested" : undefined
+      doNotContact: before.doNotContact ?? false,
+      suppressedReason: before.doNotContact ? "do_not_contact" : request.optOut ? "customer_requested" : undefined
     };
 
     await this.recordContactAudit({
@@ -608,6 +615,7 @@ export class CustomerService {
       const metadata = readObject(log.metadataJson ?? log.metadata);
       const next = readObject(metadata.next);
       const optOut = Boolean(after.optOut ?? next.optOut);
+      const doNotContact = Boolean(after.doNotContact ?? next.doNotContact);
       const suppressedReason = typeof after.suppressedReason === "string"
         ? after.suppressedReason
         : typeof next.suppressedReason === "string"
@@ -615,7 +623,8 @@ export class CustomerService {
           : undefined;
       result.set(log.entityId, {
         optOut,
-        suppressedReason: optOut ? suppressedReason ?? "customer_requested" : undefined,
+        doNotContact,
+        suppressedReason: doNotContact ? "do_not_contact" : optOut ? suppressedReason ?? "customer_requested" : undefined,
         updatedAt: log.createdAt
       });
     }
@@ -987,6 +996,7 @@ function contactAuditSnapshot(contact: {
 
 type BroadcastConsent = {
   optOut: boolean;
+  doNotContact?: boolean;
   suppressedReason?: string;
   updatedAt?: Date;
 };
@@ -1013,7 +1023,8 @@ type BroadcastHistoryLogRecord = {
 function broadcastConsentSnapshot(consent: BroadcastConsent) {
   return {
     optOut: Boolean(consent.optOut),
-    suppressedReason: consent.optOut ? consent.suppressedReason ?? "customer_requested" : null,
+    doNotContact: Boolean(consent.doNotContact),
+    suppressedReason: consent.doNotContact ? "do_not_contact" : consent.optOut ? consent.suppressedReason ?? "customer_requested" : null,
     externalCalls: 0
   };
 }
@@ -1071,6 +1082,7 @@ function mapContact(contact: {
       createdAt: task.createdAt.toISOString()
     })),
     optOutBroadcast: Boolean(consent?.optOut),
+    doNotContact: Boolean(consent?.doNotContact),
     suppressedReason: consent?.suppressedReason,
     createdAt: contact.createdAt.toISOString(),
     updatedAt: contact.updatedAt.toISOString()

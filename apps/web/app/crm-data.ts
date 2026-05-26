@@ -33,6 +33,7 @@ export const mockContacts: Contact[] = [
     notes: [{ id: "note-anya-1", contactId: "contact-anya", body: "สนใจ Business SLA และต้องการเทียบราคา", createdBy: "May", createdAt: now }],
     tasks: [{ id: "task-anya-1", contactId: "contact-anya", title: "ส่งใบเสนอราคา Business", status: "open", dueAt: "2026-05-22T10:00:00.000Z", ownerAgent: "May", createdAt: now }],
     optOutBroadcast: false,
+    doNotContact: false,
     createdAt: now,
     updatedAt: now
   },
@@ -51,6 +52,7 @@ export const mockContacts: Contact[] = [
     notes: [{ id: "note-ploy-1", contactId: "contact-ploy", body: "ถามเวลาทำการสาขาสยาม", createdBy: "Nok", createdAt: now }],
     tasks: [],
     optOutBroadcast: false,
+    doNotContact: false,
     createdAt: now,
     updatedAt: now
   },
@@ -70,6 +72,7 @@ export const mockContacts: Contact[] = [
     notes: [{ id: "note-june-1", contactId: "contact-june", body: "ลูกค้าขอปิดเคสและอาจกลับมาใหม่เดือนหน้า", createdBy: "Ton", createdAt: now }],
     tasks: [{ id: "task-june-1", contactId: "contact-june", title: "ติดตามใหม่เดือนหน้า", status: "open", ownerAgent: "Ton", createdAt: now }],
     optOutBroadcast: false,
+    doNotContact: false,
     createdAt: now,
     updatedAt: now
   },
@@ -89,6 +92,7 @@ export const mockContacts: Contact[] = [
     notes: [{ id: "note-krit-1", contactId: "contact-krit", body: "ตรวจ quote template ก่อนตอบกลับ", createdBy: "May", createdAt: now }],
     tasks: [{ id: "task-krit-1", contactId: "contact-krit", title: "แก้ใบเสนอราคาและตอบ Telegram", status: "open", ownerAgent: "May", createdAt: now }],
     optOutBroadcast: false,
+    doNotContact: false,
     createdAt: now,
     updatedAt: now
   },
@@ -108,6 +112,7 @@ export const mockContacts: Contact[] = [
     notes: [{ id: "note-mint-1", contactId: "contact-mint", body: "รอตรวจว่าเป็น wholesale จริงหรือ spam", createdBy: "Pim", createdAt: now }],
     tasks: [{ id: "task-mint-1", contactId: "contact-mint", title: "ขอจำนวนสั่งซื้อและเสนอราคา wholesale", status: "open", ownerAgent: "Pim", createdAt: now }],
     optOutBroadcast: true,
+    doNotContact: false,
     suppressedReason: "Customer requested no promotional messages in mock CRM",
     createdAt: now,
     updatedAt: now
@@ -298,6 +303,7 @@ export function createContactFromIdentity(contacts: Contact[], identity: Contact
     notes: [],
     tasks: [],
     optOutBroadcast: false,
+    doNotContact: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };

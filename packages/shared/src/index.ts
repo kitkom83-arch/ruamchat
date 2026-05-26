@@ -621,6 +621,7 @@ export const contactSchema = z.object({
   notes: z.array(contactNoteSchema).default([]),
   tasks: z.array(contactTaskSchema).default([]),
   optOutBroadcast: z.boolean().default(false),
+  doNotContact: z.boolean().default(false),
   suppressedReason: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
@@ -710,8 +711,11 @@ export type UpdateCustomer360ProfileRequest = z.input<typeof updateCustomer360Pr
 export const updateCustomer360ConsentRequestSchema = z.object({
   contactId: z.string().min(1).optional(),
   customerId: z.string().min(1).optional(),
-  optOut: z.boolean()
-}).strict();
+  optOut: z.boolean().optional(),
+  doNotContact: z.boolean().optional()
+}).strict().refine((value) => value.optOut !== undefined || value.doNotContact !== undefined, {
+  message: "Provide optOut or doNotContact"
+});
 export type UpdateCustomer360ConsentRequest = z.input<typeof updateCustomer360ConsentRequestSchema>;
 
 export const linkContactIdentityRequestSchema = z.object({
