@@ -4,6 +4,7 @@ import {
   LinkContactIdentityRequest,
   SetPrimaryIdentityRequest,
   UpdateBroadcastConsentRequest,
+  UpdateCustomer360ProfileRequest,
   UpdateContactRequest,
   UnlinkContactIdentityRequest
 } from "@ai-omni/shared";
@@ -265,6 +266,70 @@ export class CustomerService {
     return after;
   }
 
+  async updateCustomer360Profile(tenantId: string, conversationId: string, request: UpdateCustomer360ProfileRequest, actorUserId?: string) {
+    const selected = await this.findConversationForCustomer360Update(tenantId, conversationId);
+    const selectedContact = selected.contactIdentity.contact ?? selected.contact;
+    const requestedContactId = request.contactId ?? request.customerId;
+    if (requestedContactId && requestedContactId !== selectedContact.id) {
+      throw new BadRequestException("Customer profile update does not belong to selected conversation");
+    }
+
+    const before = contactAuditSnapshot(mapContact(
+      selectedContact,
+      [],
+      [],
+      undefined
+    ));
+    const { contactId: _contactId, customerId: _customerId, ...patch } = request;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.contact.update({
+        where: { id: selectedContact.id },
+        data: {
+          displayName: patch.displayName,
+          email: patch.email === undefined ? undefined : patch.email,
+          phone: patch.phone === undefined ? undefined : patch.phone,
+          leadStatus: patch.leadStatus,
+          ownerUserId: patch.ownerUserId === undefined ? undefined : patch.ownerUserId
+        }
+      });
+      if (patch.tags) await this.replaceTags(tx, tenantId, selectedContact.id, patch.tags);
+    });
+
+    const after = await this.getCustomer360(tenantId, conversationId);
+    const afterSnapshot = contactAuditSnapshot(after.contact);
+    const action = patch.tags && Object.keys(patch).every((field) => field === "tags")
+      ? "customer360.tags_updated"
+      : "customer360.profile_updated";
+    await this.audit.record({
+      tenantId,
+      actorUserId,
+      conversationId: selected.id,
+      action,
+      entityType: "contact",
+      entityId: selectedContact.id,
+      beforeJson: before,
+      afterJson: afterSnapshot,
+      metadata: {
+        tenantId,
+        customerId: selectedContact.id,
+        contactId: selectedContact.id,
+        identityId: selected.contactIdentityId,
+        conversationId: selected.id,
+        platform: selected.room.platform,
+        channelAccountId: selected.room.channelAccountId,
+        roomId: selected.roomId,
+        actionType: action,
+        changedFields: Object.keys(patch),
+        previous: before,
+        next: afterSnapshot,
+        externalCalls: 0
+      }
+    });
+
+    return after;
+  }
+
   async linkIdentity(tenantId: string, contactId: string, request: LinkContactIdentityRequest, actorUserId?: string) {
     await this.ensureContact(tenantId, contactId);
     const beforeIdentity = await this.findIdentityForLinkRequest(tenantId, request);
@@ -446,6 +511,37 @@ export class CustomerService {
     if (!conversation) throw new NotFoundException("Conversation not found");
     if (conversation.contactId !== contactId && conversation.contactIdentity.contactId !== contactId) {
       throw new BadRequestException("Conversation does not belong to contact");
+    }
+    return conversation;
+  }
+
+  private async findConversationForCustomer360Update(tenantId: string, conversationId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { tenantId, id: conversationId },
+      include: {
+        room: true,
+        contactIdentity: {
+          include: {
+            contact: {
+              include: {
+                identities: { include: { channelAccount: true } },
+                tags: { include: { tag: true } }
+              }
+            }
+          }
+        },
+        contact: {
+          include: {
+            identities: { include: { channelAccount: true } },
+            tags: { include: { tag: true } }
+          }
+        }
+      }
+    });
+    if (!conversation) throw new NotFoundException("Conversation not found");
+    const selectedContact = conversation.contactIdentity.contact ?? conversation.contact;
+    if (conversation.contactId !== selectedContact.id && conversation.contactIdentity.contactId !== selectedContact.id) {
+      throw new BadRequestException("Conversation does not belong to customer profile");
     }
     return conversation;
   }

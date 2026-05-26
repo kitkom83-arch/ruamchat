@@ -64,13 +64,34 @@ describe("ConversationsController manual reply", () => {
     expect(conversations.getStatusHistory).not.toHaveBeenCalled();
   });
 
-  it("requires x-tenant-id for Customer 360 reads", async () => {
-    const customers = { getCustomer360: vi.fn() };
+  it("requires x-tenant-id for Customer 360 reads and updates", async () => {
+    const customers = { getCustomer360: vi.fn(), updateCustomer360Profile: vi.fn() };
     const controller = new ConversationsController({} as never, customers as never);
 
     await expect(controller.customer360("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.updateCustomer360("conv-1", { tags: ["vip"] }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
 
     expect(customers.getCustomer360).not.toHaveBeenCalled();
+    expect(customers.updateCustomer360Profile).not.toHaveBeenCalled();
+  });
+
+  it("passes tenant, user, and safe Customer 360 profile payload to the customer service", async () => {
+    const customers = {
+      updateCustomer360Profile: vi.fn(async () => ({ selectedConversationId: "conv-1" }))
+    };
+    const controller = new ConversationsController({} as never, customers as never);
+
+    await expect(controller.updateCustomer360("conv-1", {
+      contactId: "contact-1",
+      leadStatus: "qualified",
+      tags: ["vip"]
+    }, "tenant-1", "user-1")).resolves.toEqual({ selectedConversationId: "conv-1" });
+
+    expect(customers.updateCustomer360Profile).toHaveBeenCalledWith("tenant-1", "conv-1", {
+      contactId: "contact-1",
+      leadStatus: "qualified",
+      tags: ["vip"]
+    }, "user-1");
   });
 
   it("requires x-tenant-id for note and task workflow endpoints", async () => {

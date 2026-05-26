@@ -179,7 +179,7 @@ import {
   updateConversationSla,
   updateConversationStatus,
   updateConversationWorkflowTask,
-  updateContact as updateApiContact
+  updateCustomer360Profile
 } from "./api-client";
 import { dataMode, isApiMode, isMockMode } from "./data-mode";
 import { findCannedReplyInList, getCannedRepliesForMode, mapSettingsCannedReplyToCannedReply, resolveCannedReplyComposerDraft, searchCannedReplyList } from "./settings-data";
@@ -782,6 +782,23 @@ export default function InboxDashboard() {
       setAiActionStatus(successMessage);
     } catch (error) {
       setAiActionStatus(readableApiError(error));
+    } finally {
+      setApiActionLoading(false);
+    }
+  }
+
+  async function runApiCustomer360Action(action: () => Promise<Customer360>, successMessage: string) {
+    setApiActionLoading(true);
+    try {
+      const customer360 = await action();
+      setApiCustomer360(customer360);
+      if (selectedConversation) await refreshApiConversationTimeline(selectedConversation.id);
+      setApiCustomerError("");
+      setAiActionStatus(successMessage);
+    } catch (error) {
+      const message = readableApiError(error);
+      setApiCustomerError(message);
+      setAiActionStatus(message);
     } finally {
       setApiActionLoading(false);
     }
@@ -1592,8 +1609,12 @@ export default function InboxDashboard() {
   async function changeLeadStatus(leadStatus: LeadStatus) {
     if (!selectedContact) return;
     if (apiMode) {
-      await runApiContactAction(
-        () => updateApiContact(selectedContact.id, { leadStatus }),
+      if (!selectedConversation) return;
+      await runApiCustomer360Action(
+        () => updateCustomer360Profile(selectedConversation.id, {
+          contactId: selectedContact.id,
+          leadStatus
+        }),
         `Lead status updated to ${leadStatus}`
       );
       return;
@@ -1605,8 +1626,12 @@ export default function InboxDashboard() {
   async function addCrmTag() {
     if (!selectedContact) return;
     if (apiMode) {
-      await runApiContactAction(
-        () => updateApiContact(selectedContact.id, { tags: Array.from(new Set([...selectedContact.tags, "vip"])) }),
+      if (!selectedConversation) return;
+      await runApiCustomer360Action(
+        () => updateCustomer360Profile(selectedConversation.id, {
+          contactId: selectedContact.id,
+          tags: Array.from(new Set([...selectedContact.tags, "vip"]))
+        }),
         "CRM tag added"
       );
       return;
@@ -1618,8 +1643,12 @@ export default function InboxDashboard() {
   async function removeCrmTag(tag: string) {
     if (!selectedContact) return;
     if (apiMode) {
-      await runApiContactAction(
-        () => updateApiContact(selectedContact.id, { tags: selectedContact.tags.filter((item) => item !== tag) }),
+      if (!selectedConversation) return;
+      await runApiCustomer360Action(
+        () => updateCustomer360Profile(selectedConversation.id, {
+          contactId: selectedContact.id,
+          tags: selectedContact.tags.filter((item) => item !== tag)
+        }),
         "CRM tag removed"
       );
       return;

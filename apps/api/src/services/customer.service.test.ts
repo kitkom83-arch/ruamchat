@@ -338,6 +338,88 @@ describe("CustomerService Customer 360 API", () => {
     expect(JSON.stringify(audit.record.mock.calls)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
   });
 
+  it("persists Customer 360 profile and tag updates through selected conversation context", async () => {
+    const { service, audit } = buildService();
+
+    const updated = await service.updateCustomer360Profile(tenantId, "conv-web", {
+      contactId: "contact-web",
+      displayName: "Updated Web Visitor",
+      leadStatus: "qualified",
+      tags: ["vip", "sprint41"]
+    }, "agent-demo");
+    const refreshed = await service.getCustomer360(tenantId, "conv-web");
+
+    expect(updated.contact).toMatchObject({
+      id: "contact-web",
+      displayName: "Updated Web Visitor",
+      leadStatus: "qualified",
+      tags: ["vip", "sprint41"]
+    });
+    expect(refreshed.contact).toMatchObject({
+      displayName: "Updated Web Visitor",
+      leadStatus: "qualified",
+      tags: ["vip", "sprint41"]
+    });
+    expect(refreshed.recentConversations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "conv-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId
+      })
+    ]));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      actorUserId: "agent-demo",
+      conversationId: "conv-web",
+      action: "customer360.profile_updated",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        tenantId,
+        contactId: "contact-web",
+        customerId: "contact-web",
+        identityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        changedFields: ["displayName", "leadStatus", "tags"],
+        externalCalls: 0
+      })
+    }));
+    expect(JSON.stringify({ updated, auditCalls: audit.record.mock.calls })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
+  });
+
+  it("persists Customer 360 tag-only updates and rejects cross-contact conversation context", async () => {
+    const { service, audit } = buildService();
+
+    const updated = await service.updateCustomer360Profile(tenantId, "conv-web", {
+      customerId: "contact-web",
+      tags: ["tag-only"]
+    }, "agent-demo");
+
+    expect(updated.contact.tags).toEqual(["tag-only"]);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "customer360.tags_updated",
+      conversationId: "conv-web",
+      metadata: expect.objectContaining({
+        contactId: "contact-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        externalCalls: 0
+      })
+    }));
+    await expect(service.updateCustomer360Profile(tenantId, "conv-web", {
+      contactId: "contact-telegram",
+      tags: ["wrong-contact"]
+    }, "agent-demo")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateCustomer360Profile("00000000-0000-4000-8000-000000000099", "conv-web", {
+      tags: ["wrong-tenant"]
+    }, "agent-demo")).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it("returns readable errors for unknown conversation/contact and unsafe unlink", async () => {
     const { service } = buildService();
 
