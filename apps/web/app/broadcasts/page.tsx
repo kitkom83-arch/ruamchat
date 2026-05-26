@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastTemplate, Platform } from "@ai-omni/shared";
+import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
@@ -28,6 +28,7 @@ import {
   deleteBroadcastSegment,
   duplicateBroadcastCampaign,
   getBroadcastCampaigns,
+  getBroadcastComplianceLogs,
   getBroadcastSegments,
   getBroadcastSendLogs,
   previewBroadcastAudience,
@@ -420,7 +421,9 @@ function ApiBroadcastsPage() {
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [segments, setSegments] = useState<BroadcastSegment[]>([]);
   const [sendLogs, setSendLogs] = useState<BroadcastSendLog[]>([]);
+  const [complianceLogs, setComplianceLogs] = useState<BroadcastComplianceLog[]>([]);
   const [preview, setPreview] = useState<BroadcastAudiencePreviewRecipient[]>([]);
+  const [suppressedRecipients, setSuppressedRecipients] = useState<BroadcastSuppressedRecipient[]>([]);
   const [previewStats, setPreviewStats] = useState<Pick<BroadcastAudiencePreviewResult, "candidateCount" | "eligibleCount" | "suppressedCount" | "suppressedByReason" | "externalCalls"> | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState("");
@@ -447,6 +450,7 @@ function ApiBroadcastsPage() {
 
   const selectedCampaign = campaigns.find((item) => item.id === selectedCampaignId) ?? campaigns[0];
   const selectedLogs = selectedCampaign ? sendLogs.filter((log) => log.campaignId === selectedCampaign.id) : [];
+  const selectedComplianceLogs = selectedCampaign ? complianceLogs.filter((log) => log.campaignId === selectedCampaign.id) : [];
   const apiMetrics = useMemo(() => ({
     totalCampaigns: campaigns.length,
     scheduled: campaigns.filter((campaign) => campaign.status === "scheduled").length,
@@ -456,8 +460,9 @@ function ApiBroadcastsPage() {
     skippedMock: sendLogs.filter((log) => log.status === "skipped_mock").length,
     failedMock: sendLogs.filter((log) => log.status === "failed_mock").length,
     previewCount: preview.length,
-    suppressedPreview: previewStats?.suppressedCount ?? 0
-  }), [campaigns, preview.length, previewStats?.suppressedCount, sendLogs]);
+    suppressedPreview: previewStats?.suppressedCount ?? 0,
+    compliance: complianceLogs.length
+  }), [campaigns, complianceLogs.length, preview.length, previewStats?.suppressedCount, sendLogs]);
 
   useEffect(() => {
     void refreshApiData();
@@ -484,10 +489,16 @@ function ApiBroadcastsPage() {
         getBroadcastCampaigns(),
         getBroadcastSegments()
       ]);
-      const logs = (await Promise.all(apiCampaigns.map((campaign) => getBroadcastSendLogs(campaign.id)))).flat();
+      const [logs, auditRows] = await Promise.all([
+        Promise.all(apiCampaigns.map((campaign) => getBroadcastSendLogs(campaign.id))).then((items) => items.flat()),
+        Promise.all(apiCampaigns.map((campaign) => getBroadcastComplianceLogs(campaign.id))).then((items) => items.flat())
+      ]);
       setCampaigns(apiCampaigns);
       setSegments(apiSegments);
       setSendLogs(logs);
+      setComplianceLogs(auditRows);
+      setPreview([]);
+      setSuppressedRecipients([]);
       setPreviewStats(null);
       const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
       setSelectedCampaignId(nextSelected);
@@ -495,6 +506,13 @@ function ApiBroadcastsPage() {
       setStatusText(`API mode loaded ${apiCampaigns.length} campaigns and ${apiSegments.length} segments`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Broadcast API request failed";
+      setCampaigns([]);
+      setSegments([]);
+      setSendLogs([]);
+      setComplianceLogs([]);
+      setPreview([]);
+      setSuppressedRecipients([]);
+      setPreviewStats(null);
       setError(message);
       setStatusText("Broadcast API mode error");
     } finally {
@@ -564,6 +582,7 @@ function ApiBroadcastsPage() {
         channelAccountId: campaignForm.channelAccountId.trim() || null
       });
       setPreview(result.recipients);
+      setSuppressedRecipients(result.suppressedRecipients ?? []);
       setPreviewStats({
         candidateCount: result.candidateCount ?? result.total,
         eligibleCount: result.eligibleCount ?? result.recipients.length,
@@ -625,6 +644,7 @@ function ApiBroadcastsPage() {
           <MiniStat label="failed_mock" value={apiMetrics.failedMock} />
           <MiniStat label="Preview" value={apiMetrics.previewCount} />
           <MiniStat label="Suppressed" value={apiMetrics.suppressedPreview} />
+          <MiniStat label="Compliance" value={apiMetrics.compliance} />
         </section>
 
         <section className="broadcastGrid">
@@ -740,8 +760,15 @@ function ApiBroadcastsPage() {
           <section className="broadcastPanel">
             <div className="blockHeader"><ClipboardCheck size={18} /><h2>Selected send logs</h2></div>
             <div className="miniList">
-              {selectedLogs.slice(0, 10).map((log) => <p key={log.id}>{log.status} / {log.platform} / {log.reason ?? "-"}</p>)}
+              {selectedLogs.slice(0, 10).map((log) => <p key={log.id}>{log.status} / {log.platform} / {log.channelAccountId ?? "-"} / {log.reason ?? "-"}</p>)}
               {selectedLogs.length === 0 && <p>No send logs returned for selected campaign.</p>}
+            </div>
+            <div className="miniList">
+              <strong>Compliance history</strong>
+              {selectedComplianceLogs.slice(0, 8).map((log) => (
+                <p key={log.id}>{log.reason} / {log.platform} / {log.channelAccountId ?? "-"} / {log.roomId ?? "-"} / externalCalls {log.externalCalls}</p>
+              ))}
+              {selectedComplianceLogs.length === 0 && <p>No compliance API rows returned for selected campaign.</p>}
             </div>
           </section>
         </section>
@@ -759,27 +786,56 @@ function ApiBroadcastsPage() {
           )}
           <div className="analyticsTableWrap">
             <table className="analyticsTable">
-              <thead><tr><th>Contact</th><th>Platform</th><th>Channel account</th><th>Tags</th><th>Lead</th><th>Rendered message</th><th>Reason</th></tr></thead>
+              <thead><tr><th>Contact</th><th>Conversation</th><th>Platform</th><th>Channel account</th><th>Room</th><th>Tags</th><th>Lead</th><th>Rendered message</th><th>Reason</th></tr></thead>
               <tbody>
                 {preview.map((recipient) => (
                   <tr key={`${recipient.contactId}-${recipient.contactIdentityId ?? "none"}`}>
                     <td>{recipient.displayName}</td>
+                    <td>{recipient.conversationId ?? "-"}</td>
                     <td>{recipient.platform}</td>
                     <td>{recipient.channelAccountId ?? "-"}</td>
+                    <td>{recipient.roomId ?? "-"}</td>
                     <td>{recipient.tags.join(", ")}</td>
                     <td>{recipient.leadStatus}</td>
                     <td>{recipient.renderedMessage}</td>
                     <td>{recipient.reason ?? "-"}</td>
                   </tr>
                 ))}
-                {preview.length === 0 && <tr><td colSpan={7}>No API preview recipients loaded.</td></tr>}
+                {preview.length === 0 && <tr><td colSpan={9}>No API preview recipients loaded.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="analyticsTableWrap">
+            <table className="analyticsTable">
+              <thead><tr><th>Suppressed recipient</th><th>Customer/contact</th><th>Conversation</th><th>Platform</th><th>Channel account</th><th>Room</th><th>Reason</th><th>externalCalls</th></tr></thead>
+              <tbody>
+                {suppressedRecipients.map((recipient) => (
+                  <tr key={`${recipient.contactId ?? recipient.customerId ?? "suppressed"}-${recipient.conversationId ?? recipient.reason}`}>
+                    <td>{recipient.displayName ?? "-"}</td>
+                    <td>{recipient.customerId ?? recipient.contactId ?? "-"}</td>
+                    <td>{recipient.conversationId ?? "-"}</td>
+                    <td>{recipient.platform}</td>
+                    <td>{recipient.channelAccountId ?? "-"}</td>
+                    <td>{recipient.roomId ?? "-"}</td>
+                    <td>{recipient.reason}</td>
+                    <td>{recipient.externalCalls}</td>
+                  </tr>
+                ))}
+                {suppressedRecipients.length === 0 && <tr><td colSpan={8}>No suppressed recipient rows returned by API.</td></tr>}
               </tbody>
             </table>
           </div>
           <div className="deliveryGrid">
             <section>
               <strong>Recent API send logs</strong>
-              <div className="miniList">{sendLogs.slice(0, 8).map((log) => <p key={log.id}>{log.status} / {log.campaignId} / {log.reason ?? "-"}</p>)}</div>
+              <div className="miniList">{sendLogs.slice(0, 8).map((log) => <p key={log.id}>{log.status} / {log.campaignId} / {log.platform} / {log.channelAccountId ?? "-"} / {log.reason ?? "-"}</p>)}</div>
+            </section>
+            <section>
+              <strong>Compliance API history</strong>
+              <div className="miniList">
+                {complianceLogs.slice(0, 8).map((log) => <p key={log.id}>{log.reason} / {log.campaignId ?? "-"} / {log.conversationId ?? "-"} / {log.platform} / {log.channelAccountId ?? "-"} / {log.roomId ?? "-"} / externalCalls {log.externalCalls}</p>)}
+                {complianceLogs.length === 0 && <p>No compliance API rows loaded.</p>}
+              </div>
             </section>
             <section>
               <strong>API mode note</strong>

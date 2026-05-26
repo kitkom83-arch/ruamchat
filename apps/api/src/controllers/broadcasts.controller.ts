@@ -82,6 +82,11 @@ export class BroadcastsController {
     return this.broadcasts.listSendLogs(requireTenantId(tenant), campaignId);
   }
 
+  @Get("campaigns/:campaignId/compliance-logs")
+  async listComplianceLogs(@Param("campaignId") campaignId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.listComplianceLogs(requireTenantId(tenant), campaignId);
+  }
+
   @Get("segments")
   async listSegments(@Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.listSegments(requireTenantId(tenant));

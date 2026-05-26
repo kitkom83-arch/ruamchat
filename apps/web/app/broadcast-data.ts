@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   BroadcastCampaign,
+  BroadcastComplianceLog,
   BroadcastDeliveryEvent,
   BroadcastRecipient,
   BroadcastRecipientStatus,
@@ -14,7 +15,7 @@ import type {
   DataMode,
   Platform
 } from "@ai-omni/shared";
-import { getBroadcastCampaigns, getBroadcastSegments, getBroadcastSendLogs } from "./api-client";
+import { getBroadcastCampaigns, getBroadcastComplianceLogs, getBroadcastSegments, getBroadcastSendLogs } from "./api-client";
 import { mockContacts } from "./crm-data";
 import { mockConversations, platformRooms, type ConversationCard } from "./inbox-data";
 
@@ -38,6 +39,7 @@ export type BroadcastBuilderApiData = {
   mode: "api";
   store: BroadcastStore;
   sendLogs: BroadcastSendLog[];
+  complianceLogs: BroadcastComplianceLog[];
 };
 
 export type BroadcastBuilderData = BroadcastBuilderMockData | BroadcastBuilderApiData;
@@ -178,9 +180,11 @@ export async function loadBroadcastBuilderData(mode: DataMode): Promise<Broadcas
     getBroadcastSegments()
   ]);
   const sendLogs = (await Promise.all(campaigns.map((campaign) => getBroadcastSendLogs(campaign.id)))).flat();
+  const complianceLogs = (await Promise.all(campaigns.map((campaign) => getBroadcastComplianceLogs(campaign.id)))).flat();
   return {
     mode,
     sendLogs,
+    complianceLogs,
     store: {
       campaigns,
       segments,
