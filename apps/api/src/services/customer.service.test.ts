@@ -19,6 +19,13 @@ describe("CustomerService Customer 360 API", () => {
     expect(customer360.contact.displayName).toBe("Demo Web Visitor");
     expect(customer360.identities.map((identity) => identity.externalUserId)).toEqual(["web-user"]);
     expect(customer360.recentConversations.map((conversation) => conversation.id)).toEqual(["conv-web"]);
+    expect(customer360.recentConversations[0]).toMatchObject({
+      tenantId,
+      id: "conv-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId
+    });
     expect(customer360.source).toMatchObject({
       platform: "webchat",
       channelAccountId: webchatAccountId,
@@ -147,6 +154,20 @@ describe("CustomerService Customer 360 API", () => {
         externalCalls: 0
       })
     }));
+  });
+
+  it("rejects identity-id linking when the identity is outside the tenant scope", async () => {
+    const { service, store } = buildService();
+    const otherTenantId = "00000000-0000-4000-8000-000000000099";
+    store.identities.push({
+      ...identity("identity-other-tenant", "contact-web", "webchat", webchatAccountId, "other-tenant-user", "Other Tenant", false, new Date("2026-05-21T04:00:00.000Z")),
+      tenantId: otherTenantId
+    });
+
+    await expect(service.linkIdentity(tenantId, "contact-web", { identityId: "identity-other-tenant", isPrimary: true })).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(store.identities.find((item) => item.id === "identity-web")?.isPrimary).toBe(true);
+    expect(store.identities.find((item) => item.id === "identity-other-tenant")?.contactId).toBe("contact-web");
   });
 
   it("returns Customer 360 tasks with their original platform account room context after identity linking", async () => {

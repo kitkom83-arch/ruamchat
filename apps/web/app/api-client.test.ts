@@ -198,6 +198,13 @@ describe("frontend API client", () => {
     expectTenantHeaderForAll(fetchMock);
     expect(customer360.contact.id).toBe("contact-api");
     expect(customer360.identities[0]?.externalUserId).toBe("visitor-api");
+    expect(customer360.recentConversations[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      id: "conv-web",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat"
+    });
     expect(customer360.tasks[0]).toMatchObject({
       conversationId: "conv-web",
       platform: "webchat",
@@ -258,6 +265,15 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/contacts/contact-created/identities/link", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/contacts/contact-created/primary-identity", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/contacts/contact-created/identities/unlink", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      platform: "telegram",
+      channelAccountId: "00000000-0000-4000-8000-000000000021",
+      externalUserId: "tg-api-user",
+      displayName: "TG API User",
+      isPrimary: false
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ identityId: "identity-linked" });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ identityId: "identity-linked" });
     expectTenantHeaderForAll(fetchMock);
     expect(created.id).toBe("contact-created");
     expect(updated.displayName).toBe("Updated API Contact");
@@ -873,6 +889,7 @@ function customer360Response(conversationId: string, contactId: string) {
     identities: contactResponse(contactId).identities,
     recentConversations: [{
       id: conversationId,
+      tenantId: defaultTenantId,
       roomId: "room-webchat",
       tab: "human",
       platform: "webchat",
