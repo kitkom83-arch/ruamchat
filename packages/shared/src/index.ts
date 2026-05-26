@@ -939,24 +939,57 @@ export const broadcastAudiencePreviewRequestSchema = z.object({
 }).strict();
 export type BroadcastAudiencePreviewRequest = z.input<typeof broadcastAudiencePreviewRequestSchema>;
 
+export const broadcastSuppressionReasonSchema = z.enum([
+  "do_not_contact",
+  "marketing_opt_out",
+  "consent_missing",
+  "consent_revoked",
+  "unknown_unsafe"
+]);
+export type BroadcastSuppressionReason = z.infer<typeof broadcastSuppressionReasonSchema>;
+
 export const broadcastAudiencePreviewRecipientSchema = z.object({
+  tenantId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional(),
   contactId: z.string().min(1),
   contactIdentityId: z.string().min(1).nullable(),
+  conversationId: z.string().min(1).nullable().optional(),
   displayName: z.string().min(1),
   platform: platformSchema,
   channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable().optional(),
   externalUserId: z.string().min(1).nullable(),
   tags: z.array(z.string().min(1)).default([]),
   leadStatus: z.string().min(1),
   reason: z.string().nullable().optional(),
-  renderedMessage: z.string()
+  renderedMessage: z.string(),
+  externalCalls: z.literal(0).default(0).optional()
 }).strict();
 export type BroadcastAudiencePreviewRecipient = z.infer<typeof broadcastAudiencePreviewRecipientSchema>;
+
+export const broadcastSuppressedRecipientSchema = z.object({
+  tenantId: z.string().min(1),
+  customerId: z.string().min(1).optional(),
+  contactId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).nullable().optional(),
+  platform: platformSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable().optional(),
+  reason: broadcastSuppressionReasonSchema,
+  externalCalls: z.literal(0).default(0)
+}).strict();
+export type BroadcastSuppressedRecipient = z.infer<typeof broadcastSuppressedRecipientSchema>;
 
 export const broadcastAudiencePreviewResultSchema = z.object({
   campaignId: z.string().min(1),
   total: z.number().int().nonnegative(),
-  recipients: z.array(broadcastAudiencePreviewRecipientSchema).default([])
+  candidateCount: z.number().int().nonnegative().optional(),
+  eligibleCount: z.number().int().nonnegative().optional(),
+  suppressedCount: z.number().int().nonnegative().optional(),
+  suppressedByReason: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  externalCalls: z.literal(0).default(0).optional(),
+  recipients: z.array(broadcastAudiencePreviewRecipientSchema).default([]),
+  suppressedRecipients: z.array(broadcastSuppressedRecipientSchema).default([]).optional()
 }).strict();
 export type BroadcastAudiencePreviewResult = z.infer<typeof broadcastAudiencePreviewResultSchema>;
 
@@ -998,6 +1031,11 @@ export const broadcastSendResultSchema = z.object({
   queuedMock: z.number().int().nonnegative(),
   skippedMock: z.number().int().nonnegative(),
   failedMock: z.number().int().nonnegative(),
+  candidateCount: z.number().int().nonnegative().optional(),
+  eligibleCount: z.number().int().nonnegative().optional(),
+  suppressedCount: z.number().int().nonnegative().optional(),
+  suppressedByReason: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  suppressedRecipients: z.array(broadcastSuppressedRecipientSchema).default([]).optional(),
   externalCalls: z.array(z.string()).default([]),
   logs: z.array(broadcastSendLogSchema).default([])
 }).strict();

@@ -4,6 +4,7 @@ import {
   createBroadcastSegment,
   deleteBroadcastCampaign,
   deleteBroadcastSegment,
+  dryRunBroadcastAudience,
   duplicateBroadcastCampaign,
   previewBroadcastAudience,
   sendBroadcastNow,
@@ -60,6 +61,21 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-copy", "API Broadcast Copy")))
       .mockResolvedValueOnce(jsonResponse({ ...campaignResponse("campaign-created", "Updated Broadcast"), status: "archived" }))
       .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("campaign-created")))
+      .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("campaign-created", {
+        suppressedCount: 1,
+        suppressedByReason: { do_not_contact: 1 },
+        suppressedRecipients: [{
+          tenantId: defaultTenantId,
+          customerId: "contact-blocked",
+          contactId: "contact-blocked",
+          conversationId: "conv-blocked",
+          platform: "webchat",
+          channelAccountId: "00000000-0000-4000-8000-000000000020",
+          roomId: "room-webchat",
+          reason: "do_not_contact",
+          externalCalls: 0
+        }]
+      })))
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "sent_mock")))
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "skipped_mock")))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Created Segment")))
@@ -71,6 +87,7 @@ describe("Broadcast API mode frontend", () => {
     const duplicated = await duplicateBroadcastCampaign(created.id);
     const archived = await deleteBroadcastCampaign(created.id);
     const preview = await previewBroadcastAudience(created.id, { platform: "webchat" });
+    const dryRun = await dryRunBroadcastAudience(created.id, { platform: "webchat" });
     const testResult = await sendBroadcastTest(created.id, { platform: "webchat", payloadJson: { source: "test" } });
     const sendNow = await sendBroadcastNow(created.id, { platform: "webchat" });
     const segment = await createBroadcastSegment({ name: "Created Segment", rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }] });
@@ -86,6 +103,10 @@ describe("Broadcast API mode frontend", () => {
       headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" }),
       method: "POST"
     }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/dry-run", expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" }),
+      method: "POST"
+    }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/send-test", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/send-now", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments", expect.objectContaining({ method: "POST" }));
@@ -97,11 +118,21 @@ describe("Broadcast API mode frontend", () => {
     expect(archived.status).toBe("archived");
     expect(preview.recipients[0]?.displayName).toBe("API Recipient");
     expect(preview.recipients[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      customerId: "contact-api",
       channelAccountId: "00000000-0000-4000-8000-000000000020",
       platform: "webchat",
       reason: null,
-      renderedMessage: "Hello API Recipient"
+      renderedMessage: "Hello API Recipient",
+      externalCalls: 0
     });
+    expect(preview.candidateCount).toBe(1);
+    expect(preview.eligibleCount).toBe(1);
+    expect(preview.suppressedCount).toBe(0);
+    expect(preview.externalCalls).toBe(0);
+    expect(dryRun.suppressedCount).toBe(1);
+    expect(dryRun.suppressedRecipients?.[0]?.reason).toBe("do_not_contact");
+    expect(JSON.stringify(dryRun)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
     expect(testResult.logs[0]?.status).toBe("sent_mock");
     expect(sendNow.logs[0]?.status).toBe("skipped_mock");
     expect(updatedSegment.estimatedCount).toBe(3);
@@ -194,22 +225,40 @@ function sendLogResponse(id: string, campaignId: string, status: "queued_mock" |
   };
 }
 
-function audiencePreviewResponse(campaignId: string) {
+function audiencePreviewResponse(campaignId: string, overrides: Record<string, unknown> = {}) {
   return {
     campaignId,
     total: 1,
+    candidateCount: 1,
+    eligibleCount: 1,
+    suppressedCount: 0,
+    suppressedByReason: {
+      do_not_contact: 0,
+      marketing_opt_out: 0,
+      consent_missing: 0,
+      consent_revoked: 0,
+      unknown_unsafe: 0
+    },
+    externalCalls: 0,
     recipients: [{
+      tenantId: defaultTenantId,
+      customerId: "contact-api",
       contactId: "contact-api",
       contactIdentityId: "identity-api",
+      conversationId: "conv-api",
       displayName: "API Recipient",
       platform: "webchat",
       channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
       externalUserId: "visitor-api",
       tags: ["pricing"],
       leadStatus: "interested",
       reason: null,
-      renderedMessage: "Hello API Recipient"
-    }]
+      renderedMessage: "Hello API Recipient",
+      externalCalls: 0
+    }],
+    suppressedRecipients: [],
+    ...overrides
   };
 }
 

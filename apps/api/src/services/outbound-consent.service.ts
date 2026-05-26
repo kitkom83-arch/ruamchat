@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { BroadcastSuppressionReason } from "@ai-omni/shared";
 import { Platform, Prisma } from "@prisma/client";
 import { AuditService } from "./audit.service.js";
 import { PrismaService } from "./prisma.service.js";
@@ -7,7 +8,10 @@ export type OutboundIntent = "support" | "marketing" | "automation";
 
 export type OutboundConsentState = {
   optOut: boolean;
+  optedOut?: boolean;
   doNotContact: boolean;
+  marketingConsent?: boolean | null;
+  consentStatus?: string | null;
   suppressedReason?: string;
   updatedAt?: Date;
 };
@@ -25,7 +29,7 @@ export type OutboundConsentContext = {
 
 export type OutboundConsentDecision = {
   blocked: boolean;
-  reason: "do_not_contact" | "marketing_opt_out" | null;
+  reason: BroadcastSuppressionReason | null;
 };
 
 @Injectable()
@@ -108,8 +112,14 @@ export class OutboundConsentService {
 
   decide(consent: OutboundConsentState, intent: OutboundIntent): OutboundConsentDecision {
     if (consent.doNotContact) return { blocked: true, reason: "do_not_contact" };
-    if ((intent === "marketing" || intent === "automation") && consent.optOut) {
+    if ((intent === "marketing" || intent === "automation") && (consent.optOut || consent.optedOut)) {
       return { blocked: true, reason: "marketing_opt_out" };
+    }
+    if ((intent === "marketing" || intent === "automation") && consent.marketingConsent === false) {
+      return { blocked: true, reason: "consent_missing" };
+    }
+    if ((intent === "marketing" || intent === "automation") && isRevokedConsentStatus(consent.consentStatus)) {
+      return { blocked: true, reason: "consent_revoked" };
     }
     return { blocked: false, reason: null };
   }
@@ -121,7 +131,7 @@ export class OutboundConsentService {
     entityType: string;
     entityId?: string | null;
     context: OutboundConsentContext;
-    reason: "do_not_contact" | "marketing_opt_out";
+    reason: BroadcastSuppressionReason;
     metadata?: Prisma.InputJsonObject;
   }) {
     return this.audit.record({
@@ -165,8 +175,11 @@ export class OutboundConsentService {
     const after = readObject(latest.afterJson);
     const metadata = readObject(latest.metadataJson ?? latest.metadata);
     const next = readObject(metadata.next);
-    const optOut = Boolean(after.optOut ?? next.optOut);
+    const optOut = Boolean(after.optOut ?? after.optedOut ?? next.optOut ?? next.optedOut);
+    const optedOut = Boolean(after.optedOut ?? next.optedOut ?? optOut);
     const doNotContact = Boolean(after.doNotContact ?? next.doNotContact);
+    const marketingConsent = booleanOrNull(after.marketingConsent ?? next.marketingConsent);
+    const consentStatus = stringOrNull(after.consentStatus ?? next.consentStatus);
     const suppressedReason = typeof after.suppressedReason === "string"
       ? after.suppressedReason
       : typeof next.suppressedReason === "string"
@@ -174,7 +187,10 @@ export class OutboundConsentService {
         : undefined;
     return {
       optOut,
+      optedOut,
       doNotContact,
+      marketingConsent,
+      consentStatus,
       suppressedReason: doNotContact ? "do_not_contact" : optOut ? suppressedReason ?? "customer_requested" : undefined,
       updatedAt: latest.createdAt
     };
@@ -184,10 +200,25 @@ export class OutboundConsentService {
 export function consentSnapshot(consent: OutboundConsentState): Prisma.InputJsonObject {
   return {
     optOut: Boolean(consent.optOut),
+    optedOut: Boolean(consent.optedOut ?? consent.optOut),
     doNotContact: Boolean(consent.doNotContact),
+    marketingConsent: consent.marketingConsent ?? null,
+    consentStatus: consent.consentStatus ?? null,
     suppressedReason: consent.doNotContact ? "do_not_contact" : consent.optOut ? consent.suppressedReason ?? "customer_requested" : null,
     externalCalls: 0
   };
+}
+
+function isRevokedConsentStatus(value: string | null | undefined) {
+  return ["revoked", "withdrawn", "denied", "unsubscribed"].includes(String(value ?? "").trim().toLowerCase());
+}
+
+function booleanOrNull(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function readObject(value: unknown): Record<string, unknown> {

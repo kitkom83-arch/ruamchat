@@ -70,12 +70,88 @@ describe("BroadcastService persistence and safe queue APIs", () => {
       const preview = await controller.audiencePreview("campaign-web", { platform: "webchat" }, tenantId);
 
       expect(preview.total).toBe(1);
+      expect(preview.candidateCount).toBe(1);
+      expect(preview.eligibleCount).toBe(1);
+      expect(preview.suppressedCount).toBe(0);
+      expect(preview.externalCalls).toBe(0);
       expect(preview.recipients[0]).toMatchObject({
+        tenantId,
+        customerId: "contact-web",
         contactId: "contact-web",
         contactIdentityId: "identity-web",
-        platform: "webchat"
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        externalCalls: 0
       });
       expect(preview.recipients.map((recipient) => recipient.contactId)).not.toContain("contact-other-tenant");
+    });
+  });
+
+  it("suppresses do-not-contact recipients from preview and records safe compliance context", async () => {
+    await withBroadcastRuntime(async ({ controller, outboundConsent, prisma }) => {
+      outboundConsent.setConsent({ optOut: false, doNotContact: true, suppressedReason: "do_not_contact" });
+
+      const preview = await controller.audiencePreview("campaign-web", { platform: "webchat" }, tenantId);
+
+      expect(preview.total).toBe(0);
+      expect(preview.candidateCount).toBe(1);
+      expect(preview.eligibleCount).toBe(0);
+      expect(preview.suppressedCount).toBe(1);
+      expect(preview.suppressedByReason.do_not_contact).toBe(1);
+      expect(preview.externalCalls).toBe(0);
+      expect(preview.recipients).toEqual([]);
+      expect(preview.suppressedRecipients[0]).toMatchObject({
+        tenantId,
+        customerId: "contact-web",
+        contactId: "contact-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        reason: "do_not_contact",
+        externalCalls: 0
+      });
+      expect(outboundConsent.recordBlocked).toHaveBeenCalledWith(expect.objectContaining({
+        action: "broadcast.recipient_suppressed",
+        intent: "marketing",
+        reason: "do_not_contact",
+        metadata: expect.objectContaining({
+          campaignId: "campaign-web",
+          sendType: "preview",
+          suppressed: true
+        })
+      }));
+      expect(prisma.broadcastSendLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  it("suppresses opted-out and revoked consent recipients with safe reason codes", async () => {
+    await withBroadcastRuntime(async ({ controller, outboundConsent }) => {
+      outboundConsent.setConsent({ optedOut: true, optOut: false, doNotContact: false });
+      const optedOut = await controller.dryRun("campaign-web", { platform: "webchat" }, tenantId);
+      expect(optedOut.suppressedCount).toBe(1);
+      expect(optedOut.suppressedRecipients[0]?.reason).toBe("marketing_opt_out");
+
+      outboundConsent.setConsent({ optedOut: false, optOut: false, marketingConsent: false });
+      const missing = await controller.dryRun("campaign-web", { platform: "webchat" }, tenantId);
+      expect(missing.suppressedCount).toBe(1);
+      expect(missing.suppressedRecipients[0]?.reason).toBe("consent_missing");
+
+      outboundConsent.setConsent({ marketingConsent: null, consentStatus: "revoked" });
+      const revoked = await controller.dryRun("campaign-web", { platform: "webchat" }, tenantId);
+      expect(revoked.suppressedCount).toBe(1);
+      expect(revoked.suppressedRecipients[0]?.reason).toBe("consent_revoked");
+      expect(revoked.externalCalls).toBe(0);
+    });
+  });
+
+  it("validates tenant ownership before recipient selection or suppression", async () => {
+    await withBroadcastRuntime(async ({ controller, prisma, outboundConsent }) => {
+      await expect(controller.audiencePreview("campaign-other", { platform: "webchat" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.contact.findMany).not.toHaveBeenCalled();
+      expect(outboundConsent.getContext).not.toHaveBeenCalled();
     });
   });
 
@@ -105,12 +181,17 @@ describe("BroadcastService persistence and safe queue APIs", () => {
       const sendResult = await controller.sendNow("campaign-web", { platform: "webchat" }, tenantId);
 
       expect(sendResult.sentMock).toBe(0);
-      expect(sendResult.skippedMock).toBe(2);
+      expect(sendResult.skippedMock).toBe(0);
+      expect(sendResult.created).toBe(0);
+      expect(sendResult.candidateCount).toBe(2);
+      expect(sendResult.eligibleCount).toBe(0);
+      expect(sendResult.suppressedCount).toBe(2);
+      expect(sendResult.suppressedByReason?.marketing_opt_out).toBe(2);
       expect(sendResult.externalCalls).toEqual([]);
-      expect(sendResult.logs.every((log) => log.status === "skipped_mock")).toBe(true);
-      expect(sendResult.logs.some((log) => log.reason === "marketing_opt_out")).toBe(true);
+      expect(sendResult.logs).toEqual([]);
+      expect(sendResult.suppressedRecipients?.every((recipient) => recipient.reason === "marketing_opt_out")).toBe(true);
       expect(outboundConsent.recordBlocked).toHaveBeenCalledWith(expect.objectContaining({
-        action: "broadcast.outbound_blocked",
+        action: "broadcast.recipient_suppressed",
         intent: "marketing",
         reason: "marketing_opt_out",
         context: expect.objectContaining({
@@ -120,12 +201,7 @@ describe("BroadcastService persistence and safe queue APIs", () => {
           channelAccountId: accountId("webchat")
         })
       }));
-      expect(prisma.broadcastSendLog.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({
-          status: "skipped_mock",
-          reason: "marketing_opt_out"
-        })
-      }));
+      expect(prisma.broadcastSendLog.create).not.toHaveBeenCalled();
     });
   });
 
@@ -177,10 +253,17 @@ async function buildBroadcastRuntime() {
 }
 
 function buildOutboundConsentFake() {
-  let consent = { optOut: false, doNotContact: false, suppressedReason: undefined as string | undefined };
+  let consent = {
+    optOut: false,
+    optedOut: false,
+    doNotContact: false,
+    marketingConsent: null as boolean | null,
+    consentStatus: null as string | null,
+    suppressedReason: undefined as string | undefined
+  };
   return {
-    setConsent: (next: typeof consent) => {
-      consent = next;
+    setConsent: (next: Partial<typeof consent>) => {
+      consent = { ...consent, ...next };
     },
     getContext: vi.fn(async (input: Record<string, any>) => ({
       tenantId: input.tenantId,
@@ -194,7 +277,9 @@ function buildOutboundConsentFake() {
     })),
     decide: vi.fn((value: typeof consent, intent: "support" | "marketing" | "automation") => {
       if (value.doNotContact) return { blocked: true, reason: "do_not_contact" };
-      if ((intent === "marketing" || intent === "automation") && value.optOut) return { blocked: true, reason: "marketing_opt_out" };
+      if ((intent === "marketing" || intent === "automation") && (value.optOut || value.optedOut)) return { blocked: true, reason: "marketing_opt_out" };
+      if ((intent === "marketing" || intent === "automation") && value.marketingConsent === false) return { blocked: true, reason: "consent_missing" };
+      if ((intent === "marketing" || intent === "automation") && value.consentStatus === "revoked") return { blocked: true, reason: "consent_revoked" };
       return { blocked: false, reason: null };
     }),
     recordBlocked: vi.fn(async (input: Record<string, any>) => ({
@@ -409,12 +494,17 @@ function contact(id: string, tenant: string, displayName: string, leadStatus: st
     tags: [{ tag: { name: "pricing" } }],
     tasks: [{ status: "open" }],
     conversations: [{
+      id: "conv-web",
       roomId: "room-webchat",
       priority: "high",
       status: "open",
       slaStatus: "ok",
       aiState: "need_human",
-      lastMessageAt: new Date("2026-05-21T04:00:00.000Z")
+      lastMessageAt: new Date("2026-05-21T04:00:00.000Z"),
+      room: {
+        platform: "webchat",
+        channelAccountId: accountId("webchat")
+      }
     }]
   };
 }
