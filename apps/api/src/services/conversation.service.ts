@@ -260,7 +260,8 @@ export class ConversationService {
   async listTasks(input: {
     tenantId: string;
     status?: "open" | "done" | "cancelled";
-    due?: "due" | "overdue" | "upcoming";
+    due?: "due" | "overdue" | "upcoming" | "due_soon" | "follow_up";
+    followUp?: boolean;
     assigneeUserId?: string;
     roomId?: string;
     platform?: Platform;
@@ -272,7 +273,9 @@ export class ConversationService {
     const conversationWhere: Prisma.ConversationWhereInput = {
       tenantId: input.tenantId,
       ...(input.roomId ? { roomId: input.roomId } : {}),
-      ...(input.platform ? { room: { platform: input.platform } } : {})
+      ...(input.platform ? { room: { platform: input.platform } } : {}),
+      ...(input.followUp === true || input.due === "follow_up" ? { followUpAt: { not: null } } : {}),
+      ...(input.followUp === false ? { followUpAt: null } : {})
     };
     const where: Prisma.TaskWhereInput = {
       tenantId: input.tenantId,
@@ -282,12 +285,17 @@ export class ConversationService {
     };
     if (input.due) {
       const now = input.now ?? new Date();
-      where.dueAt = input.due === "overdue"
-        ? { lt: now }
-        : input.due === "upcoming"
-          ? { gte: now }
-          : { not: null };
-      if (input.due === "overdue") where.status = { notIn: ["done", "cancelled"] };
+      if (input.due === "overdue") {
+        where.dueAt = { lt: now };
+        where.status = { notIn: ["done", "cancelled"] };
+      } else if (input.due === "upcoming") {
+        where.dueAt = { gte: now };
+      } else if (input.due === "due_soon") {
+        where.dueAt = { gte: now, lte: new Date(now.getTime() + 24 * 60 * 60 * 1000) };
+        where.status = { notIn: ["done", "cancelled"] };
+      } else if (input.due === "due") {
+        where.dueAt = { not: null };
+      }
     }
 
     const tasks = await this.prisma.task.findMany({
@@ -717,16 +725,21 @@ export class ConversationService {
         completedAt: status === "done" ? new Date() : status === "open" ? null : undefined
       }
     });
+    const auditAction = status === "done"
+      ? "task.completed"
+      : Object.prototype.hasOwnProperty.call(request, "dueAt")
+        ? "task.reminder_updated"
+        : "task.updated";
     await this.audit.record({
       tenantId,
       actorUserId,
       conversationId: task.conversationId,
-      action: status === "done" ? "task.completed" : "task.updated",
+      action: auditAction,
       entityType: "task",
       entityId: taskId,
       beforeJson: taskAuditSnapshot(task, conversation),
       afterJson: taskAuditSnapshot(updated, conversation),
-      metadata: conversationAuditMetadata(conversation, status === "done" ? "task.completed" : "task.updated", actorUserId, {
+      metadata: conversationAuditMetadata(conversation, auditAction, actorUserId, {
         taskId,
         contactId: conversation.contactId,
         customerId: conversation.contactId,

@@ -3,7 +3,7 @@ import type { AdminStore } from "./admin-data";
 import type { ConversationCard } from "./inbox-data";
 
 export type TaskDashboardStatusFilter = "all" | "open" | "completed";
-export type TaskDashboardDueFilter = "all" | "due" | "overdue" | "upcoming";
+export type TaskDashboardDueFilter = "all" | "due" | "overdue" | "upcoming" | "due_soon" | "follow_up";
 
 export type TaskDashboardRow = {
   id: string;
@@ -104,6 +104,8 @@ export function filterTaskDashboardRows(
     if (filters.due === "due" && !row.dueAt) return false;
     if (filters.due === "overdue" && (!row.dueAt || new Date(row.dueAt) >= now || row.status !== "open")) return false;
     if (filters.due === "upcoming" && (!row.dueAt || new Date(row.dueAt) < now)) return false;
+    if (filters.due === "due_soon" && (!row.dueAt || new Date(row.dueAt) < now || new Date(row.dueAt).getTime() > now.getTime() + 24 * 60 * 60 * 1000 || row.status !== "open")) return false;
+    if (filters.due === "follow_up") return false;
     return true;
   });
 }

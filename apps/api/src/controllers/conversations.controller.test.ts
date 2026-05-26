@@ -116,6 +116,7 @@ describe("TasksController workflow updates", () => {
       "tenant-1",
       "completed",
       "overdue",
+      "true",
       "00000000-0000-4000-8000-000000000011",
       "room-webchat",
       "webchat",
@@ -127,6 +128,7 @@ describe("TasksController workflow updates", () => {
       tenantId: "tenant-1",
       status: "done",
       due: "overdue",
+      followUp: true,
       assigneeUserId: "00000000-0000-4000-8000-000000000011",
       roomId: "room-webchat",
       platform: "webchat",
@@ -143,7 +145,8 @@ describe("TasksController workflow updates", () => {
 
     await expect(controller.listTasks("tenant-1", "waiting")).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.listTasks("tenant-1", "open", "late")).rejects.toBeInstanceOf(BadRequestException);
-    await expect(controller.listTasks("tenant-1", "open", "all", undefined, undefined, "invalid")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.listTasks("tenant-1", "open", "all", "maybe")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.listTasks("tenant-1", "open", "all", undefined, undefined, undefined, "invalid")).rejects.toBeInstanceOf(BadRequestException);
 
     expect(conversations.listTasks).not.toHaveBeenCalled();
   });

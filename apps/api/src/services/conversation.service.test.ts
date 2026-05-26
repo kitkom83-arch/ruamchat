@@ -175,12 +175,15 @@ function buildService() {
           if (where.dueAt?.not === null && item.dueAt === null) return false;
           if (where.dueAt?.lt && !(item.dueAt && item.dueAt < where.dueAt.lt)) return false;
           if (where.dueAt?.gte && !(item.dueAt && item.dueAt >= where.dueAt.gte)) return false;
+          if (where.dueAt?.lte && !(item.dueAt && item.dueAt <= where.dueAt.lte)) return false;
           const conversationFilter = where.conversation;
           if (conversationFilter) {
             const conversation = conversations.find((entry) => entry.id === item.conversationId);
             if (!conversation || conversation.tenantId !== conversationFilter.tenantId) return false;
             if (conversationFilter.roomId && conversation.roomId !== conversationFilter.roomId) return false;
             if (conversationFilter.room?.platform && conversation.room.platform !== conversationFilter.room.platform) return false;
+            if (conversationFilter.followUpAt?.not === null && conversation.followUpAt === null) return false;
+            if (conversationFilter.followUpAt === null && conversation.followUpAt !== null) return false;
           }
           return true;
         }).slice(skip ?? 0, take === undefined ? undefined : (skip ?? 0) + take);
@@ -694,11 +697,11 @@ describe("ConversationService core API", () => {
       externalCalls: 0
     });
     const firstUpdateLog = auditLogs.find((log) =>
-      log.action === "task.updated" &&
+      log.action === "task.reminder_updated" &&
       log.metadataJson?.nextAssigneeUserId === supervisorUserId
     );
     expect(firstUpdateLog?.metadataJson).toEqual(expect.objectContaining({
-      actionType: "task.updated",
+      actionType: "task.reminder_updated",
       tenantId,
       taskId: created.id,
       conversationId: "conv-web-need-human",
@@ -731,12 +734,18 @@ describe("ConversationService core API", () => {
     await service.completeTask(tenantId, telegramTask.id, supervisorUserId);
     await service.updatePriority(tenantId, "conv-web-need-human", demoAgentUserId, { priority: "urgent" });
 
+    await service.followUp(tenantId, "conv-web-need-human", demoAgentUserId, { followUpAt: "2026-05-22T03:00:00.000Z" });
+
     const webOpen = await service.listTasks({ tenantId, roomId: webchatRoomId, status: "open" });
     const overdueForAssignee = await service.listTasks({ tenantId, roomId: webchatRoomId, status: "open", due: "overdue", assigneeUserId: demoAgentUserId });
+    const dueSoon = await service.listTasks({ tenantId, roomId: webchatRoomId, due: "due_soon", now: new Date("2026-05-21T12:00:00.000Z") });
+    const followUpTasks = await service.listTasks({ tenantId, roomId: webchatRoomId, due: "follow_up" });
     const completed = await service.listTasks({ tenantId, status: "done" });
 
     expect(webOpen.map((task) => task.id)).toEqual([webTask.id]);
     expect(overdueForAssignee.map((task) => task.id)).toEqual([webTask.id]);
+    expect(dueSoon.map((task) => task.id)).toEqual([webTask.id]);
+    expect(followUpTasks.map((task) => task.id)).toEqual([webTask.id]);
     expect(webOpen[0]).toMatchObject({
       tenantId,
       conversationId: "conv-web-need-human",
@@ -744,7 +753,7 @@ describe("ConversationService core API", () => {
       channelAccountId: webchatAccountId,
       roomId: webchatRoomId,
       conversationTab: "human",
-      conversationStatus: "open",
+      conversationStatus: "follow_up",
       conversationPriority: "urgent",
       customerName: "Need Human Visitor",
       assigneeUserId: demoAgentUserId,

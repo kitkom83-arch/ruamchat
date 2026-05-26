@@ -204,6 +204,7 @@ export class TasksController {
     @Headers("x-tenant-id") tenant: string | undefined,
     @Query("status") status = "all",
     @Query("due") due = "all",
+    @Query("followUp") followUp = "all",
     @Query("assigneeUserId") assigneeUserId?: string,
     @Query("roomId") roomId?: string,
     @Query("platform") platform?: string,
@@ -216,6 +217,7 @@ export class TasksController {
       tenantId: requireTenantId(tenant),
       status: parseTaskStatus(status),
       due: parseTaskDue(due),
+      followUp: parseTaskFollowUp(followUp),
       assigneeUserId: normalizeOptional(assigneeUserId),
       roomId: normalizeOptional(roomId),
       platform: parsedPlatform?.data,
@@ -255,8 +257,19 @@ function parseTaskStatus(status: string | undefined) {
 
 function parseTaskDue(due: string | undefined) {
   if (!due || due === "all") return undefined;
-  if (due === "due" || due === "overdue" || due === "upcoming") return due;
+  if (due === "due" || due === "overdue" || due === "upcoming" || due === "due_soon" || due === "dueSoon" || due === "follow_up" || due === "followUp") {
+    if (due === "dueSoon") return "due_soon" as const;
+    if (due === "followUp") return "follow_up" as const;
+    return due;
+  }
   throw new BadRequestException("Invalid task due filter");
+}
+
+function parseTaskFollowUp(followUp: string | undefined) {
+  if (!followUp || followUp === "all") return undefined;
+  if (followUp === "true") return true;
+  if (followUp === "false") return false;
+  throw new BadRequestException("Invalid task follow-up filter");
 }
 
 function parseLimit(limit: string | undefined) {

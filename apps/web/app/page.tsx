@@ -2158,8 +2158,10 @@ function TaskDashboardPanel({
           <select value={due} onChange={(event) => onDueChange(event.target.value as TaskDashboardDueFilter)} aria-label="Filter tasks by due date">
             <option value="all">all</option>
             <option value="due">due</option>
+            <option value="due_soon">due soon</option>
             <option value="overdue">overdue</option>
             <option value="upcoming">upcoming</option>
+            <option value="follow_up">follow-up</option>
           </select>
         </label>
         <label>

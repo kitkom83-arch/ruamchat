@@ -193,7 +193,8 @@ type AnalyticsQuery = {
 
 type TaskDashboardFilters = {
   status?: "all" | "open" | "completed" | "done" | "cancelled";
-  due?: "all" | "due" | "overdue" | "upcoming";
+  due?: "all" | "due" | "overdue" | "upcoming" | "due_soon" | "follow_up";
+  followUp?: boolean;
   assigneeUserId?: string;
   roomId?: string;
   platform?: Platform | "all";
@@ -549,6 +550,7 @@ export async function getTaskDashboard(filters: TaskDashboardFilters = {}): Prom
   const params = new URLSearchParams();
   if (filters.status && filters.status !== "all") params.set("status", filters.status);
   if (filters.due && filters.due !== "all") params.set("due", filters.due);
+  if (filters.followUp !== undefined) params.set("followUp", String(filters.followUp));
   if (filters.assigneeUserId?.trim() && filters.assigneeUserId !== "all") params.set("assigneeUserId", filters.assigneeUserId.trim());
   if (filters.roomId?.trim() && filters.roomId !== "all") params.set("roomId", filters.roomId.trim());
   if (filters.platform && filters.platform !== "all") params.set("platform", filters.platform);
