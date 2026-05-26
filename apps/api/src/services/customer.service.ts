@@ -152,14 +152,11 @@ export class CustomerService {
     const broadcastConsent = consentByContactId.get(contact.id);
     const broadcastHistorySummary = await this.getBroadcastHistorySummary(tenantId, contact.id, identityIds, selected, broadcastConsent);
     const mappedIdentities = contact.identities.map((identity) => mapIdentity(identity));
-    const mappedNotes = notes.map((note) => ({
-      id: note.id,
-      contactId: contact.id,
-      body: note.body,
-      createdBy: note.authorUserId ?? "system",
-      createdAt: note.createdAt.toISOString()
-    }));
     const conversationById = new Map(recentConversations.map((conversation) => [conversation.id, conversation]));
+    const mappedNotes = notes.flatMap((note) => {
+      const mapped = mapCustomer360Note(note, contact.id, conversationById.get(note.conversationId));
+      return mapped ? [mapped] : [];
+    });
     const mappedTasks = tasks.map((task) => mapCustomer360Task(task, conversationById.get(task.conversationId)));
     const mappedContact = {
       id: contact.id,
@@ -937,6 +934,42 @@ function mapContact(contact: {
     suppressedReason: consent?.suppressedReason,
     createdAt: contact.createdAt.toISOString(),
     updatedAt: contact.updatedAt.toISOString()
+  };
+}
+
+function mapCustomer360Note(note: {
+  id: string;
+  tenantId: string;
+  conversationId: string;
+  contactId: string | null;
+  authorUserId: string | null;
+  body: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}, fallbackContactId: string, conversation?: {
+  id: string;
+  tenantId: string;
+  contactId: string;
+  roomId: string;
+  room: { platform: Platform; channelAccountId: string };
+}) {
+  if (!conversation) return null;
+  const contactId = note.contactId ?? conversation.contactId;
+  if (contactId !== conversation.contactId) return null;
+  return {
+    id: note.id,
+    tenantId: note.tenantId,
+    conversationId: note.conversationId,
+    contactId: contactId ?? fallbackContactId,
+    customerId: contactId ?? fallbackContactId,
+    platform: conversation.room.platform,
+    channelAccountId: conversation.room.channelAccountId,
+    roomId: conversation.roomId,
+    body: note.body,
+    createdBy: note.authorUserId ?? "system",
+    createdAt: note.createdAt.toISOString(),
+    updatedAt: note.updatedAt?.toISOString(),
+    externalCalls: 0 as const
   };
 }
 

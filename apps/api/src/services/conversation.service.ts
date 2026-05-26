@@ -212,7 +212,14 @@ export class ConversationService {
   async getNotes(tenantId: string, conversationId: string) {
     const conversation = await this.ensureConversation(tenantId, conversationId);
     const notes = await this.prisma.internalNote.findMany({
-      where: { tenantId, conversationId },
+      where: {
+        tenantId,
+        conversationId,
+        OR: [
+          { contactId: conversation.contactId },
+          { contactId: null }
+        ]
+      },
       orderBy: { createdAt: "desc" }
     });
     return notes.map((note) => this.mapInternalNote(note, conversation));
@@ -1139,8 +1146,10 @@ export class ConversationService {
   }, conversation: ConversationContext) {
     return {
       id: note.id,
+      tenantId: conversation.tenantId,
       conversationId: note.conversationId,
       contactId: note.contactId ?? conversation.contactId,
+      customerId: note.contactId ?? conversation.contactId,
       platform: conversation.room.platform,
       channelAccountId: conversation.room.channelAccountId,
       roomId: conversation.roomId,
@@ -1149,7 +1158,8 @@ export class ConversationService {
       createdBy: note.authorUserId ?? "system",
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
-      pinned: note.pinned
+      pinned: note.pinned,
+      externalCalls: 0 as const
     };
   }
 }
@@ -1263,7 +1273,7 @@ function noteAuditSnapshot(note: {
     channelAccountId: conversation.room.channelAccountId,
     roomId: conversation.roomId,
     authorUserId: note.authorUserId,
-    body: note.body,
+    body: redactSecretText(note.body),
     visibility: note.visibility,
     pinned: note.pinned,
     createdAt: note.createdAt.toISOString(),
@@ -1499,6 +1509,10 @@ function sanitizeAuditValue(value: unknown): unknown {
   }
   if (typeof value === "string" && looksRawSecret(value)) return "[redacted]";
   return value;
+}
+
+function redactSecretText(value: string) {
+  return looksRawSecret(value) ? "[redacted]" : value;
 }
 
 function looksRawSecret(value: string) {

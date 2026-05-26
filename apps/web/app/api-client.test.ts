@@ -205,6 +205,16 @@ describe("frontend API client", () => {
       channelAccountId: "00000000-0000-4000-8000-000000000020",
       roomId: "room-webchat"
     });
+    expect(customer360.notes[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      conversationId: "conv-web",
+      contactId: "contact-api",
+      customerId: "contact-api",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      externalCalls: 0
+    });
     expect(customer360.tasks[0]).toMatchObject({
       conversationId: "conv-web",
       platform: "webchat",
@@ -448,9 +458,12 @@ describe("frontend API client", () => {
     expect(notes[0]?.id).toBe("note-api");
     expect(note.id).toBe("note-new");
     expect(note).toMatchObject({
+      tenantId: defaultTenantId,
+      customerId: "contact-api",
       platform: "webchat",
       channelAccountId: "00000000-0000-4000-8000-000000000020",
-      roomId: "room-webchat"
+      roomId: "room-webchat",
+      externalCalls: 0
     });
     expect(tasks[0]?.id).toBe("task-api");
     expect(task).toMatchObject({
@@ -910,7 +923,7 @@ function customer360Response(conversationId: string, contactId: string) {
       status: "open",
       unreplied: true
     }],
-    notes: [],
+    notes: [customer360NoteResponse("note-customer-360", conversationId, contactId)],
     tasks: [contactTaskResponse("task-customer-360", conversationId, contactId)],
     broadcastHistorySummary: {
       contactId,
@@ -953,6 +966,24 @@ function customer360Response(conversationId: string, contactId: string) {
       externalUserId: "visitor-api",
       displayName: "Visitor API"
     }
+  };
+}
+
+function customer360NoteResponse(id: string, conversationId: string, contactId: string) {
+  return {
+    id,
+    tenantId: defaultTenantId,
+    conversationId,
+    contactId,
+    customerId: contactId,
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
+    body: "Customer 360 persisted note",
+    createdBy: "00000000-0000-4000-8000-000000000011",
+    createdAt: "2026-05-21T04:00:00.000Z",
+    updatedAt: "2026-05-21T04:00:00.000Z",
+    externalCalls: 0
   };
 }
 
@@ -1005,8 +1036,10 @@ function conversationResponse(id: string, aiStatus = "Need Human", status = "ope
 function internalNoteResponse(id: string) {
   return {
     id,
+    tenantId: defaultTenantId,
     conversationId: "conv-web",
     contactId: "contact-api",
+    customerId: "contact-api",
     platform: "webchat",
     channelAccountId: "00000000-0000-4000-8000-000000000020",
     roomId: "room-webchat",
@@ -1015,7 +1048,8 @@ function internalNoteResponse(id: string) {
     createdBy: "00000000-0000-4000-8000-000000000011",
     createdAt: "2026-05-21T04:00:00.000Z",
     updatedAt: "2026-05-21T04:00:00.000Z",
-    pinned: false
+    pinned: false,
+    externalCalls: 0
   };
 }
 

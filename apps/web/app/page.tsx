@@ -929,13 +929,11 @@ export default function InboxDashboard() {
     if (apiMode) {
       setApiActionLoading(true);
       try {
-        const note = await createConversationNote(selectedConversation.id, payload);
-        setApiConversationNotes((current) => [note, ...current]);
+        await createConversationNote(selectedConversation.id, payload);
         setNoteDraft("");
         setActiveWorkflowEditor(null);
         setWorkflowEditorActionKey(null);
         await refreshApiWorkflowAfterMutation(selectedConversation.id);
-        setApiWorkflowError("");
         setAiActionStatus("Internal note persisted");
         markActionFeedback("note-save");
       } catch (error) {
@@ -1341,9 +1339,26 @@ export default function InboxDashboard() {
       getConversationTasks(conversationId),
       getCustomer360(conversationId)
     ]);
-    if (notesResult.status === "fulfilled") setApiConversationNotes(notesResult.value);
-    if (tasksResult.status === "fulfilled") setApiConversationTasks(tasksResult.value.map(mapApiWorkflowTaskToAdminTask));
-    if (customerResult.status === "fulfilled") setApiCustomer360(customerResult.value);
+    if (notesResult.status === "fulfilled") {
+      setApiConversationNotes(notesResult.value);
+      setApiWorkflowError("");
+    } else {
+      setApiConversationNotes([]);
+      setApiWorkflowError(readableApiError(notesResult.reason));
+    }
+    if (tasksResult.status === "fulfilled") {
+      setApiConversationTasks(tasksResult.value.map(mapApiWorkflowTaskToAdminTask));
+    } else {
+      setApiConversationTasks([]);
+      setApiWorkflowError(readableApiError(tasksResult.reason));
+    }
+    if (customerResult.status === "fulfilled") {
+      setApiCustomer360(customerResult.value);
+      setApiCustomerError("");
+    } else {
+      setApiCustomer360(null);
+      setApiCustomerError(readableApiError(customerResult.reason));
+    }
     await refreshApiConversationTimeline(conversationId);
   }
 

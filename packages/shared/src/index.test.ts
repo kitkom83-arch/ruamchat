@@ -288,8 +288,10 @@ describe("shared contracts", () => {
     });
     const note = internalNoteSchema.parse({
       id: "note-1",
+      tenantId: "tenant-demo",
       conversationId: "conv-web-01",
       contactId: "contact-anya",
+      customerId: "contact-anya",
       platform: "webchat",
       channelAccountId: "channel-webchat",
       roomId: "room-webchat",
@@ -298,7 +300,8 @@ describe("shared contracts", () => {
       createdBy: agent.id,
       createdAt: now,
       updatedAt: now,
-      pinned: true
+      pinned: true,
+      externalCalls: 0
     });
     const reply = cannedReplySchema.parse({
       id: "reply-price",

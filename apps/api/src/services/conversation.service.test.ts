@@ -151,7 +151,14 @@ function buildService() {
       })
     },
     internalNote: {
-      findMany: vi.fn(async ({ where }) => notes.filter((item) => item.tenantId === where.tenantId && item.conversationId === where.conversationId)),
+      findMany: vi.fn(async ({ where }) => notes.filter((item) =>
+        item.tenantId === where.tenantId &&
+        item.conversationId === where.conversationId &&
+        (!where.OR || where.OR.some((clause: any) =>
+          (clause.contactId === null && item.contactId === null) ||
+          (clause.contactId !== undefined && item.contactId === clause.contactId)
+        ))
+      )),
       create: vi.fn(async ({ data }) => {
         const saved = {
           id: `note-${notes.length + 1}`,
@@ -577,30 +584,64 @@ describe("ConversationService core API", () => {
   });
 
   it("creates and lists persisted internal notes for a conversation", async () => {
-    const { service, audit, auditLogs } = buildService();
+    const { service, audit, auditLogs, notes } = buildService();
 
     const created = await service.createNote(tenantId, "conv-web-need-human", "00000000-0000-4000-8000-000000000011", {
       body: "Follow pricing context",
       visibility: "team"
     });
-    const notes = await service.getNotes(tenantId, "conv-web-need-human");
+    notes.push({
+      id: "note-wrong-contact",
+      tenantId,
+      conversationId: "conv-web-need-human",
+      contactId: "contact-other",
+      authorUserId: demoAgentUserId,
+      body: "wrong context",
+      visibility: "team",
+      pinned: false,
+      createdAt: new Date("2026-05-21T04:03:00.000Z"),
+      updatedAt: new Date("2026-05-21T04:03:00.000Z")
+    });
+    const listedNotes = await service.getNotes(tenantId, "conv-web-need-human");
 
     expect(created).toMatchObject({
+      tenantId,
       conversationId: "conv-web-need-human",
       contactId: "conv-web-need-human-contact",
+      customerId: "conv-web-need-human-contact",
       platform: "webchat",
       channelAccountId: webchatAccountId,
       roomId: webchatRoomId,
       body: "Follow pricing context",
       visibility: "team",
-      createdBy: "00000000-0000-4000-8000-000000000011"
+      createdBy: "00000000-0000-4000-8000-000000000011",
+      externalCalls: 0
     });
-    expect(notes.map((note) => note.id)).toEqual([created.id]);
+    expect(listedNotes.map((note) => note.id)).toEqual([created.id]);
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "note.created", tenantId, conversationId: "conv-web-need-human" }));
     expectScopedActionAuditMetadata(auditLogs.find((log) => log.action === "note.created"), "note.created", "conv-web-need-human", "webchat", webchatAccountId, webchatRoomId, demoAgentUserId);
     expect(auditLogs.find((log) => log.action === "note.created")?.afterJson).toEqual(expect.objectContaining({
       id: created.id,
       contactId: "conv-web-need-human-contact",
+      externalCalls: 0
+    }));
+  });
+
+  it("redacts raw-looking secrets from note audit snapshots", async () => {
+    const { service, auditLogs } = buildService();
+
+    const created = await service.createNote(tenantId, "conv-web-need-human", demoAgentUserId, {
+      body: "Rotate Bearer sprint40-audit-token now",
+      visibility: "supervisor"
+    });
+
+    expect(created.body).toBe("Rotate Bearer sprint40-audit-token now");
+    expect(auditLogs.find((log) => log.action === "note.created")?.afterJson).toEqual(expect.objectContaining({
+      body: "[redacted]",
+      conversationId: "conv-web-need-human",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
       externalCalls: 0
     }));
   });

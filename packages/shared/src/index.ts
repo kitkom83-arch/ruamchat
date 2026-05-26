@@ -201,8 +201,10 @@ export type SlaState = z.infer<typeof slaStateSchema>;
 
 export const internalNoteSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().min(1),
   conversationId: z.string().min(1),
   contactId: z.string().min(1),
+  customerId: z.string().min(1),
   platform: platformSchema,
   channelAccountId: z.string().min(1),
   roomId: z.string().min(1),
@@ -211,7 +213,8 @@ export const internalNoteSchema = z.object({
   createdBy: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
-  pinned: z.boolean().default(false)
+  pinned: z.boolean().default(false),
+  externalCalls: z.literal(0).default(0)
 }).strict();
 export type InternalNote = z.infer<typeof internalNoteSchema>;
 
@@ -569,10 +572,18 @@ export type ContactIdentity = z.infer<typeof contactIdentitySchema>;
 
 export const contactNoteSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional(),
   contactId: z.string().min(1),
+  customerId: z.string().min(1).optional(),
+  platform: platformSchema.optional(),
+  channelAccountId: z.string().min(1).optional(),
+  roomId: z.string().min(1).optional(),
   body: z.string().min(1),
   createdBy: z.string().min(1),
-  createdAt: z.string().datetime()
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
+  externalCalls: z.literal(0).default(0).optional()
 }).strict();
 export type ContactNote = z.infer<typeof contactNoteSchema>;
 
