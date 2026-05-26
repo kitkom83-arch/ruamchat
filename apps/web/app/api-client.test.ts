@@ -505,6 +505,22 @@ describe("frontend API client", () => {
     expect(JSON.stringify(rows)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
   });
 
+  it("sends tenant-scoped due-soon and follow-up task dashboard filters", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([taskDashboardResponse("task-due-soon", "conv-web")]))
+      .mockResolvedValueOnce(jsonResponse([taskDashboardResponse("task-follow-up", "conv-web")]));
+
+    await getTaskDashboard({ due: "due_soon", roomId: "room-webchat" });
+    await getTaskDashboard({ due: "follow_up", followUp: true, roomId: "room-webchat" });
+
+    const dueSoonUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    const followUpUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(dueSoonUrl.searchParams.get("due")).toBe("due_soon");
+    expect(followUpUrl.searchParams.get("due")).toBe("follow_up");
+    expect(followUpUrl.searchParams.get("followUp")).toBe("true");
+    expectTenantHeaderForAll(fetchMock);
+  });
+
   it("surfaces task dashboard API failures without returning local task rows", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Tasks unavailable" }, 503));
 

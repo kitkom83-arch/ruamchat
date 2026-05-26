@@ -65,6 +65,8 @@ describe("task dashboard data", () => {
     expect(filterTaskDashboardRows(rows, { status: "completed", due: "all", assigneeUserId: "all" }).map((task) => task.id)).toEqual(["task-done"]);
     expect(filterTaskDashboardRows(rows, { status: "all", due: "due", assigneeUserId: "all" }).map((task) => task.id)).toEqual(["task-open", "task-done"]);
     expect(filterTaskDashboardRows(rows, { status: "all", due: "overdue", assigneeUserId: "all" }, new Date("2026-05-21T04:00:00.000Z")).map((task) => task.id)).toEqual([]);
+    expect(filterTaskDashboardRows(rows, { status: "all", due: "due_soon", assigneeUserId: "all" }, new Date("2026-05-21T12:00:00.000Z")).map((task) => task.id)).toEqual(["task-open"]);
+    expect(filterTaskDashboardRows(rows, { status: "all", due: "follow_up", assigneeUserId: "all" }).map((task) => task.id)).toEqual([]);
     expect(filterTaskDashboardRows(rows, { status: "all", due: "all", assigneeUserId: "agent-2" }).map((task) => task.id)).toEqual(["task-other"]);
     expect(taskStatusLabel("done")).toBe("completed");
   });
