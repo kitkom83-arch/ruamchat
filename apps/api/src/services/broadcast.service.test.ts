@@ -155,6 +155,29 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("returns tenant-scoped safe broadcast compliance logs", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const logs = await controller.listComplianceLogs("campaign-web", tenantId);
+
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        reason: "do_not_contact",
+        action: "broadcast.recipient_suppressed",
+        externalCalls: 0
+      });
+      expect(JSON.stringify(logs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+      await expect(controller.listComplianceLogs("campaign-other", tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   it("schedules campaigns without sending and records send-test/send-now logs as safe mock only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await withBroadcastRuntime(async ({ controller, prisma }) => {
@@ -313,6 +336,52 @@ function buildPrismaFake() {
   const logs = [
     sendLog("log-seed", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "sent_mock")
   ];
+  const auditLogs = [
+    {
+      id: "audit-suppressed-web",
+      tenantId,
+      conversationId: "conv-web",
+      action: "broadcast.recipient_suppressed",
+      entityType: "broadcast_campaign",
+      entityId: "campaign-web",
+      metadata: null,
+      metadataJson: {
+        campaignId: "campaign-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        blockedReason: "do_not_contact",
+        suppressed: true,
+        externalCalls: 0,
+        accessToken: "should-not-leak"
+      },
+      createdAt: new Date("2026-05-21T05:12:00.000Z")
+    },
+    {
+      id: "audit-other-tenant",
+      tenantId: otherTenantId,
+      conversationId: "conv-other",
+      action: "broadcast.recipient_suppressed",
+      entityType: "broadcast_campaign",
+      entityId: "campaign-other",
+      metadata: null,
+      metadataJson: {
+        campaignId: "campaign-other",
+        customerId: "contact-other",
+        contactId: "contact-other",
+        conversationId: "conv-other",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-other",
+        blockedReason: "do_not_contact",
+        externalCalls: 0
+      },
+      createdAt: new Date("2026-05-21T05:12:00.000Z")
+    }
+  ];
   const contacts = [
     contact("contact-web", tenantId, "Web Buyer", "interested", [identity("identity-web", "webchat", "web-user")]),
     contact("contact-telegram-only", tenantId, "Telegram Only", "interested", [identity("identity-telegram", "telegram", "tg-user")]),
@@ -428,6 +497,16 @@ function buildPrismaFake() {
     contact: {
       findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
         contacts.filter((item) => item.tenantId === where.tenantId)
+      )
+    },
+    auditLog: {
+      findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
+        auditLogs.filter((item) =>
+          item.tenantId === where.tenantId &&
+          item.entityType === where.entityType &&
+          item.entityId === where.entityId &&
+          (!where.action?.in || where.action.in.includes(item.action))
+        )
       )
     }
   };

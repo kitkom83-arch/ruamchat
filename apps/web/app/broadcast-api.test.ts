@@ -6,6 +6,7 @@ import {
   deleteBroadcastSegment,
   dryRunBroadcastAudience,
   duplicateBroadcastCampaign,
+  getBroadcastComplianceLogs,
   previewBroadcastAudience,
   sendBroadcastNow,
   sendBroadcastTest,
@@ -35,7 +36,8 @@ describe("Broadcast API mode frontend", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([campaignResponse("campaign-api")]))
       .mockResolvedValueOnce(jsonResponse([segmentResponse("segment-api")]))
-      .mockResolvedValueOnce(jsonResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")]));
+      .mockResolvedValueOnce(jsonResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")]))
+      .mockResolvedValueOnce(jsonResponse([complianceLogResponse("audit-api", "campaign-api")]));
 
     const data = await loadBroadcastBuilderData("api");
 
@@ -43,9 +45,11 @@ describe("Broadcast API mode frontend", () => {
     expect(data.store.campaigns[0]?.name).toBe("API Broadcast");
     expect(data.store.segments[0]?.name).toBe("API Segment");
     expect(data.sendLogs[0]?.status).toBe("sent_mock");
+    expect(data.complianceLogs[0]?.reason).toBe("do_not_contact");
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/broadcasts/campaigns");
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/segments");
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/broadcasts/campaigns/campaign-api/send-logs");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/broadcasts/campaigns/campaign-api/compliance-logs");
   });
 
   it("surfaces API errors instead of silently falling back to mock broadcast data", async () => {
@@ -78,6 +82,7 @@ describe("Broadcast API mode frontend", () => {
       })))
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "sent_mock")))
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "skipped_mock")))
+      .mockResolvedValueOnce(jsonResponse([complianceLogResponse("audit-created", "campaign-created")]))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Created Segment")))
       .mockResolvedValueOnce(jsonResponse({ ...segmentResponse("segment-created", "Updated Segment"), estimatedCount: 3 }))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Updated Segment")));
@@ -90,6 +95,7 @@ describe("Broadcast API mode frontend", () => {
     const dryRun = await dryRunBroadcastAudience(created.id, { platform: "webchat" });
     const testResult = await sendBroadcastTest(created.id, { platform: "webchat", payloadJson: { source: "test" } });
     const sendNow = await sendBroadcastNow(created.id, { platform: "webchat" });
+    const complianceLogs = await getBroadcastComplianceLogs(created.id);
     const segment = await createBroadcastSegment({ name: "Created Segment", rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }] });
     const updatedSegment = await updateBroadcastSegment(segment.id, { name: "Updated Segment", estimatedCount: 3 });
     const deletedSegment = await deleteBroadcastSegment(segment.id);
@@ -109,6 +115,9 @@ describe("Broadcast API mode frontend", () => {
     }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/send-test", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/send-now", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/compliance-logs", expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" })
+    }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/segment-created", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/segment-created", expect.objectContaining({ method: "DELETE" }));
@@ -135,6 +144,19 @@ describe("Broadcast API mode frontend", () => {
     expect(JSON.stringify(dryRun)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
     expect(testResult.logs[0]?.status).toBe("sent_mock");
     expect(sendNow.logs[0]?.status).toBe("skipped_mock");
+    expect(complianceLogs[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      campaignId: "campaign-created",
+      customerId: "contact-blocked",
+      contactId: "contact-blocked",
+      conversationId: "conv-blocked",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      reason: "do_not_contact",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(complianceLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
     expect(updatedSegment.estimatedCount).toBe(3);
     expect(deletedSegment.id).toBe(segment.id);
   });
@@ -222,6 +244,24 @@ function sendLogResponse(id: string, campaignId: string, status: "queued_mock" |
     reason: "safe mock only",
     payloadJson: { safeMockOnly: true },
     createdAt: "2026-05-21T04:00:00.000Z"
+  };
+}
+
+function complianceLogResponse(id: string, campaignId: string) {
+  return {
+    id,
+    tenantId: defaultTenantId,
+    campaignId,
+    customerId: "contact-blocked",
+    contactId: "contact-blocked",
+    conversationId: "conv-blocked",
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
+    reason: "do_not_contact",
+    action: "broadcast.recipient_suppressed",
+    createdAt: "2026-05-21T04:10:00.000Z",
+    externalCalls: 0
   };
 }
 

@@ -19,6 +19,7 @@ import {
   contactIdentitySchema,
   contactSchema,
   conversationAuditLogSchema,
+  broadcastComplianceLogSchema,
   conversationStatusHistorySchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastAudiencePreviewResultSchema,
@@ -97,6 +98,7 @@ import {
   type BroadcastAudiencePreviewRequest,
   type BroadcastAudiencePreviewResult,
   type BroadcastCampaign,
+  type BroadcastComplianceLog,
   type BroadcastSendLog,
   type BroadcastSendResult,
   type BroadcastSendTestRequest,
@@ -378,6 +380,10 @@ export async function sendBroadcastNow(campaignId: string, payload: BroadcastAud
 
 export async function getBroadcastSendLogs(campaignId: string): Promise<BroadcastSendLog[]> {
   return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/send-logs`, broadcastSendLogSchema.array());
+}
+
+export async function getBroadcastComplianceLogs(campaignId: string): Promise<BroadcastComplianceLog[]> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/compliance-logs`, broadcastComplianceLogSchema.array());
 }
 
 export async function getBroadcastSegments(): Promise<BroadcastSegment[]> {

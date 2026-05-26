@@ -971,6 +971,7 @@ export const broadcastSuppressedRecipientSchema = z.object({
   tenantId: z.string().min(1),
   customerId: z.string().min(1).optional(),
   contactId: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
   conversationId: z.string().min(1).nullable().optional(),
   platform: platformSchema,
   channelAccountId: z.string().min(1).nullable(),
@@ -979,6 +980,23 @@ export const broadcastSuppressedRecipientSchema = z.object({
   externalCalls: z.literal(0).default(0)
 }).strict();
 export type BroadcastSuppressedRecipient = z.infer<typeof broadcastSuppressedRecipientSchema>;
+
+export const broadcastComplianceLogSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1).nullable(),
+  customerId: z.string().min(1).nullable(),
+  contactId: z.string().min(1).nullable(),
+  conversationId: z.string().min(1).nullable(),
+  platform: platformSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable(),
+  reason: broadcastSuppressionReasonSchema,
+  action: z.string().min(1),
+  createdAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastComplianceLog = z.infer<typeof broadcastComplianceLogSchema>;
 
 export const broadcastAudiencePreviewResultSchema = z.object({
   campaignId: z.string().min(1),

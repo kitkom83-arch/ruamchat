@@ -12,6 +12,7 @@ import {
   type BroadcastAudiencePreviewRecipient,
   type BroadcastAudiencePreviewRequest,
   type BroadcastCampaign,
+  type BroadcastComplianceLog,
   type BroadcastContentJson,
   type BroadcastSegment,
   type BroadcastSegmentRule,
@@ -72,6 +73,18 @@ type BroadcastSendLogRecord = {
   status: string;
   reason: string | null;
   payloadJson: Prisma.JsonValue | null;
+  createdAt: Date;
+};
+
+type BroadcastComplianceAuditRecord = {
+  id: string;
+  tenantId: string;
+  conversationId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  metadata?: Prisma.JsonValue | null;
+  metadataJson?: Prisma.JsonValue | null;
   createdAt: Date;
 };
 
@@ -432,6 +445,21 @@ export class BroadcastService {
     return logs.map(mapSendLog);
   }
 
+  async listComplianceLogs(tenantId: string, campaignId: string) {
+    await this.ensureCampaign(tenantId, campaignId);
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        tenantId,
+        entityType: "broadcast_campaign",
+        entityId: campaignId,
+        action: { in: ["broadcast.recipient_suppressed", "broadcast.outbound_blocked"] }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200
+    });
+    return logs.map((log) => mapComplianceLog(log, campaignId)).filter((log): log is BroadcastComplianceLog => Boolean(log));
+  }
+
   private async ensureCampaign(tenantId: string, campaignId: string) {
     const campaign = await this.prisma.broadcastCampaign.findFirst({
       where: { id: campaignId, tenantId }
@@ -525,7 +553,7 @@ export class BroadcastService {
       }
 
       const reason = safeSuppressionReason(decision.reason);
-      const suppressedRecipient = suppressedRecipientFromContext(context, reason);
+      const suppressedRecipient = suppressedRecipientFromContext(context, reason, candidate.displayName);
       suppressed.push(suppressedRecipient);
       suppressedByReason[reason] += 1;
       await this.outboundConsent.recordBlocked({
@@ -781,11 +809,12 @@ function applyContextToCandidate(candidate: AudienceCandidate, context: Outbound
   };
 }
 
-function suppressedRecipientFromContext(context: OutboundConsentContext, reason: BroadcastSuppressionReason): BroadcastSuppressedRecipient {
+function suppressedRecipientFromContext(context: OutboundConsentContext, reason: BroadcastSuppressionReason, displayName?: string): BroadcastSuppressedRecipient {
   return {
     tenantId: context.tenantId,
     customerId: context.customerId,
     contactId: context.contactId,
+    displayName: displayName?.trim() || undefined,
     conversationId: context.conversationId,
     platform: context.platform,
     channelAccountId: context.channelAccountId,
@@ -816,6 +845,31 @@ function safeSuppressionReason(reason: string): BroadcastSuppressionReason {
     return reason;
   }
   return "unknown_unsafe";
+}
+
+function mapComplianceLog(log: BroadcastComplianceAuditRecord, campaignId: string): BroadcastComplianceLog | null {
+  const metadata = readObject(log.metadataJson ?? log.metadata);
+  const parsedPlatform = platformSchema.safeParse(metadata.platform);
+  if (!parsedPlatform.success) return null;
+  return {
+    id: log.id,
+    tenantId: log.tenantId,
+    campaignId: stringOrNull(metadata.campaignId) ?? log.entityId ?? campaignId,
+    customerId: stringOrNull(metadata.customerId),
+    contactId: stringOrNull(metadata.contactId),
+    conversationId: stringOrNull(metadata.conversationId) ?? log.conversationId,
+    platform: parsedPlatform.data,
+    channelAccountId: stringOrNull(metadata.channelAccountId),
+    roomId: stringOrNull(metadata.roomId),
+    reason: safeSuppressionReason(stringOrNull(metadata.blockedReason) ?? stringOrNull(metadata.reason) ?? "unknown_unsafe"),
+    action: log.action,
+    createdAt: log.createdAt.toISOString(),
+    externalCalls: 0
+  };
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function renderMessage(message: string, contact: ContactRecord, identity: ContactRecord["identities"][number] | null, platform: Platform) {
