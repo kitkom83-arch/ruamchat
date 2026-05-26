@@ -19,6 +19,8 @@ import {
   type BroadcastSendLogStatus,
   type BroadcastSendResult,
   type BroadcastSendTestRequest,
+  type BroadcastSuppressedRecipient,
+  type BroadcastSuppressionReason,
   type CreateBroadcastCampaignRequest,
   type CreateBroadcastSegmentRequest,
   type Platform,
@@ -27,7 +29,7 @@ import {
   type UpdateBroadcastSegmentRequest
 } from "@ai-omni/shared";
 import { Prisma } from "@prisma/client";
-import { OutboundConsentService } from "./outbound-consent.service.js";
+import { OutboundConsentService, type OutboundConsentContext } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const supportedMockStatuses = new Set<BroadcastSendLogStatus>(["queued_mock", "sent_mock", "skipped_mock", "failed_mock"]);
@@ -94,18 +96,30 @@ type ContactRecord = {
   tags: Array<{ tag: { name: string } }>;
   tasks?: Array<{ status: string }>;
   conversations?: Array<{
+    id: string;
     roomId: string;
     priority: string;
     status: string;
     slaStatus: string;
     aiState: string;
     lastMessageAt: Date;
+    room: {
+      platform: Platform;
+      channelAccountId: string;
+    };
   }>;
 };
 
 type AudienceCandidate = BroadcastAudiencePreviewRecipient & {
   contactId: string;
   contactIdentityId: string | null;
+};
+
+type AudienceScreeningResult = {
+  candidates: AudienceCandidate[];
+  eligible: AudienceCandidate[];
+  suppressed: BroadcastSuppressedRecipient[];
+  suppressedByReason: Record<BroadcastSuppressionReason, number>;
 };
 
 @Injectable()
@@ -259,10 +273,34 @@ export class BroadcastService {
   async audiencePreview(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
     const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: false });
+    const screened = await this.screenAudience(tenantId, campaignId, candidates, "preview");
     return {
       campaignId,
-      total: candidates.length,
-      recipients: candidates
+      total: screened.eligible.length,
+      candidateCount: screened.candidates.length,
+      eligibleCount: screened.eligible.length,
+      suppressedCount: screened.suppressed.length,
+      suppressedByReason: screened.suppressedByReason,
+      externalCalls: 0,
+      recipients: screened.eligible,
+      suppressedRecipients: screened.suppressed
+    };
+  }
+
+  async dryRun(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
+    const campaign = await this.ensureCampaign(tenantId, campaignId);
+    const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: false });
+    const screened = await this.screenAudience(tenantId, campaignId, candidates, "dry_run");
+    return {
+      campaignId,
+      total: screened.eligible.length,
+      candidateCount: screened.candidates.length,
+      eligibleCount: screened.eligible.length,
+      suppressedCount: screened.suppressed.length,
+      suppressedByReason: screened.suppressedByReason,
+      externalCalls: 0,
+      recipients: screened.eligible,
+      suppressedRecipients: screened.suppressed
     };
   }
 
@@ -348,35 +386,11 @@ export class BroadcastService {
   async sendNow(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
     const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: true, limit: 1000 });
+    const screened = await this.screenAudience(tenantId, campaignId, candidates, "send_now");
     const logs: BroadcastSendLog[] = [];
 
-    for (const candidate of candidates) {
-      const context = await this.outboundConsent.getContext({
-        tenantId,
-        contactId: candidate.contactId,
-        contactIdentityId: candidate.contactIdentityId,
-        platform: candidate.platform,
-        channelAccountId: candidate.channelAccountId
-      });
-      const decision = this.outboundConsent.decide(context.consent, "marketing");
-      if (decision.blocked && decision.reason) {
-        await this.outboundConsent.recordBlocked({
-          action: "broadcast.outbound_blocked",
-          intent: "marketing",
-          entityType: "broadcast_campaign",
-          entityId: campaignId,
-          context,
-          reason: decision.reason,
-          metadata: {
-            campaignId,
-            sendType: "send_now",
-            contactIdentityId: candidate.contactIdentityId
-          }
-        });
-      }
-      const status: BroadcastSendLogStatus = decision.blocked
-        ? "skipped_mock"
-        : candidate.contactIdentityId ? "sent_mock" : "skipped_mock";
+    for (const candidate of screened.eligible) {
+      const status: BroadcastSendLogStatus = candidate.contactIdentityId ? "sent_mock" : "skipped_mock";
       const log = await this.prisma.broadcastSendLog.create({
         data: {
           tenantId,
@@ -386,15 +400,12 @@ export class BroadcastService {
           platform: candidate.platform,
           channelAccountId: candidate.channelAccountId,
           status,
-          reason: decision.blocked
-            ? decision.reason
-            : status === "sent_mock"
+          reason: status === "sent_mock"
             ? "safe mock send only; no external outbound call was made"
             : candidate.reason ?? "no supported identity for campaign platform",
           payloadJson: toInputJson({
             message: candidate.renderedMessage,
-            suppressed: decision.blocked,
-            blockedReason: decision.reason,
+            suppressed: false,
             safeMockOnly: true,
             externalCalls: 0
           })
@@ -408,7 +419,7 @@ export class BroadcastService {
       data: { status: "sent" }
     });
 
-    return buildSendResult(campaignId, logs);
+    return buildSendResult(campaignId, logs, screened);
   }
 
   async listSendLogs(tenantId: string, campaignId: string) {
@@ -455,7 +466,7 @@ export class BroadcastService {
         identities: { include: { channelAccount: true } },
         tags: { include: { tag: true } },
         tasks: true,
-        conversations: { orderBy: { lastMessageAt: "desc" }, take: 5 }
+        conversations: { include: { room: true }, orderBy: { lastMessageAt: "desc" }, take: 12 }
       },
       orderBy: { updatedAt: "desc" },
       take: 1000
@@ -485,6 +496,55 @@ export class BroadcastService {
     }
 
     return candidates.slice(0, limit);
+  }
+
+  private async screenAudience(
+    tenantId: string,
+    campaignId: string,
+    candidates: AudienceCandidate[],
+    sendType: "preview" | "dry_run" | "send_now"
+  ): Promise<AudienceScreeningResult> {
+    const eligible: AudienceCandidate[] = [];
+    const suppressed: BroadcastSuppressedRecipient[] = [];
+    const suppressedByReason = emptySuppressedByReason();
+
+    for (const candidate of candidates) {
+      const context = await this.outboundConsent.getContext({
+        tenantId,
+        contactId: candidate.contactId,
+        contactIdentityId: candidate.contactIdentityId,
+        platform: candidate.platform,
+        channelAccountId: candidate.channelAccountId,
+        conversationId: candidate.conversationId
+      });
+      const decision = this.outboundConsent.decide(context.consent, "marketing");
+      const withContext = applyContextToCandidate(candidate, context);
+      if (!decision.blocked || !decision.reason) {
+        eligible.push(withContext);
+        continue;
+      }
+
+      const reason = safeSuppressionReason(decision.reason);
+      const suppressedRecipient = suppressedRecipientFromContext(context, reason);
+      suppressed.push(suppressedRecipient);
+      suppressedByReason[reason] += 1;
+      await this.outboundConsent.recordBlocked({
+        action: "broadcast.recipient_suppressed",
+        intent: "marketing",
+        entityType: "broadcast_campaign",
+        entityId: campaignId,
+        context,
+        reason,
+        metadata: {
+          campaignId,
+          sendType,
+          contactIdentityId: candidate.contactIdentityId,
+          suppressed: true
+        }
+      });
+    }
+
+    return { candidates, eligible, suppressed, suppressedByReason };
   }
 }
 
@@ -586,7 +646,7 @@ function mapSendLog(log: BroadcastSendLogRecord): BroadcastSendLog {
   };
 }
 
-function buildSendResult(campaignId: string, logs: BroadcastSendLog[]): BroadcastSendResult {
+function buildSendResult(campaignId: string, logs: BroadcastSendLog[], screening?: AudienceScreeningResult): BroadcastSendResult {
   return {
     campaignId,
     created: logs.length,
@@ -594,6 +654,11 @@ function buildSendResult(campaignId: string, logs: BroadcastSendLog[]): Broadcas
     queuedMock: logs.filter((log) => log.status === "queued_mock").length,
     skippedMock: logs.filter((log) => log.status === "skipped_mock").length,
     failedMock: logs.filter((log) => log.status === "failed_mock").length,
+    candidateCount: screening?.candidates.length,
+    eligibleCount: screening?.eligible.length,
+    suppressedCount: screening?.suppressed.length,
+    suppressedByReason: screening?.suppressedByReason,
+    suppressedRecipients: screening?.suppressed,
     externalCalls: [],
     logs
   };
@@ -678,17 +743,79 @@ function candidateFromContact(
   reason: string | null
 ): AudienceCandidate {
   return {
+    tenantId: contact.tenantId,
+    customerId: contact.id,
     contactId: contact.id,
     contactIdentityId: identity?.id ?? null,
+    conversationId: findCandidateConversation(contact, platform, channelAccountId)?.id ?? null,
     displayName: identity?.displayName ?? contact.displayName,
     platform,
     channelAccountId,
+    roomId: findCandidateConversation(contact, platform, channelAccountId)?.roomId ?? null,
     externalUserId: identity?.externalUserId ?? null,
     tags: contact.tags.map((item) => item.tag.name),
     leadStatus: contact.leadStatus,
     reason,
-    renderedMessage: renderMessage(message, contact, identity, platform)
+    renderedMessage: renderMessage(message, contact, identity, platform),
+    externalCalls: 0
   };
+}
+
+function findCandidateConversation(contact: ContactRecord, platform: Platform, channelAccountId: string | null) {
+  return contact.conversations?.find((conversation) =>
+    conversation.room.platform === platform &&
+    (!channelAccountId || conversation.room.channelAccountId === channelAccountId)
+  ) ?? null;
+}
+
+function applyContextToCandidate(candidate: AudienceCandidate, context: OutboundConsentContext): AudienceCandidate {
+  return {
+    ...candidate,
+    tenantId: context.tenantId,
+    customerId: context.customerId,
+    conversationId: context.conversationId,
+    platform: context.platform,
+    channelAccountId: context.channelAccountId,
+    roomId: context.roomId,
+    externalCalls: 0
+  };
+}
+
+function suppressedRecipientFromContext(context: OutboundConsentContext, reason: BroadcastSuppressionReason): BroadcastSuppressedRecipient {
+  return {
+    tenantId: context.tenantId,
+    customerId: context.customerId,
+    contactId: context.contactId,
+    conversationId: context.conversationId,
+    platform: context.platform,
+    channelAccountId: context.channelAccountId,
+    roomId: context.roomId,
+    reason,
+    externalCalls: 0
+  };
+}
+
+function emptySuppressedByReason(): Record<BroadcastSuppressionReason, number> {
+  return {
+    do_not_contact: 0,
+    marketing_opt_out: 0,
+    consent_missing: 0,
+    consent_revoked: 0,
+    unknown_unsafe: 0
+  };
+}
+
+function safeSuppressionReason(reason: string): BroadcastSuppressionReason {
+  if (
+    reason === "do_not_contact" ||
+    reason === "marketing_opt_out" ||
+    reason === "consent_missing" ||
+    reason === "consent_revoked" ||
+    reason === "unknown_unsafe"
+  ) {
+    return reason;
+  }
+  return "unknown_unsafe";
 }
 
 function renderMessage(message: string, contact: ContactRecord, identity: ContactRecord["identities"][number] | null, platform: Platform) {

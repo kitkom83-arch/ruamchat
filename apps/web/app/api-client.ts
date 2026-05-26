@@ -344,6 +344,14 @@ export async function previewBroadcastAudience(campaignId: string, payload: Broa
   });
 }
 
+export async function dryRunBroadcastAudience(campaignId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {
+  const body = broadcastAudiencePreviewRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/dry-run`, broadcastAudiencePreviewResultSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
 export async function scheduleBroadcastCampaign(campaignId: string, payload: ScheduleBroadcastCampaignRequest): Promise<BroadcastCampaign> {
   const body = scheduleBroadcastCampaignRequestSchema.parse(payload);
   return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/schedule`, broadcastCampaignSchema, {

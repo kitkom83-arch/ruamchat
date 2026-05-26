@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { BroadcastAudiencePreviewRecipient, BroadcastCampaign, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastTemplate, Platform } from "@ai-omni/shared";
+import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
@@ -421,6 +421,7 @@ function ApiBroadcastsPage() {
   const [segments, setSegments] = useState<BroadcastSegment[]>([]);
   const [sendLogs, setSendLogs] = useState<BroadcastSendLog[]>([]);
   const [preview, setPreview] = useState<BroadcastAudiencePreviewRecipient[]>([]);
+  const [previewStats, setPreviewStats] = useState<Pick<BroadcastAudiencePreviewResult, "candidateCount" | "eligibleCount" | "suppressedCount" | "suppressedByReason" | "externalCalls"> | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -454,8 +455,9 @@ function ApiBroadcastsPage() {
     queuedMock: sendLogs.filter((log) => log.status === "queued_mock").length,
     skippedMock: sendLogs.filter((log) => log.status === "skipped_mock").length,
     failedMock: sendLogs.filter((log) => log.status === "failed_mock").length,
-    previewCount: preview.length
-  }), [campaigns, preview.length, sendLogs]);
+    previewCount: preview.length,
+    suppressedPreview: previewStats?.suppressedCount ?? 0
+  }), [campaigns, preview.length, previewStats?.suppressedCount, sendLogs]);
 
   useEffect(() => {
     void refreshApiData();
@@ -486,6 +488,7 @@ function ApiBroadcastsPage() {
       setCampaigns(apiCampaigns);
       setSegments(apiSegments);
       setSendLogs(logs);
+      setPreviewStats(null);
       const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
       setSelectedCampaignId(nextSelected);
       setSelectedSegmentId((current) => apiSegments.find((segment) => segment.id === current)?.id ?? apiSegments[0]?.id ?? "");
@@ -561,7 +564,14 @@ function ApiBroadcastsPage() {
         channelAccountId: campaignForm.channelAccountId.trim() || null
       });
       setPreview(result.recipients);
-      setStatusText(`Audience preview returned ${result.total} API recipient(s)`);
+      setPreviewStats({
+        candidateCount: result.candidateCount ?? result.total,
+        eligibleCount: result.eligibleCount ?? result.recipients.length,
+        suppressedCount: result.suppressedCount ?? 0,
+        suppressedByReason: result.suppressedByReason ?? {},
+        externalCalls: result.externalCalls ?? 0
+      });
+      setStatusText(`Audience preview returned ${result.eligibleCount ?? result.total} eligible and ${result.suppressedCount ?? 0} suppressed recipient(s)`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Audience preview failed";
       setError(message);
@@ -614,6 +624,7 @@ function ApiBroadcastsPage() {
           <MiniStat label="skipped_mock" value={apiMetrics.skippedMock} />
           <MiniStat label="failed_mock" value={apiMetrics.failedMock} />
           <MiniStat label="Preview" value={apiMetrics.previewCount} />
+          <MiniStat label="Suppressed" value={apiMetrics.suppressedPreview} />
         </section>
 
         <section className="broadcastGrid">
@@ -737,6 +748,15 @@ function ApiBroadcastsPage() {
 
         <section className="broadcastPanel previewPanel">
           <div className="blockHeader"><Eye size={18} /><h2>API audience preview and send logs</h2></div>
+          {previewStats && (
+            <div className="checklistBox">
+              <strong>Suppression summary</strong>
+              <p>
+                Candidates {previewStats.candidateCount ?? 0} / eligible {previewStats.eligibleCount ?? 0} / suppressed {previewStats.suppressedCount ?? 0} / externalCalls {previewStats.externalCalls ?? 0}
+              </p>
+              <p>{Object.entries(previewStats.suppressedByReason ?? {}).filter(([, count]) => count > 0).map(([reason, count]) => `${reason}: ${count}`).join(" / ") || "No suppressed recipients"}</p>
+            </div>
+          )}
           <div className="analyticsTableWrap">
             <table className="analyticsTable">
               <thead><tr><th>Contact</th><th>Platform</th><th>Channel account</th><th>Tags</th><th>Lead</th><th>Rendered message</th><th>Reason</th></tr></thead>

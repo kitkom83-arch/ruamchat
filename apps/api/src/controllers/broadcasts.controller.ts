@@ -57,6 +57,11 @@ export class BroadcastsController {
     return this.broadcasts.audiencePreview(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
   }
 
+  @Post("campaigns/:campaignId/dry-run")
+  async dryRun(@Param("campaignId") campaignId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.dryRun(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
+  }
+
   @Post("campaigns/:campaignId/schedule")
   async scheduleCampaign(@Param("campaignId") campaignId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.scheduleCampaign(requireTenantId(tenant), campaignId, scheduleBroadcastCampaignRequestSchema.parse(body));
