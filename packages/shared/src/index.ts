@@ -578,12 +578,21 @@ export type ContactNote = z.infer<typeof contactNoteSchema>;
 
 export const contactTaskSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional(),
   contactId: z.string().min(1),
+  platform: platformSchema.optional(),
+  channelAccountId: z.string().min(1).optional(),
+  roomId: z.string().min(1).optional(),
   title: z.string().min(1),
   status: contactTaskStatusSchema,
-  dueAt: z.string().datetime().optional(),
+  assigneeUserId: z.string().nullable().optional(),
+  dueAt: z.string().datetime().nullable().optional(),
+  completedAt: z.string().datetime().nullable().optional(),
   ownerAgent: z.string().min(1).optional(),
-  createdAt: z.string().datetime()
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
+  externalCalls: z.literal(0).default(0).optional()
 }).strict();
 export type ContactTask = z.infer<typeof contactTaskSchema>;
 

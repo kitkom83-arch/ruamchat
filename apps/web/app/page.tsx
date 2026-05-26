@@ -2767,7 +2767,14 @@ function CustomerPanel({
         </div>
         <div className="miniList">
           {adminTasks.slice(0, 3).map((task) => <p key={task.id}>{task.title}</p>)}
-          {(contact?.tasks.filter((task) => task.status === "open") ?? []).slice(0, 3).map((task) => <p key={task.id}>{task.title}</p>)}
+          {(contact?.tasks.filter((task) => task.status === "open") ?? []).slice(0, 3).map((task) => (
+            <p key={task.id}>
+              {task.title}
+              {apiMode && task.platform && task.channelAccountId && task.roomId
+                ? ` / ${task.platform} / ${task.channelAccountId} / ${task.roomId}`
+                : ""}
+            </p>
+          ))}
           {adminTasks.length === 0 && !contact?.tasks.some((task) => task.status === "open") && <p>No open tasks</p>}
         </div>
         <button className={actionFeedbackClassName("task-complete", activeActionKey, "smallPanelButton")} type="button" onClick={onMarkTaskDone} disabled={workflowLoading || !(apiMode ? adminTasks.length > 0 : contact?.tasks.some((task) => task.status === "open"))}>Mark first task done</button>
