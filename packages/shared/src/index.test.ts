@@ -47,7 +47,8 @@ import {
   shouldHandoff,
   slaPolicySchema,
   slaMetricSchema,
-  slaStateSchema
+  slaStateSchema,
+  updateCustomer360ProfileRequestSchema
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -213,6 +214,23 @@ describe("shared contracts", () => {
     expect(contactTaskStatusSchema.parse("done")).toBe("done");
     expect(() => leadStatusSchema.parse("merged")).toThrow();
     expect(() => contactTaskStatusSchema.parse("waiting")).toThrow();
+  });
+
+  it("validates safe Customer 360 profile update payloads", () => {
+    const parsed = updateCustomer360ProfileRequestSchema.parse({
+      contactId: "contact-1",
+      displayName: "Ploy Smile",
+      email: "ploy@example.com",
+      phone: "081-222-3434",
+      leadStatus: "qualified",
+      tags: ["vip", "sprint41"]
+    });
+
+    expect(parsed.tags).toEqual(["vip", "sprint41"]);
+    expect(() => updateCustomer360ProfileRequestSchema.parse({
+      contactId: "contact-1",
+      apiKey: "sk-should-not-be-accepted"
+    })).toThrow();
   });
 
   it("requires contact conversation cards to keep platform account room separation fields", () => {

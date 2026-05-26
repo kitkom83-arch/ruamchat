@@ -701,6 +701,12 @@ export const updateContactRequestSchema = z.object({
 }).strict();
 export type UpdateContactRequest = z.input<typeof updateContactRequestSchema>;
 
+export const updateCustomer360ProfileRequestSchema = updateContactRequestSchema.extend({
+  contactId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional()
+}).strict();
+export type UpdateCustomer360ProfileRequest = z.input<typeof updateCustomer360ProfileRequestSchema>;
+
 export const linkContactIdentityRequestSchema = z.object({
   identityId: z.string().min(1).optional(),
   platform: platformSchema.optional(),

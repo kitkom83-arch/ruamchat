@@ -48,6 +48,7 @@ import {
   unlinkContactIdentity,
   updateBroadcastConsent,
   updateContact,
+  updateCustomer360Profile,
   updateConversationPriority,
   updateConversationReadState,
   updateConversationSla,
@@ -236,6 +237,47 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Conversation not found" }, 404));
 
     await expect(getCustomer360("missing")).rejects.toThrow("API request failed (404): Conversation not found");
+  });
+
+  it("sends x-tenant-id for Customer 360 profile and tag update calls", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({
+      ...customer360Response("conv-web", "contact-api"),
+      contact: {
+        ...contactResponse("contact-api"),
+        leadStatus: "qualified",
+        tags: ["vip"]
+      },
+      identities: contactResponse("contact-api").identities
+    }));
+
+    const customer360 = await updateCustomer360Profile("conv-web", {
+      contactId: "contact-api",
+      leadStatus: "qualified",
+      tags: ["vip"]
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/conversations/conv-web/customer-360", expect.objectContaining({ method: "PATCH" }));
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.headers).toEqual(expect.objectContaining({ "x-tenant-id": defaultTenantId }));
+    expect(JSON.parse(String(init?.body))).toEqual({
+      contactId: "contact-api",
+      leadStatus: "qualified",
+      tags: ["vip"]
+    });
+    expect(customer360.contact.leadStatus).toBe("qualified");
+    expect(customer360.contact.tags).toEqual(["vip"]);
+    expectTenantHeaderForAll(fetchMock);
+  });
+
+  it("does not fake Customer 360 profile state when the API update fails", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Profile unavailable" }, 503));
+
+    await expect(updateCustomer360Profile("conv-web", {
+      contactId: "contact-api",
+      tags: ["vip"]
+    })).rejects.toThrow("API request failed (503): Profile unavailable");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("refetches Customer 360 per selected conversation id", async () => {

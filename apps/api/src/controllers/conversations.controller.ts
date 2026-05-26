@@ -10,6 +10,7 @@ import {
   updateConversationReadStateRequestSchema,
   updateConversationSlaRequestSchema,
   updateConversationStatusRequestSchema,
+  updateCustomer360ProfileRequestSchema,
   updateTaskRequestSchema
 } from "@ai-omni/shared";
 import { ConversationService } from "../services/conversation.service.js";
@@ -30,6 +31,21 @@ export class ConversationsController {
   @Get(":conversationId/customer-360")
   async customer360(@Param("conversationId") conversationId: string, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.customers.getCustomer360(requireTenantId(tenant), conversationId);
+  }
+
+  @Patch(":conversationId/customer-360")
+  async updateCustomer360(
+    @Param("conversationId") conversationId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.customers.updateCustomer360Profile(
+      requireTenantId(tenant),
+      conversationId,
+      updateCustomer360ProfileRequestSchema.parse(body),
+      userId
+    );
   }
 
   @Get(":conversationId/notes")
