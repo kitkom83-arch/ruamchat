@@ -105,6 +105,66 @@ describe("CustomerService Customer 360 API", () => {
     await expect(service.updateBroadcastConsent(tenantId, "contact-web", { optOut: true, conversationId: "conv-telegram" }, "agent-demo")).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it("persists Customer 360 consent updates through selected conversation context", async () => {
+    const { service, audit } = buildService();
+
+    const updated = await service.updateCustomer360Consent(tenantId, "conv-web", {
+      contactId: "contact-web",
+      optOut: true
+    }, "agent-demo");
+    const refreshed = await service.getCustomer360(tenantId, "conv-web");
+
+    expect(updated.contact.optOutBroadcast).toBe(true);
+    expect(updated.broadcastHistorySummary).toMatchObject({
+      contactId: "contact-web",
+      customerId: "contact-web",
+      conversationId: "conv-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      optOut: true,
+      suppressedReason: "customer_requested",
+      externalCalls: 0
+    });
+    expect(refreshed.contact.optOutBroadcast).toBe(true);
+    expect(refreshed.broadcastHistorySummary.optOut).toBe(true);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      actorUserId: "agent-demo",
+      conversationId: "conv-web",
+      action: "customer360.consent_updated",
+      entityType: "contact",
+      entityId: "contact-web",
+      metadata: expect.objectContaining({
+        tenantId,
+        contactId: "contact-web",
+        customerId: "contact-web",
+        identityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        actionType: "customer360.consent_updated",
+        previous: expect.objectContaining({ optOut: false }),
+        next: expect.objectContaining({ optOut: true, suppressedReason: "customer_requested" }),
+        externalCalls: 0
+      })
+    }));
+    expect(JSON.stringify({ updated, auditCalls: audit.record.mock.calls })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
+  });
+
+  it("rejects Customer 360 consent updates outside the tenant or selected customer context", async () => {
+    const { service } = buildService();
+
+    await expect(service.updateCustomer360Consent("00000000-0000-4000-8000-000000000099", "conv-web", {
+      optOut: true
+    }, "agent-demo")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.updateCustomer360Consent(tenantId, "conv-web", {
+      contactId: "contact-telegram",
+      optOut: true
+    }, "agent-demo")).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it("lists and reads contacts only for the requested tenant", async () => {
     const { service, store } = buildService();
     store.contacts.push({
@@ -517,7 +577,7 @@ function buildService() {
         .filter((log) =>
           log.tenantId === where.tenantId &&
           (!where.entityType || log.entityType === where.entityType) &&
-          (!where.action || log.action === where.action) &&
+          (!where.action || (Array.isArray(where.action.in) ? where.action.in.includes(log.action) : log.action === where.action)) &&
           (!where.entityId?.in || where.entityId.in.includes(log.entityId))
         )
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()))

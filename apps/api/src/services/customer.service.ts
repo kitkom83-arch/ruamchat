@@ -4,6 +4,7 @@ import {
   LinkContactIdentityRequest,
   SetPrimaryIdentityRequest,
   UpdateBroadcastConsentRequest,
+  UpdateCustomer360ConsentRequest,
   UpdateCustomer360ProfileRequest,
   UpdateContactRequest,
   UnlinkContactIdentityRequest
@@ -330,6 +331,49 @@ export class CustomerService {
     return after;
   }
 
+  async updateCustomer360Consent(tenantId: string, conversationId: string, request: UpdateCustomer360ConsentRequest, actorUserId?: string) {
+    const selected = await this.findConversationForCustomer360Update(tenantId, conversationId);
+    const selectedContact = selected.contactIdentity.contact ?? selected.contact;
+    const requestedContactId = request.contactId ?? request.customerId;
+    if (requestedContactId && requestedContactId !== selectedContact.id) {
+      throw new BadRequestException("Customer consent update does not belong to selected conversation");
+    }
+
+    const before = (await this.getBroadcastConsentByContactIds(tenantId, [selectedContact.id])).get(selectedContact.id) ?? { optOut: false };
+    const after = {
+      optOut: request.optOut,
+      suppressedReason: request.optOut ? "customer_requested" : undefined
+    };
+    const action = "customer360.consent_updated";
+
+    await this.audit.record({
+      tenantId,
+      actorUserId,
+      conversationId: selected.id,
+      action,
+      entityType: "contact",
+      entityId: selectedContact.id,
+      beforeJson: broadcastConsentSnapshot(before),
+      afterJson: broadcastConsentSnapshot(after),
+      metadata: {
+        tenantId,
+        customerId: selectedContact.id,
+        contactId: selectedContact.id,
+        identityId: selected.contactIdentityId,
+        conversationId: selected.id,
+        platform: selected.room.platform,
+        channelAccountId: selected.room.channelAccountId,
+        roomId: selected.roomId,
+        actionType: action,
+        previous: broadcastConsentSnapshot(before),
+        next: broadcastConsentSnapshot(after),
+        externalCalls: 0
+      }
+    });
+
+    return this.getCustomer360(tenantId, conversationId);
+  }
+
   async linkIdentity(tenantId: string, contactId: string, request: LinkContactIdentityRequest, actorUserId?: string) {
     await this.ensureContact(tenantId, contactId);
     const beforeIdentity = await this.findIdentityForLinkRequest(tenantId, request);
@@ -554,7 +598,7 @@ export class CustomerService {
         tenantId,
         entityType: "contact",
         entityId: { in: contactIds },
-        action: "contact.broadcast_consent_updated"
+        action: { in: ["contact.broadcast_consent_updated", "customer360.consent_updated"] }
       },
       orderBy: { createdAt: "desc" }
     });

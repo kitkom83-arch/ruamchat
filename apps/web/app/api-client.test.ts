@@ -48,6 +48,7 @@ import {
   unlinkContactIdentity,
   updateBroadcastConsent,
   updateContact,
+  updateCustomer360Consent,
   updateCustomer360Profile,
   updateConversationPriority,
   updateConversationReadState,
@@ -276,6 +277,49 @@ describe("frontend API client", () => {
       contactId: "contact-api",
       tags: ["vip"]
     })).rejects.toThrow("API request failed (503): Profile unavailable");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends x-tenant-id for Customer 360 consent update calls", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({
+      ...customer360Response("conv-web", "contact-api"),
+      contact: {
+        ...contactResponse("contact-api"),
+        optOutBroadcast: true,
+        suppressedReason: "customer_requested"
+      },
+      broadcastHistorySummary: {
+        ...customer360Response("conv-web", "contact-api").broadcastHistorySummary,
+        optOut: true,
+        suppressedReason: "customer_requested"
+      }
+    }));
+
+    const customer360 = await updateCustomer360Consent("conv-web", {
+      contactId: "contact-api",
+      optOut: true
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/conversations/conv-web/customer-360/consent", expect.objectContaining({ method: "PATCH" }));
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.headers).toEqual(expect.objectContaining({ "x-tenant-id": defaultTenantId }));
+    expect(JSON.parse(String(init?.body))).toEqual({
+      contactId: "contact-api",
+      optOut: true
+    });
+    expect(customer360.contact.optOutBroadcast).toBe(true);
+    expect(customer360.broadcastHistorySummary.optOut).toBe(true);
+    expectTenantHeaderForAll(fetchMock);
+  });
+
+  it("does not fake Customer 360 consent state when the API update fails", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "Consent unavailable" }, 503));
+
+    await expect(updateCustomer360Consent("conv-web", {
+      contactId: "contact-api",
+      optOut: true
+    })).rejects.toThrow("API request failed (503): Consent unavailable");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
