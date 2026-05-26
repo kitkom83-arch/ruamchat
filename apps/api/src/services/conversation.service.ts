@@ -173,6 +173,7 @@ export class ConversationService {
       const aiStatus = mapAiStatus(conversation.aiState, conversation.status);
       return {
         id: conversation.id,
+        tenantId: conversation.tenantId,
         roomId: conversation.roomId,
         tab: aiStatus === "AI Active" ? "bot" : "human",
         platform: conversation.room.platform,
@@ -599,7 +600,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated, before);
   }
 
   async takeover(tenantId: string, conversationId: string, actorUserId: string | undefined) {
@@ -637,7 +638,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated, before);
   }
 
   async returnToAi(tenantId: string, conversationId: string, actorUserId: string | undefined) {
@@ -669,7 +670,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated, before);
   }
 
   async followUp(tenantId: string, conversationId: string, actorUserId: string | undefined, request: FollowUpConversationRequest) {
@@ -700,7 +701,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async updateTask(tenantId: string, taskId: string, actorUserId: string | undefined, request: UpdateTaskRequest) {
@@ -786,7 +787,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async updateStatus(tenantId: string, conversationId: string, actorUserId: string | undefined, request: UpdateConversationStatusRequest) {
@@ -819,7 +820,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async updatePriority(tenantId: string, conversationId: string, actorUserId: string | undefined, request: UpdateConversationPriorityRequest) {
@@ -845,7 +846,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async updateReadState(tenantId: string, conversationId: string, actorUserId: string | undefined, request: UpdateConversationReadStateRequest) {
@@ -875,7 +876,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async updateSla(tenantId: string, conversationId: string, actorUserId: string | undefined, request: UpdateConversationSlaRequest) {
@@ -917,7 +918,7 @@ export class ConversationService {
       })
     });
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return updated;
+    return safeConversationMutationResult(updated);
   }
 
   async getAuditLogs(tenantId: string, conversationId: string) {
@@ -1423,6 +1424,31 @@ function conversationAuditMetadata(
     actorUserId: actorUserId ?? null,
     externalCalls: 0,
     ...changes
+  };
+}
+
+function safeConversationMutationResult<T extends {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  room?: { platform: Platform; channelAccountId: string };
+}>(conversation: T, fallback?: { room: { platform: Platform; channelAccountId: string } }) {
+  const room = conversation.room ?? fallback?.room;
+  if (!room) {
+    return {
+      ...conversation,
+      externalCalls: 0 as const
+    };
+  }
+  return {
+    ...conversation,
+    platform: room.platform,
+    channelAccountId: room.channelAccountId,
+    room: {
+      platform: room.platform,
+      channelAccountId: room.channelAccountId
+    },
+    externalCalls: 0 as const
   };
 }
 

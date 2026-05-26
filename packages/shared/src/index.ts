@@ -1484,6 +1484,7 @@ export type TaskDashboardItem = z.infer<typeof taskDashboardItemSchema>;
 
 export const coreConversationCardSchema = z.object({
   id: z.string().min(1),
+  tenantId: z.string().min(1).optional(),
   roomId: z.string().min(1),
   tab: coreConversationTabSchema,
   platform: platformSchema,

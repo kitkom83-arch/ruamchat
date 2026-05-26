@@ -688,6 +688,10 @@ export class CustomerService {
           }
         });
 
+    if ("identityId" in request && request.identityId && !existingIdentity) {
+      throw new NotFoundException("Contact identity not found");
+    }
+
     const contactIdentityCount = await tx.contactIdentity.count({ where: { tenantId, contactId } });
     const shouldBePrimary = request.isPrimary || contactIdentityCount === 0;
     if (shouldBePrimary) {
@@ -974,6 +978,7 @@ function mapCustomer360Task(task: {
 
 function mapConversationCard(conversation: {
   id: string;
+  tenantId: string;
   roomId: string;
   room: { platform: Platform; channelAccountId: string; channelAccount: { displayName: string } };
   contact: { displayName: string; email: string | null; phone: string | null; tags: Array<{ tag: { name: string } }> };
@@ -996,6 +1001,7 @@ function mapConversationCard(conversation: {
   const aiStatus = mapAiStatus(conversation.aiState, conversation.status);
   return {
     id: conversation.id,
+    tenantId: conversation.tenantId,
     roomId: conversation.roomId,
     tab: aiStatus === "AI Active" ? "bot" as const : "human" as const,
     platform: conversation.room.platform,
