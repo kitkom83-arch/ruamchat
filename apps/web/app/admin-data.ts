@@ -59,6 +59,7 @@ export type AdminConversationFilter = "all" | "my" | "unassigned" | "sla_warning
 export const currentMockAgentId = "agent-may";
 export const adminStoreStorageKey = "ai-omni-admin-store-v1";
 
+const mockTenantId = "mock-tenant";
 const baseTime = "2026-05-20T03:40:00.000Z";
 
 export const mockAgents: Agent[] = [
@@ -734,7 +735,21 @@ function createNote(
   createdBy = currentMockAgentId,
   createdAt = baseTime
 ): InternalNote {
-  return { id, conversationId, contactId, ...mockConversationContext(conversationId), body, visibility, createdBy, createdAt, updatedAt: createdAt, pinned };
+  return {
+    id,
+    tenantId: mockTenantId,
+    conversationId,
+    contactId,
+    customerId: contactId,
+    ...mockConversationContext(conversationId),
+    body,
+    visibility,
+    createdBy,
+    createdAt,
+    updatedAt: createdAt,
+    pinned,
+    externalCalls: 0
+  };
 }
 
 function createAuditLog(id: string, actorId: string, action: string, targetType: string, targetId: string, metadata: Record<string, unknown>, createdAt: string): AuditLog {

@@ -45,7 +45,8 @@
     "smoke:sprint36": "node scripts/smoke-sprint36-api.mjs",
     "smoke:sprint37": "node scripts/smoke-sprint37-api.mjs",
     "smoke:sprint38": "node scripts/smoke-sprint38-api.mjs",
-    "smoke:sprint39": "node scripts/smoke-sprint39-api.mjs"
+    "smoke:sprint39": "node scripts/smoke-sprint39-api.mjs",
+    "smoke:sprint40": "node scripts/smoke-sprint40-api.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

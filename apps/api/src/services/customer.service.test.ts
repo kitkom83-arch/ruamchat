@@ -26,6 +26,17 @@ describe("CustomerService Customer 360 API", () => {
       channelAccountId: webchatAccountId,
       roomId: webchatRoomId
     });
+    expect(customer360.notes[0]).toMatchObject({
+      id: "note-web",
+      tenantId,
+      conversationId: "conv-web",
+      contactId: "contact-web",
+      customerId: "contact-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      externalCalls: 0
+    });
     expect(customer360.source).toMatchObject({
       platform: "webchat",
       channelAccountId: webchatAccountId,
@@ -198,11 +209,20 @@ describe("CustomerService Customer 360 API", () => {
       roomId: telegramRoomId,
       externalCalls: 0
     });
+    expect(customer360.notes[0]).toMatchObject({
+      tenantId,
+      conversationId: "conv-web",
+      contactId: "contact-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      externalCalls: 0
+    });
     expect(customer360.recentConversations.map((conversation) => `${conversation.id}:${conversation.platform}:${conversation.channelAccountId}:${conversation.roomId}`).sort()).toEqual([
       `conv-telegram:telegram:${telegramAccountId}:${telegramRoomId}`,
       `conv-web:webchat:${webchatAccountId}:${webchatRoomId}`
     ]);
-    expect(JSON.stringify(customer360.tasks)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
+    expect(JSON.stringify({ tasks: customer360.tasks, notes: customer360.notes })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
   });
 
   it("keeps Webchat and Telegram rooms stable when linking by identity fields", async () => {
