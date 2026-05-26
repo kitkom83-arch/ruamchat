@@ -707,6 +707,13 @@ export const updateCustomer360ProfileRequestSchema = updateContactRequestSchema.
 }).strict();
 export type UpdateCustomer360ProfileRequest = z.input<typeof updateCustomer360ProfileRequestSchema>;
 
+export const updateCustomer360ConsentRequestSchema = z.object({
+  contactId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional(),
+  optOut: z.boolean()
+}).strict();
+export type UpdateCustomer360ConsentRequest = z.input<typeof updateCustomer360ConsentRequestSchema>;
+
 export const linkContactIdentityRequestSchema = z.object({
   identityId: z.string().min(1).optional(),
   platform: platformSchema.optional(),

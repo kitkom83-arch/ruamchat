@@ -10,6 +10,7 @@ import {
   updateConversationReadStateRequestSchema,
   updateConversationSlaRequestSchema,
   updateConversationStatusRequestSchema,
+  updateCustomer360ConsentRequestSchema,
   updateCustomer360ProfileRequestSchema,
   updateTaskRequestSchema
 } from "@ai-omni/shared";
@@ -44,6 +45,21 @@ export class ConversationsController {
       requireTenantId(tenant),
       conversationId,
       updateCustomer360ProfileRequestSchema.parse(body),
+      userId
+    );
+  }
+
+  @Patch(":conversationId/customer-360/consent")
+  async updateCustomer360Consent(
+    @Param("conversationId") conversationId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.customers.updateCustomer360Consent(
+      requireTenantId(tenant),
+      conversationId,
+      updateCustomer360ConsentRequestSchema.parse(body),
       userId
     );
   }

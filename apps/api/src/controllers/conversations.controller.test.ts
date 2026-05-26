@@ -65,14 +65,16 @@ describe("ConversationsController manual reply", () => {
   });
 
   it("requires x-tenant-id for Customer 360 reads and updates", async () => {
-    const customers = { getCustomer360: vi.fn(), updateCustomer360Profile: vi.fn() };
+    const customers = { getCustomer360: vi.fn(), updateCustomer360Profile: vi.fn(), updateCustomer360Consent: vi.fn() };
     const controller = new ConversationsController({} as never, customers as never);
 
     await expect(controller.customer360("conv-1", undefined)).rejects.toBeInstanceOf(BadRequestException);
     await expect(controller.updateCustomer360("conv-1", { tags: ["vip"] }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.updateCustomer360Consent("conv-1", { optOut: true }, undefined, "user-1")).rejects.toBeInstanceOf(BadRequestException);
 
     expect(customers.getCustomer360).not.toHaveBeenCalled();
     expect(customers.updateCustomer360Profile).not.toHaveBeenCalled();
+    expect(customers.updateCustomer360Consent).not.toHaveBeenCalled();
   });
 
   it("passes tenant, user, and safe Customer 360 profile payload to the customer service", async () => {
@@ -91,6 +93,23 @@ describe("ConversationsController manual reply", () => {
       contactId: "contact-1",
       leadStatus: "qualified",
       tags: ["vip"]
+    }, "user-1");
+  });
+
+  it("passes tenant, user, and safe Customer 360 consent payload to the customer service", async () => {
+    const customers = {
+      updateCustomer360Consent: vi.fn(async () => ({ selectedConversationId: "conv-1" }))
+    };
+    const controller = new ConversationsController({} as never, customers as never);
+
+    await expect(controller.updateCustomer360Consent("conv-1", {
+      contactId: "contact-1",
+      optOut: true
+    }, "tenant-1", "user-1")).resolves.toEqual({ selectedConversationId: "conv-1" });
+
+    expect(customers.updateCustomer360Consent).toHaveBeenCalledWith("tenant-1", "conv-1", {
+      contactId: "contact-1",
+      optOut: true
     }, "user-1");
   });
 

@@ -64,6 +64,7 @@ import {
   updateKnowledgeBaseRequestSchema,
   updateKnowledgeChunkRequestSchema,
   updateKnowledgeDocumentRequestSchema,
+  updateCustomer360ConsentRequestSchema,
   updateCustomer360ProfileRequestSchema,
   updateFlowRequestSchema,
   updateFlowStatusRequestSchema,
@@ -148,6 +149,7 @@ import {
   type UpdateBroadcastConsentRequest,
   type UpdateBroadcastSegmentRequest,
   type UpdateContactRequest,
+  type UpdateCustomer360ConsentRequest,
   type UpdateCustomer360ProfileRequest,
   type UpdateSettingsChannelAccountRequest,
   type UpdateSettingsCannedReplyRequest,
@@ -535,6 +537,14 @@ export async function getCustomer360(conversationId: string): Promise<Customer36
 export async function updateCustomer360Profile(conversationId: string, payload: UpdateCustomer360ProfileRequest): Promise<Customer360> {
   const body = updateCustomer360ProfileRequestSchema.parse(payload);
   return request(`/conversations/${encodeURIComponent(conversationId)}/customer-360`, customer360Schema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateCustomer360Consent(conversationId: string, payload: UpdateCustomer360ConsentRequest): Promise<Customer360> {
+  const body = updateCustomer360ConsentRequestSchema.parse(payload);
+  return request(`/conversations/${encodeURIComponent(conversationId)}/customer-360/consent`, customer360Schema, {
     method: "PATCH",
     body: JSON.stringify(body)
   });

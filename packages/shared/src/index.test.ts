@@ -48,6 +48,7 @@ import {
   slaPolicySchema,
   slaMetricSchema,
   slaStateSchema,
+  updateCustomer360ConsentRequestSchema,
   updateCustomer360ProfileRequestSchema
 } from "./index.js";
 
@@ -230,6 +231,20 @@ describe("shared contracts", () => {
     expect(() => updateCustomer360ProfileRequestSchema.parse({
       contactId: "contact-1",
       apiKey: "sk-should-not-be-accepted"
+    })).toThrow();
+  });
+
+  it("validates safe Customer 360 consent update payloads", () => {
+    const parsed = updateCustomer360ConsentRequestSchema.parse({
+      contactId: "contact-1",
+      optOut: true
+    });
+
+    expect(parsed).toEqual({ contactId: "contact-1", optOut: true });
+    expect(() => updateCustomer360ConsentRequestSchema.parse({
+      contactId: "contact-1",
+      optOut: true,
+      token: "secret-token"
     })).toThrow();
   });
 

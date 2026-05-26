@@ -173,7 +173,7 @@ import {
   takeOverConversation as takeOverApiConversation,
   testRunApiFlow,
   unlinkContactIdentity as unlinkApiContactIdentity,
-  updateBroadcastConsent,
+  updateCustomer360Consent,
   updateConversationPriority,
   updateConversationReadState,
   updateConversationSla,
@@ -1732,16 +1732,14 @@ export default function InboxDashboard() {
       setApiActionLoading(true);
       try {
         const nextOptOut = !selectedContact.optOutBroadcast;
-        const contact = await updateBroadcastConsent(selectedContact.id, {
+        if (!selectedConversation) throw new Error("Select a conversation before updating broadcast consent");
+        const customer360 = await updateCustomer360Consent(selectedConversation.id, {
+          contactId: selectedContact.id,
           optOut: nextOptOut,
-          conversationId: selectedConversation?.id
         });
-        applyApiContact(contact);
-        if (selectedConversation) {
-          const customer360 = await getCustomer360(selectedConversation.id);
-          setApiCustomer360(customer360);
-          await refreshApiConversationTimeline(selectedConversation.id);
-        }
+        setApiCustomer360(customer360);
+        applyApiContact(customer360.contact);
+        await refreshApiConversationTimeline(selectedConversation.id);
         setAiActionStatus(nextOptOut ? "Broadcast opt-out persisted through API" : "Broadcast opt-in persisted through API");
       } catch (error) {
         setAiActionStatus(readableApiError(error));
