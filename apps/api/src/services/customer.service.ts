@@ -159,15 +159,8 @@ export class CustomerService {
       createdBy: note.authorUserId ?? "system",
       createdAt: note.createdAt.toISOString()
     }));
-    const mappedTasks = tasks.map((task) => ({
-      id: task.id,
-      contactId: task.contactId,
-      title: task.title,
-      status: mapTaskStatus(task.status),
-      dueAt: task.dueAt?.toISOString(),
-      ownerAgent: task.assigneeUserId ?? undefined,
-      createdAt: task.createdAt.toISOString()
-    }));
+    const conversationById = new Map(recentConversations.map((conversation) => [conversation.id, conversation]));
+    const mappedTasks = tasks.map((task) => mapCustomer360Task(task, conversationById.get(task.conversationId)));
     const mappedContact = {
       id: contact.id,
       displayName: contact.displayName || selected.contactIdentity.displayName || "-",
@@ -940,6 +933,42 @@ function mapContact(contact: {
     suppressedReason: consent?.suppressedReason,
     createdAt: contact.createdAt.toISOString(),
     updatedAt: contact.updatedAt.toISOString()
+  };
+}
+
+function mapCustomer360Task(task: {
+  id: string;
+  tenantId: string;
+  conversationId: string;
+  contactId: string;
+  title: string;
+  status: string;
+  assigneeUserId: string | null;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}, conversation?: {
+  roomId: string;
+  room: { platform: Platform; channelAccountId: string };
+}) {
+  return {
+    id: task.id,
+    tenantId: task.tenantId,
+    conversationId: task.conversationId,
+    contactId: task.contactId,
+    platform: conversation?.room.platform,
+    channelAccountId: conversation?.room.channelAccountId,
+    roomId: conversation?.roomId,
+    title: task.title,
+    status: mapTaskStatus(task.status),
+    assigneeUserId: task.assigneeUserId,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    ownerAgent: task.assigneeUserId ?? undefined,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    externalCalls: 0 as const
   };
 }
 

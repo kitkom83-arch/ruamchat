@@ -149,6 +149,41 @@ describe("CustomerService Customer 360 API", () => {
     }));
   });
 
+  it("returns Customer 360 tasks with their original platform account room context after identity linking", async () => {
+    const { service, store } = buildService();
+    const now = new Date("2026-05-21T04:10:00.000Z");
+    store.tasks.push(task("task-telegram", "conv-telegram", "contact-telegram", "Follow up telegram buyer", "open", now));
+
+    await service.linkIdentity(tenantId, "contact-web", { identityId: "identity-telegram", isPrimary: false });
+
+    const customer360 = await service.getCustomer360(tenantId, "conv-web");
+    const tasksById = new Map(customer360.tasks.map((item) => [item.id, item]));
+
+    expect(tasksById.get("task-web")).toMatchObject({
+      tenantId,
+      conversationId: "conv-web",
+      contactId: "contact-web",
+      platform: "webchat",
+      channelAccountId: webchatAccountId,
+      roomId: webchatRoomId,
+      externalCalls: 0
+    });
+    expect(tasksById.get("task-telegram")).toMatchObject({
+      tenantId,
+      conversationId: "conv-telegram",
+      contactId: "contact-telegram",
+      platform: "telegram",
+      channelAccountId: telegramAccountId,
+      roomId: telegramRoomId,
+      externalCalls: 0
+    });
+    expect(customer360.recentConversations.map((conversation) => `${conversation.id}:${conversation.platform}:${conversation.channelAccountId}:${conversation.roomId}`).sort()).toEqual([
+      `conv-telegram:telegram:${telegramAccountId}:${telegramRoomId}`,
+      `conv-web:webchat:${webchatAccountId}:${webchatRoomId}`
+    ]);
+    expect(JSON.stringify(customer360.tasks)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer\s+[a-z0-9._-]+|(^|[^a-z])sk-[a-z0-9_-]{8,}/i);
+  });
+
   it("keeps Webchat and Telegram rooms stable when linking by identity fields", async () => {
     const { service, store } = buildService();
 

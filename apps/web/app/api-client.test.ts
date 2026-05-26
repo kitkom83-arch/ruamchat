@@ -198,6 +198,13 @@ describe("frontend API client", () => {
     expectTenantHeaderForAll(fetchMock);
     expect(customer360.contact.id).toBe("contact-api");
     expect(customer360.identities[0]?.externalUserId).toBe("visitor-api");
+    expect(customer360.tasks[0]).toMatchObject({
+      conversationId: "conv-web",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      externalCalls: 0
+    });
     expect(customer360.broadcastHistorySummary.rows[0]).toMatchObject({
       campaignName: "Persisted campaign",
       platform: "webchat",
@@ -887,7 +894,7 @@ function customer360Response(conversationId: string, contactId: string) {
       unreplied: true
     }],
     notes: [],
-    tasks: [],
+    tasks: [contactTaskResponse("task-customer-360", conversationId, contactId)],
     broadcastHistorySummary: {
       contactId,
       customerId: contactId,
@@ -929,6 +936,26 @@ function customer360Response(conversationId: string, contactId: string) {
       externalUserId: "visitor-api",
       displayName: "Visitor API"
     }
+  };
+}
+
+function contactTaskResponse(id: string, conversationId: string, contactId: string) {
+  return {
+    id,
+    tenantId: defaultTenantId,
+    conversationId,
+    contactId,
+    platform: "webchat",
+    channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
+    title: "Customer 360 persisted task",
+    status: "open",
+    assigneeUserId: null,
+    dueAt: null,
+    completedAt: null,
+    createdAt: "2026-05-21T04:00:00.000Z",
+    updatedAt: "2026-05-21T04:00:00.000Z",
+    externalCalls: 0
   };
 }
 
