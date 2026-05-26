@@ -22,6 +22,7 @@ import {
 } from "@ai-omni/shared";
 import { Prisma } from "@prisma/client";
 import { AuditService } from "./audit.service.js";
+import { OutboundConsentDecision, OutboundConsentService, consentSnapshot } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const allPlatforms: Platform[] = ["webchat", "telegram", "line", "facebook", "instagram"];
@@ -65,7 +66,8 @@ type FlowRunRecord = {
 export class FlowService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
-    @Inject(AuditService) private readonly audit: AuditService
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(OutboundConsentService) private readonly outboundConsent: OutboundConsentService
   ) {}
 
   async listFlows(tenantId: string) {
@@ -228,11 +230,14 @@ export class FlowService {
       tenantId,
       conversationId: conversation.id,
       flowId,
+      contactId: conversation.contactId,
       platform: conversation.room.platform,
       channelAccountId: conversation.room.channelAccountId,
       roomId: conversation.roomId
     };
-    const result = buildDryRunResult(flow, input, context, new Date());
+    const consentContext = await this.outboundConsent.getConversationContext(context);
+    const consentDecision = this.outboundConsent.decide(consentContext.consent, "automation");
+    const result = buildDryRunResult(flow, input, context, consentDecision, new Date());
     const saved = await this.prisma.flowRun.create({
       data: {
         tenantId,
@@ -267,6 +272,10 @@ export class FlowService {
         platform: conversation.room.platform,
         channelAccountId: conversation.room.channelAccountId,
         roomId: conversation.roomId,
+        customerId: conversation.contactId,
+        contactId: conversation.contactId,
+        consent: consentSnapshot(consentContext.consent),
+        blockedReason: consentDecision.reason,
         trigger: {
           type: flow.trigger.type,
           matched: result.triggerMatched
@@ -282,13 +291,28 @@ export class FlowService {
         timestamp: saved.createdAt.toISOString()
       }
     });
+    const blockedAudit = consentDecision.blocked && consentDecision.reason
+      ? await this.outboundConsent.recordBlocked({
+          action: "automation.outbound_blocked",
+          intent: "automation",
+          entityType: "flow_run",
+          entityId: saved.id,
+          context: consentContext,
+          reason: consentDecision.reason,
+          metadata: {
+            flowId,
+            runId: saved.id,
+            skippedOutboundActions: result.state.skippedExternalActions
+          }
+        })
+      : null;
 
     return {
       ...result,
       flowRun: mapFlowRun(saved),
       state: {
         ...result.state,
-        auditLogsCreated: [mapAuditLog(audit)]
+        auditLogsCreated: [mapAuditLog(audit), ...(blockedAudit ? [mapAuditLog(blockedAudit)] : [])]
       }
     };
   }
@@ -413,7 +437,9 @@ function buildDryRunResult(
     platform: Platform;
     channelAccountId: string;
     roomId: string;
+    contactId: string;
   },
+  consentDecision: OutboundConsentDecision,
   at: Date
 ) {
   const triggerMatched = evaluateTrigger(flow, input) && flow.status !== "archived";
@@ -442,7 +468,7 @@ function buildDryRunResult(
       return;
     }
 
-    const result = dryRunAction(node);
+    const result = dryRunAction(node, consentDecision);
     actionResults.push(result);
     if (result.status === "outbound_skipped_mock" || result.status === "skipped_mock") skippedExternalActions.push(node.type);
     if (result.status === "failed_mock") failed = true;
@@ -512,13 +538,30 @@ function evaluateCondition(node: FlowNode, input: FlowTestRunRequest) {
   return true;
 }
 
-function dryRunAction(node: FlowNode): AutomationActionResult {
+function dryRunAction(node: FlowNode, consentDecision: OutboundConsentDecision): AutomationActionResult {
   if (node.config.fail === true) {
     return {
       actionType: node.type,
       status: "failed_mock",
       message: `${node.type} failed in dry-run mode by test config.`,
       metadata: { dryRun: true, externalCalls: 0, reason: "dry_run_only" }
+    };
+  }
+  if (
+    consentDecision.blocked &&
+    consentDecision.reason &&
+    (outboundActionTypes.has(node.type) || node.type === "ai_reply" || node.type === "add_to_broadcast_segment")
+  ) {
+    return {
+      actionType: node.type,
+      status: "skipped_mock",
+      message: `${node.type} suppressed by customer consent; no external outbound call was made.`,
+      metadata: {
+        dryRun: true,
+        externalCalls: 0,
+        reason: consentDecision.reason,
+        blocked: true
+      }
     };
   }
   if (outboundActionTypes.has(node.type)) {

@@ -5,6 +5,7 @@ import { NestFactory } from "@nestjs/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BroadcastsController } from "../controllers/broadcasts.controller.js";
 import { BroadcastService } from "./broadcast.service.js";
+import { OutboundConsentService } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const tenantId = "00000000-0000-4000-8000-000000000001";
@@ -97,6 +98,37 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("suppresses marketing broadcast sends when persisted opt-out blocks the recipient", async () => {
+    await withBroadcastRuntime(async ({ controller, outboundConsent, prisma }) => {
+      outboundConsent.setConsent({ optOut: true, doNotContact: false, suppressedReason: "customer_requested" });
+
+      const sendResult = await controller.sendNow("campaign-web", { platform: "webchat" }, tenantId);
+
+      expect(sendResult.sentMock).toBe(0);
+      expect(sendResult.skippedMock).toBe(2);
+      expect(sendResult.externalCalls).toEqual([]);
+      expect(sendResult.logs.every((log) => log.status === "skipped_mock")).toBe(true);
+      expect(sendResult.logs.some((log) => log.reason === "marketing_opt_out")).toBe(true);
+      expect(outboundConsent.recordBlocked).toHaveBeenCalledWith(expect.objectContaining({
+        action: "broadcast.outbound_blocked",
+        intent: "marketing",
+        reason: "marketing_opt_out",
+        context: expect.objectContaining({
+          tenantId,
+          contactId: "contact-web",
+          platform: "webchat",
+          channelAccountId: accountId("webchat")
+        })
+      }));
+      expect(prisma.broadcastSendLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          status: "skipped_mock",
+          reason: "marketing_opt_out"
+        })
+      }));
+    });
+  });
+
   it("does not expose another tenant's campaigns or audience", async () => {
     await withBroadcastRuntime(async ({ controller }) => {
       const otherCampaigns = await controller.listCampaigns(otherTenantId);
@@ -122,11 +154,13 @@ async function withBroadcastRuntime<T>(
 
 async function buildBroadcastRuntime() {
   const prisma = buildPrismaFake();
+  const outboundConsent = buildOutboundConsentFake();
 
   @Module({
     controllers: [BroadcastsController],
     providers: [
       BroadcastService,
+      { provide: OutboundConsentService, useValue: outboundConsent },
       { provide: PrismaService, useValue: prisma }
     ]
   })
@@ -136,8 +170,41 @@ async function buildBroadcastRuntime() {
   return {
     controller: app.get(BroadcastsController),
     service: app.get(BroadcastService),
+    outboundConsent,
     prisma,
     close: () => app.close()
+  };
+}
+
+function buildOutboundConsentFake() {
+  let consent = { optOut: false, doNotContact: false, suppressedReason: undefined as string | undefined };
+  return {
+    setConsent: (next: typeof consent) => {
+      consent = next;
+    },
+    getContext: vi.fn(async (input: Record<string, any>) => ({
+      tenantId: input.tenantId,
+      contactId: input.contactId,
+      customerId: input.contactId,
+      conversationId: "conv-web",
+      platform: input.platform,
+      channelAccountId: input.channelAccountId,
+      roomId: "room-webchat",
+      consent
+    })),
+    decide: vi.fn((value: typeof consent, intent: "support" | "marketing" | "automation") => {
+      if (value.doNotContact) return { blocked: true, reason: "do_not_contact" };
+      if ((intent === "marketing" || intent === "automation") && value.optOut) return { blocked: true, reason: "marketing_opt_out" };
+      return { blocked: false, reason: null };
+    }),
+    recordBlocked: vi.fn(async (input: Record<string, any>) => ({
+      id: "audit-blocked",
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      metadata: { blockedReason: input.reason, externalCalls: 0 },
+      createdAt: new Date("2026-05-21T05:10:00.000Z")
+    }))
   };
 }
 

@@ -27,6 +27,7 @@ import {
   type UpdateBroadcastSegmentRequest
 } from "@ai-omni/shared";
 import { Prisma } from "@prisma/client";
+import { OutboundConsentService } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 const supportedMockStatuses = new Set<BroadcastSendLogStatus>(["queued_mock", "sent_mock", "skipped_mock", "failed_mock"]);
@@ -109,7 +110,10 @@ type AudienceCandidate = BroadcastAudiencePreviewRecipient & {
 
 @Injectable()
 export class BroadcastService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(OutboundConsentService) private readonly outboundConsent: OutboundConsentService
+  ) {}
 
   async listCampaigns(tenantId: string) {
     const campaigns = await this.prisma.broadcastCampaign.findMany({
@@ -276,6 +280,50 @@ export class BroadcastService {
 
   async sendTest(tenantId: string, campaignId: string, request: BroadcastSendTestRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
+    if (request.contactId) {
+      const context = await this.outboundConsent.getContext({
+        tenantId,
+        contactId: request.contactId,
+        contactIdentityId: request.contactIdentityId,
+        platform: request.platform ?? campaign.channelPlatform,
+        channelAccountId: campaign.channelAccountId
+      });
+      const decision = this.outboundConsent.decide(context.consent, "marketing");
+      if (decision.blocked && decision.reason) {
+        await this.outboundConsent.recordBlocked({
+          action: "broadcast.outbound_blocked",
+          intent: "marketing",
+          entityType: "broadcast_campaign",
+          entityId: campaignId,
+          context,
+          reason: decision.reason,
+          metadata: {
+            campaignId,
+            sendType: "test"
+          }
+        });
+        const blockedLog = await this.prisma.broadcastSendLog.create({
+          data: {
+            tenantId,
+            campaignId,
+            contactId: request.contactId,
+            contactIdentityId: request.contactIdentityId ?? null,
+            platform: context.platform,
+            channelAccountId: context.channelAccountId,
+            status: "skipped_mock",
+            reason: decision.reason,
+            payloadJson: toInputJson({
+              dryRun: true,
+              suppressed: true,
+              blockedReason: decision.reason,
+              safeMockOnly: true,
+              externalCalls: 0
+            })
+          }
+        });
+        return buildSendResult(campaignId, [mapSendLog(blockedLog)]);
+      }
+    }
     const log = await this.prisma.broadcastSendLog.create({
       data: {
         tenantId,
@@ -303,7 +351,32 @@ export class BroadcastService {
     const logs: BroadcastSendLog[] = [];
 
     for (const candidate of candidates) {
-      const status: BroadcastSendLogStatus = candidate.contactIdentityId ? "sent_mock" : "skipped_mock";
+      const context = await this.outboundConsent.getContext({
+        tenantId,
+        contactId: candidate.contactId,
+        contactIdentityId: candidate.contactIdentityId,
+        platform: candidate.platform,
+        channelAccountId: candidate.channelAccountId
+      });
+      const decision = this.outboundConsent.decide(context.consent, "marketing");
+      if (decision.blocked && decision.reason) {
+        await this.outboundConsent.recordBlocked({
+          action: "broadcast.outbound_blocked",
+          intent: "marketing",
+          entityType: "broadcast_campaign",
+          entityId: campaignId,
+          context,
+          reason: decision.reason,
+          metadata: {
+            campaignId,
+            sendType: "send_now",
+            contactIdentityId: candidate.contactIdentityId
+          }
+        });
+      }
+      const status: BroadcastSendLogStatus = decision.blocked
+        ? "skipped_mock"
+        : candidate.contactIdentityId ? "sent_mock" : "skipped_mock";
       const log = await this.prisma.broadcastSendLog.create({
         data: {
           tenantId,
@@ -313,11 +386,15 @@ export class BroadcastService {
           platform: candidate.platform,
           channelAccountId: candidate.channelAccountId,
           status,
-          reason: status === "sent_mock"
+          reason: decision.blocked
+            ? decision.reason
+            : status === "sent_mock"
             ? "safe mock send only; no external outbound call was made"
             : candidate.reason ?? "no supported identity for campaign platform",
           payloadJson: toInputJson({
             message: candidate.renderedMessage,
+            suppressed: decision.blocked,
+            blockedReason: decision.reason,
             safeMockOnly: true,
             externalCalls: 0
           })

@@ -288,10 +288,11 @@ function buildService() {
       return saved;
     })
   };
+  const outboundConsent = buildOutboundConsentFake(audit);
   const outboundQueue = { enqueueOutbound: vi.fn(async () => null), enqueueAi: vi.fn(async () => null) };
   const realtime = { conversationUpdated: vi.fn() };
-  const service = new ConversationService(prisma as never, audit as never, outboundQueue as never, realtime as never);
-  return { service, prisma, audit, outboundQueue, notes, tasks, assignments, conversations, users, auditLogs, statusHistory, roomKnowledgeBaseLinks };
+  const service = new ConversationService(prisma as never, audit as never, outboundConsent as never, outboundQueue as never, realtime as never);
+  return { service, prisma, audit, outboundConsent, outboundQueue, notes, tasks, assignments, conversations, users, auditLogs, statusHistory, roomKnowledgeBaseLinks };
 }
 
 describe("ConversationService core API", () => {
@@ -552,6 +553,32 @@ describe("ConversationService core API", () => {
       })
     }));
     expect(JSON.stringify(auditLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer/i);
+  });
+
+  it("blocks manual replies when Customer 360 do-not-contact is enabled and preserves context in audit", async () => {
+    const { service, outboundConsent, audit, auditLogs } = buildService();
+    outboundConsent.setConsent({ optOut: false, doNotContact: true, suppressedReason: "do_not_contact" });
+
+    await expect(service.sendAgentMessage(tenantId, "conv-web-need-human", demoAgentUserId, {
+      text: "แอดมินรับเรื่องแล้วครับ",
+      senderType: "agent"
+    })).rejects.toMatchObject({ status: 403 });
+
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "outbound.blocked",
+      tenantId,
+      conversationId: "conv-web-need-human",
+      metadata: expect.objectContaining({
+        blockedReason: "do_not_contact",
+        customerId: "conv-web-need-human-contact",
+        contactId: "conv-web-need-human-contact",
+        platform: "webchat",
+        channelAccountId: webchatAccountId,
+        roomId: webchatRoomId,
+        externalCalls: 0
+      })
+    }));
+    expect(auditLogs.some((log) => log.action === "outbound.mock_queued")).toBe(false);
   });
 
   it.each([
@@ -1411,10 +1438,56 @@ function buildIngestService() {
 
   const prisma = { $transaction: vi.fn(async (callback) => callback(tx)) };
   const audit = { record: vi.fn(async () => null) };
+  const outboundConsent = buildOutboundConsentFake(audit);
   const outboundQueue = { enqueueOutbound: vi.fn(async () => null), enqueueAi: vi.fn(async () => null) };
   const realtime = { conversationUpdated: vi.fn() };
-  const service = new ConversationService(prisma as never, audit as never, outboundQueue as never, realtime as never);
+  const service = new ConversationService(prisma as never, audit as never, outboundConsent as never, outboundQueue as never, realtime as never);
   return { service, store, tx, outboundQueue, realtime };
+}
+
+function buildOutboundConsentFake(audit: { record: (input: Record<string, any>) => Promise<unknown> }) {
+  let consent = { optOut: false, doNotContact: false, suppressedReason: undefined as string | undefined };
+  return {
+    setConsent: (next: typeof consent) => {
+      consent = next;
+    },
+    getConversationContext: vi.fn(async (input: Record<string, any>) => ({
+      tenantId: input.tenantId,
+      contactId: input.contactId,
+      customerId: input.contactId,
+      conversationId: input.conversationId,
+      platform: input.platform,
+      channelAccountId: input.channelAccountId,
+      roomId: input.roomId,
+      consent
+    })),
+    decide: vi.fn((value: typeof consent, intent: "support" | "marketing" | "automation") => {
+      if (value.doNotContact) return { blocked: true, reason: "do_not_contact" };
+      if ((intent === "marketing" || intent === "automation") && value.optOut) return { blocked: true, reason: "marketing_opt_out" };
+      return { blocked: false, reason: null };
+    }),
+    recordBlocked: vi.fn(async (input: Record<string, any>) => audit.record({
+      tenantId: input.context.tenantId,
+      actorUserId: input.actorUserId,
+      conversationId: input.context.conversationId,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      metadata: {
+        blocked: true,
+        blockedReason: input.reason,
+        tenantId: input.context.tenantId,
+        customerId: input.context.customerId,
+        contactId: input.context.contactId,
+        conversationId: input.context.conversationId,
+        platform: input.context.platform,
+        channelAccountId: input.context.channelAccountId,
+        roomId: input.context.roomId,
+        externalCalls: 0,
+        ...(input.metadata ?? {})
+      }
+    }))
+  };
 }
 
 function room(id: string, platform: string, displayName: string, channelAccountId: string, count: number) {
