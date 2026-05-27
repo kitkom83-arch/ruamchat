@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
+import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastCampaignDetail, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSendLogFilters, BroadcastSendLogPage, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
@@ -28,9 +28,10 @@ import {
   deleteBroadcastSegment,
   duplicateBroadcastCampaign,
   getBroadcastCampaigns,
+  getBroadcastCampaignDetail,
   getBroadcastComplianceHistory,
   getBroadcastSegments,
-  getBroadcastSendLogs,
+  getBroadcastSendLogPage,
   previewBroadcastAudience,
   scheduleBroadcastCampaign,
   sendBroadcastNow,
@@ -85,6 +86,7 @@ const navItems: Array<{ label: string; icon: LucideIcon; href: string; active?: 
 const ruleFields: BroadcastSegmentRule["field"][] = ["platform", "roomId", "tag", "leadStatus", "ownerAgent", "lastSeenDays", "hasOpenTask", "priority", "slaStatus", "aiStatus", "status"];
 const operators: BroadcastSegmentRule["operator"][] = ["equals", "not_equals", "contains", "not_contains", "in", "not_in", "greater_than", "less_than", "exists", "not_exists"];
 const complianceReasonCodes = ["all", "do_not_contact", "marketing_opt_out", "consent_missing", "consent_revoked", "unknown_unsafe"] as const;
+const sendLogStatusCodes = ["all", "previewed", "dry_run", "suppressed", "blocked", "queued_mock", "mock_sent", "sent_mock", "skipped_mock", "failed_mock", "failed_safe", "unknown_safe"] as const;
 
 export default function BroadcastsPage() {
   return isApiMode() ? <ApiBroadcastsPage /> : <MockBroadcastsPage />;
@@ -420,6 +422,7 @@ function MockBroadcastsPage() {
 
 function ApiBroadcastsPage() {
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
+  const [campaignDetail, setCampaignDetail] = useState<BroadcastCampaignDetail | null>(null);
   const [segments, setSegments] = useState<BroadcastSegment[]>([]);
   const [sendLogs, setSendLogs] = useState<BroadcastSendLog[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<BroadcastComplianceLog[]>([]);
@@ -431,8 +434,20 @@ function ApiBroadcastsPage() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [campaignDetailError, setCampaignDetailError] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [complianceError, setComplianceError] = useState<string | null>(null);
+  const [deliveryPage, setDeliveryPage] = useState(emptySendLogPage());
   const [compliancePage, setCompliancePage] = useState({ limit: 50, offset: 0, total: 0, nextOffset: null as number | null });
+  const [deliveryFilters, setDeliveryFilters] = useState({
+    status: "all" as typeof sendLogStatusCodes[number],
+    platform: "all" as Platform | "all",
+    channelAccountId: "",
+    roomId: "",
+    conversationId: "",
+    contactId: "",
+    limit: 50
+  });
   const [complianceFilters, setComplianceFilters] = useState({
     reason: "all" as typeof complianceReasonCodes[number],
     platform: "all" as Platform | "all",
@@ -467,10 +482,11 @@ function ApiBroadcastsPage() {
     totalCampaigns: campaigns.length,
     scheduled: campaigns.filter((campaign) => campaign.status === "scheduled").length,
     archived: campaigns.filter((campaign) => campaign.status === "archived").length,
-    sentMock: sendLogs.filter((log) => log.status === "sent_mock").length,
+    sentMock: sendLogs.filter((log) => log.status === "sent_mock" || log.status === "mock_sent").length,
     queuedMock: sendLogs.filter((log) => log.status === "queued_mock").length,
     skippedMock: sendLogs.filter((log) => log.status === "skipped_mock").length,
-    failedMock: sendLogs.filter((log) => log.status === "failed_mock").length,
+    failedMock: sendLogs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length,
+    blocked: sendLogs.filter((log) => log.status === "blocked" || log.status === "suppressed").length,
     previewCount: preview.length,
     suppressedPreview: previewStats?.suppressedCount ?? 0,
     compliance: complianceLogs.length
@@ -495,23 +511,32 @@ function ApiBroadcastsPage() {
 
   useEffect(() => {
     if (!selectedCampaignId) return;
+    void loadCampaignDetail(selectedCampaignId);
+    void loadDeliveryLogs(selectedCampaignId, deliveryFilters, 0);
     void loadComplianceHistory(selectedCampaignId, complianceFilters, 0);
   }, [selectedCampaignId]);
 
   async function refreshApiData(preferredCampaignId = selectedCampaignId) {
     setLoading(true);
     setError(null);
+    setCampaignDetailError(null);
+    setDeliveryError(null);
     try {
       const [apiCampaigns, apiSegments] = await Promise.all([
         getBroadcastCampaigns(),
         getBroadcastSegments()
       ]);
-      const logs = (await Promise.all(apiCampaigns.map((campaign) => getBroadcastSendLogs(campaign.id)))).flat();
       const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
-      const auditPage = nextSelected ? await getBroadcastComplianceHistory(buildComplianceQuery(nextSelected, complianceFilters, 0)) : emptyCompliancePage();
+      const [detail, logPage, auditPage] = await Promise.all([
+        nextSelected ? getBroadcastCampaignDetail(nextSelected) : Promise.resolve(null),
+        getBroadcastSendLogPage(nextSelected ? buildSendLogQuery(nextSelected, deliveryFilters, 0) : { limit: deliveryFilters.limit, offset: 0 }),
+        nextSelected ? getBroadcastComplianceHistory(buildComplianceQuery(nextSelected, complianceFilters, 0)) : emptyCompliancePage()
+      ]);
       setCampaigns(apiCampaigns);
+      setCampaignDetail(detail);
       setSegments(apiSegments);
-      setSendLogs(logs);
+      setSendLogs(logPage.items);
+      setDeliveryPage(logPage);
       setComplianceLogs(auditPage.items);
       setCompliancePage({
         limit: auditPage.limit,
@@ -529,18 +554,63 @@ function ApiBroadcastsPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Broadcast API request failed";
       setCampaigns([]);
+      setCampaignDetail(null);
       setSegments([]);
       setSendLogs([]);
+      setDeliveryPage(emptySendLogPage(deliveryFilters.limit));
       setComplianceLogs([]);
       setCompliancePage({ limit: complianceFilters.limit, offset: 0, total: 0, nextOffset: null });
       setPreview([]);
       setSuppressedRecipients([]);
       setPreviewStats(null);
       setError(message);
+      setCampaignDetailError("Campaign detail API error: no API campaign detail loaded.");
+      setDeliveryError("Delivery logs API error: no API delivery rows loaded.");
       setComplianceError("Compliance API error: no API compliance rows loaded.");
       setStatusText("Broadcast API mode error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadCampaignDetail(campaignId = selectedCampaignId) {
+    if (!campaignId) {
+      setCampaignDetail(null);
+      return;
+    }
+    setCampaignDetailError(null);
+    try {
+      const detail = await getBroadcastCampaignDetail(campaignId);
+      setCampaignDetail(detail);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Campaign detail API request failed";
+      setCampaignDetail(null);
+      setCampaignDetailError(`Campaign detail API error: ${message}`);
+      setStatusText("Campaign detail API error");
+    }
+  }
+
+  async function loadDeliveryLogs(campaignId = selectedCampaignId, filters = deliveryFilters, offset = 0) {
+    if (!campaignId) {
+      setSendLogs([]);
+      setDeliveryPage(emptySendLogPage(filters.limit));
+      return;
+    }
+    setWorking(true);
+    setDeliveryError(null);
+    try {
+      const page = await getBroadcastSendLogPage(buildSendLogQuery(campaignId, filters, offset));
+      setSendLogs(page.items);
+      setDeliveryPage(page);
+      setStatusText(`Delivery logs API returned ${page.items.length} of ${page.total} row(s)`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delivery logs API request failed";
+      setSendLogs([]);
+      setDeliveryPage(emptySendLogPage(filters.limit));
+      setDeliveryError(`Delivery logs API error: ${message}`);
+      setStatusText("Delivery logs API error");
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -585,6 +655,20 @@ function ApiBroadcastsPage() {
     };
     setComplianceFilters(next);
     void loadComplianceHistory(selectedCampaign?.id ?? selectedCampaignId, next, 0);
+  }
+
+  function resetDeliveryFilters() {
+    const next = {
+      status: "all" as typeof sendLogStatusCodes[number],
+      platform: "all" as Platform | "all",
+      channelAccountId: "",
+      roomId: "",
+      conversationId: "",
+      contactId: "",
+      limit: 50
+    };
+    setDeliveryFilters(next);
+    void loadDeliveryLogs(selectedCampaign?.id ?? selectedCampaignId, next, 0);
   }
 
   async function runApiAction(label: string, action: () => Promise<string | void>, refreshCampaignId = selectedCampaignId) {
@@ -700,6 +784,18 @@ function ApiBroadcastsPage() {
             <span>{error}</span>
           </section>
         )}
+        {campaignDetailError && (
+          <section className="errorBand">
+            <strong>Campaign detail API error</strong>
+            <span>{campaignDetailError}</span>
+          </section>
+        )}
+        {deliveryError && (
+          <section className="errorBand">
+            <strong>Delivery logs API error</strong>
+            <span>{deliveryError}</span>
+          </section>
+        )}
         {complianceError && (
           <section className="errorBand">
             <strong>Compliance API error</strong>
@@ -715,6 +811,7 @@ function ApiBroadcastsPage() {
           <MiniStat label="queued_mock" value={apiMetrics.queuedMock} />
           <MiniStat label="skipped_mock" value={apiMetrics.skippedMock} />
           <MiniStat label="failed_mock" value={apiMetrics.failedMock} />
+          <MiniStat label="Blocked" value={apiMetrics.blocked} />
           <MiniStat label="Preview" value={apiMetrics.previewCount} />
           <MiniStat label="Suppressed" value={apiMetrics.suppressedPreview} />
           <MiniStat label="Compliance" value={apiMetrics.compliance} />
@@ -833,7 +930,34 @@ function ApiBroadcastsPage() {
           <section className="broadcastPanel">
             <div className="blockHeader"><ClipboardCheck size={18} /><h2>Selected send logs</h2></div>
             <div className="miniList">
-              {selectedLogs.slice(0, 10).map((log) => <p key={log.id}>{log.status} / {log.platform} / {log.channelAccountId ?? "-"} / {log.reason ?? "-"}</p>)}
+              <strong>Campaign detail API</strong>
+              {campaignDetail ? (
+                <>
+                  <p>{campaignDetail.name ?? campaignDetail.title ?? campaignDetail.campaignId} / {campaignDetail.status} / externalCalls {campaignDetail.externalCalls}</p>
+                  <p>Campaign {campaignDetail.campaignId} / audience {campaignDetail.audienceCount ?? "-"} / suppressed {campaignDetail.suppressionCount ?? 0}</p>
+                  <p>Delivery total {campaignDetail.deliverySummary?.total ?? 0} / sent_mock {campaignDetail.deliverySummary?.sentMock ?? 0} / blocked {campaignDetail.deliverySummary?.blocked ?? 0} / unknown_safe {campaignDetail.deliverySummary?.unknownSafe ?? 0}</p>
+                </>
+              ) : (
+                <p>No campaign detail API row loaded.</p>
+              )}
+            </div>
+            <div className="broadcastFormGrid compact">
+              <label>Status<select value={deliveryFilters.status} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, status: event.target.value as typeof sendLogStatusCodes[number] })}>{sendLogStatusCodes.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
+              <label>Platform<select value={deliveryFilters.platform} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, platform: event.target.value as Platform | "all" })}><option value="all">all</option>{allBroadcastPlatforms.map((platform) => <option key={platform} value={platform}>{platform}</option>)}</select></label>
+              <label>Channel account<input value={deliveryFilters.channelAccountId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, channelAccountId: event.target.value })} /></label>
+              <label>Room<input value={deliveryFilters.roomId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, roomId: event.target.value })} /></label>
+              <label>Conversation<input value={deliveryFilters.conversationId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, conversationId: event.target.value })} /></label>
+              <label>Contact/customer<input value={deliveryFilters.contactId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, contactId: event.target.value })} /></label>
+              <label>Limit<select value={deliveryFilters.limit} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, limit: Number(event.target.value) })}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option><option value={200}>200</option></select></label>
+            </div>
+            <div className="broadcastActionRow">
+              <button type="button" onClick={() => void loadDeliveryLogs(selectedCampaign?.id ?? selectedCampaignId, deliveryFilters, 0)} disabled={working || !selectedCampaign}>Apply delivery filters</button>
+              <button type="button" onClick={resetDeliveryFilters} disabled={working || !selectedCampaign}>Clear delivery filters</button>
+              <button type="button" onClick={() => void loadDeliveryLogs(selectedCampaign?.id ?? selectedCampaignId, deliveryFilters, deliveryPage.nextOffset ?? 0)} disabled={working || deliveryPage.nextOffset === null}>Next delivery page</button>
+            </div>
+            <div className="miniList">
+              <p>Rows {deliveryPage.offset + selectedLogs.length} of {deliveryPage.total} / limit {deliveryPage.limit} / externalCalls {deliveryPage.externalCalls}</p>
+              {selectedLogs.slice(0, 10).map((log) => <p key={log.id}>{log.status} / tenant {log.tenantId} / campaign {log.campaignId} / customer {log.customerId ?? log.contactId ?? "-"} / conversation {log.conversationId ?? "-"} / {log.platform} / {log.channelAccountId ?? "-"} / room {log.roomId ?? "-"} / {log.reason ?? "-"} / externalCalls {log.externalCalls}</p>)}
               {selectedLogs.length === 0 && <p>No send logs returned for selected campaign.</p>}
             </div>
             <div className="miniList">
@@ -916,7 +1040,7 @@ function ApiBroadcastsPage() {
           <div className="deliveryGrid">
             <section>
               <strong>Recent API send logs</strong>
-              <div className="miniList">{sendLogs.slice(0, 8).map((log) => <p key={log.id}>{log.status} / {log.campaignId} / {log.platform} / {log.channelAccountId ?? "-"} / {log.reason ?? "-"}</p>)}</div>
+              <div className="miniList">{sendLogs.slice(0, 8).map((log) => <p key={log.id}>{log.status} / {log.campaignId} / {log.conversationId ?? "-"} / {log.customerId ?? log.contactId ?? "-"} / {log.platform} / {log.channelAccountId ?? "-"} / {log.roomId ?? "-"} / externalCalls {log.externalCalls}</p>)}</div>
             </section>
             <section>
               <strong>Compliance API history</strong>
@@ -979,6 +1103,43 @@ function buildComplianceQuery(
     ...(filters.contactId.trim() ? { contactId: filters.contactId.trim() } : {}),
     limit: filters.limit,
     offset
+  };
+}
+
+function buildSendLogQuery(
+  campaignId: string,
+  filters: {
+    status: typeof sendLogStatusCodes[number];
+    platform: Platform | "all";
+    channelAccountId: string;
+    roomId: string;
+    conversationId: string;
+    contactId: string;
+    limit: number;
+  },
+  offset: number
+): BroadcastSendLogFilters {
+  return {
+    campaignId,
+    ...(filters.status !== "all" ? { status: filters.status } : {}),
+    ...(filters.platform !== "all" ? { platform: filters.platform } : {}),
+    ...(filters.channelAccountId.trim() ? { channelAccountId: filters.channelAccountId.trim() } : {}),
+    ...(filters.roomId.trim() ? { roomId: filters.roomId.trim() } : {}),
+    ...(filters.conversationId.trim() ? { conversationId: filters.conversationId.trim() } : {}),
+    ...(filters.contactId.trim() ? { contactId: filters.contactId.trim() } : {}),
+    limit: filters.limit,
+    offset
+  };
+}
+
+function emptySendLogPage(limit = 50): BroadcastSendLogPage {
+  return {
+    items: [],
+    limit,
+    offset: 0,
+    total: 0,
+    nextOffset: null,
+    externalCalls: 0
   };
 }
 

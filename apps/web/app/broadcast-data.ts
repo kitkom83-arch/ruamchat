@@ -15,7 +15,7 @@ import type {
   DataMode,
   Platform
 } from "@ai-omni/shared";
-import { getBroadcastCampaigns, getBroadcastComplianceHistory, getBroadcastSegments, getBroadcastSendLogs } from "./api-client";
+import { getBroadcastCampaigns, getBroadcastComplianceHistory, getBroadcastSegments, getBroadcastSendLogPage } from "./api-client";
 import { mockContacts } from "./crm-data";
 import { mockConversations, platformRooms, type ConversationCard } from "./inbox-data";
 
@@ -179,7 +179,7 @@ export async function loadBroadcastBuilderData(mode: DataMode): Promise<Broadcas
     getBroadcastCampaigns(),
     getBroadcastSegments()
   ]);
-  const sendLogs = (await Promise.all(campaigns.map((campaign) => getBroadcastSendLogs(campaign.id)))).flat();
+  const sendLogs = (await getBroadcastSendLogPage({ limit: 200 })).items;
   const complianceLogs = (await getBroadcastComplianceHistory({ limit: 200 })).items;
   return {
     mode,

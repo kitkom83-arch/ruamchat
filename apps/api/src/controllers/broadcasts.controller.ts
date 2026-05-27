@@ -3,6 +3,7 @@ import {
   broadcastAudiencePreviewRequestSchema,
   broadcastComplianceFiltersSchema,
   broadcastSendTestRequestSchema,
+  broadcastSendLogFiltersSchema,
   createBroadcastCampaignRequestSchema,
   createBroadcastSegmentRequestSchema,
   scheduleBroadcastCampaignRequestSchema,
@@ -78,8 +79,20 @@ export class BroadcastsController {
     return this.broadcasts.sendNow(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
   }
 
+  @Get("send-logs")
+  async listSendLogPage(@Query() query: Record<string, unknown>, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.listSendLogPage(requireTenantId(tenant), broadcastSendLogFiltersSchema.parse(query));
+  }
+
   @Get("campaigns/:campaignId/send-logs")
-  async listSendLogs(@Param("campaignId") campaignId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+  async listSendLogs(
+    @Param("campaignId") campaignId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    if (Object.keys(query).length > 0) {
+      return this.broadcasts.listSendLogPage(requireTenantId(tenant), broadcastSendLogFiltersSchema.parse({ ...query, campaignId }));
+    }
     return this.broadcasts.listSendLogs(requireTenantId(tenant), campaignId);
   }
 

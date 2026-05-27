@@ -47,6 +47,26 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("returns tenant-owned safe campaign detail without raw content or provider config", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const detail = await controller.getCampaign("campaign-web", tenantId);
+
+      expect(detail).toMatchObject({
+        campaignId: "campaign-web",
+        name: "Web campaign",
+        title: "Web campaign",
+        status: "draft",
+        audienceCount: 1,
+        suppressionCount: 1,
+        externalCalls: 0
+      });
+      expect(detail.deliverySummary?.total).toBeGreaterThanOrEqual(1);
+      expect(detail.deliverySummary?.sentMock).toBeGreaterThanOrEqual(1);
+      expect(JSON.stringify(detail)).not.toMatch(/contentJson|payloadJson|message|accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+      await expect(controller.getCampaign("campaign-other", tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   it("lists, creates, updates, and deletes segments", async () => {
     await withBroadcastRuntime(async ({ controller }) => {
       const listed = await controller.listSegments(tenantId);
@@ -216,20 +236,84 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("filters paginated delivery rows by campaign and safe status while preserving conversation context", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const page = await controller.listSendLogPage({
+        campaignId: "campaign-web",
+        status: "sent_mock",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        conversationId: "conv-web",
+        contactId: "contact-web",
+        limit: "1",
+        offset: "0"
+      }, tenantId);
+
+      expect(page).toMatchObject({
+        limit: 1,
+        offset: 0,
+        total: 1,
+        nextOffset: null,
+        externalCalls: 0
+      });
+      expect(page.items[0]).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        contactIdentityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        status: "sent_mock",
+        externalCalls: 0
+      });
+      expect(page.items[0]).not.toHaveProperty("payloadJson");
+      expect(JSON.stringify(page)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|should-not-leak/i);
+      await expect(controller.listSendLogPage({ campaignId: "campaign-other" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it("normalizes suppressed delivery rows away from sent/provider success", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const page = await controller.listSendLogPage({
+        campaignId: "campaign-web",
+        status: "blocked",
+        limit: "10",
+        offset: "0"
+      }, tenantId);
+
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0]).toMatchObject({
+        status: "blocked",
+        reason: "do_not_contact",
+        campaignId: "campaign-web",
+        conversationId: "conv-web",
+        roomId: "room-webchat",
+        externalCalls: 0
+      });
+      expect(page.items[0]?.status).not.toMatch(/sent|provider/i);
+      expect(JSON.stringify(page)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|should-not-leak/i);
+    });
+  });
+
   it("schedules campaigns without sending and records send-test/send-now logs as safe mock only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await withBroadcastRuntime(async ({ controller, prisma }) => {
       const scheduled = await controller.scheduleCampaign("campaign-web", { scheduleAt: "2026-05-23T04:00:00.000Z" }, tenantId);
       const testResult = await controller.sendTest("campaign-web", { platform: "webchat", payloadJson: { source: "test" } }, tenantId);
       const sendResult = await controller.sendNow("campaign-web", { platform: "webchat" }, tenantId);
-      const logs = await controller.listSendLogs("campaign-web", tenantId);
+      const logs = await controller.listSendLogs("campaign-web", {}, tenantId);
+      const logItems = Array.isArray(logs) ? logs : logs.items;
 
       expect(scheduled.status).toBe("scheduled");
       expect(testResult.logs[0]?.status).toBe("sent_mock");
       expect(sendResult.externalCalls).toEqual([]);
       expect(sendResult.logs.map((log) => log.status).sort()).toEqual(["sent_mock", "skipped_mock"]);
-      expect(logs.some((log) => log.status === "sent_mock")).toBe(true);
-      expect(logs.some((log) => log.status === "skipped_mock")).toBe(true);
+      expect(logItems.some((log) => log.status === "sent_mock")).toBe(true);
+      expect(logItems.some((log) => log.status === "skipped_mock")).toBe(true);
       expect(prisma.broadcastSendLog.create).toHaveBeenCalled();
       expect(fetchSpy).not.toHaveBeenCalled();
     });
@@ -372,7 +456,13 @@ function buildPrismaFake() {
     ])
   ];
   const logs = [
-    sendLog("log-seed", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "sent_mock")
+    sendLog("log-seed", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "sent_mock"),
+    sendLog("log-blocked", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "skipped_mock", "do_not_contact", { suppressed: true, blockedReason: "do_not_contact", accessToken: "should-not-leak" })
+  ];
+  const rooms = [
+    { id: "room-webchat", tenantId, platform: "webchat", channelAccountId: accountId("webchat") },
+    { id: "room-line", tenantId, platform: "line", channelAccountId: accountId("line") },
+    { id: "room-other", tenantId: otherTenantId, platform: "webchat", channelAccountId: accountId("webchat") }
   ];
   const auditLogs = [
     {
@@ -533,7 +623,16 @@ function buildPrismaFake() {
     },
     broadcastSendLog: {
       findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
-        logs.filter((item) => item.tenantId === where.tenantId && item.campaignId === where.campaignId)
+        logs.filter((item) =>
+          item.tenantId === where.tenantId &&
+          (where.campaignId === undefined || item.campaignId === where.campaignId) &&
+          (where.platform === undefined || item.platform === where.platform) &&
+          (where.channelAccountId === undefined || item.channelAccountId === where.channelAccountId) &&
+          (where.contactId === undefined || item.contactId === where.contactId) &&
+          (where.status?.in === undefined || where.status.in.includes(item.status)) &&
+          (where.createdAt?.gte === undefined || item.createdAt >= where.createdAt.gte) &&
+          (where.createdAt?.lte === undefined || item.createdAt <= where.createdAt.lte)
+        )
       ),
       create: vi.fn(async ({ data }: { data: Record<string, any> }) => {
         const saved = {
@@ -553,6 +652,22 @@ function buildPrismaFake() {
         return saved;
       })
     },
+    room: {
+      findFirst: vi.fn(async ({ where }: { where: Record<string, any> }) =>
+        rooms.find((item) =>
+          item.tenantId === where.tenantId &&
+          (where.id === undefined || item.id === where.id) &&
+          (where.platform === undefined || item.platform === where.platform) &&
+          (where.channelAccountId === undefined || item.channelAccountId === where.channelAccountId)
+        ) ?? null
+      ),
+      findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
+        rooms.filter((item) =>
+          item.tenantId === where.tenantId &&
+          (!where.OR || where.OR.some((clause: Record<string, any>) => item.platform === clause.platform && item.channelAccountId === clause.channelAccountId))
+        )
+      )
+    },
     contact: {
       findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
         contacts.filter((item) => item.tenantId === where.tenantId)
@@ -565,6 +680,21 @@ function buildPrismaFake() {
       findFirst: vi.fn(async ({ where }: { where: Record<string, any> }) => {
         const conversations = contacts.flatMap((item) => item.conversations.map((conversation) => ({ ...conversation, tenantId: item.tenantId, contactId: item.id })));
         return conversations.find((item) => item.tenantId === where.tenantId && item.id === where.id) ?? null;
+      }),
+      findMany: vi.fn(async ({ where }: { where: Record<string, any> }) => {
+        const conversations = contacts.flatMap((item) => item.conversations.map((conversation) => ({
+          ...conversation,
+          tenantId: item.tenantId,
+          contactId: item.id,
+          contactIdentityId: item.identities[0]?.id ?? "identity-missing"
+        })));
+        return conversations.filter((item) =>
+          item.tenantId === where.tenantId &&
+          (!where.OR || where.OR.some((clause: Record<string, any>) =>
+            clause.contactId?.in?.includes(item.contactId) ||
+            clause.contactIdentityId?.in?.includes(item.contactIdentityId)
+          ))
+        );
       })
     },
     auditLog: {
@@ -612,7 +742,17 @@ function segment(id: string, tenant: string, name: string, rules: Array<Record<s
   };
 }
 
-function sendLog(id: string, tenant: string, campaignId: string, contactId: string, identityId: string, platform: "webchat" | "telegram" | "line" | "facebook" | "instagram", status: string) {
+function sendLog(
+  id: string,
+  tenant: string,
+  campaignId: string,
+  contactId: string,
+  identityId: string,
+  platform: "webchat" | "telegram" | "line" | "facebook" | "instagram",
+  status: string,
+  reason = "seed safe mock only",
+  payloadJson: Record<string, unknown> | null = { safeMockOnly: true }
+) {
   return {
     id,
     tenantId: tenant,
@@ -622,8 +762,8 @@ function sendLog(id: string, tenant: string, campaignId: string, contactId: stri
     platform,
     channelAccountId: accountId(platform),
     status,
-    reason: "seed safe mock only",
-    payloadJson: { safeMockOnly: true },
+    reason,
+    payloadJson,
     createdAt: new Date("2026-05-21T04:00:00.000Z")
   };
 }

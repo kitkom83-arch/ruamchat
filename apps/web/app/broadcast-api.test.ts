@@ -6,8 +6,10 @@ import {
   deleteBroadcastSegment,
   dryRunBroadcastAudience,
   duplicateBroadcastCampaign,
+  getBroadcastCampaignDetail,
   getBroadcastComplianceHistory,
   getBroadcastComplianceLogs,
+  getBroadcastSendLogPage,
   previewBroadcastAudience,
   sendBroadcastNow,
   sendBroadcastTest,
@@ -37,7 +39,7 @@ describe("Broadcast API mode frontend", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([campaignResponse("campaign-api")]))
       .mockResolvedValueOnce(jsonResponse([segmentResponse("segment-api")]))
-      .mockResolvedValueOnce(jsonResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")]))
+      .mockResolvedValueOnce(jsonResponse(sendLogPageResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")])))
       .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-api", "campaign-api")])));
 
     const data = await loadBroadcastBuilderData("api");
@@ -49,7 +51,8 @@ describe("Broadcast API mode frontend", () => {
     expect(data.complianceLogs[0]?.reason).toBe("do_not_contact");
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/broadcasts/campaigns");
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/segments");
-    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/broadcasts/campaigns/campaign-api/send-logs");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/broadcasts/send-logs?");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("limit=200");
     expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/broadcasts/compliance-logs?limit=200");
   });
 
@@ -57,6 +60,61 @@ describe("Broadcast API mode frontend", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "broadcasts unavailable" }, 503));
 
     await expect(loadBroadcastBuilderData("api")).rejects.toThrow("API request failed (503): broadcasts unavailable");
+  });
+
+  it("loads safe campaign detail and filtered delivery log pages with tenant headers", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(campaignDetailResponse("campaign-api")))
+      .mockResolvedValueOnce(jsonResponse(sendLogPageResponse([sendLogResponse("log-api", "campaign-api", "blocked", {
+        reason: "do_not_contact",
+        contactIdentityId: "identity-api"
+      })], { limit: 25, total: 1 })));
+
+    const detail = await getBroadcastCampaignDetail("campaign-api");
+    const page = await getBroadcastSendLogPage({
+      campaignId: "campaign-api",
+      status: "blocked",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      conversationId: "conv-api",
+      contactId: "contact-api",
+      limit: 25,
+      offset: 0
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api", expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": defaultTenantId })
+    }));
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/send-logs?");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("campaignId=campaign-api");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("status=blocked");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("roomId=room-webchat");
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": defaultTenantId })
+    }));
+    expect(detail).toMatchObject({
+      campaignId: "campaign-api",
+      name: "API Broadcast",
+      status: "draft",
+      suppressionCount: 1,
+      externalCalls: 0
+    });
+    expect(page.items[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      campaignId: "campaign-api",
+      customerId: "contact-api",
+      contactId: "contact-api",
+      conversationId: "conv-api",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      status: "blocked",
+      reason: "do_not_contact",
+      externalCalls: 0
+    });
+    expect(page).toMatchObject({ limit: 25, offset: 0, total: 1, nextOffset: null, externalCalls: 0 });
+    expect(JSON.stringify({ detail, page })).not.toMatch(/contentJson|accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
   });
 
   it("calls campaign, audience, send, log, and segment endpoints", async () => {
@@ -265,19 +323,70 @@ function segmentResponse(id: string, name = "API Segment") {
   };
 }
 
-function sendLogResponse(id: string, campaignId: string, status: "queued_mock" | "sent_mock" | "skipped_mock" | "failed_mock") {
+function campaignDetailResponse(id: string) {
+  return {
+    campaignId: id,
+    name: "API Broadcast",
+    title: "API Broadcast",
+    status: "draft",
+    createdAt: "2026-05-21T04:00:00.000Z",
+    updatedAt: "2026-05-21T04:00:00.000Z",
+    audienceCount: 1,
+    suppressionCount: 1,
+    deliverySummary: {
+      total: 1,
+      previewed: 0,
+      dryRun: 0,
+      suppressed: 0,
+      blocked: 1,
+      queuedMock: 0,
+      mockSent: 0,
+      sentMock: 0,
+      skippedMock: 0,
+      failedMock: 0,
+      failedSafe: 0,
+      unknownSafe: 0,
+      externalCalls: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function sendLogResponse(
+  id: string,
+  campaignId: string,
+  status: "queued_mock" | "sent_mock" | "skipped_mock" | "failed_mock" | "blocked" | "mock_sent" | "failed_safe" | "unknown_safe",
+  overrides: Record<string, unknown> = {}
+) {
   return {
     id,
     tenantId: "00000000-0000-4000-8000-000000000001",
     campaignId,
+    customerId: "contact-api",
     contactId: "contact-api",
     contactIdentityId: status === "skipped_mock" ? null : "identity-api",
+    conversationId: "conv-api",
     platform: "webchat",
     channelAccountId: "00000000-0000-4000-8000-000000000020",
+    roomId: "room-webchat",
     status,
     reason: "safe mock only",
-    payloadJson: { safeMockOnly: true },
-    createdAt: "2026-05-21T04:00:00.000Z"
+    externalCalls: 0,
+    timestamp: "2026-05-21T04:00:00.000Z",
+    createdAt: "2026-05-21T04:00:00.000Z",
+    ...overrides
+  };
+}
+
+function sendLogPageResponse(items: Array<ReturnType<typeof sendLogResponse>>, overrides: Record<string, unknown> = {}) {
+  return {
+    items,
+    limit: 50,
+    offset: 0,
+    total: items.length,
+    nextOffset: null,
+    externalCalls: 0,
+    ...overrides
   };
 }
 

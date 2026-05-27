@@ -844,7 +844,22 @@ export const broadcastTemplateSchema = z.object({
 }).strict();
 export type BroadcastTemplate = z.infer<typeof broadcastTemplateSchema>;
 
-export const broadcastRecipientStatusSchema = z.enum(["pending", "queued_mock", "sent_mock", "failed_mock", "skipped", "skipped_mock"]);
+export const broadcastSafeDeliveryStatusValues = [
+  "previewed",
+  "dry_run",
+  "suppressed",
+  "blocked",
+  "queued_mock",
+  "mock_sent",
+  "sent_mock",
+  "skipped",
+  "skipped_mock",
+  "failed_mock",
+  "failed_safe",
+  "unknown_safe"
+] as const;
+
+export const broadcastRecipientStatusSchema = z.enum(["pending", ...broadcastSafeDeliveryStatusValues]);
 export type BroadcastRecipientStatus = z.infer<typeof broadcastRecipientStatusSchema>;
 
 export const broadcastRecipientSchema = z.object({
@@ -880,7 +895,7 @@ export const broadcastRunSchema = z.object({
 }).strict();
 export type BroadcastRun = z.infer<typeof broadcastRunSchema>;
 
-export const broadcastDeliveryEventStatusSchema = z.enum(["queued_mock", "sent_mock", "failed_mock", "skipped", "skipped_mock"]);
+export const broadcastDeliveryEventStatusSchema = z.enum(broadcastSafeDeliveryStatusValues);
 export type BroadcastDeliveryEventStatus = z.infer<typeof broadcastDeliveryEventStatusSchema>;
 
 export const broadcastDeliveryEventSchema = z.object({
@@ -1050,23 +1065,85 @@ export const broadcastSendTestRequestSchema = z.object({
 }).strict().default({});
 export type BroadcastSendTestRequest = z.input<typeof broadcastSendTestRequestSchema>;
 
-export const broadcastSendLogStatusSchema = z.enum(["queued_mock", "sent_mock", "skipped_mock", "failed_mock"]);
+export const broadcastSendLogStatusSchema = z.enum(broadcastSafeDeliveryStatusValues);
 export type BroadcastSendLogStatus = z.infer<typeof broadcastSendLogStatusSchema>;
 
 export const broadcastSendLogSchema = z.object({
   id: z.string().min(1),
   tenantId: z.string().min(1),
   campaignId: z.string().min(1),
+  customerId: z.string().min(1).nullable().optional(),
   contactId: z.string().min(1).nullable(),
   contactIdentityId: z.string().min(1).nullable(),
+  conversationId: z.string().min(1).nullable().optional(),
   platform: platformSchema,
   channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable().optional(),
   status: broadcastSendLogStatusSchema,
   reason: z.string().nullable(),
-  payloadJson: z.unknown().nullable(),
-  createdAt: z.string().datetime()
+  externalCalls: z.literal(0).default(0),
+  timestamp: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  payloadJson: z.unknown().nullable().optional()
 }).strict();
 export type BroadcastSendLog = z.infer<typeof broadcastSendLogSchema>;
+
+export const broadcastSendLogFiltersSchema = z.object({
+  campaignId: z.string().min(1).optional(),
+  status: broadcastSendLogStatusSchema.optional(),
+  platform: platformSchema.optional(),
+  channelAccountId: z.string().min(1).optional(),
+  roomId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional(),
+  contactId: z.string().min(1).optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+}).strict();
+export type BroadcastSendLogFilters = z.input<typeof broadcastSendLogFiltersSchema>;
+
+export const broadcastSendLogPageSchema = z.object({
+  items: z.array(broadcastSendLogSchema).default([]),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  nextOffset: z.number().int().nonnegative().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastSendLogPage = z.infer<typeof broadcastSendLogPageSchema>;
+
+export const broadcastCampaignDeliverySummarySchema = z.object({
+  total: z.number().int().nonnegative(),
+  previewed: z.number().int().nonnegative().default(0),
+  dryRun: z.number().int().nonnegative().default(0),
+  suppressed: z.number().int().nonnegative().default(0),
+  blocked: z.number().int().nonnegative().default(0),
+  queuedMock: z.number().int().nonnegative().default(0),
+  mockSent: z.number().int().nonnegative().default(0),
+  sentMock: z.number().int().nonnegative().default(0),
+  skippedMock: z.number().int().nonnegative().default(0),
+  failedMock: z.number().int().nonnegative().default(0),
+  failedSafe: z.number().int().nonnegative().default(0),
+  unknownSafe: z.number().int().nonnegative().default(0),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastCampaignDeliverySummary = z.infer<typeof broadcastCampaignDeliverySummarySchema>;
+
+export const broadcastCampaignDetailSchema = z.object({
+  campaignId: z.string().min(1),
+  name: z.string().min(1).optional(),
+  title: z.string().min(1).optional(),
+  status: broadcastCampaignStatusSchema,
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+  audienceCount: z.number().int().nonnegative().nullable().optional(),
+  suppressionCount: z.number().int().nonnegative().optional(),
+  deliverySummary: broadcastCampaignDeliverySummarySchema.optional(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastCampaignDetail = z.infer<typeof broadcastCampaignDetailSchema>;
 
 export const broadcastSendResultSchema = z.object({
   campaignId: z.string().min(1),
