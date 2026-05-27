@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   broadcastCampaignStatusSchema,
+  broadcastComplianceFiltersSchema,
   broadcastContentJsonSchema,
   broadcastSendLogStatusSchema,
   broadcastSegmentRuleSchema,
@@ -12,6 +13,7 @@ import {
   type BroadcastAudiencePreviewRecipient,
   type BroadcastAudiencePreviewRequest,
   type BroadcastCampaign,
+  type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
   type BroadcastContentJson,
   type BroadcastSegment,
@@ -446,18 +448,45 @@ export class BroadcastService {
   }
 
   async listComplianceLogs(tenantId: string, campaignId: string) {
-    await this.ensureCampaign(tenantId, campaignId);
+    const page = await this.listComplianceHistory(tenantId, { campaignId, limit: 200, offset: 0 });
+    return page.items;
+  }
+
+  async listComplianceHistory(tenantId: string, filters: BroadcastComplianceFilters = {}) {
+    const parsed = broadcastComplianceFiltersSchema.parse(filters);
+    await this.validateComplianceFilterOwnership(tenantId, parsed);
     const logs = await this.prisma.auditLog.findMany({
-      where: {
-        tenantId,
-        entityType: "broadcast_campaign",
-        entityId: campaignId,
-        action: { in: ["broadcast.recipient_suppressed", "broadcast.outbound_blocked"] }
-      },
+      where: buildComplianceAuditWhere(tenantId, parsed),
       orderBy: { createdAt: "desc" },
-      take: 200
+      take: 1000
     });
-    return logs.map((log) => mapComplianceLog(log, campaignId)).filter((log): log is BroadcastComplianceLog => Boolean(log));
+    const filtered = logs
+      .map((log) => mapComplianceLog(log, parsed.campaignId ?? null))
+      .filter((log): log is BroadcastComplianceLog => Boolean(log))
+      .filter((log) => matchesComplianceFilters(log, parsed));
+    const items = filtered.slice(parsed.offset, parsed.offset + parsed.limit);
+    const nextOffset = parsed.offset + items.length < filtered.length ? parsed.offset + items.length : null;
+    return {
+      items,
+      limit: parsed.limit,
+      offset: parsed.offset,
+      total: filtered.length,
+      nextOffset,
+      externalCalls: 0
+    };
+  }
+
+  private async validateComplianceFilterOwnership(tenantId: string, filters: ReturnType<typeof broadcastComplianceFiltersSchema.parse>) {
+    if (filters.campaignId) await this.ensureCampaign(tenantId, filters.campaignId);
+    if (filters.conversationId) {
+      const conversation = await this.prisma.conversation.findFirst({ where: { tenantId, id: filters.conversationId } });
+      if (!conversation) throw new NotFoundException("Conversation not found");
+    }
+    const contactId = filters.contactId ?? filters.customerId;
+    if (contactId) {
+      const contact = await this.prisma.contact.findFirst({ where: { tenantId, id: contactId } });
+      if (!contact) throw new NotFoundException("Contact not found");
+    }
   }
 
   private async ensureCampaign(tenantId: string, campaignId: string) {
@@ -847,7 +876,40 @@ function safeSuppressionReason(reason: string): BroadcastSuppressionReason {
   return "unknown_unsafe";
 }
 
-function mapComplianceLog(log: BroadcastComplianceAuditRecord, campaignId: string): BroadcastComplianceLog | null {
+function buildComplianceAuditWhere(
+  tenantId: string,
+  filters: ReturnType<typeof broadcastComplianceFiltersSchema.parse>
+): Prisma.AuditLogWhereInput {
+  return {
+    tenantId,
+    entityType: "broadcast_campaign",
+    ...(filters.campaignId ? { entityId: filters.campaignId } : {}),
+    ...(filters.conversationId ? { conversationId: filters.conversationId } : {}),
+    action: { in: ["broadcast.recipient_suppressed", "broadcast.outbound_blocked"] },
+    ...(filters.from || filters.to
+      ? {
+          createdAt: {
+            ...(filters.from ? { gte: new Date(filters.from) } : {}),
+            ...(filters.to ? { lte: new Date(filters.to) } : {})
+          }
+        }
+      : {})
+  };
+}
+
+function matchesComplianceFilters(log: BroadcastComplianceLog, filters: ReturnType<typeof broadcastComplianceFiltersSchema.parse>) {
+  if (filters.campaignId && log.campaignId !== filters.campaignId) return false;
+  if (filters.reason && log.reason !== filters.reason) return false;
+  if (filters.platform && log.platform !== filters.platform) return false;
+  if (filters.channelAccountId && log.channelAccountId !== filters.channelAccountId) return false;
+  if (filters.roomId && log.roomId !== filters.roomId) return false;
+  if (filters.conversationId && log.conversationId !== filters.conversationId) return false;
+  if (filters.customerId && log.customerId !== filters.customerId) return false;
+  if (filters.contactId && log.contactId !== filters.contactId) return false;
+  return true;
+}
+
+function mapComplianceLog(log: BroadcastComplianceAuditRecord, campaignId: string | null): BroadcastComplianceLog | null {
   const metadata = readObject(log.metadataJson ?? log.metadata);
   const parsedPlatform = platformSchema.safeParse(metadata.platform);
   if (!parsedPlatform.success) return null;

@@ -178,6 +178,44 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("filters paginated compliance rows by safe reason and preserves platform/account/room context", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const page = await controller.listComplianceHistory({
+        campaignId: "campaign-web",
+        reason: "do_not_contact",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        conversationId: "conv-web",
+        contactId: "contact-web",
+        limit: "1",
+        offset: "0"
+      }, tenantId);
+
+      expect(page).toMatchObject({
+        limit: 1,
+        offset: 0,
+        total: 1,
+        nextOffset: null,
+        externalCalls: 0
+      });
+      expect(page.items[0]).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        reason: "do_not_contact",
+        externalCalls: 0
+      });
+      expect(JSON.stringify(page)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+      await expect(controller.listComplianceHistory({ campaignId: "campaign-other" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   it("schedules campaigns without sending and records send-test/send-now logs as safe mock only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await withBroadcastRuntime(async ({ controller, prisma }) => {
@@ -380,6 +418,27 @@ function buildPrismaFake() {
         externalCalls: 0
       },
       createdAt: new Date("2026-05-21T05:12:00.000Z")
+    },
+    {
+      id: "audit-suppressed-line",
+      tenantId,
+      conversationId: "conv-line",
+      action: "broadcast.recipient_suppressed",
+      entityType: "broadcast_campaign",
+      entityId: "campaign-line",
+      metadata: null,
+      metadataJson: {
+        campaignId: "campaign-line",
+        customerId: "contact-line",
+        contactId: "contact-line",
+        conversationId: "conv-line",
+        platform: "line",
+        channelAccountId: accountId("line"),
+        roomId: "room-line",
+        blockedReason: "marketing_opt_out",
+        externalCalls: 0
+      },
+      createdAt: new Date("2026-05-21T05:11:00.000Z")
     }
   ];
   const contacts = [
@@ -497,14 +556,24 @@ function buildPrismaFake() {
     contact: {
       findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
         contacts.filter((item) => item.tenantId === where.tenantId)
+      ),
+      findFirst: vi.fn(async ({ where }: { where: Record<string, any> }) =>
+        contacts.find((item) => item.tenantId === where.tenantId && item.id === where.id) ?? null
       )
+    },
+    conversation: {
+      findFirst: vi.fn(async ({ where }: { where: Record<string, any> }) => {
+        const conversations = contacts.flatMap((item) => item.conversations.map((conversation) => ({ ...conversation, tenantId: item.tenantId, contactId: item.id })));
+        return conversations.find((item) => item.tenantId === where.tenantId && item.id === where.id) ?? null;
+      })
     },
     auditLog: {
       findMany: vi.fn(async ({ where }: { where: Record<string, any> }) =>
         auditLogs.filter((item) =>
           item.tenantId === where.tenantId &&
           item.entityType === where.entityType &&
-          item.entityId === where.entityId &&
+          (where.entityId === undefined || item.entityId === where.entityId) &&
+          (where.conversationId === undefined || item.conversationId === where.conversationId) &&
           (!where.action?.in || where.action.in.includes(item.action))
         )
       )
