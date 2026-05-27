@@ -6,6 +6,7 @@ import {
   deleteBroadcastSegment,
   dryRunBroadcastAudience,
   duplicateBroadcastCampaign,
+  getBroadcastComplianceHistory,
   getBroadcastComplianceLogs,
   previewBroadcastAudience,
   sendBroadcastNow,
@@ -37,7 +38,7 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse([campaignResponse("campaign-api")]))
       .mockResolvedValueOnce(jsonResponse([segmentResponse("segment-api")]))
       .mockResolvedValueOnce(jsonResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")]))
-      .mockResolvedValueOnce(jsonResponse([complianceLogResponse("audit-api", "campaign-api")]));
+      .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-api", "campaign-api")])));
 
     const data = await loadBroadcastBuilderData("api");
 
@@ -49,7 +50,7 @@ describe("Broadcast API mode frontend", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/broadcasts/campaigns");
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/segments");
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/broadcasts/campaigns/campaign-api/send-logs");
-    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/broadcasts/campaigns/campaign-api/compliance-logs");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/broadcasts/compliance-logs?limit=200");
   });
 
   it("surfaces API errors instead of silently falling back to mock broadcast data", async () => {
@@ -83,6 +84,7 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "sent_mock")))
       .mockResolvedValueOnce(jsonResponse(sendResultResponse("campaign-created", "skipped_mock")))
       .mockResolvedValueOnce(jsonResponse([complianceLogResponse("audit-created", "campaign-created")]))
+      .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-filtered", "campaign-created")], { limit: 25, total: 1 })))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Created Segment")))
       .mockResolvedValueOnce(jsonResponse({ ...segmentResponse("segment-created", "Updated Segment"), estimatedCount: 3 }))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Updated Segment")));
@@ -96,6 +98,17 @@ describe("Broadcast API mode frontend", () => {
     const testResult = await sendBroadcastTest(created.id, { platform: "webchat", payloadJson: { source: "test" } });
     const sendNow = await sendBroadcastNow(created.id, { platform: "webchat" });
     const complianceLogs = await getBroadcastComplianceLogs(created.id);
+    const compliancePage = await getBroadcastComplianceHistory({
+      campaignId: created.id,
+      reason: "do_not_contact",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      conversationId: "conv-blocked",
+      contactId: "contact-blocked",
+      limit: 25,
+      offset: 0
+    });
     const segment = await createBroadcastSegment({ name: "Created Segment", rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }] });
     const updatedSegment = await updateBroadcastSegment(segment.id, { name: "Updated Segment", estimatedCount: 3 });
     const deletedSegment = await deleteBroadcastSegment(segment.id);
@@ -117,6 +130,13 @@ describe("Broadcast API mode frontend", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/send-now", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/compliance-logs", expect.objectContaining({
       headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" })
+    }));
+    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("/broadcasts/compliance-logs?");
+    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("campaignId=campaign-created");
+    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("reason=do_not_contact");
+    expect(String(fetchMock.mock.calls[9]?.[0])).toContain("platform=webchat");
+    expect(fetchMock.mock.calls[9]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": defaultTenantId })
     }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/segment-created", expect.objectContaining({ method: "PATCH" }));
@@ -154,6 +174,20 @@ describe("Broadcast API mode frontend", () => {
       channelAccountId: "00000000-0000-4000-8000-000000000020",
       roomId: "room-webchat",
       reason: "do_not_contact",
+      externalCalls: 0
+    });
+    expect(compliancePage).toMatchObject({
+      limit: 25,
+      offset: 0,
+      total: 1,
+      nextOffset: null,
+      externalCalls: 0
+    });
+    expect(compliancePage.items[0]).toMatchObject({
+      reason: "do_not_contact",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
       externalCalls: 0
     });
     expect(JSON.stringify(complianceLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
@@ -262,6 +296,18 @@ function complianceLogResponse(id: string, campaignId: string) {
     action: "broadcast.recipient_suppressed",
     createdAt: "2026-05-21T04:10:00.000Z",
     externalCalls: 0
+  };
+}
+
+function complianceLogPageResponse(items: Array<ReturnType<typeof complianceLogResponse>>, overrides: Record<string, unknown> = {}) {
+  return {
+    items,
+    limit: 50,
+    offset: 0,
+    total: items.length,
+    nextOffset: null,
+    externalCalls: 0,
+    ...overrides
   };
 }
 

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
+import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
@@ -28,7 +28,7 @@ import {
   deleteBroadcastSegment,
   duplicateBroadcastCampaign,
   getBroadcastCampaigns,
-  getBroadcastComplianceLogs,
+  getBroadcastComplianceHistory,
   getBroadcastSegments,
   getBroadcastSendLogs,
   previewBroadcastAudience,
@@ -84,6 +84,7 @@ const navItems: Array<{ label: string; icon: LucideIcon; href: string; active?: 
 
 const ruleFields: BroadcastSegmentRule["field"][] = ["platform", "roomId", "tag", "leadStatus", "ownerAgent", "lastSeenDays", "hasOpenTask", "priority", "slaStatus", "aiStatus", "status"];
 const operators: BroadcastSegmentRule["operator"][] = ["equals", "not_equals", "contains", "not_contains", "in", "not_in", "greater_than", "less_than", "exists", "not_exists"];
+const complianceReasonCodes = ["all", "do_not_contact", "marketing_opt_out", "consent_missing", "consent_revoked", "unknown_unsafe"] as const;
 
 export default function BroadcastsPage() {
   return isApiMode() ? <ApiBroadcastsPage /> : <MockBroadcastsPage />;
@@ -430,6 +431,17 @@ function ApiBroadcastsPage() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+  const [compliancePage, setCompliancePage] = useState({ limit: 50, offset: 0, total: 0, nextOffset: null as number | null });
+  const [complianceFilters, setComplianceFilters] = useState({
+    reason: "all" as typeof complianceReasonCodes[number],
+    platform: "all" as Platform | "all",
+    channelAccountId: "",
+    roomId: "",
+    conversationId: "",
+    contactId: "",
+    limit: 50
+  });
   const [statusText, setStatusText] = useState("Broadcast API mode loading");
   const [campaignForm, setCampaignForm] = useState({
     name: "API broadcast draft",
@@ -450,7 +462,7 @@ function ApiBroadcastsPage() {
 
   const selectedCampaign = campaigns.find((item) => item.id === selectedCampaignId) ?? campaigns[0];
   const selectedLogs = selectedCampaign ? sendLogs.filter((log) => log.campaignId === selectedCampaign.id) : [];
-  const selectedComplianceLogs = selectedCampaign ? complianceLogs.filter((log) => log.campaignId === selectedCampaign.id) : [];
+  const selectedComplianceLogs = selectedCampaign ? complianceLogs.filter((log) => log.campaignId === selectedCampaign.id) : complianceLogs;
   const apiMetrics = useMemo(() => ({
     totalCampaigns: campaigns.length,
     scheduled: campaigns.filter((campaign) => campaign.status === "scheduled").length,
@@ -481,6 +493,11 @@ function ApiBroadcastsPage() {
     });
   }, [selectedCampaign?.id]);
 
+  useEffect(() => {
+    if (!selectedCampaignId) return;
+    void loadComplianceHistory(selectedCampaignId, complianceFilters, 0);
+  }, [selectedCampaignId]);
+
   async function refreshApiData(preferredCampaignId = selectedCampaignId) {
     setLoading(true);
     setError(null);
@@ -489,18 +506,23 @@ function ApiBroadcastsPage() {
         getBroadcastCampaigns(),
         getBroadcastSegments()
       ]);
-      const [logs, auditRows] = await Promise.all([
-        Promise.all(apiCampaigns.map((campaign) => getBroadcastSendLogs(campaign.id))).then((items) => items.flat()),
-        Promise.all(apiCampaigns.map((campaign) => getBroadcastComplianceLogs(campaign.id))).then((items) => items.flat())
-      ]);
+      const logs = (await Promise.all(apiCampaigns.map((campaign) => getBroadcastSendLogs(campaign.id)))).flat();
+      const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
+      const auditPage = nextSelected ? await getBroadcastComplianceHistory(buildComplianceQuery(nextSelected, complianceFilters, 0)) : emptyCompliancePage();
       setCampaigns(apiCampaigns);
       setSegments(apiSegments);
       setSendLogs(logs);
-      setComplianceLogs(auditRows);
+      setComplianceLogs(auditPage.items);
+      setCompliancePage({
+        limit: auditPage.limit,
+        offset: auditPage.offset,
+        total: auditPage.total,
+        nextOffset: auditPage.nextOffset
+      });
+      setComplianceError(null);
       setPreview([]);
       setSuppressedRecipients([]);
       setPreviewStats(null);
-      const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
       setSelectedCampaignId(nextSelected);
       setSelectedSegmentId((current) => apiSegments.find((segment) => segment.id === current)?.id ?? apiSegments[0]?.id ?? "");
       setStatusText(`API mode loaded ${apiCampaigns.length} campaigns and ${apiSegments.length} segments`);
@@ -510,14 +532,59 @@ function ApiBroadcastsPage() {
       setSegments([]);
       setSendLogs([]);
       setComplianceLogs([]);
+      setCompliancePage({ limit: complianceFilters.limit, offset: 0, total: 0, nextOffset: null });
       setPreview([]);
       setSuppressedRecipients([]);
       setPreviewStats(null);
       setError(message);
+      setComplianceError("Compliance API error: no API compliance rows loaded.");
       setStatusText("Broadcast API mode error");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadComplianceHistory(campaignId = selectedCampaignId, filters = complianceFilters, offset = 0) {
+    if (!campaignId) {
+      setComplianceLogs([]);
+      setCompliancePage({ limit: filters.limit, offset: 0, total: 0, nextOffset: null });
+      return;
+    }
+    setWorking(true);
+    setComplianceError(null);
+    try {
+      const page = await getBroadcastComplianceHistory(buildComplianceQuery(campaignId, filters, offset));
+      setComplianceLogs(page.items);
+      setCompliancePage({
+        limit: page.limit,
+        offset: page.offset,
+        total: page.total,
+        nextOffset: page.nextOffset
+      });
+      setStatusText(`Compliance API returned ${page.items.length} of ${page.total} row(s)`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Compliance API request failed";
+      setComplianceLogs([]);
+      setCompliancePage({ limit: filters.limit, offset: 0, total: 0, nextOffset: null });
+      setComplianceError(message);
+      setStatusText("Compliance API error");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function resetComplianceFilters() {
+    const next = {
+      reason: "all" as typeof complianceReasonCodes[number],
+      platform: "all" as Platform | "all",
+      channelAccountId: "",
+      roomId: "",
+      conversationId: "",
+      contactId: "",
+      limit: 50
+    };
+    setComplianceFilters(next);
+    void loadComplianceHistory(selectedCampaign?.id ?? selectedCampaignId, next, 0);
   }
 
   async function runApiAction(label: string, action: () => Promise<string | void>, refreshCampaignId = selectedCampaignId) {
@@ -631,6 +698,12 @@ function ApiBroadcastsPage() {
           <section className="errorBand">
             <strong>Broadcast API error</strong>
             <span>{error}</span>
+          </section>
+        )}
+        {complianceError && (
+          <section className="errorBand">
+            <strong>Compliance API error</strong>
+            <span>{complianceError}</span>
           </section>
         )}
 
@@ -765,8 +838,9 @@ function ApiBroadcastsPage() {
             </div>
             <div className="miniList">
               <strong>Compliance history</strong>
+              <p>Rows {compliancePage.offset + selectedComplianceLogs.length} of {compliancePage.total} / limit {compliancePage.limit}</p>
               {selectedComplianceLogs.slice(0, 8).map((log) => (
-                <p key={log.id}>{log.reason} / {log.platform} / {log.channelAccountId ?? "-"} / {log.roomId ?? "-"} / externalCalls {log.externalCalls}</p>
+                <p key={log.id}>{log.reason} / {log.campaignId ?? "-"} / {log.conversationId ?? "-"} / {log.platform} / {log.channelAccountId ?? "-"} / {log.roomId ?? "-"} / externalCalls {log.externalCalls}</p>
               ))}
               {selectedComplianceLogs.length === 0 && <p>No compliance API rows returned for selected campaign.</p>}
             </div>
@@ -784,6 +858,20 @@ function ApiBroadcastsPage() {
               <p>{Object.entries(previewStats.suppressedByReason ?? {}).filter(([, count]) => count > 0).map(([reason, count]) => `${reason}: ${count}`).join(" / ") || "No suppressed recipients"}</p>
             </div>
           )}
+          <div className="broadcastFormGrid compact">
+            <label>Reason<select value={complianceFilters.reason} onChange={(event) => setComplianceFilters({ ...complianceFilters, reason: event.target.value as typeof complianceReasonCodes[number] })}>{complianceReasonCodes.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label>
+            <label>Platform<select value={complianceFilters.platform} onChange={(event) => setComplianceFilters({ ...complianceFilters, platform: event.target.value as Platform | "all" })}><option value="all">all</option>{allBroadcastPlatforms.map((platform) => <option key={platform} value={platform}>{platform}</option>)}</select></label>
+            <label>Channel account<input value={complianceFilters.channelAccountId} onChange={(event) => setComplianceFilters({ ...complianceFilters, channelAccountId: event.target.value })} /></label>
+            <label>Room<input value={complianceFilters.roomId} onChange={(event) => setComplianceFilters({ ...complianceFilters, roomId: event.target.value })} /></label>
+            <label>Conversation<input value={complianceFilters.conversationId} onChange={(event) => setComplianceFilters({ ...complianceFilters, conversationId: event.target.value })} /></label>
+            <label>Contact/customer<input value={complianceFilters.contactId} onChange={(event) => setComplianceFilters({ ...complianceFilters, contactId: event.target.value })} /></label>
+            <label>Limit<select value={complianceFilters.limit} onChange={(event) => setComplianceFilters({ ...complianceFilters, limit: Number(event.target.value) })}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option><option value={200}>200</option></select></label>
+          </div>
+          <div className="broadcastActionRow">
+            <button type="button" onClick={() => void loadComplianceHistory(selectedCampaign?.id ?? selectedCampaignId, complianceFilters, 0)} disabled={working || !selectedCampaign}>Apply compliance filters</button>
+            <button type="button" onClick={resetComplianceFilters} disabled={working || !selectedCampaign}>Clear filters</button>
+            <button type="button" onClick={() => void loadComplianceHistory(selectedCampaign?.id ?? selectedCampaignId, complianceFilters, compliancePage.nextOffset ?? 0)} disabled={working || compliancePage.nextOffset === null}>Next page</button>
+          </div>
           <div className="analyticsTableWrap">
             <table className="analyticsTable">
               <thead><tr><th>Contact</th><th>Conversation</th><th>Platform</th><th>Channel account</th><th>Room</th><th>Tags</th><th>Lead</th><th>Rendered message</th><th>Reason</th></tr></thead>
@@ -866,4 +954,41 @@ function parseRuleValue(value: string, field: BroadcastSegmentRule["field"]) {
   if (field === "lastSeenDays") return Number(value);
   if (value.includes(",")) return splitList(value);
   return value;
+}
+
+function buildComplianceQuery(
+  campaignId: string,
+  filters: {
+    reason: typeof complianceReasonCodes[number];
+    platform: Platform | "all";
+    channelAccountId: string;
+    roomId: string;
+    conversationId: string;
+    contactId: string;
+    limit: number;
+  },
+  offset: number
+): BroadcastComplianceFilters {
+  return {
+    campaignId,
+    ...(filters.reason !== "all" ? { reason: filters.reason } : {}),
+    ...(filters.platform !== "all" ? { platform: filters.platform } : {}),
+    ...(filters.channelAccountId.trim() ? { channelAccountId: filters.channelAccountId.trim() } : {}),
+    ...(filters.roomId.trim() ? { roomId: filters.roomId.trim() } : {}),
+    ...(filters.conversationId.trim() ? { conversationId: filters.conversationId.trim() } : {}),
+    ...(filters.contactId.trim() ? { contactId: filters.contactId.trim() } : {}),
+    limit: filters.limit,
+    offset
+  };
+}
+
+function emptyCompliancePage() {
+  return {
+    items: [] as BroadcastComplianceLog[],
+    limit: 50,
+    offset: 0,
+    total: 0,
+    nextOffset: null as number | null,
+    externalCalls: 0 as const
+  };
 }

@@ -19,7 +19,9 @@ import {
   contactIdentitySchema,
   contactSchema,
   conversationAuditLogSchema,
+  broadcastComplianceFiltersSchema,
   broadcastComplianceLogSchema,
+  broadcastComplianceLogPageSchema,
   conversationStatusHistorySchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastAudiencePreviewResultSchema,
@@ -98,7 +100,9 @@ import {
   type BroadcastAudiencePreviewRequest,
   type BroadcastAudiencePreviewResult,
   type BroadcastCampaign,
+  type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
+  type BroadcastComplianceLogPage,
   type BroadcastSendLog,
   type BroadcastSendResult,
   type BroadcastSendTestRequest,
@@ -384,6 +388,16 @@ export async function getBroadcastSendLogs(campaignId: string): Promise<Broadcas
 
 export async function getBroadcastComplianceLogs(campaignId: string): Promise<BroadcastComplianceLog[]> {
   return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/compliance-logs`, broadcastComplianceLogSchema.array());
+}
+
+export async function getBroadcastComplianceHistory(filters: BroadcastComplianceFilters = {}): Promise<BroadcastComplianceLogPage> {
+  const parsed = broadcastComplianceFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  });
+  const search = params.toString();
+  return request(`/broadcasts/compliance-logs${search ? `?${search}` : ""}`, broadcastComplianceLogPageSchema);
 }
 
 export async function getBroadcastSegments(): Promise<BroadcastSegment[]> {

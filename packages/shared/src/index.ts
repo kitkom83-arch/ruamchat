@@ -998,6 +998,32 @@ export const broadcastComplianceLogSchema = z.object({
 }).strict();
 export type BroadcastComplianceLog = z.infer<typeof broadcastComplianceLogSchema>;
 
+export const broadcastComplianceFiltersSchema = z.object({
+  campaignId: z.string().min(1).optional(),
+  reason: broadcastSuppressionReasonSchema.optional(),
+  platform: platformSchema.optional(),
+  channelAccountId: z.string().min(1).optional(),
+  roomId: z.string().min(1).optional(),
+  conversationId: z.string().min(1).optional(),
+  customerId: z.string().min(1).optional(),
+  contactId: z.string().min(1).optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0)
+}).strict();
+export type BroadcastComplianceFilters = z.input<typeof broadcastComplianceFiltersSchema>;
+
+export const broadcastComplianceLogPageSchema = z.object({
+  items: z.array(broadcastComplianceLogSchema).default([]),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  nextOffset: z.number().int().nonnegative().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastComplianceLogPage = z.infer<typeof broadcastComplianceLogPageSchema>;
+
 export const broadcastAudiencePreviewResultSchema = z.object({
   campaignId: z.string().min(1),
   total: z.number().int().nonnegative(),

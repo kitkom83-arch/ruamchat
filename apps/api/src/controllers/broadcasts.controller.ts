@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import {
   broadcastAudiencePreviewRequestSchema,
+  broadcastComplianceFiltersSchema,
   broadcastSendTestRequestSchema,
   createBroadcastCampaignRequestSchema,
   createBroadcastSegmentRequestSchema,
@@ -80,6 +81,11 @@ export class BroadcastsController {
   @Get("campaigns/:campaignId/send-logs")
   async listSendLogs(@Param("campaignId") campaignId: string, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.listSendLogs(requireTenantId(tenant), campaignId);
+  }
+
+  @Get("compliance-logs")
+  async listComplianceHistory(@Query() query: Record<string, unknown>, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.listComplianceHistory(requireTenantId(tenant), broadcastComplianceFiltersSchema.parse(query));
   }
 
   @Get("campaigns/:campaignId/compliance-logs")
