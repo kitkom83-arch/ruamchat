@@ -25,8 +25,11 @@ import {
   conversationStatusHistorySchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastAudiencePreviewResultSchema,
+  broadcastCampaignDetailSchema,
   broadcastCampaignSchema,
   broadcastSendLogSchema,
+  broadcastSendLogFiltersSchema,
+  broadcastSendLogPageSchema,
   broadcastSendResultSchema,
   broadcastSendTestRequestSchema,
   broadcastSegmentSchema,
@@ -100,9 +103,12 @@ import {
   type BroadcastAudiencePreviewRequest,
   type BroadcastAudiencePreviewResult,
   type BroadcastCampaign,
+  type BroadcastCampaignDetail,
   type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
   type BroadcastComplianceLogPage,
+  type BroadcastSendLogFilters,
+  type BroadcastSendLogPage,
   type BroadcastSendLog,
   type BroadcastSendResult,
   type BroadcastSendTestRequest,
@@ -318,8 +324,12 @@ export async function createBroadcastCampaign(payload: CreateBroadcastCampaignRe
   });
 }
 
-export async function getBroadcastCampaign(campaignId: string): Promise<BroadcastCampaign> {
-  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}`, broadcastCampaignSchema);
+export async function getBroadcastCampaign(campaignId: string): Promise<BroadcastCampaignDetail> {
+  return getBroadcastCampaignDetail(campaignId);
+}
+
+export async function getBroadcastCampaignDetail(campaignId: string): Promise<BroadcastCampaignDetail> {
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}`, broadcastCampaignDetailSchema);
 }
 
 export async function updateBroadcastCampaign(campaignId: string, payload: UpdateBroadcastCampaignRequest): Promise<BroadcastCampaign> {
@@ -384,6 +394,16 @@ export async function sendBroadcastNow(campaignId: string, payload: BroadcastAud
 
 export async function getBroadcastSendLogs(campaignId: string): Promise<BroadcastSendLog[]> {
   return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/send-logs`, broadcastSendLogSchema.array());
+}
+
+export async function getBroadcastSendLogPage(filters: BroadcastSendLogFilters = {}): Promise<BroadcastSendLogPage> {
+  const parsed = broadcastSendLogFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  });
+  const search = params.toString();
+  return request(`/broadcasts/send-logs${search ? `?${search}` : ""}`, broadcastSendLogPageSchema);
 }
 
 export async function getBroadcastComplianceLogs(campaignId: string): Promise<BroadcastComplianceLog[]> {

@@ -3,6 +3,7 @@ import {
   broadcastCampaignStatusSchema,
   broadcastComplianceFiltersSchema,
   broadcastContentJsonSchema,
+  broadcastSendLogFiltersSchema,
   broadcastSendLogStatusSchema,
   broadcastSegmentRuleSchema,
   createBroadcastCampaignRequestSchema,
@@ -13,11 +14,15 @@ import {
   type BroadcastAudiencePreviewRecipient,
   type BroadcastAudiencePreviewRequest,
   type BroadcastCampaign,
+  type BroadcastCampaignDeliverySummary,
+  type BroadcastCampaignDetail,
   type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
   type BroadcastContentJson,
   type BroadcastSegment,
   type BroadcastSegmentRule,
+  type BroadcastSendLogFilters,
+  type BroadcastSendLogPage,
   type BroadcastSendLog,
   type BroadcastSendLogStatus,
   type BroadcastSendResult,
@@ -35,7 +40,7 @@ import { Prisma } from "@prisma/client";
 import { OutboundConsentService, type OutboundConsentContext } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
-const supportedMockStatuses = new Set<BroadcastSendLogStatus>(["queued_mock", "sent_mock", "skipped_mock", "failed_mock"]);
+const safeSuppressionReasons = new Set(["do_not_contact", "marketing_opt_out", "consent_missing", "consent_revoked", "unknown_unsafe"]);
 
 type BroadcastCampaignRecord = {
   id: string;
@@ -76,6 +81,31 @@ type BroadcastSendLogRecord = {
   reason: string | null;
   payloadJson: Prisma.JsonValue | null;
   createdAt: Date;
+};
+
+type SendLogConversationContextRecord = {
+  id: string;
+  contactId: string;
+  contactIdentityId: string;
+  roomId: string;
+  lastMessageAt?: Date;
+  room: {
+    id?: string;
+    platform: Platform;
+    channelAccountId: string;
+  };
+};
+
+type SendLogRoomRecord = {
+  id: string;
+  platform: Platform;
+  channelAccountId: string;
+};
+
+type SendLogContext = {
+  customerId: string | null;
+  conversationId: string | null;
+  roomId: string | null;
 };
 
 type BroadcastComplianceAuditRecord = {
@@ -171,8 +201,9 @@ export class BroadcastService {
     return mapCampaign(campaign);
   }
 
-  async getCampaign(tenantId: string, campaignId: string) {
-    return mapCampaign(await this.ensureCampaign(tenantId, campaignId));
+  async getCampaign(tenantId: string, campaignId: string): Promise<BroadcastCampaignDetail> {
+    const campaign = await this.ensureCampaign(tenantId, campaignId);
+    return this.buildCampaignDetail(tenantId, campaign);
   }
 
   async updateCampaign(tenantId: string, campaignId: string, request: UpdateBroadcastCampaignRequest) {
@@ -438,13 +469,30 @@ export class BroadcastService {
   }
 
   async listSendLogs(tenantId: string, campaignId: string) {
-    await this.ensureCampaign(tenantId, campaignId);
+    const page = await this.listSendLogPage(tenantId, { campaignId, limit: 200, offset: 0 });
+    return page.items;
+  }
+
+  async listSendLogPage(tenantId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastSendLogPage> {
+    const parsed = broadcastSendLogFiltersSchema.parse(filters);
+    await this.validateSendLogFilterOwnership(tenantId, parsed);
     const logs = await this.prisma.broadcastSendLog.findMany({
-      where: { tenantId, campaignId },
+      where: buildSendLogWhere(tenantId, parsed),
       orderBy: { createdAt: "desc" },
-      take: 200
+      take: 1000
     });
-    return logs.map(mapSendLog);
+    const rows = await this.mapSendLogsWithContext(tenantId, logs as BroadcastSendLogRecord[]);
+    const filtered = rows.filter((log) => matchesSendLogFilters(log, parsed));
+    const items = filtered.slice(parsed.offset, parsed.offset + parsed.limit);
+    const nextOffset = parsed.offset + items.length < filtered.length ? parsed.offset + items.length : null;
+    return {
+      items,
+      limit: parsed.limit,
+      offset: parsed.offset,
+      total: filtered.length,
+      nextOffset,
+      externalCalls: 0
+    };
   }
 
   async listComplianceLogs(tenantId: string, campaignId: string) {
@@ -487,6 +535,73 @@ export class BroadcastService {
       const contact = await this.prisma.contact.findFirst({ where: { tenantId, id: contactId } });
       if (!contact) throw new NotFoundException("Contact not found");
     }
+  }
+
+  private async validateSendLogFilterOwnership(tenantId: string, filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>) {
+    if (filters.campaignId) await this.ensureCampaign(tenantId, filters.campaignId);
+    if (filters.conversationId) {
+      const conversation = await this.prisma.conversation.findFirst({ where: { tenantId, id: filters.conversationId } });
+      if (!conversation) throw new NotFoundException("Conversation not found");
+    }
+    if (filters.roomId) {
+      const room = await this.prisma.room.findFirst({ where: { tenantId, id: filters.roomId } });
+      if (!room) throw new NotFoundException("Room not found");
+    }
+    const contactId = filters.contactId ?? filters.customerId;
+    if (contactId) {
+      const contact = await this.prisma.contact.findFirst({ where: { tenantId, id: contactId } });
+      if (!contact) throw new NotFoundException("Contact not found");
+    }
+  }
+
+  private async buildCampaignDetail(tenantId: string, campaign: BroadcastCampaignRecord): Promise<BroadcastCampaignDetail> {
+    const segment = campaign.segmentId
+      ? await this.prisma.broadcastSegment.findFirst({ where: { id: campaign.segmentId, tenantId } }) as BroadcastSegmentRecord | null
+      : null;
+    const sendLogs = await this.listSendLogPage(tenantId, { campaignId: campaign.id, limit: 200, offset: 0 });
+    const compliance = await this.listComplianceHistory(tenantId, { campaignId: campaign.id, limit: 200, offset: 0 });
+    return {
+      campaignId: campaign.id,
+      name: campaign.name,
+      title: campaign.name,
+      status: broadcastCampaignStatusSchema.catch("draft").parse(campaign.status),
+      createdAt: campaign.createdAt.toISOString(),
+      updatedAt: campaign.updatedAt.toISOString(),
+      audienceCount: segment?.estimatedCount ?? null,
+      suppressionCount: compliance.total,
+      deliverySummary: summarizeSendLogs(sendLogs.items),
+      externalCalls: 0
+    };
+  }
+
+  private async mapSendLogsWithContext(tenantId: string, logs: BroadcastSendLogRecord[]) {
+    const contactIds = uniqueStrings(logs.map((log) => log.contactId));
+    const identityIds = uniqueStrings(logs.map((log) => log.contactIdentityId));
+    const conversations = contactIds.length > 0 || identityIds.length > 0
+      ? await this.prisma.conversation.findMany({
+          where: {
+            tenantId,
+            OR: [
+              ...(contactIds.length > 0 ? [{ contactId: { in: contactIds } }] : []),
+              ...(identityIds.length > 0 ? [{ contactIdentityId: { in: identityIds } }] : [])
+            ]
+          },
+          include: { room: true },
+          orderBy: { lastMessageAt: "desc" }
+        }) as SendLogConversationContextRecord[]
+      : [];
+    const roomKeys = uniqueRoomKeys(logs);
+    const rooms = roomKeys.length > 0
+      ? await this.prisma.room.findMany({
+          where: {
+            tenantId,
+            OR: roomKeys.map((key) => ({ platform: key.platform, channelAccountId: key.channelAccountId }))
+          },
+          select: { id: true, platform: true, channelAccountId: true }
+        }) as SendLogRoomRecord[]
+      : [];
+    const roomByKey = new Map(rooms.map((room) => [roomKey(room.platform, room.channelAccountId), room.id]));
+    return logs.map((log) => mapSendLog(log, findSendLogContext(log, conversations, roomByKey)));
   }
 
   private async ensureCampaign(tenantId: string, campaignId: string) {
@@ -685,21 +800,24 @@ function mapSegment(segment: BroadcastSegmentRecord): BroadcastSegment {
   };
 }
 
-function mapSendLog(log: BroadcastSendLogRecord): BroadcastSendLog {
+function mapSendLog(log: BroadcastSendLogRecord, context: SendLogContext = { customerId: log.contactId, conversationId: null, roomId: null }): BroadcastSendLog {
+  const timestamp = log.createdAt.toISOString();
   return {
     id: log.id,
     tenantId: log.tenantId,
     campaignId: log.campaignId,
+    customerId: context.customerId,
     contactId: log.contactId,
     contactIdentityId: log.contactIdentityId,
+    conversationId: context.conversationId,
     platform: platformSchema.catch("webchat").parse(log.platform),
     channelAccountId: log.channelAccountId,
-    status: supportedMockStatuses.has(log.status as BroadcastSendLogStatus)
-      ? broadcastSendLogStatusSchema.parse(log.status)
-      : "skipped_mock",
+    roomId: context.roomId,
+    status: normalizeSendLogStatus(log.status, log.reason, log.payloadJson),
     reason: log.reason,
-    payloadJson: log.payloadJson,
-    createdAt: log.createdAt.toISOString()
+    externalCalls: 0,
+    timestamp,
+    createdAt: timestamp
   };
 }
 
@@ -707,10 +825,10 @@ function buildSendResult(campaignId: string, logs: BroadcastSendLog[], screening
   return {
     campaignId,
     created: logs.length,
-    sentMock: logs.filter((log) => log.status === "sent_mock").length,
+    sentMock: logs.filter((log) => log.status === "sent_mock" || log.status === "mock_sent").length,
     queuedMock: logs.filter((log) => log.status === "queued_mock").length,
     skippedMock: logs.filter((log) => log.status === "skipped_mock").length,
-    failedMock: logs.filter((log) => log.status === "failed_mock").length,
+    failedMock: logs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length,
     candidateCount: screening?.candidates.length,
     eligibleCount: screening?.eligible.length,
     suppressedCount: screening?.suppressed.length,
@@ -719,6 +837,131 @@ function buildSendResult(campaignId: string, logs: BroadcastSendLog[], screening
     externalCalls: [],
     logs
   };
+}
+
+function summarizeSendLogs(logs: BroadcastSendLog[]): BroadcastCampaignDeliverySummary {
+  return {
+    total: logs.length,
+    previewed: logs.filter((log) => log.status === "previewed").length,
+    dryRun: logs.filter((log) => log.status === "dry_run").length,
+    suppressed: logs.filter((log) => log.status === "suppressed").length,
+    blocked: logs.filter((log) => log.status === "blocked").length,
+    queuedMock: logs.filter((log) => log.status === "queued_mock").length,
+    mockSent: logs.filter((log) => log.status === "mock_sent").length,
+    sentMock: logs.filter((log) => log.status === "sent_mock").length,
+    skippedMock: logs.filter((log) => log.status === "skipped_mock").length,
+    failedMock: logs.filter((log) => log.status === "failed_mock").length,
+    failedSafe: logs.filter((log) => log.status === "failed_safe").length,
+    unknownSafe: logs.filter((log) => log.status === "unknown_safe").length,
+    externalCalls: 0
+  };
+}
+
+function buildSendLogWhere(
+  tenantId: string,
+  filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>
+): Prisma.BroadcastSendLogWhereInput {
+  const dbStatuses = filters.status ? dbStatusesForSafeFilter(filters.status) : null;
+  return {
+    tenantId,
+    ...(filters.campaignId ? { campaignId: filters.campaignId } : {}),
+    ...(dbStatuses && dbStatuses.length > 0 ? { status: { in: dbStatuses } } : {}),
+    ...(filters.platform ? { platform: filters.platform } : {}),
+    ...(filters.channelAccountId ? { channelAccountId: filters.channelAccountId } : {}),
+    ...(filters.contactId || filters.customerId ? { contactId: filters.contactId ?? filters.customerId } : {}),
+    ...(filters.from || filters.to
+      ? {
+          createdAt: {
+            ...(filters.from ? { gte: new Date(filters.from) } : {}),
+            ...(filters.to ? { lte: new Date(filters.to) } : {})
+          }
+        }
+      : {})
+  };
+}
+
+function matchesSendLogFilters(log: BroadcastSendLog, filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>) {
+  if (filters.campaignId && log.campaignId !== filters.campaignId) return false;
+  if (filters.status && !safeStatusMatchesFilter(log.status, filters.status)) return false;
+  if (filters.platform && log.platform !== filters.platform) return false;
+  if (filters.channelAccountId && log.channelAccountId !== filters.channelAccountId) return false;
+  if (filters.roomId && log.roomId !== filters.roomId) return false;
+  if (filters.conversationId && log.conversationId !== filters.conversationId) return false;
+  if (filters.customerId && log.customerId !== filters.customerId) return false;
+  if (filters.contactId && log.contactId !== filters.contactId) return false;
+  return true;
+}
+
+function dbStatusesForSafeFilter(status: BroadcastSendLogStatus) {
+  if (status === "mock_sent") return ["sent_mock", "mock_sent"];
+  if (status === "sent_mock") return ["sent_mock", "mock_sent"];
+  if (status === "failed_safe") return ["failed_mock", "failed_safe"];
+  if (status === "failed_mock") return ["failed_mock", "failed_safe"];
+  if (status === "blocked" || status === "suppressed") return ["skipped_mock", "blocked", "suppressed"];
+  if (status === "unknown_safe") return null;
+  return [status];
+}
+
+function safeStatusMatchesFilter(actual: BroadcastSendLogStatus, expected: BroadcastSendLogStatus) {
+  if ((expected === "mock_sent" || expected === "sent_mock") && (actual === "mock_sent" || actual === "sent_mock")) return true;
+  if ((expected === "failed_safe" || expected === "failed_mock") && (actual === "failed_safe" || actual === "failed_mock")) return true;
+  return actual === expected;
+}
+
+function normalizeSendLogStatus(status: string, reason: string | null, payloadJson: Prisma.JsonValue | null): BroadcastSendLogStatus {
+  const raw = status.trim().toLowerCase();
+  if (raw === "previewed" || raw === "dry_run" || raw === "suppressed" || raw === "blocked" || raw === "queued_mock" || raw === "mock_sent" || raw === "sent_mock" || raw === "failed_mock" || raw === "failed_safe") {
+    return broadcastSendLogStatusSchema.parse(raw);
+  }
+  if (raw === "skipped" || raw === "skipped_mock") {
+    return isSuppressionOrBlockedLog(reason, payloadJson) ? "blocked" : "skipped_mock";
+  }
+  return "unknown_safe";
+}
+
+function isSuppressionOrBlockedLog(reason: string | null, payloadJson: Prisma.JsonValue | null) {
+  const payload = readObject(payloadJson);
+  const payloadReason = stringOrNull(payload.blockedReason) ?? stringOrNull(payload.reason);
+  return Boolean(
+    safeSuppressionReasons.has(String(reason ?? "")) ||
+    safeSuppressionReasons.has(String(payloadReason ?? "")) ||
+    payload.suppressed === true
+  );
+}
+
+function findSendLogContext(
+  log: BroadcastSendLogRecord,
+  conversations: SendLogConversationContextRecord[],
+  roomByKey: Map<string, string>
+): SendLogContext {
+  const conversation = conversations.find((item) =>
+    (log.contactIdentityId ? item.contactIdentityId === log.contactIdentityId : item.contactId === log.contactId) &&
+    item.room.platform === log.platform &&
+    (!log.channelAccountId || item.room.channelAccountId === log.channelAccountId)
+  );
+  const roomId = conversation?.roomId ?? (log.channelAccountId ? roomByKey.get(roomKey(log.platform, log.channelAccountId)) ?? null : null);
+  return {
+    customerId: log.contactId,
+    conversationId: conversation?.id ?? null,
+    roomId
+  };
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim()))));
+}
+
+function uniqueRoomKeys(logs: BroadcastSendLogRecord[]) {
+  const byKey = new Map<string, { platform: Platform; channelAccountId: string }>();
+  logs.forEach((log) => {
+    if (!log.channelAccountId) return;
+    byKey.set(roomKey(log.platform, log.channelAccountId), { platform: log.platform, channelAccountId: log.channelAccountId });
+  });
+  return Array.from(byKey.values());
+}
+
+function roomKey(platform: Platform, channelAccountId: string) {
+  return `${platform}:${channelAccountId}`;
 }
 
 function rulesFromSegment(segment: BroadcastSegmentRecord) {
