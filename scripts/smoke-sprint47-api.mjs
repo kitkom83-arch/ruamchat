@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { createServer } from "node:net";
 
 const baseUrl = (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const tenantId = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.TENANT_ID ?? "00000000-0000-4000-8000-000000000001";
@@ -9,6 +10,7 @@ let restoreTarget = null;
 
 async function main() {
   record("local API only", isLocalBaseUrl(baseUrl), baseUrl);
+  await verifyApiOffUnavailable();
 
   const health = await request("GET", "/health");
   record("GET /health", health.status === 200);
@@ -210,6 +212,37 @@ async function request(method, path, body, extraHeaders = {}) {
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
+}
+
+async function verifyApiOffUnavailable() {
+  const unavailableUrl = await reserveClosedLocalUrl();
+  let unavailable = false;
+
+  try {
+    const response = await fetch(unavailableUrl, { signal: AbortSignal.timeout(1000) });
+    unavailable = response.status >= 500;
+  } catch {
+    unavailable = true;
+  }
+
+  record("API-off unavailable PASS", unavailable);
+  if (unavailable) {
+    console.log("API-off unavailable PASS");
+  }
+}
+
+async function reserveClosedLocalUrl() {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  await new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+  return `http://127.0.0.1:${port}/health`;
 }
 
 function hasSafeCampaignDetail(value, campaignId) {
