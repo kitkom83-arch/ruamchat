@@ -299,6 +299,96 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
+  it("derives tenant-scoped campaign analytics from persisted safe delivery logs", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const analytics = await controller.getCampaignAnalytics("campaign-web", {
+        platform: "webchat",
+        channelAccountId: accountId("webchat")
+      }, tenantId);
+
+      expect(analytics).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        campaignName: "Web campaign",
+        filters: {
+          campaignId: "campaign-web",
+          platform: "webchat",
+          channelAccountId: accountId("webchat")
+        },
+        counts: {
+          total: 4,
+          queued: 1,
+          sent: 1,
+          delivered: 1,
+          providerSuccess: 1,
+          failed: 1,
+          blocked: 1,
+          externalCalls: 0
+        },
+        externalCalls: 0
+      });
+      expect(analytics.counts.sent).toBe(1);
+      expect(analytics.counts.providerSuccess).toBe(1);
+      expect(analytics.counts.sent).toBeLessThan(analytics.counts.total);
+      expect(analytics.contexts[0]).toMatchObject({
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        total: 4,
+        sent: 1,
+        blocked: 1
+      });
+      expect(JSON.stringify(analytics)).not.toMatch(/payloadJson|accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|should-not-leak/i);
+      await expect(controller.getCampaignAnalytics("campaign-other", {}, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it("exports filtered safe delivery rows with context and without provider payload fields", async () => {
+    await withBroadcastRuntime(async ({ controller }) => {
+      const sentExport = await controller.exportCampaignDelivery("campaign-web", {
+        status: "sent_mock",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        limit: "200",
+        offset: "0"
+      }, tenantId);
+      const failedExport = await controller.exportCampaignDelivery("campaign-web", {
+        status: "failed_mock",
+        limit: "200",
+        offset: "0"
+      }, tenantId);
+
+      expect(sentExport).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        rowCount: 1,
+        externalCalls: 0
+      });
+      expect(sentExport.rows).toHaveLength(sentExport.rowCount);
+      expect(sentExport.rows[0]).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        contactIdentityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        status: "sent_mock",
+        errorCategory: null,
+        errorMessage: null,
+        externalCalls: 0
+      });
+      expect(failedExport.rowCount).toBe(1);
+      expect(failedExport.rows[0]?.errorCategory).toBe("failed");
+      expect(failedExport.rows[0]?.errorMessage).not.toMatch(/Bearer|sk-/i);
+      expect(JSON.stringify({ sentExport, failedExport })).not.toMatch(/payloadJson|accessToken|refreshToken|authorization|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload|should-not-leak/i);
+      await expect(controller.exportCampaignDelivery("campaign-other", {}, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   it("schedules campaigns without sending and records send-test/send-now logs as safe mock only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await withBroadcastRuntime(async ({ controller, prisma }) => {
@@ -457,7 +547,10 @@ function buildPrismaFake() {
   ];
   const logs = [
     sendLog("log-seed", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "sent_mock"),
-    sendLog("log-blocked", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "skipped_mock", "do_not_contact", { suppressed: true, blockedReason: "do_not_contact", accessToken: "should-not-leak" })
+    sendLog("log-blocked", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "skipped_mock", "do_not_contact", { suppressed: true, blockedReason: "do_not_contact", accessToken: "should-not-leak" }),
+    sendLog("log-queued", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "queued_mock"),
+    sendLog("log-failed", tenantId, "campaign-web", "contact-web", "identity-web", "webchat", "failed_mock", "failed safe mock Bearer should-not-leak sk-should-not-leak", { providerRaw: "should-not-leak" }),
+    sendLog("log-line", tenantId, "campaign-line", "contact-line", "identity-line", "line", "sent_mock")
   ];
   const rooms = [
     { id: "room-webchat", tenantId, platform: "webchat", channelAccountId: accountId("webchat") },
@@ -769,6 +862,9 @@ function sendLog(
 }
 
 function contact(id: string, tenant: string, displayName: string, leadStatus: string, identities: ReturnType<typeof identity>[]) {
+  const primaryIdentity = identities[0] ?? identity("identity-fallback", "webchat", "fallback-user");
+  const platform = primaryIdentity.platform;
+  const conversationId = platform === "webchat" ? "conv-web" : `conv-${platform}`;
   return {
     id,
     tenantId: tenant,
@@ -782,16 +878,16 @@ function contact(id: string, tenant: string, displayName: string, leadStatus: st
     tags: [{ tag: { name: "pricing" } }],
     tasks: [{ status: "open" }],
     conversations: [{
-      id: "conv-web",
-      roomId: "room-webchat",
+      id: conversationId,
+      roomId: `room-${platform}`,
       priority: "high",
       status: "open",
       slaStatus: "ok",
       aiState: "need_human",
       lastMessageAt: new Date("2026-05-21T04:00:00.000Z"),
       room: {
-        platform: "webchat",
-        channelAccountId: accountId("webchat")
+        platform,
+        channelAccountId: accountId(platform)
       }
     }]
   };

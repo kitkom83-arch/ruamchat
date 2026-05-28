@@ -2,6 +2,8 @@ import type {
   AuditLog,
   BroadcastCampaign,
   BroadcastComplianceLog,
+  BroadcastCampaignAnalytics,
+  BroadcastDeliveryExport,
   BroadcastDeliveryEvent,
   BroadcastRecipient,
   BroadcastRecipientStatus,
@@ -15,7 +17,7 @@ import type {
   DataMode,
   Platform
 } from "@ai-omni/shared";
-import { getBroadcastCampaigns, getBroadcastComplianceHistory, getBroadcastSegments, getBroadcastSendLogPage } from "./api-client";
+import { getBroadcastCampaignAnalytics, getBroadcastCampaigns, getBroadcastComplianceHistory, getBroadcastDeliveryExport, getBroadcastSegments, getBroadcastSendLogPage } from "./api-client";
 import { mockContacts } from "./crm-data";
 import { mockConversations, platformRooms, type ConversationCard } from "./inbox-data";
 
@@ -40,6 +42,8 @@ export type BroadcastBuilderApiData = {
   store: BroadcastStore;
   sendLogs: BroadcastSendLog[];
   complianceLogs: BroadcastComplianceLog[];
+  analytics: BroadcastCampaignAnalytics | null;
+  deliveryExport: BroadcastDeliveryExport | null;
 };
 
 export type BroadcastBuilderData = BroadcastBuilderMockData | BroadcastBuilderApiData;
@@ -179,12 +183,18 @@ export async function loadBroadcastBuilderData(mode: DataMode): Promise<Broadcas
     getBroadcastCampaigns(),
     getBroadcastSegments()
   ]);
-  const sendLogs = (await getBroadcastSendLogPage({ limit: 200 })).items;
+  const sendLogPage = await getBroadcastSendLogPage({ limit: 200 });
+  const sendLogs = sendLogPage.items;
   const complianceLogs = (await getBroadcastComplianceHistory({ limit: 200 })).items;
+  const firstCampaignId = campaigns[0]?.id ?? null;
+  const analytics = firstCampaignId ? await getBroadcastCampaignAnalytics(firstCampaignId, { campaignId: firstCampaignId, limit: 200 }) : null;
+  const deliveryExport = firstCampaignId ? await getBroadcastDeliveryExport(firstCampaignId, { campaignId: firstCampaignId, limit: 200 }) : null;
   return {
     mode,
     sendLogs,
     complianceLogs,
+    analytics,
+    deliveryExport,
     store: {
       campaigns,
       segments,

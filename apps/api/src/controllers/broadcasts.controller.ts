@@ -96,6 +96,24 @@ export class BroadcastsController {
     return this.broadcasts.listSendLogs(requireTenantId(tenant), campaignId);
   }
 
+  @Get("campaigns/:campaignId/analytics")
+  async getCampaignAnalytics(
+    @Param("campaignId") campaignId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    return this.broadcasts.getCampaignAnalytics(requireTenantId(tenant), campaignId, broadcastSendLogFiltersSchema.parse({ ...query, campaignId }));
+  }
+
+  @Get("campaigns/:campaignId/delivery-export")
+  async exportCampaignDelivery(
+    @Param("campaignId") campaignId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    return this.broadcasts.exportCampaignDelivery(requireTenantId(tenant), campaignId, broadcastSendLogFiltersSchema.parse({ ...query, campaignId }));
+  }
+
   @Get("compliance-logs")
   async listComplianceHistory(@Query() query: Record<string, unknown>, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.listComplianceHistory(requireTenantId(tenant), broadcastComplianceFiltersSchema.parse(query));
