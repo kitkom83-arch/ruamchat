@@ -359,11 +359,13 @@ export async function duplicateBroadcastCampaign(campaignId: string): Promise<Br
 }
 
 export async function previewBroadcastAudience(campaignId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {
-  const body = broadcastAudiencePreviewRequestSchema.parse(payload);
-  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/audience-preview`, broadcastAudiencePreviewResultSchema, {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
+  const parsed = broadcastAudiencePreviewRequestSchema.parse(payload);
+  const params = new URLSearchParams();
+  if (parsed.platform) params.set("platform", parsed.platform);
+  if (parsed.channelAccountId !== undefined && parsed.channelAccountId !== null) params.set("channelAccountId", parsed.channelAccountId);
+  if (parsed.limit !== undefined) params.set("limit", String(parsed.limit));
+  const search = params.toString();
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/audience-preview${search ? `?${search}` : ""}`, broadcastAudiencePreviewResultSchema);
 }
 
 export async function dryRunBroadcastAudience(campaignId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {

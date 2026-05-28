@@ -437,7 +437,7 @@ function ApiBroadcastsPage() {
   const [complianceLogs, setComplianceLogs] = useState<BroadcastComplianceLog[]>([]);
   const [preview, setPreview] = useState<BroadcastAudiencePreviewRecipient[]>([]);
   const [suppressedRecipients, setSuppressedRecipients] = useState<BroadcastSuppressedRecipient[]>([]);
-  const [previewStats, setPreviewStats] = useState<Pick<BroadcastAudiencePreviewResult, "candidateCount" | "eligibleCount" | "suppressedCount" | "suppressedByReason" | "externalCalls"> | null>(null);
+  const [previewStats, setPreviewStats] = useState<Pick<BroadcastAudiencePreviewResult, "candidateCount" | "eligibleCount" | "suppressedCount" | "blockedCount" | "invalidCount" | "suppressedByReason" | "externalCalls"> | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedSegmentId, setSelectedSegmentId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -811,12 +811,17 @@ function ApiBroadcastsPage() {
         candidateCount: result.candidateCount ?? result.total,
         eligibleCount: result.eligibleCount ?? result.recipients.length,
         suppressedCount: result.suppressedCount ?? 0,
+        blockedCount: result.blockedCount ?? result.suppressedCount ?? 0,
+        invalidCount: result.invalidCount ?? result.invalidRecipients?.length ?? 0,
         suppressedByReason: result.suppressedByReason ?? {},
         externalCalls: result.externalCalls ?? 0
       });
       setStatusText(`Audience preview returned ${result.eligibleCount ?? result.total} eligible and ${result.suppressedCount ?? 0} suppressed recipient(s)`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Audience preview failed";
+      setPreview([]);
+      setSuppressedRecipients([]);
+      setPreviewStats(null);
       setError(message);
       setStatusText("Audience preview failed");
     } finally {
@@ -1096,7 +1101,7 @@ function ApiBroadcastsPage() {
             <div className="checklistBox">
               <strong>Suppression summary</strong>
               <p>
-                Candidates {previewStats.candidateCount ?? 0} / eligible {previewStats.eligibleCount ?? 0} / suppressed {previewStats.suppressedCount ?? 0} / externalCalls {previewStats.externalCalls ?? 0}
+                Candidates {previewStats.candidateCount ?? 0} / eligible {previewStats.eligibleCount ?? 0} / suppressed {previewStats.suppressedCount ?? 0} / blocked {previewStats.blockedCount ?? 0} / invalid {previewStats.invalidCount ?? 0} / externalCalls {previewStats.externalCalls ?? 0}
               </p>
               <p>{Object.entries(previewStats.suppressedByReason ?? {}).filter(([, count]) => count > 0).map(([reason, count]) => `${reason}: ${count}`).join(" / ") || "No suppressed recipients"}</p>
             </div>
