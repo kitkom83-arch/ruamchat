@@ -88,15 +88,18 @@ describe("BroadcastService persistence and safe queue APIs", () => {
 
   it("previews audience from tenant-scoped contacts and platform identities only", async () => {
     await withBroadcastRuntime(async ({ controller }) => {
-      const preview = await controller.audiencePreview("campaign-web", { platform: "webchat" }, tenantId);
+      const preview = await controller.getAudiencePreview("campaign-web", { platform: "webchat", limit: "100" }, tenantId);
 
       expect(preview.total).toBe(1);
-      expect(preview.candidateCount).toBe(1);
+      expect(preview.candidateCount).toBe(2);
       expect(preview.eligibleCount).toBe(1);
       expect(preview.suppressedCount).toBe(0);
+      expect(preview.blockedCount).toBe(0);
+      expect(preview.invalidCount).toBe(1);
       expect(preview.externalCalls).toBe(0);
       expect(preview.recipients[0]).toMatchObject({
         tenantId,
+        campaignId: "campaign-web",
         customerId: "contact-web",
         contactId: "contact-web",
         contactIdentityId: "identity-web",
@@ -106,7 +109,19 @@ describe("BroadcastService persistence and safe queue APIs", () => {
         roomId: "room-webchat",
         externalCalls: 0
       });
+      expect(preview.invalidRecipients?.[0]).toMatchObject({
+        tenantId,
+        campaignId: "campaign-web",
+        customerId: "contact-telegram-only",
+        contactId: "contact-telegram-only",
+        contactIdentityId: null,
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        reason: "no supported identity for campaign platform",
+        externalCalls: 0
+      });
       expect(preview.recipients.map((recipient) => recipient.contactId)).not.toContain("contact-other-tenant");
+      expect(JSON.stringify(preview)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
     });
   });
 
@@ -117,14 +132,17 @@ describe("BroadcastService persistence and safe queue APIs", () => {
       const preview = await controller.audiencePreview("campaign-web", { platform: "webchat" }, tenantId);
 
       expect(preview.total).toBe(0);
-      expect(preview.candidateCount).toBe(1);
+      expect(preview.candidateCount).toBe(2);
       expect(preview.eligibleCount).toBe(0);
       expect(preview.suppressedCount).toBe(1);
+      expect(preview.blockedCount).toBe(1);
+      expect(preview.invalidCount).toBe(1);
       expect(preview.suppressedByReason.do_not_contact).toBe(1);
       expect(preview.externalCalls).toBe(0);
       expect(preview.recipients).toEqual([]);
       expect(preview.suppressedRecipients[0]).toMatchObject({
         tenantId,
+        campaignId: "campaign-web",
         customerId: "contact-web",
         contactId: "contact-web",
         conversationId: "conv-web",

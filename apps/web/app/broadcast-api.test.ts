@@ -238,13 +238,15 @@ describe("Broadcast API mode frontend", () => {
     expect(JSON.stringify({ updated, scheduled, requested, approved, rejected, returned })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
   });
 
-  it("surfaces schedule and approval API errors without mutating local mock state", async () => {
+  it("surfaces audience preview, schedule, and approval API errors without mutating local mock state", async () => {
     vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "preview unavailable" }, 503))
       .mockResolvedValueOnce(jsonResponse({ message: "schedule unavailable" }, 503))
       .mockResolvedValueOnce(jsonResponse({ message: "approval unavailable" }, 503));
     const mockData = await loadBroadcastBuilderData("mock");
     const before = JSON.stringify(mockData.store.campaigns);
 
+    await expect(previewBroadcastAudience("campaign-api", { platform: "webchat" })).rejects.toThrow("API request failed (503): preview unavailable");
     await expect(scheduleBroadcastCampaign("campaign-api", { scheduleAt: "2099-05-23T04:00:00.000Z" })).rejects.toThrow("API request failed (503): schedule unavailable");
     await expect(requestBroadcastCampaignApproval("campaign-api", { note: "review" })).rejects.toThrow("API request failed (503): approval unavailable");
 
@@ -260,6 +262,7 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("campaign-created")))
       .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("campaign-created", {
         suppressedCount: 1,
+        blockedCount: 1,
         suppressedByReason: { do_not_contact: 1 },
         suppressedRecipients: [{
           tenantId: defaultTenantId,
@@ -309,10 +312,10 @@ describe("Broadcast API mode frontend", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/duplicate", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created", expect.objectContaining({ method: "DELETE" }));
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/audience-preview", expect.objectContaining({ method: "POST" }));
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/audience-preview", expect.objectContaining({
-      headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" }),
-      method: "POST"
+    expect(String(fetchMock.mock.calls[4]?.[0])).toContain("/broadcasts/campaigns/campaign-created/audience-preview?");
+    expect(String(fetchMock.mock.calls[4]?.[0])).toContain("platform=webchat");
+    expect(fetchMock.mock.calls[4]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" })
     }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/dry-run", expect.objectContaining({
       headers: expect.objectContaining({ "x-tenant-id": "00000000-0000-4000-8000-000000000001" }),
@@ -340,6 +343,7 @@ describe("Broadcast API mode frontend", () => {
     expect(preview.recipients[0]?.displayName).toBe("API Recipient");
     expect(preview.recipients[0]).toMatchObject({
       tenantId: defaultTenantId,
+      campaignId: "campaign-created",
       customerId: "contact-api",
       channelAccountId: "00000000-0000-4000-8000-000000000020",
       platform: "webchat",
@@ -350,8 +354,11 @@ describe("Broadcast API mode frontend", () => {
     expect(preview.candidateCount).toBe(1);
     expect(preview.eligibleCount).toBe(1);
     expect(preview.suppressedCount).toBe(0);
+    expect(preview.blockedCount).toBe(0);
+    expect(preview.invalidCount).toBe(0);
     expect(preview.externalCalls).toBe(0);
     expect(dryRun.suppressedCount).toBe(1);
+    expect(dryRun.blockedCount).toBe(1);
     expect(dryRun.suppressedRecipients?.[0]?.reason).toBe("do_not_contact");
     expect(JSON.stringify(dryRun)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
     expect(testResult.logs[0]?.status).toBe("sent_mock");
@@ -673,6 +680,8 @@ function audiencePreviewResponse(campaignId: string, overrides: Record<string, u
     candidateCount: 1,
     eligibleCount: 1,
     suppressedCount: 0,
+    blockedCount: 0,
+    invalidCount: 0,
     suppressedByReason: {
       do_not_contact: 0,
       marketing_opt_out: 0,
@@ -683,6 +692,7 @@ function audiencePreviewResponse(campaignId: string, overrides: Record<string, u
     externalCalls: 0,
     recipients: [{
       tenantId: defaultTenantId,
+      campaignId,
       customerId: "contact-api",
       contactId: "contact-api",
       contactIdentityId: "identity-api",
@@ -699,6 +709,7 @@ function audiencePreviewResponse(campaignId: string, overrides: Record<string, u
       externalCalls: 0
     }],
     suppressedRecipients: [],
+    invalidRecipients: [],
     ...overrides
   };
 }

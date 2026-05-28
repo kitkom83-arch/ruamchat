@@ -974,7 +974,7 @@ export type UpdateBroadcastCampaignRequest = z.input<typeof updateBroadcastCampa
 export const broadcastAudiencePreviewRequestSchema = z.object({
   platform: z.union([platformSchema, z.literal("all")]).optional(),
   channelAccountId: z.string().min(1).nullable().optional(),
-  limit: z.number().int().positive().max(500).default(100)
+  limit: z.coerce.number().int().positive().max(500).default(100)
 }).strict();
 export type BroadcastAudiencePreviewRequest = z.input<typeof broadcastAudiencePreviewRequestSchema>;
 
@@ -989,6 +989,7 @@ export type BroadcastSuppressionReason = z.infer<typeof broadcastSuppressionReas
 
 export const broadcastAudiencePreviewRecipientSchema = z.object({
   tenantId: z.string().min(1).optional(),
+  campaignId: z.string().min(1).optional(),
   customerId: z.string().min(1).optional(),
   contactId: z.string().min(1),
   contactIdentityId: z.string().min(1).nullable(),
@@ -1008,6 +1009,7 @@ export type BroadcastAudiencePreviewRecipient = z.infer<typeof broadcastAudience
 
 export const broadcastSuppressedRecipientSchema = z.object({
   tenantId: z.string().min(1),
+  campaignId: z.string().min(1).optional(),
   customerId: z.string().min(1).optional(),
   contactId: z.string().min(1).optional(),
   displayName: z.string().min(1).optional(),
@@ -1069,10 +1071,13 @@ export const broadcastAudiencePreviewResultSchema = z.object({
   candidateCount: z.number().int().nonnegative().optional(),
   eligibleCount: z.number().int().nonnegative().optional(),
   suppressedCount: z.number().int().nonnegative().optional(),
+  blockedCount: z.number().int().nonnegative().optional(),
+  invalidCount: z.number().int().nonnegative().optional(),
   suppressedByReason: z.record(z.string(), z.number().int().nonnegative()).optional(),
   externalCalls: z.literal(0).default(0).optional(),
   recipients: z.array(broadcastAudiencePreviewRecipientSchema).default([]),
-  suppressedRecipients: z.array(broadcastSuppressedRecipientSchema).default([]).optional()
+  suppressedRecipients: z.array(broadcastSuppressedRecipientSchema).default([]).optional(),
+  invalidRecipients: z.array(broadcastAudiencePreviewRecipientSchema).default([]).optional()
 }).strict();
 export type BroadcastAudiencePreviewResult = z.infer<typeof broadcastAudiencePreviewResultSchema>;
 

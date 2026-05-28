@@ -172,6 +172,7 @@ type AudienceScreeningResult = {
   candidates: AudienceCandidate[];
   eligible: AudienceCandidate[];
   suppressed: BroadcastSuppressedRecipient[];
+  invalid: AudienceCandidate[];
   suppressedByReason: Record<BroadcastSuppressionReason, number>;
 };
 
@@ -327,7 +328,7 @@ export class BroadcastService {
 
   async audiencePreview(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
-    const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: false });
+    const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: true });
     const screened = await this.screenAudience(tenantId, campaignId, candidates, "preview");
     return {
       campaignId,
@@ -335,10 +336,13 @@ export class BroadcastService {
       candidateCount: screened.candidates.length,
       eligibleCount: screened.eligible.length,
       suppressedCount: screened.suppressed.length,
+      blockedCount: screened.suppressed.length,
+      invalidCount: screened.invalid.length,
       suppressedByReason: screened.suppressedByReason,
       externalCalls: 0,
       recipients: screened.eligible,
-      suppressedRecipients: screened.suppressed
+      suppressedRecipients: screened.suppressed,
+      invalidRecipients: screened.invalid
     };
   }
 
@@ -352,10 +356,13 @@ export class BroadcastService {
       candidateCount: screened.candidates.length,
       eligibleCount: screened.eligible.length,
       suppressedCount: screened.suppressed.length,
+      blockedCount: screened.suppressed.length,
+      invalidCount: screened.invalid.length,
       suppressedByReason: screened.suppressedByReason,
       externalCalls: 0,
       recipients: screened.eligible,
-      suppressedRecipients: screened.suppressed
+      suppressedRecipients: screened.suppressed,
+      invalidRecipients: screened.invalid
     };
   }
 
@@ -804,7 +811,7 @@ export class BroadcastService {
     request: BroadcastAudiencePreviewRequest,
     options: { includeSkipped: boolean; limit?: number }
   ) {
-    const limit = options.limit ?? request.limit ?? 100;
+    const limit = Number(options.limit ?? request.limit ?? 100);
     const targetPlatform = request.platform && request.platform !== "all"
       ? request.platform
       : campaign.channelPlatform;
@@ -835,11 +842,11 @@ export class BroadcastService {
       );
       if (identities.length === 0) {
         if (options.includeSkipped) {
-          candidates.push(candidateFromContact(contact, null, targetPlatform, channelAccountId, message, "no supported identity for campaign platform"));
+          candidates.push(candidateFromContact(campaign.id, contact, null, targetPlatform, channelAccountId, message, "no supported identity for campaign platform"));
         }
       } else {
         identities.forEach((identity) => {
-          candidates.push(candidateFromContact(contact, identity, identity.platform, identity.channelAccountId, message, null));
+          candidates.push(candidateFromContact(campaign.id, contact, identity, identity.platform, identity.channelAccountId, message, null));
         });
       }
       if (candidates.length >= limit) break;
@@ -856,9 +863,14 @@ export class BroadcastService {
   ): Promise<AudienceScreeningResult> {
     const eligible: AudienceCandidate[] = [];
     const suppressed: BroadcastSuppressedRecipient[] = [];
+    const invalid: AudienceCandidate[] = [];
     const suppressedByReason = emptySuppressedByReason();
 
     for (const candidate of candidates) {
+      if (sendType === "preview" && (!candidate.contactIdentityId || candidate.reason)) {
+        invalid.push({ ...candidate, externalCalls: 0 });
+        continue;
+      }
       const context = await this.outboundConsent.getContext({
         tenantId,
         contactId: candidate.contactId,
@@ -875,7 +887,7 @@ export class BroadcastService {
       }
 
       const reason = safeSuppressionReason(decision.reason);
-      const suppressedRecipient = suppressedRecipientFromContext(context, reason, candidate.displayName);
+      const suppressedRecipient = suppressedRecipientFromContext(context, campaignId, reason, candidate.displayName);
       suppressed.push(suppressedRecipient);
       suppressedByReason[reason] += 1;
       await this.outboundConsent.recordBlocked({
@@ -894,7 +906,7 @@ export class BroadcastService {
       });
     }
 
-    return { candidates, eligible, suppressed, suppressedByReason };
+    return { candidates, eligible, suppressed, invalid, suppressedByReason };
   }
 
   private async screenCampaignReadiness(
@@ -998,6 +1010,8 @@ function readinessSummary(screened: AudienceScreeningResult): Prisma.InputJsonOb
     candidateCount: screened.candidates.length,
     eligibleCount: screened.eligible.length,
     suppressedCount: screened.suppressed.length,
+    blockedCount: screened.suppressed.length,
+    invalidCount: screened.invalid.length,
     suppressedByReason: screened.suppressedByReason,
     externalCalls: 0
   };
@@ -1439,6 +1453,7 @@ function normalizeComparable(value: unknown) {
 }
 
 function candidateFromContact(
+  campaignId: string,
   contact: ContactRecord,
   identity: ContactRecord["identities"][number] | null,
   platform: Platform,
@@ -1448,6 +1463,7 @@ function candidateFromContact(
 ): AudienceCandidate {
   return {
     tenantId: contact.tenantId,
+    campaignId,
     customerId: contact.id,
     contactId: contact.id,
     contactIdentityId: identity?.id ?? null,
@@ -1485,9 +1501,10 @@ function applyContextToCandidate(candidate: AudienceCandidate, context: Outbound
   };
 }
 
-function suppressedRecipientFromContext(context: OutboundConsentContext, reason: BroadcastSuppressionReason, displayName?: string): BroadcastSuppressedRecipient {
+function suppressedRecipientFromContext(context: OutboundConsentContext, campaignId: string, reason: BroadcastSuppressionReason, displayName?: string): BroadcastSuppressedRecipient {
   return {
     tenantId: context.tenantId,
+    campaignId,
     customerId: context.customerId,
     contactId: context.contactId,
     displayName: displayName?.trim() || undefined,

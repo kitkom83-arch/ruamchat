@@ -60,6 +60,15 @@ export class BroadcastsController {
     return this.broadcasts.audiencePreview(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
   }
 
+  @Get("campaigns/:campaignId/audience-preview")
+  async getAudiencePreview(
+    @Param("campaignId") campaignId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    return this.broadcasts.audiencePreview(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(query));
+  }
+
   @Post("campaigns/:campaignId/dry-run")
   async dryRun(@Param("campaignId") campaignId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.dryRun(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
