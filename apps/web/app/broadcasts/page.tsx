@@ -25,6 +25,8 @@ import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult,
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
+  approveBroadcastCampaign,
+  cancelBroadcastCampaignApproval,
   deleteBroadcastCampaign,
   deleteBroadcastSegment,
   duplicateBroadcastCampaign,
@@ -36,6 +38,8 @@ import {
   getBroadcastSegments,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
+  rejectBroadcastCampaign,
+  requestBroadcastCampaignApproval,
   scheduleBroadcastCampaign,
   sendBroadcastNow,
   sendBroadcastTest,
@@ -476,6 +480,7 @@ function ApiBroadcastsPage() {
     message: "Hi {{contact.firstName}}, this is a safe mock broadcast from {{roomName}}.",
     scheduleAt: "2026-05-23T04:00:00.000Z"
   });
+  const [approvalNote, setApprovalNote] = useState("Reviewed for safe mock broadcast only.");
   const [segmentForm, setSegmentForm] = useState({
     name: "API segment draft",
     description: "Persisted segment from API mode",
@@ -950,6 +955,10 @@ function ApiBroadcastsPage() {
             <div className="checklistBox">
               <strong>Safety state</strong>
               <p>API mode send-test and send-now create sent_mock, queued_mock, skipped_mock, or failed_mock logs only. No platform API calls are made.</p>
+              <label>Approval note<input value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} /></label>
+              {selectedCampaign && (
+                <p>Approval {selectedCampaign.approvalStatus ?? "draft"} / action {selectedCampaign.lastWorkflowAction ?? "-"} / reviewed {selectedCampaign.approvalReviewedAt ?? "-"}</p>
+              )}
             </div>
             <div className="broadcastActionRow">
               <button type="button" onClick={() => void runApiAction("Campaign created", async () => {
@@ -965,6 +974,22 @@ function ApiBroadcastsPage() {
                 await scheduleBroadcastCampaign(selectedCampaign.id, { scheduleAt: campaignForm.scheduleAt });
                 return "Campaign scheduled through API; no send was triggered";
               }, selectedCampaign.id)} disabled={working || !selectedCampaign}><CalendarClock size={14} /> Schedule</button>
+              <button type="button" onClick={() => selectedCampaign && void runApiAction("Approval requested", async () => {
+                await requestBroadcastCampaignApproval(selectedCampaign.id, { note: approvalNote });
+                return "Approval requested through API";
+              }, selectedCampaign.id)} disabled={working || !selectedCampaign}>Request Approval</button>
+              <button type="button" onClick={() => selectedCampaign && void runApiAction("Campaign approved", async () => {
+                await approveBroadcastCampaign(selectedCampaign.id, { note: approvalNote });
+                return "Campaign approved through API; no send was triggered";
+              }, selectedCampaign.id)} disabled={working || !selectedCampaign}>Approve</button>
+              <button type="button" onClick={() => selectedCampaign && void runApiAction("Campaign rejected", async () => {
+                await rejectBroadcastCampaign(selectedCampaign.id, { note: approvalNote });
+                return "Campaign rejected through API";
+              }, selectedCampaign.id)} disabled={working || !selectedCampaign}>Reject</button>
+              <button type="button" onClick={() => selectedCampaign && void runApiAction("Approval cancelled", async () => {
+                await cancelBroadcastCampaignApproval(selectedCampaign.id, { note: approvalNote });
+                return "Campaign returned to draft through API";
+              }, selectedCampaign.id)} disabled={working || !selectedCampaign}>Return Draft</button>
               <button type="button" onClick={() => void previewSelected()} disabled={working || !selectedCampaign}><Eye size={14} /> Audience Preview</button>
               <button type="button" onClick={() => selectedCampaign && void runApiAction("Send test logged", async () => {
                 const result = await sendBroadcastTest(selectedCampaign.id, { platform: campaignForm.channelPlatform, payloadJson: { source: "ui" } });
@@ -1014,6 +1039,7 @@ function ApiBroadcastsPage() {
               {campaignDetail ? (
                 <>
                   <p>{campaignDetail.name ?? campaignDetail.title ?? campaignDetail.campaignId} / {campaignDetail.status} / externalCalls {campaignDetail.externalCalls}</p>
+                  <p>Schedule {campaignDetail.scheduleAt ?? "-"} / approval {campaignDetail.approvalStatus ?? "draft"} / action {campaignDetail.lastWorkflowAction ?? "-"}</p>
                   <p>Campaign {campaignDetail.campaignId} / audience {campaignDetail.audienceCount ?? "-"} / suppressed {campaignDetail.suppressionCount ?? 0}</p>
                   <p>Delivery total {campaignDetail.deliverySummary?.total ?? 0} / sent_mock {campaignDetail.deliverySummary?.sentMock ?? 0} / blocked {campaignDetail.deliverySummary?.blocked ?? 0} / unknown_safe {campaignDetail.deliverySummary?.unknownSafe ?? 0}</p>
                 </>

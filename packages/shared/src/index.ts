@@ -749,11 +749,29 @@ export const updateBroadcastConsentRequestSchema = z.object({
 }).strict();
 export type UpdateBroadcastConsentRequest = z.input<typeof updateBroadcastConsentRequestSchema>;
 
-export const broadcastCampaignStatusSchema = z.enum(["draft", "scheduled", "sending", "sent", "paused", "archived", "cancelled", "failed"]);
+export const broadcastCampaignStatusSchema = z.enum([
+  "draft",
+  "pending_approval",
+  "approved",
+  "rejected",
+  "scheduled",
+  "sending",
+  "sent",
+  "paused",
+  "archived",
+  "cancelled",
+  "failed"
+]);
 export type BroadcastCampaignStatus = z.infer<typeof broadcastCampaignStatusSchema>;
 
 export const broadcastScheduleTypeSchema = z.enum(["now", "scheduled"]);
 export type BroadcastScheduleType = z.infer<typeof broadcastScheduleTypeSchema>;
+
+export const broadcastApprovalActionSchema = z.enum(["request_approval", "approve", "reject", "cancel_approval", "schedule"]);
+export type BroadcastApprovalAction = z.infer<typeof broadcastApprovalActionSchema>;
+
+export const broadcastApprovalStatusSchema = z.enum(["draft", "pending_approval", "approved", "rejected", "cancelled"]);
+export type BroadcastApprovalStatus = z.infer<typeof broadcastApprovalStatusSchema>;
 
 export const broadcastSegmentFieldSchema = z.enum([
   "platform",
@@ -809,6 +827,12 @@ export const broadcastCampaignSchema = z.object({
   scheduleType: broadcastScheduleTypeSchema,
   scheduledAt: z.string().datetime().optional(),
   scheduleAt: z.string().datetime().nullable().optional(),
+  approvalStatus: broadcastApprovalStatusSchema.optional(),
+  approvalRequestedAt: z.string().datetime().nullable().optional(),
+  approvalReviewedAt: z.string().datetime().nullable().optional(),
+  approvalReviewedBy: z.string().min(1).nullable().optional(),
+  approvalNote: z.string().nullable().optional(),
+  lastWorkflowAction: broadcastApprovalActionSchema.optional(),
   createdBy: z.string().min(1),
   createdByUserId: z.string().nullable().optional(),
   contentJson: z.unknown().optional(),
@@ -1057,6 +1081,11 @@ export const scheduleBroadcastCampaignRequestSchema = z.object({
 }).strict();
 export type ScheduleBroadcastCampaignRequest = z.input<typeof scheduleBroadcastCampaignRequestSchema>;
 
+export const broadcastApprovalRequestSchema = z.object({
+  note: z.string().max(500).optional()
+}).strict().default({});
+export type BroadcastApprovalRequest = z.input<typeof broadcastApprovalRequestSchema>;
+
 export const broadcastSendTestRequestSchema = z.object({
   contactId: z.string().min(1).nullable().optional(),
   contactIdentityId: z.string().min(1).nullable().optional(),
@@ -1230,6 +1259,14 @@ export const broadcastCampaignDetailSchema = z.object({
   status: broadcastCampaignStatusSchema,
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
+  scheduledAt: z.string().datetime().nullable().optional(),
+  scheduleAt: z.string().datetime().nullable().optional(),
+  approvalStatus: broadcastApprovalStatusSchema.optional(),
+  approvalRequestedAt: z.string().datetime().nullable().optional(),
+  approvalReviewedAt: z.string().datetime().nullable().optional(),
+  approvalReviewedBy: z.string().min(1).nullable().optional(),
+  approvalNote: z.string().nullable().optional(),
+  lastWorkflowAction: broadcastApprovalActionSchema.optional(),
   audienceCount: z.number().int().nonnegative().nullable().optional(),
   suppressionCount: z.number().int().nonnegative().optional(),
   deliverySummary: broadcastCampaignDeliverySummarySchema.optional(),

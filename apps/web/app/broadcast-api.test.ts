@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  approveBroadcastCampaign,
+  cancelBroadcastCampaignApproval,
   createBroadcastCampaign,
   createBroadcastSegment,
   deleteBroadcastCampaign,
@@ -13,6 +15,9 @@ import {
   getBroadcastDeliveryExport,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
+  rejectBroadcastCampaign,
+  requestBroadcastCampaignApproval,
+  scheduleBroadcastCampaign,
   sendBroadcastNow,
   sendBroadcastTest,
   updateBroadcastCampaign,
@@ -200,6 +205,52 @@ describe("Broadcast API mode frontend", () => {
     await expect(getBroadcastDeliveryExport("campaign-api")).rejects.toThrow("API request failed (503): export unavailable");
   });
 
+  it("persists draft, scheduling, and approval actions through API mode with tenant headers", async () => {
+    const scheduledAt = "2099-05-23T04:00:00.000Z";
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { message: "Updated body" })))
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { status: "scheduled", scheduleAt: scheduledAt, scheduledAt, lastWorkflowAction: "schedule" })))
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { status: "pending_approval", approvalStatus: "pending_approval", approvalNote: "review", lastWorkflowAction: "request_approval" })))
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { status: "approved", approvalStatus: "approved", approvalReviewedBy: "00000000-0000-4000-8000-000000000011", lastWorkflowAction: "approve" })))
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { status: "rejected", approvalStatus: "rejected", approvalNote: "needs edit", lastWorkflowAction: "reject" })))
+      .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-api", "Draft Updated", { status: "draft", approvalStatus: "draft", lastWorkflowAction: "cancel_approval" })));
+
+    const updated = await updateBroadcastCampaign("campaign-api", { name: "Draft Updated", message: "Updated body", status: "draft" });
+    const scheduled = await scheduleBroadcastCampaign("campaign-api", { scheduleAt: scheduledAt });
+    const requested = await requestBroadcastCampaignApproval("campaign-api", { note: "review" });
+    const approved = await approveBroadcastCampaign("campaign-api", { note: "approved" });
+    const rejected = await rejectBroadcastCampaign("campaign-api", { note: "needs edit" });
+    const returned = await cancelBroadcastCampaignApproval("campaign-api", { note: "return draft" });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api/schedule", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api/request-approval", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api/approve", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api/reject", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-api/cancel-approval", expect.objectContaining({ method: "POST" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(updated.message).toBe("Updated body");
+    expect(scheduled).toMatchObject({ status: "scheduled", scheduleAt: scheduledAt, lastWorkflowAction: "schedule" });
+    expect(requested).toMatchObject({ status: "pending_approval", approvalStatus: "pending_approval", approvalNote: "review" });
+    expect(approved).toMatchObject({ status: "approved", approvalStatus: "approved", approvalReviewedBy: "00000000-0000-4000-8000-000000000011" });
+    expect(rejected).toMatchObject({ status: "rejected", approvalStatus: "rejected", approvalNote: "needs edit" });
+    expect(returned).toMatchObject({ status: "draft", approvalStatus: "draft", lastWorkflowAction: "cancel_approval" });
+    expect(JSON.stringify({ updated, scheduled, requested, approved, rejected, returned })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
+  });
+
+  it("surfaces schedule and approval API errors without mutating local mock state", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "schedule unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "approval unavailable" }, 503));
+    const mockData = await loadBroadcastBuilderData("mock");
+    const before = JSON.stringify(mockData.store.campaigns);
+
+    await expect(scheduleBroadcastCampaign("campaign-api", { scheduleAt: "2099-05-23T04:00:00.000Z" })).rejects.toThrow("API request failed (503): schedule unavailable");
+    await expect(requestBroadcastCampaignApproval("campaign-api", { note: "review" })).rejects.toThrow("API request failed (503): approval unavailable");
+
+    expect(JSON.stringify(mockData.store.campaigns)).toBe(before);
+  });
+
   it("calls campaign, audience, send, log, and segment endpoints", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse(campaignResponse("campaign-created", "Created Broadcast")))
@@ -368,7 +419,8 @@ function campaignPayload(name: string) {
   };
 }
 
-function campaignResponse(id: string, name = "API Broadcast") {
+function campaignResponse(id: string, name = "API Broadcast", overrides: Record<string, unknown> = {}) {
+  const message = typeof overrides.message === "string" ? overrides.message : "Hello {{contact.name}}";
   return {
     id,
     tenantId: "00000000-0000-4000-8000-000000000001",
@@ -381,14 +433,15 @@ function campaignResponse(id: string, name = "API Broadcast") {
     roomIds: ["00000000-0000-4000-8000-000000000020"],
     segmentId: "segment-api",
     templateId: "template-api",
-    message: "Hello {{contact.name}}",
+    message,
     scheduleType: "now",
     scheduleAt: null,
     createdBy: "api",
     createdByUserId: "00000000-0000-4000-8000-000000000011",
-    contentJson: { message: "Hello {{contact.name}}", safeMockOnly: true },
+    contentJson: { message, safeMockOnly: true },
     createdAt: "2026-05-21T04:00:00.000Z",
-    updatedAt: "2026-05-21T04:00:00.000Z"
+    updatedAt: "2026-05-21T04:00:00.000Z",
+    ...overrides
   };
 }
 
