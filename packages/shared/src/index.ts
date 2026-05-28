@@ -1114,6 +1114,20 @@ export const broadcastSendLogPageSchema = z.object({
 }).strict();
 export type BroadcastSendLogPage = z.infer<typeof broadcastSendLogPageSchema>;
 
+export const broadcastDeliveryFilterSnapshotSchema = z.object({
+  campaignId: z.string().min(1),
+  status: broadcastSendLogStatusSchema.nullable().default(null),
+  platform: platformSchema.nullable().default(null),
+  channelAccountId: z.string().min(1).nullable().default(null),
+  roomId: z.string().min(1).nullable().default(null),
+  conversationId: z.string().min(1).nullable().default(null),
+  customerId: z.string().min(1).nullable().default(null),
+  contactId: z.string().min(1).nullable().default(null),
+  from: z.string().datetime().nullable().default(null),
+  to: z.string().datetime().nullable().default(null)
+}).strict();
+export type BroadcastDeliveryFilterSnapshot = z.infer<typeof broadcastDeliveryFilterSnapshotSchema>;
+
 export const broadcastCampaignDeliverySummarySchema = z.object({
   total: z.number().int().nonnegative(),
   previewed: z.number().int().nonnegative().default(0),
@@ -1130,6 +1144,84 @@ export const broadcastCampaignDeliverySummarySchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type BroadcastCampaignDeliverySummary = z.infer<typeof broadcastCampaignDeliverySummarySchema>;
+
+export const broadcastAnalyticsCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  delivered: z.number().int().nonnegative(),
+  providerSuccess: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  suppressed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  blocked: z.number().int().nonnegative(),
+  unknownSafe: z.number().int().nonnegative(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastAnalyticsCounts = z.infer<typeof broadcastAnalyticsCountsSchema>;
+
+export const broadcastAnalyticsContextSchema = z.object({
+  platform: platformSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable(),
+  total: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  sent: z.number().int().nonnegative(),
+  delivered: z.number().int().nonnegative(),
+  providerSuccess: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  suppressed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  blocked: z.number().int().nonnegative(),
+  unknownSafe: z.number().int().nonnegative()
+}).strict();
+export type BroadcastAnalyticsContext = z.infer<typeof broadcastAnalyticsContextSchema>;
+
+export const broadcastCampaignAnalyticsSchema = z.object({
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  campaignName: z.string().min(1),
+  status: broadcastCampaignStatusSchema,
+  generatedAt: z.string().datetime(),
+  filters: broadcastDeliveryFilterSnapshotSchema,
+  counts: broadcastAnalyticsCountsSchema,
+  deliverySummary: broadcastCampaignDeliverySummarySchema,
+  contexts: z.array(broadcastAnalyticsContextSchema).default([]),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastCampaignAnalytics = z.infer<typeof broadcastCampaignAnalyticsSchema>;
+
+export const broadcastDeliveryExportRowSchema = z.object({
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  customerId: z.string().min(1).nullable(),
+  contactId: z.string().min(1).nullable(),
+  contactIdentityId: z.string().min(1).nullable(),
+  conversationId: z.string().min(1).nullable(),
+  platform: platformSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  roomId: z.string().min(1).nullable(),
+  status: broadcastSendLogStatusSchema,
+  errorCategory: z.string().min(1).nullable(),
+  errorMessage: z.string().min(1).nullable(),
+  timestamp: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastDeliveryExportRow = z.infer<typeof broadcastDeliveryExportRowSchema>;
+
+export const broadcastDeliveryExportSchema = z.object({
+  tenantId: z.string().min(1),
+  campaignId: z.string().min(1),
+  generatedAt: z.string().datetime(),
+  filters: broadcastDeliveryFilterSnapshotSchema,
+  rowCount: z.number().int().nonnegative(),
+  rows: z.array(broadcastDeliveryExportRowSchema).default([]),
+  externalCalls: z.literal(0)
+}).strict();
+export type BroadcastDeliveryExport = z.infer<typeof broadcastDeliveryExportSchema>;
 
 export const broadcastCampaignDetailSchema = z.object({
   campaignId: z.string().min(1),

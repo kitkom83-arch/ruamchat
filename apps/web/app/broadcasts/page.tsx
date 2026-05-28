@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   ContactRound,
   Copy,
+  Download,
   Eye,
   Inbox,
   Pause,
@@ -20,16 +21,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastCampaignDetail, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastSegmentRule, BroadcastSendLog, BroadcastSendLogFilters, BroadcastSendLogPage, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
+import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastCampaignAnalytics, BroadcastCampaignDetail, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastDeliveryExport, BroadcastSegmentRule, BroadcastSendLog, BroadcastSendLogFilters, BroadcastSendLogPage, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
   createBroadcastCampaign,
   createBroadcastSegment,
   deleteBroadcastCampaign,
   deleteBroadcastSegment,
   duplicateBroadcastCampaign,
+  getBroadcastCampaignAnalytics,
   getBroadcastCampaigns,
   getBroadcastCampaignDetail,
   getBroadcastComplianceHistory,
+  getBroadcastDeliveryExport,
   getBroadcastSegments,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
@@ -423,6 +426,8 @@ function MockBroadcastsPage() {
 function ApiBroadcastsPage() {
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [campaignDetail, setCampaignDetail] = useState<BroadcastCampaignDetail | null>(null);
+  const [campaignAnalytics, setCampaignAnalytics] = useState<BroadcastCampaignAnalytics | null>(null);
+  const [deliveryExport, setDeliveryExport] = useState<BroadcastDeliveryExport | null>(null);
   const [segments, setSegments] = useState<BroadcastSegment[]>([]);
   const [sendLogs, setSendLogs] = useState<BroadcastSendLog[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<BroadcastComplianceLog[]>([]);
@@ -435,7 +440,9 @@ function ApiBroadcastsPage() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [campaignDetailError, setCampaignDetailError] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const [deliveryPage, setDeliveryPage] = useState(emptySendLogPage());
   const [compliancePage, setCompliancePage] = useState({ limit: 50, offset: 0, total: 0, nextOffset: null as number | null });
@@ -446,6 +453,8 @@ function ApiBroadcastsPage() {
     roomId: "",
     conversationId: "",
     contactId: "",
+    from: "",
+    to: "",
     limit: 50
   });
   const [complianceFilters, setComplianceFilters] = useState({
@@ -482,15 +491,15 @@ function ApiBroadcastsPage() {
     totalCampaigns: campaigns.length,
     scheduled: campaigns.filter((campaign) => campaign.status === "scheduled").length,
     archived: campaigns.filter((campaign) => campaign.status === "archived").length,
-    sentMock: sendLogs.filter((log) => log.status === "sent_mock" || log.status === "mock_sent").length,
-    queuedMock: sendLogs.filter((log) => log.status === "queued_mock").length,
-    skippedMock: sendLogs.filter((log) => log.status === "skipped_mock").length,
-    failedMock: sendLogs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length,
-    blocked: sendLogs.filter((log) => log.status === "blocked" || log.status === "suppressed").length,
+    sentMock: campaignAnalytics?.counts.sent ?? sendLogs.filter((log) => log.status === "sent_mock" || log.status === "mock_sent").length,
+    queuedMock: campaignAnalytics?.counts.queued ?? sendLogs.filter((log) => log.status === "queued_mock").length,
+    skippedMock: campaignAnalytics?.counts.skipped ?? sendLogs.filter((log) => log.status === "skipped_mock").length,
+    failedMock: campaignAnalytics?.counts.failed ?? sendLogs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length,
+    blocked: (campaignAnalytics?.counts.blocked ?? sendLogs.filter((log) => log.status === "blocked").length) + (campaignAnalytics?.counts.suppressed ?? sendLogs.filter((log) => log.status === "suppressed").length),
     previewCount: preview.length,
     suppressedPreview: previewStats?.suppressedCount ?? 0,
     compliance: complianceLogs.length
-  }), [campaigns, complianceLogs.length, preview.length, previewStats?.suppressedCount, sendLogs]);
+  }), [campaignAnalytics, campaigns, complianceLogs.length, preview.length, previewStats?.suppressedCount, sendLogs]);
 
   useEffect(() => {
     void refreshApiData();
@@ -520,20 +529,25 @@ function ApiBroadcastsPage() {
     setLoading(true);
     setError(null);
     setCampaignDetailError(null);
+    setAnalyticsError(null);
     setDeliveryError(null);
+    setExportError(null);
     try {
       const [apiCampaigns, apiSegments] = await Promise.all([
         getBroadcastCampaigns(),
         getBroadcastSegments()
       ]);
       const nextSelected = apiCampaigns.find((campaign) => campaign.id === preferredCampaignId)?.id ?? apiCampaigns[0]?.id ?? "";
-      const [detail, logPage, auditPage] = await Promise.all([
+      const [detail, analytics, logPage, auditPage] = await Promise.all([
         nextSelected ? getBroadcastCampaignDetail(nextSelected) : Promise.resolve(null),
+        nextSelected ? getBroadcastCampaignAnalytics(nextSelected, buildSendLogQuery(nextSelected, deliveryFilters, 0)) : Promise.resolve(null),
         getBroadcastSendLogPage(nextSelected ? buildSendLogQuery(nextSelected, deliveryFilters, 0) : { limit: deliveryFilters.limit, offset: 0 }),
         nextSelected ? getBroadcastComplianceHistory(buildComplianceQuery(nextSelected, complianceFilters, 0)) : emptyCompliancePage()
       ]);
       setCampaigns(apiCampaigns);
       setCampaignDetail(detail);
+      setCampaignAnalytics(analytics);
+      setDeliveryExport(null);
       setSegments(apiSegments);
       setSendLogs(logPage.items);
       setDeliveryPage(logPage);
@@ -555,6 +569,8 @@ function ApiBroadcastsPage() {
       const message = err instanceof Error ? err.message : "Broadcast API request failed";
       setCampaigns([]);
       setCampaignDetail(null);
+      setCampaignAnalytics(null);
+      setDeliveryExport(null);
       setSegments([]);
       setSendLogs([]);
       setDeliveryPage(emptySendLogPage(deliveryFilters.limit));
@@ -565,7 +581,9 @@ function ApiBroadcastsPage() {
       setPreviewStats(null);
       setError(message);
       setCampaignDetailError("Campaign detail API error: no API campaign detail loaded.");
+      setAnalyticsError("Broadcast analytics API error: no API analytics loaded.");
       setDeliveryError("Delivery logs API error: no API delivery rows loaded.");
+      setExportError("Delivery export API error: no API export rows loaded.");
       setComplianceError("Compliance API error: no API compliance rows loaded.");
       setStatusText("Broadcast API mode error");
     } finally {
@@ -590,25 +608,71 @@ function ApiBroadcastsPage() {
     }
   }
 
+  async function loadCampaignAnalytics(campaignId = selectedCampaignId, filters = deliveryFilters, offset = 0) {
+    if (!campaignId) {
+      setCampaignAnalytics(null);
+      return;
+    }
+    setAnalyticsError(null);
+    try {
+      const analytics = await getBroadcastCampaignAnalytics(campaignId, buildSendLogQuery(campaignId, filters, offset));
+      setCampaignAnalytics(analytics);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Broadcast analytics API request failed";
+      setCampaignAnalytics(null);
+      setAnalyticsError(`Broadcast analytics API error: ${message}`);
+      setStatusText("Broadcast analytics API error");
+    }
+  }
+
   async function loadDeliveryLogs(campaignId = selectedCampaignId, filters = deliveryFilters, offset = 0) {
     if (!campaignId) {
       setSendLogs([]);
       setDeliveryPage(emptySendLogPage(filters.limit));
+      setCampaignAnalytics(null);
       return;
     }
     setWorking(true);
     setDeliveryError(null);
+    setExportError(null);
     try {
-      const page = await getBroadcastSendLogPage(buildSendLogQuery(campaignId, filters, offset));
+      const query = buildSendLogQuery(campaignId, filters, offset);
+      const [page, analytics] = await Promise.all([
+        getBroadcastSendLogPage(query),
+        getBroadcastCampaignAnalytics(campaignId, query)
+      ]);
       setSendLogs(page.items);
       setDeliveryPage(page);
+      setCampaignAnalytics(analytics);
+      setAnalyticsError(null);
       setStatusText(`Delivery logs API returned ${page.items.length} of ${page.total} row(s)`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Delivery logs API request failed";
       setSendLogs([]);
       setDeliveryPage(emptySendLogPage(filters.limit));
+      setCampaignAnalytics(null);
       setDeliveryError(`Delivery logs API error: ${message}`);
+      setAnalyticsError(`Broadcast analytics API error: ${message}`);
       setStatusText("Delivery logs API error");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function exportDeliveryRows(campaignId = selectedCampaignId, filters = deliveryFilters) {
+    if (!campaignId) return;
+    setWorking(true);
+    setExportError(null);
+    try {
+      const exported = await getBroadcastDeliveryExport(campaignId, buildSendLogQuery(campaignId, filters, 0));
+      setDeliveryExport(exported);
+      downloadDeliveryCsv(exported);
+      setStatusText(`Delivery export API returned ${exported.rowCount} row(s)`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delivery export API request failed";
+      setDeliveryExport(null);
+      setExportError(`Delivery export API error: ${message}`);
+      setStatusText("Delivery export API error");
     } finally {
       setWorking(false);
     }
@@ -651,6 +715,8 @@ function ApiBroadcastsPage() {
       roomId: "",
       conversationId: "",
       contactId: "",
+      from: "",
+      to: "",
       limit: 50
     };
     setComplianceFilters(next);
@@ -665,6 +731,8 @@ function ApiBroadcastsPage() {
       roomId: "",
       conversationId: "",
       contactId: "",
+      from: "",
+      to: "",
       limit: 50
     };
     setDeliveryFilters(next);
@@ -790,10 +858,22 @@ function ApiBroadcastsPage() {
             <span>{campaignDetailError}</span>
           </section>
         )}
+        {analyticsError && (
+          <section className="errorBand">
+            <strong>Broadcast analytics API error</strong>
+            <span>{analyticsError}</span>
+          </section>
+        )}
         {deliveryError && (
           <section className="errorBand">
             <strong>Delivery logs API error</strong>
             <span>{deliveryError}</span>
+          </section>
+        )}
+        {exportError && (
+          <section className="errorBand">
+            <strong>Delivery export API error</strong>
+            <span>{exportError}</span>
           </section>
         )}
         {complianceError && (
@@ -940,6 +1020,15 @@ function ApiBroadcastsPage() {
               ) : (
                 <p>No campaign detail API row loaded.</p>
               )}
+              {campaignAnalytics ? (
+                <>
+                  <strong>Analytics API</strong>
+                  <p>Total {campaignAnalytics.counts.total} / queued {campaignAnalytics.counts.queued} / pending {campaignAnalytics.counts.pending} / sent {campaignAnalytics.counts.sent} / failed {campaignAnalytics.counts.failed} / skipped {campaignAnalytics.counts.skipped} / blocked {campaignAnalytics.counts.blocked} / suppressed {campaignAnalytics.counts.suppressed} / externalCalls {campaignAnalytics.externalCalls}</p>
+                  <p>{campaignAnalytics.contexts.map((item) => `${item.platform}/${item.channelAccountId ?? "-"}/${item.roomId ?? "-"}: ${item.total}`).join(" / ") || "No analytics context rows"}</p>
+                </>
+              ) : (
+                <p>No broadcast analytics API row loaded.</p>
+              )}
             </div>
             <div className="broadcastFormGrid compact">
               <label>Status<select value={deliveryFilters.status} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, status: event.target.value as typeof sendLogStatusCodes[number] })}>{sendLogStatusCodes.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
@@ -948,15 +1037,19 @@ function ApiBroadcastsPage() {
               <label>Room<input value={deliveryFilters.roomId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, roomId: event.target.value })} /></label>
               <label>Conversation<input value={deliveryFilters.conversationId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, conversationId: event.target.value })} /></label>
               <label>Contact/customer<input value={deliveryFilters.contactId} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, contactId: event.target.value })} /></label>
+              <label>From<input value={deliveryFilters.from} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, from: event.target.value })} placeholder="2026-05-21T00:00:00.000Z" /></label>
+              <label>To<input value={deliveryFilters.to} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, to: event.target.value })} placeholder="2026-05-22T00:00:00.000Z" /></label>
               <label>Limit<select value={deliveryFilters.limit} onChange={(event) => setDeliveryFilters({ ...deliveryFilters, limit: Number(event.target.value) })}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option><option value={200}>200</option></select></label>
             </div>
             <div className="broadcastActionRow">
               <button type="button" onClick={() => void loadDeliveryLogs(selectedCampaign?.id ?? selectedCampaignId, deliveryFilters, 0)} disabled={working || !selectedCampaign}>Apply delivery filters</button>
               <button type="button" onClick={resetDeliveryFilters} disabled={working || !selectedCampaign}>Clear delivery filters</button>
               <button type="button" onClick={() => void loadDeliveryLogs(selectedCampaign?.id ?? selectedCampaignId, deliveryFilters, deliveryPage.nextOffset ?? 0)} disabled={working || deliveryPage.nextOffset === null}>Next delivery page</button>
+              <button type="button" onClick={() => void exportDeliveryRows(selectedCampaign?.id ?? selectedCampaignId, deliveryFilters)} disabled={working || !selectedCampaign}><Download size={14} /> Export filtered delivery</button>
             </div>
             <div className="miniList">
               <p>Rows {deliveryPage.offset + selectedLogs.length} of {deliveryPage.total} / limit {deliveryPage.limit} / externalCalls {deliveryPage.externalCalls}</p>
+              {deliveryExport && <p>Last export {deliveryExport.rowCount} row(s) / externalCalls {deliveryExport.externalCalls}</p>}
               {selectedLogs.slice(0, 10).map((log) => <p key={log.id}>{log.status} / tenant {log.tenantId} / campaign {log.campaignId} / customer {log.customerId ?? log.contactId ?? "-"} / conversation {log.conversationId ?? "-"} / {log.platform} / {log.channelAccountId ?? "-"} / room {log.roomId ?? "-"} / {log.reason ?? "-"} / externalCalls {log.externalCalls}</p>)}
               {selectedLogs.length === 0 && <p>No send logs returned for selected campaign.</p>}
             </div>
@@ -1089,6 +1182,8 @@ function buildComplianceQuery(
     roomId: string;
     conversationId: string;
     contactId: string;
+    from?: string;
+    to?: string;
     limit: number;
   },
   offset: number
@@ -1101,6 +1196,8 @@ function buildComplianceQuery(
     ...(filters.roomId.trim() ? { roomId: filters.roomId.trim() } : {}),
     ...(filters.conversationId.trim() ? { conversationId: filters.conversationId.trim() } : {}),
     ...(filters.contactId.trim() ? { contactId: filters.contactId.trim() } : {}),
+    ...(filters.from?.trim() ? { from: filters.from.trim() } : {}),
+    ...(filters.to?.trim() ? { to: filters.to.trim() } : {}),
     limit: filters.limit,
     offset
   };
@@ -1152,4 +1249,40 @@ function emptyCompliancePage() {
     nextOffset: null as number | null,
     externalCalls: 0 as const
   };
+}
+
+function downloadDeliveryCsv(exported: BroadcastDeliveryExport) {
+  if (typeof window === "undefined") return;
+  const headers = [
+    "tenantId",
+    "campaignId",
+    "customerId",
+    "contactId",
+    "contactIdentityId",
+    "conversationId",
+    "platform",
+    "channelAccountId",
+    "roomId",
+    "status",
+    "errorCategory",
+    "errorMessage",
+    "timestamp",
+    "createdAt",
+    "externalCalls"
+  ];
+  const csv = [
+    headers.join(","),
+    ...exported.rows.map((row) => headers.map((key) => csvCell(row[key as keyof typeof row])).join(","))
+  ].join("\n");
+  const url = window.URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `broadcast-${exported.campaignId}-delivery-export.csv`;
+  link.click();
+  window.URL.revokeObjectURL(url);
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
 }

@@ -6,9 +6,11 @@ import {
   deleteBroadcastSegment,
   dryRunBroadcastAudience,
   duplicateBroadcastCampaign,
+  getBroadcastCampaignAnalytics,
   getBroadcastCampaignDetail,
   getBroadcastComplianceHistory,
   getBroadcastComplianceLogs,
+  getBroadcastDeliveryExport,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
   sendBroadcastNow,
@@ -40,7 +42,9 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse([campaignResponse("campaign-api")]))
       .mockResolvedValueOnce(jsonResponse([segmentResponse("segment-api")]))
       .mockResolvedValueOnce(jsonResponse(sendLogPageResponse([sendLogResponse("log-api", "campaign-api", "sent_mock")])))
-      .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-api", "campaign-api")])));
+      .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-api", "campaign-api")])))
+      .mockResolvedValueOnce(jsonResponse(analyticsResponse("campaign-api", [sendLogResponse("log-api", "campaign-api", "sent_mock")])))
+      .mockResolvedValueOnce(jsonResponse(deliveryExportResponse("campaign-api", [sendLogResponse("log-api", "campaign-api", "sent_mock")])));
 
     const data = await loadBroadcastBuilderData("api");
 
@@ -49,11 +53,15 @@ describe("Broadcast API mode frontend", () => {
     expect(data.store.segments[0]?.name).toBe("API Segment");
     expect(data.sendLogs[0]?.status).toBe("sent_mock");
     expect(data.complianceLogs[0]?.reason).toBe("do_not_contact");
+    expect(data.analytics?.counts.sent).toBe(1);
+    expect(data.deliveryExport?.rowCount).toBe(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/broadcasts/campaigns");
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/segments");
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/broadcasts/send-logs?");
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("limit=200");
     expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/broadcasts/compliance-logs?limit=200");
+    expect(String(fetchMock.mock.calls[4]?.[0])).toContain("/broadcasts/campaigns/campaign-api/analytics?");
+    expect(String(fetchMock.mock.calls[5]?.[0])).toContain("/broadcasts/campaigns/campaign-api/delivery-export?");
   });
 
   it("surfaces API errors instead of silently falling back to mock broadcast data", async () => {
@@ -115,6 +123,81 @@ describe("Broadcast API mode frontend", () => {
     });
     expect(page).toMatchObject({ limit: 25, offset: 0, total: 1, nextOffset: null, externalCalls: 0 });
     expect(JSON.stringify({ detail, page })).not.toMatch(/contentJson|accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
+  });
+
+  it("loads broadcast analytics and delivery export with tenant headers and safe DTOs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(analyticsResponse("campaign-api", [
+        sendLogResponse("log-sent", "campaign-api", "sent_mock"),
+        sendLogResponse("log-blocked", "campaign-api", "blocked", { reason: "do_not_contact" })
+      ])))
+      .mockResolvedValueOnce(jsonResponse(deliveryExportResponse("campaign-api", [
+        sendLogResponse("log-sent", "campaign-api", "sent_mock")
+      ])));
+
+    const analytics = await getBroadcastCampaignAnalytics("campaign-api", {
+      campaignId: "campaign-api",
+      status: "sent_mock",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      limit: 25,
+      offset: 0
+    });
+    const exported = await getBroadcastDeliveryExport("campaign-api", {
+      campaignId: "campaign-api",
+      status: "sent_mock",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      limit: 25,
+      offset: 0
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/broadcasts/campaigns/campaign-api/analytics?");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("status=sent_mock");
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": defaultTenantId })
+    }));
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/broadcasts/campaigns/campaign-api/delivery-export?");
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("roomId=room-webchat");
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({ "x-tenant-id": defaultTenantId })
+    }));
+    expect(analytics).toMatchObject({
+      tenantId: defaultTenantId,
+      campaignId: "campaign-api",
+      counts: {
+        total: 2,
+        sent: 1,
+        providerSuccess: 1,
+        blocked: 1,
+        externalCalls: 0
+      },
+      externalCalls: 0
+    });
+    expect(exported.rowCount).toBe(exported.rows.length);
+    expect(exported.rows[0]).toMatchObject({
+      tenantId: defaultTenantId,
+      campaignId: "campaign-api",
+      contactId: "contact-api",
+      conversationId: "conv-api",
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      status: "sent_mock",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ analytics, exported })).not.toMatch(/payloadJson|accessToken|refreshToken|authorization|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
+  });
+
+  it("surfaces analytics and export API errors without mock fallback", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "analytics unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "export unavailable" }, 503));
+
+    await expect(getBroadcastCampaignAnalytics("campaign-api")).rejects.toThrow("API request failed (503): analytics unavailable");
+    await expect(getBroadcastDeliveryExport("campaign-api")).rejects.toThrow("API request failed (503): export unavailable");
   });
 
   it("calls campaign, audience, send, log, and segment endpoints", async () => {
@@ -355,7 +438,7 @@ function campaignDetailResponse(id: string) {
 function sendLogResponse(
   id: string,
   campaignId: string,
-  status: "queued_mock" | "sent_mock" | "skipped_mock" | "failed_mock" | "blocked" | "mock_sent" | "failed_safe" | "unknown_safe",
+  status: "queued_mock" | "sent_mock" | "skipped_mock" | "failed_mock" | "suppressed" | "blocked" | "mock_sent" | "failed_safe" | "unknown_safe",
   overrides: Record<string, unknown> = {}
 ) {
   return {
@@ -387,6 +470,116 @@ function sendLogPageResponse(items: Array<ReturnType<typeof sendLogResponse>>, o
     nextOffset: null,
     externalCalls: 0,
     ...overrides
+  };
+}
+
+function analyticsResponse(campaignId: string, logs: Array<ReturnType<typeof sendLogResponse>>, overrides: Record<string, unknown> = {}) {
+  const sent = logs.filter((log) => log.status === "sent_mock" || log.status === "mock_sent").length;
+  const failed = logs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length;
+  const blocked = logs.filter((log) => log.status === "blocked").length;
+  const suppressed = logs.filter((log) => log.status === "suppressed").length;
+  const skipped = logs.filter((log) => log.status === "skipped_mock").length;
+  const queued = logs.filter((log) => log.status === "queued_mock").length;
+  const unknownSafe = logs.filter((log) => log.status === "unknown_safe").length;
+  return {
+    tenantId: defaultTenantId,
+    campaignId,
+    campaignName: "API Broadcast",
+    status: "draft",
+    generatedAt: "2026-05-21T04:00:00.000Z",
+    filters: deliveryFilterSnapshot(campaignId),
+    counts: {
+      total: logs.length,
+      queued,
+      pending: 0,
+      sent,
+      delivered: sent,
+      providerSuccess: sent,
+      failed,
+      suppressed,
+      skipped,
+      blocked,
+      unknownSafe,
+      externalCalls: 0
+    },
+    deliverySummary: {
+      total: logs.length,
+      previewed: 0,
+      dryRun: 0,
+      suppressed,
+      blocked,
+      queuedMock: queued,
+      mockSent: logs.filter((log) => log.status === "mock_sent").length,
+      sentMock: logs.filter((log) => log.status === "sent_mock").length,
+      skippedMock: skipped,
+      failedMock: logs.filter((log) => log.status === "failed_mock").length,
+      failedSafe: logs.filter((log) => log.status === "failed_safe").length,
+      unknownSafe,
+      externalCalls: 0
+    },
+    contexts: [{
+      platform: "webchat",
+      channelAccountId: "00000000-0000-4000-8000-000000000020",
+      roomId: "room-webchat",
+      total: logs.length,
+      queued,
+      pending: 0,
+      sent,
+      delivered: sent,
+      providerSuccess: sent,
+      failed,
+      suppressed,
+      skipped,
+      blocked,
+      unknownSafe
+    }],
+    externalCalls: 0,
+    ...overrides
+  };
+}
+
+function deliveryExportResponse(campaignId: string, logs: Array<ReturnType<typeof sendLogResponse>>, overrides: Record<string, unknown> = {}) {
+  const rows = logs.map((log) => ({
+    tenantId: log.tenantId,
+    campaignId: log.campaignId,
+    customerId: log.customerId,
+    contactId: log.contactId,
+    contactIdentityId: log.contactIdentityId,
+    conversationId: log.conversationId,
+    platform: log.platform,
+    channelAccountId: log.channelAccountId,
+    roomId: log.roomId,
+    status: log.status,
+    errorCategory: log.status === "blocked" ? "suppressed" : null,
+    errorMessage: log.status === "blocked" ? "do_not_contact" : null,
+    timestamp: log.timestamp,
+    createdAt: log.createdAt,
+    externalCalls: 0
+  }));
+  return {
+    tenantId: defaultTenantId,
+    campaignId,
+    generatedAt: "2026-05-21T04:00:00.000Z",
+    filters: deliveryFilterSnapshot(campaignId),
+    rowCount: rows.length,
+    rows,
+    externalCalls: 0,
+    ...overrides
+  };
+}
+
+function deliveryFilterSnapshot(campaignId: string) {
+  return {
+    campaignId,
+    status: null,
+    platform: null,
+    channelAccountId: null,
+    roomId: null,
+    conversationId: null,
+    customerId: null,
+    contactId: null,
+    from: null,
+    to: null
   };
 }
 

@@ -25,8 +25,10 @@ import {
   conversationStatusHistorySchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastAudiencePreviewResultSchema,
+  broadcastCampaignAnalyticsSchema,
   broadcastCampaignDetailSchema,
   broadcastCampaignSchema,
+  broadcastDeliveryExportSchema,
   broadcastSendLogSchema,
   broadcastSendLogFiltersSchema,
   broadcastSendLogPageSchema,
@@ -103,10 +105,12 @@ import {
   type BroadcastAudiencePreviewRequest,
   type BroadcastAudiencePreviewResult,
   type BroadcastCampaign,
+  type BroadcastCampaignAnalytics,
   type BroadcastCampaignDetail,
   type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
   type BroadcastComplianceLogPage,
+  type BroadcastDeliveryExport,
   type BroadcastSendLogFilters,
   type BroadcastSendLogPage,
   type BroadcastSendLog,
@@ -404,6 +408,16 @@ export async function getBroadcastSendLogPage(filters: BroadcastSendLogFilters =
   });
   const search = params.toString();
   return request(`/broadcasts/send-logs${search ? `?${search}` : ""}`, broadcastSendLogPageSchema);
+}
+
+export async function getBroadcastCampaignAnalytics(campaignId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastCampaignAnalytics> {
+  const parsed = broadcastSendLogFiltersSchema.parse({ ...filters, campaignId });
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/analytics${broadcastSendLogSearch(parsed)}`, broadcastCampaignAnalyticsSchema);
+}
+
+export async function getBroadcastDeliveryExport(campaignId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastDeliveryExport> {
+  const parsed = broadcastSendLogFiltersSchema.parse({ ...filters, campaignId });
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/delivery-export${broadcastSendLogSearch(parsed)}`, broadcastDeliveryExportSchema);
 }
 
 export async function getBroadcastComplianceLogs(campaignId: string): Promise<BroadcastComplianceLog[]> {
@@ -940,4 +954,13 @@ function analyticsPath(path: string, query: AnalyticsQuery) {
   if (query.agentId && query.agentId !== "all") params.set("agentId", query.agentId);
   const search = params.toString();
   return search ? `${path}?${search}` : path;
+}
+
+function broadcastSendLogSearch(filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  });
+  const search = params.toString();
+  return search ? `?${search}` : "";
 }

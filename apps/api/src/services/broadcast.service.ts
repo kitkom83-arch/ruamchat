@@ -13,12 +13,17 @@ import {
   updateBroadcastSegmentRequestSchema,
   type BroadcastAudiencePreviewRecipient,
   type BroadcastAudiencePreviewRequest,
+  type BroadcastAnalyticsCounts,
   type BroadcastCampaign,
+  type BroadcastCampaignAnalytics,
   type BroadcastCampaignDeliverySummary,
   type BroadcastCampaignDetail,
   type BroadcastComplianceFilters,
   type BroadcastComplianceLog,
   type BroadcastContentJson,
+  type BroadcastDeliveryExport,
+  type BroadcastDeliveryExportRow,
+  type BroadcastDeliveryFilterSnapshot,
   type BroadcastSegment,
   type BroadcastSegmentRule,
   type BroadcastSendLogFilters,
@@ -475,14 +480,7 @@ export class BroadcastService {
 
   async listSendLogPage(tenantId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastSendLogPage> {
     const parsed = broadcastSendLogFiltersSchema.parse(filters);
-    await this.validateSendLogFilterOwnership(tenantId, parsed);
-    const logs = await this.prisma.broadcastSendLog.findMany({
-      where: buildSendLogWhere(tenantId, parsed),
-      orderBy: { createdAt: "desc" },
-      take: 1000
-    });
-    const rows = await this.mapSendLogsWithContext(tenantId, logs as BroadcastSendLogRecord[]);
-    const filtered = rows.filter((log) => matchesSendLogFilters(log, parsed));
+    const filtered = await this.listAllSendLogsWithContext(tenantId, parsed);
     const items = filtered.slice(parsed.offset, parsed.offset + parsed.limit);
     const nextOffset = parsed.offset + items.length < filtered.length ? parsed.offset + items.length : null;
     return {
@@ -491,6 +489,42 @@ export class BroadcastService {
       offset: parsed.offset,
       total: filtered.length,
       nextOffset,
+      externalCalls: 0
+    };
+  }
+
+  async getCampaignAnalytics(tenantId: string, campaignId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastCampaignAnalytics> {
+    const campaign = await this.ensureCampaign(tenantId, campaignId);
+    const parsed = broadcastSendLogFiltersSchema.parse({ ...filters, campaignId, limit: 200, offset: 0 });
+    const logs = await this.listAllSendLogsWithContext(tenantId, parsed);
+    const deliverySummary = summarizeSendLogs(logs);
+    const counts = summarizeAnalyticsCounts(logs);
+    return {
+      tenantId,
+      campaignId,
+      campaignName: campaign.name,
+      status: broadcastCampaignStatusSchema.catch("draft").parse(campaign.status),
+      generatedAt: new Date().toISOString(),
+      filters: filterSnapshot(parsed),
+      counts,
+      deliverySummary,
+      contexts: summarizeAnalyticsContexts(logs),
+      externalCalls: 0
+    };
+  }
+
+  async exportCampaignDelivery(tenantId: string, campaignId: string, filters: BroadcastSendLogFilters = {}): Promise<BroadcastDeliveryExport> {
+    await this.ensureCampaign(tenantId, campaignId);
+    const parsed = broadcastSendLogFiltersSchema.parse({ ...filters, campaignId, limit: 200, offset: 0 });
+    const logs = await this.listAllSendLogsWithContext(tenantId, parsed);
+    const rows = logs.map(exportRowFromSendLog);
+    return {
+      tenantId,
+      campaignId,
+      generatedAt: new Date().toISOString(),
+      filters: filterSnapshot(parsed),
+      rowCount: rows.length,
+      rows,
       externalCalls: 0
     };
   }
@@ -554,11 +588,22 @@ export class BroadcastService {
     }
   }
 
+  private async listAllSendLogsWithContext(tenantId: string, filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>) {
+    await this.validateSendLogFilterOwnership(tenantId, filters);
+    const logs = await this.prisma.broadcastSendLog.findMany({
+      where: buildSendLogWhere(tenantId, filters),
+      orderBy: { createdAt: "desc" },
+      take: 5000
+    });
+    const rows = await this.mapSendLogsWithContext(tenantId, logs as BroadcastSendLogRecord[]);
+    return rows.filter((log) => matchesSendLogFilters(log, filters));
+  }
+
   private async buildCampaignDetail(tenantId: string, campaign: BroadcastCampaignRecord): Promise<BroadcastCampaignDetail> {
     const segment = campaign.segmentId
       ? await this.prisma.broadcastSegment.findFirst({ where: { id: campaign.segmentId, tenantId } }) as BroadcastSegmentRecord | null
       : null;
-    const sendLogs = await this.listSendLogPage(tenantId, { campaignId: campaign.id, limit: 200, offset: 0 });
+    const sendLogs = await this.listAllSendLogsWithContext(tenantId, broadcastSendLogFiltersSchema.parse({ campaignId: campaign.id, limit: 200, offset: 0 }));
     const compliance = await this.listComplianceHistory(tenantId, { campaignId: campaign.id, limit: 200, offset: 0 });
     return {
       campaignId: campaign.id,
@@ -569,7 +614,7 @@ export class BroadcastService {
       updatedAt: campaign.updatedAt.toISOString(),
       audienceCount: segment?.estimatedCount ?? null,
       suppressionCount: compliance.total,
-      deliverySummary: summarizeSendLogs(sendLogs.items),
+      deliverySummary: summarizeSendLogs(sendLogs),
       externalCalls: 0
     };
   }
@@ -855,6 +900,120 @@ function summarizeSendLogs(logs: BroadcastSendLog[]): BroadcastCampaignDeliveryS
     unknownSafe: logs.filter((log) => log.status === "unknown_safe").length,
     externalCalls: 0
   };
+}
+
+function summarizeAnalyticsCounts(logs: BroadcastSendLog[]): BroadcastAnalyticsCounts {
+  const sent = logs.filter((log) => isSentSuccessStatus(log.status)).length;
+  const failed = logs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length;
+  const suppressed = logs.filter((log) => log.status === "suppressed").length;
+  const blocked = logs.filter((log) => log.status === "blocked").length;
+  const skipped = logs.filter((log) => log.status === "skipped_mock").length;
+  const queued = logs.filter((log) => log.status === "queued_mock").length;
+  const pending = logs.filter((log) => log.status === "previewed" || log.status === "dry_run").length;
+  return {
+    total: logs.length,
+    queued,
+    pending,
+    sent,
+    delivered: sent,
+    providerSuccess: sent,
+    failed,
+    suppressed,
+    skipped,
+    blocked,
+    unknownSafe: logs.filter((log) => log.status === "unknown_safe").length,
+    externalCalls: 0
+  };
+}
+
+function summarizeAnalyticsContexts(logs: BroadcastSendLog[]) {
+  const byContext = new Map<string, { platform: Platform; channelAccountId: string | null; roomId: string | null; logs: BroadcastSendLog[] }>();
+  logs.forEach((log) => {
+    const key = `${log.platform}:${log.channelAccountId ?? ""}:${log.roomId ?? ""}`;
+    const existing = byContext.get(key);
+    if (existing) {
+      existing.logs.push(log);
+      return;
+    }
+    byContext.set(key, {
+      platform: log.platform,
+      channelAccountId: log.channelAccountId,
+      roomId: log.roomId ?? null,
+      logs: [log]
+    });
+  });
+  return Array.from(byContext.values()).map((context) => {
+    const counts = summarizeAnalyticsCounts(context.logs);
+    return {
+      platform: context.platform,
+      channelAccountId: context.channelAccountId,
+      roomId: context.roomId,
+      total: counts.total,
+      queued: counts.queued,
+      pending: counts.pending,
+      sent: counts.sent,
+      delivered: counts.delivered,
+      providerSuccess: counts.providerSuccess,
+      failed: counts.failed,
+      suppressed: counts.suppressed,
+      skipped: counts.skipped,
+      blocked: counts.blocked,
+      unknownSafe: counts.unknownSafe
+    };
+  });
+}
+
+function filterSnapshot(filters: ReturnType<typeof broadcastSendLogFiltersSchema.parse>): BroadcastDeliveryFilterSnapshot {
+  return {
+    campaignId: filters.campaignId ?? "",
+    status: filters.status ?? null,
+    platform: filters.platform ?? null,
+    channelAccountId: filters.channelAccountId ?? null,
+    roomId: filters.roomId ?? null,
+    conversationId: filters.conversationId ?? null,
+    customerId: filters.customerId ?? null,
+    contactId: filters.contactId ?? null,
+    from: filters.from ?? null,
+    to: filters.to ?? null
+  };
+}
+
+function exportRowFromSendLog(log: BroadcastSendLog): BroadcastDeliveryExportRow {
+  const errorCategory = safeErrorCategory(log);
+  return {
+    tenantId: log.tenantId,
+    campaignId: log.campaignId,
+    customerId: log.customerId ?? null,
+    contactId: log.contactId,
+    contactIdentityId: log.contactIdentityId,
+    conversationId: log.conversationId ?? null,
+    platform: log.platform,
+    channelAccountId: log.channelAccountId,
+    roomId: log.roomId ?? null,
+    status: log.status,
+    errorCategory,
+    errorMessage: errorCategory ? safeErrorMessage(log.reason) : null,
+    timestamp: log.timestamp,
+    createdAt: log.createdAt,
+    externalCalls: 0
+  };
+}
+
+function safeErrorCategory(log: BroadcastSendLog) {
+  if (log.status === "blocked" || log.status === "suppressed") return "suppressed";
+  if (log.status === "failed_mock" || log.status === "failed_safe") return "failed";
+  if (log.status === "skipped_mock") return "skipped";
+  if (log.status === "unknown_safe") return "unknown_safe";
+  return null;
+}
+
+function safeErrorMessage(reason: string | null) {
+  if (!reason) return null;
+  return reason.replace(/Bearer\s+[a-z0-9._-]+|sk-[a-z0-9_-]+|xox[baprs]-[a-z0-9-]+|EA[A-Za-z0-9]{20,}/gi, "[redacted]").slice(0, 240);
+}
+
+function isSentSuccessStatus(status: BroadcastSendLogStatus) {
+  return status === "sent_mock" || status === "mock_sent";
 }
 
 function buildSendLogWhere(
