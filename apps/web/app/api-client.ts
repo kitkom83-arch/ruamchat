@@ -22,6 +22,7 @@ import {
   broadcastComplianceFiltersSchema,
   broadcastComplianceLogSchema,
   broadcastComplianceLogPageSchema,
+  broadcastApprovalRequestSchema,
   conversationStatusHistorySchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastAudiencePreviewResultSchema,
@@ -103,6 +104,7 @@ import {
   type AiSuggestionFeedbackRequest,
   type ApiHealth,
   type BroadcastAudiencePreviewRequest,
+  type BroadcastApprovalRequest,
   type BroadcastAudiencePreviewResult,
   type BroadcastCampaign,
   type BroadcastCampaignAnalytics,
@@ -375,6 +377,38 @@ export async function dryRunBroadcastAudience(campaignId: string, payload: Broad
 export async function scheduleBroadcastCampaign(campaignId: string, payload: ScheduleBroadcastCampaignRequest): Promise<BroadcastCampaign> {
   const body = scheduleBroadcastCampaignRequestSchema.parse(payload);
   return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/schedule`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function requestBroadcastCampaignApproval(campaignId: string, payload: BroadcastApprovalRequest = {}): Promise<BroadcastCampaign> {
+  const body = broadcastApprovalRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/request-approval`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function approveBroadcastCampaign(campaignId: string, payload: BroadcastApprovalRequest = {}): Promise<BroadcastCampaign> {
+  const body = broadcastApprovalRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/approve`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function rejectBroadcastCampaign(campaignId: string, payload: BroadcastApprovalRequest = {}): Promise<BroadcastCampaign> {
+  const body = broadcastApprovalRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/reject`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function cancelBroadcastCampaignApproval(campaignId: string, payload: BroadcastApprovalRequest = {}): Promise<BroadcastCampaign> {
+  const body = broadcastApprovalRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/cancel-approval`, broadcastCampaignSchema, {
     method: "POST",
     body: JSON.stringify(body)
   });

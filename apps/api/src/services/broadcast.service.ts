@@ -1,5 +1,6 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
+  broadcastApprovalRequestSchema,
   broadcastCampaignStatusSchema,
   broadcastComplianceFiltersSchema,
   broadcastContentJsonSchema,
@@ -14,6 +15,7 @@ import {
   type BroadcastAudiencePreviewRecipient,
   type BroadcastAudiencePreviewRequest,
   type BroadcastAnalyticsCounts,
+  type BroadcastApprovalRequest,
   type BroadcastCampaign,
   type BroadcastCampaignAnalytics,
   type BroadcastCampaignDeliverySummary,
@@ -42,6 +44,7 @@ import {
   type UpdateBroadcastSegmentRequest
 } from "@ai-omni/shared";
 import { Prisma } from "@prisma/client";
+import { AuditService } from "./audit.service.js";
 import { OutboundConsentService, type OutboundConsentContext } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
 
@@ -176,7 +179,8 @@ type AudienceScreeningResult = {
 export class BroadcastService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
-    @Inject(OutboundConsentService) private readonly outboundConsent: OutboundConsentService
+    @Inject(OutboundConsentService) private readonly outboundConsent: OutboundConsentService,
+    @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   async listCampaigns(tenantId: string) {
@@ -355,20 +359,145 @@ export class BroadcastService {
     };
   }
 
-  async scheduleCampaign(tenantId: string, campaignId: string, request: ScheduleBroadcastCampaignRequest) {
-    await this.ensureCampaign(tenantId, campaignId);
+  async scheduleCampaign(tenantId: string, campaignId: string, actorUserId: string | undefined, request: ScheduleBroadcastCampaignRequest) {
+    const existing = await this.ensureCampaign(tenantId, campaignId);
+    assertSchedulable(existing);
+    const scheduleAt = new Date(request.scheduleAt);
+    if (Number.isNaN(scheduleAt.getTime())) throw new BadRequestException("scheduleAt must be a valid datetime");
+    if (scheduleAt.getTime() <= Date.now()) throw new BadRequestException("scheduleAt must be in the future");
+    const readiness = await this.screenCampaignReadiness(tenantId, existing, "schedule");
     const campaign = await this.prisma.broadcastCampaign.update({
       where: { id: campaignId },
       data: {
         status: "scheduled",
-        scheduleAt: new Date(request.scheduleAt)
+        scheduleAt,
+        contentJson: toInputJson(withWorkflowMetadata(existing.contentJson, {
+          lastWorkflowAction: "schedule",
+          approvalStatus: approvalStatusFromCampaignStatus(existing.status),
+          scheduledAt: scheduleAt.toISOString(),
+          scheduleReadiness: readinessSummary(readiness)
+        }))
       }
+    });
+    await this.recordCampaignWorkflowAudit(tenantId, actorUserId, "broadcast.campaign_scheduled", existing, campaign as BroadcastCampaignRecord, {
+      scheduleAt: scheduleAt.toISOString(),
+      readiness: readinessSummary(readiness)
+    });
+    return mapCampaign(campaign);
+  }
+
+  async requestApproval(tenantId: string, campaignId: string, actorUserId: string | undefined, request: BroadcastApprovalRequest = {}) {
+    const existing = await this.ensureCampaign(tenantId, campaignId);
+    if (existing.status === "rejected" || existing.status === "archived" || existing.status === "cancelled") {
+      throw new BadRequestException("Campaign must be returned to draft before requesting approval");
+    }
+    const parsed = broadcastApprovalRequestSchema.parse(request);
+    const readiness = await this.screenCampaignReadiness(tenantId, existing, "approval");
+    const now = new Date().toISOString();
+    const campaign = await this.prisma.broadcastCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "pending_approval",
+        contentJson: toInputJson(withWorkflowMetadata(existing.contentJson, {
+          lastWorkflowAction: "request_approval",
+          approvalStatus: "pending_approval",
+          approvalRequestedAt: now,
+          approvalReviewedAt: null,
+          approvalReviewedBy: null,
+          approvalNote: parsed.note ?? null,
+          approvalReadiness: readinessSummary(readiness)
+        }))
+      }
+    });
+    await this.recordCampaignWorkflowAudit(tenantId, actorUserId, "broadcast.approval_requested", existing, campaign as BroadcastCampaignRecord, {
+      note: parsed.note ?? null,
+      readiness: readinessSummary(readiness)
+    });
+    return mapCampaign(campaign);
+  }
+
+  async approveCampaign(tenantId: string, campaignId: string, actorUserId: string | undefined, request: BroadcastApprovalRequest = {}) {
+    const existing = await this.ensureCampaign(tenantId, campaignId);
+    if (existing.status === "rejected" || existing.status === "archived" || existing.status === "cancelled") {
+      throw new BadRequestException("Campaign cannot be approved from its current status");
+    }
+    const parsed = broadcastApprovalRequestSchema.parse(request);
+    const readiness = await this.screenCampaignReadiness(tenantId, existing, "approval");
+    const now = new Date().toISOString();
+    const campaign = await this.prisma.broadcastCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "approved",
+        contentJson: toInputJson(withWorkflowMetadata(existing.contentJson, {
+          lastWorkflowAction: "approve",
+          approvalStatus: "approved",
+          approvalReviewedAt: now,
+          approvalReviewedBy: actorUserId ?? null,
+          approvalNote: parsed.note ?? readObject(existing.contentJson).approvalNote ?? null,
+          approvalReadiness: readinessSummary(readiness)
+        }))
+      }
+    });
+    await this.recordCampaignWorkflowAudit(tenantId, actorUserId, "broadcast.approved", existing, campaign as BroadcastCampaignRecord, {
+      note: parsed.note ?? null,
+      readiness: readinessSummary(readiness)
+    });
+    return mapCampaign(campaign);
+  }
+
+  async rejectCampaign(tenantId: string, campaignId: string, actorUserId: string | undefined, request: BroadcastApprovalRequest = {}) {
+    const existing = await this.ensureCampaign(tenantId, campaignId);
+    if (existing.status === "archived" || existing.status === "cancelled") {
+      throw new BadRequestException("Campaign cannot be rejected from its current status");
+    }
+    const parsed = broadcastApprovalRequestSchema.parse(request);
+    const now = new Date().toISOString();
+    const campaign = await this.prisma.broadcastCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "rejected",
+        scheduleAt: null,
+        contentJson: toInputJson(withWorkflowMetadata(existing.contentJson, {
+          lastWorkflowAction: "reject",
+          approvalStatus: "rejected",
+          approvalReviewedAt: now,
+          approvalReviewedBy: actorUserId ?? null,
+          approvalNote: parsed.note ?? null,
+          scheduledAt: null
+        }))
+      }
+    });
+    await this.recordCampaignWorkflowAudit(tenantId, actorUserId, "broadcast.rejected", existing, campaign as BroadcastCampaignRecord, {
+      note: parsed.note ?? null
+    });
+    return mapCampaign(campaign);
+  }
+
+  async cancelApproval(tenantId: string, campaignId: string, actorUserId: string | undefined, request: BroadcastApprovalRequest = {}) {
+    const existing = await this.ensureCampaign(tenantId, campaignId);
+    const parsed = broadcastApprovalRequestSchema.parse(request);
+    const campaign = await this.prisma.broadcastCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: "draft",
+        contentJson: toInputJson(withWorkflowMetadata(existing.contentJson, {
+          lastWorkflowAction: "cancel_approval",
+          approvalStatus: "draft",
+          approvalReviewedAt: null,
+          approvalReviewedBy: null,
+          approvalNote: parsed.note ?? null
+        }))
+      }
+    });
+    await this.recordCampaignWorkflowAudit(tenantId, actorUserId, "broadcast.approval_cancelled", existing, campaign as BroadcastCampaignRecord, {
+      note: parsed.note ?? null
     });
     return mapCampaign(campaign);
   }
 
   async sendTest(tenantId: string, campaignId: string, request: BroadcastSendTestRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
+    assertNotRejectedForOutbound(campaign);
     if (request.contactId) {
       const context = await this.outboundConsent.getContext({
         tenantId,
@@ -436,6 +565,7 @@ export class BroadcastService {
 
   async sendNow(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
+    assertNotRejectedForOutbound(campaign);
     const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: true, limit: 1000 });
     const screened = await this.screenAudience(tenantId, campaignId, candidates, "send_now");
     const logs: BroadcastSendLog[] = [];
@@ -612,6 +742,9 @@ export class BroadcastService {
       status: broadcastCampaignStatusSchema.catch("draft").parse(campaign.status),
       createdAt: campaign.createdAt.toISOString(),
       updatedAt: campaign.updatedAt.toISOString(),
+      scheduledAt: campaign.scheduleAt?.toISOString() ?? null,
+      scheduleAt: campaign.scheduleAt?.toISOString() ?? null,
+      ...approvalMetadataFromContent(campaign.status, campaign.contentJson),
       audienceCount: segment?.estimatedCount ?? null,
       suppressionCount: compliance.total,
       deliverySummary: summarizeSendLogs(sendLogs),
@@ -719,7 +852,7 @@ export class BroadcastService {
     tenantId: string,
     campaignId: string,
     candidates: AudienceCandidate[],
-    sendType: "preview" | "dry_run" | "send_now"
+    sendType: "preview" | "dry_run" | "send_now" | "schedule" | "approval"
   ): Promise<AudienceScreeningResult> {
     const eligible: AudienceCandidate[] = [];
     const suppressed: BroadcastSuppressedRecipient[] = [];
@@ -763,6 +896,48 @@ export class BroadcastService {
 
     return { candidates, eligible, suppressed, suppressedByReason };
   }
+
+  private async screenCampaignReadiness(
+    tenantId: string,
+    campaign: BroadcastCampaignRecord,
+    sendType: "schedule" | "approval"
+  ): Promise<AudienceScreeningResult> {
+    const candidates = await this.buildAudience(tenantId, campaign, {}, { includeSkipped: false, limit: 500 });
+    const screened = await this.screenAudience(tenantId, campaign.id, candidates, sendType);
+    if (screened.candidates.length > 0 && screened.eligible.length === 0) {
+      throw new BadRequestException("No eligible recipients after suppression and consent checks");
+    }
+    return screened;
+  }
+
+  private async recordCampaignWorkflowAudit(
+    tenantId: string,
+    actorUserId: string | undefined,
+    action: string,
+    before: BroadcastCampaignRecord,
+    after: BroadcastCampaignRecord,
+    metadata: Prisma.InputJsonObject = {}
+  ) {
+    await this.audit.record({
+      tenantId,
+      actorUserId: actorUserId ?? null,
+      action,
+      entityType: "broadcast_campaign",
+      entityId: after.id,
+      beforeJson: safeCampaignStatusSnapshot(before),
+      afterJson: safeCampaignStatusSnapshot(after),
+      metadata: {
+        campaignId: after.id,
+        previousStatus: before.status,
+        status: after.status,
+        platform: after.channelPlatform,
+        channelAccountId: after.channelAccountId,
+        scheduleAt: after.scheduleAt?.toISOString() ?? null,
+        externalCalls: 0,
+        ...metadata
+      }
+    });
+  }
 }
 
 function normalizeCampaignInput(request: CreateBroadcastCampaignRequest | UpdateBroadcastCampaignRequest & { name?: string }) {
@@ -788,6 +963,75 @@ function normalizeCampaignInput(request: CreateBroadcastCampaignRequest | Update
     }) as BroadcastContentJson,
     scheduleAt
   };
+}
+
+function assertSchedulable(campaign: BroadcastCampaignRecord) {
+  if (campaign.status === "rejected") {
+    throw new BadRequestException("Rejected campaigns must be returned to draft before scheduling");
+  }
+  if (campaign.status === "archived" || campaign.status === "cancelled") {
+    throw new BadRequestException("Campaign cannot be scheduled from its current status");
+  }
+}
+
+function assertNotRejectedForOutbound(campaign: BroadcastCampaignRecord) {
+  if (campaign.status === "rejected") {
+    throw new BadRequestException("Rejected campaigns must be returned to draft before outbound-like actions");
+  }
+}
+
+function withWorkflowMetadata(contentJson: unknown, patch: Record<string, unknown>) {
+  return {
+    ...readObject(contentJson),
+    ...patch,
+    safeMockOnly: true
+  };
+}
+
+function approvalStatusFromCampaignStatus(status: string) {
+  if (status === "pending_approval" || status === "approved" || status === "rejected" || status === "cancelled") return status;
+  return "draft";
+}
+
+function readinessSummary(screened: AudienceScreeningResult): Prisma.InputJsonObject {
+  return {
+    candidateCount: screened.candidates.length,
+    eligibleCount: screened.eligible.length,
+    suppressedCount: screened.suppressed.length,
+    suppressedByReason: screened.suppressedByReason,
+    externalCalls: 0
+  };
+}
+
+function safeCampaignStatusSnapshot(campaign: BroadcastCampaignRecord): Prisma.InputJsonObject {
+  return {
+    campaignId: campaign.id,
+    status: campaign.status,
+    platform: campaign.channelPlatform,
+    channelAccountId: campaign.channelAccountId,
+    segmentId: campaign.segmentId,
+    scheduleAt: campaign.scheduleAt?.toISOString() ?? null,
+    externalCalls: 0
+  };
+}
+
+function approvalMetadataFromContent(status: string, contentJson: unknown) {
+  const content = readObject(contentJson);
+  const approvalStatus = stringOrNull(content.approvalStatus) ?? approvalStatusFromCampaignStatus(status);
+  const action = stringOrNull(content.lastWorkflowAction);
+  return {
+    approvalStatus: safeApprovalStatus(approvalStatus),
+    approvalRequestedAt: stringOrNull(content.approvalRequestedAt),
+    approvalReviewedAt: stringOrNull(content.approvalReviewedAt),
+    approvalReviewedBy: stringOrNull(content.approvalReviewedBy),
+    approvalNote: stringOrNull(content.approvalNote),
+    ...(action && ["request_approval", "approve", "reject", "cancel_approval", "schedule"].includes(action) ? { lastWorkflowAction: action as "request_approval" | "approve" | "reject" | "cancel_approval" | "schedule" } : {})
+  };
+}
+
+function safeApprovalStatus(status: string): "draft" | "pending_approval" | "approved" | "rejected" | "cancelled" {
+  if (status === "pending_approval" || status === "approved" || status === "rejected" || status === "cancelled") return status;
+  return "draft";
 }
 
 function normalizeSegmentInput(request: CreateBroadcastSegmentRequest | UpdateBroadcastSegmentRequest) {
@@ -823,6 +1067,7 @@ function mapCampaign(campaign: BroadcastCampaignRecord): BroadcastCampaign {
     scheduleType: scheduleAt ? "scheduled" : "now",
     scheduledAt: scheduleAt ?? undefined,
     scheduleAt,
+    ...approvalMetadataFromContent(campaign.status, campaign.contentJson),
     createdBy: campaign.createdByUserId ?? "api",
     createdByUserId: campaign.createdByUserId,
     contentJson: campaign.contentJson,

@@ -1,9 +1,10 @@
 import "reflect-metadata";
 import { Module } from "@nestjs/common";
-import { NotFoundException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BroadcastsController } from "../controllers/broadcasts.controller.js";
+import { AuditService } from "./audit.service.js";
 import { BroadcastService } from "./broadcast.service.js";
 import { OutboundConsentService } from "./outbound-consent.service.js";
 import { PrismaService } from "./prisma.service.js";
@@ -389,16 +390,132 @@ describe("BroadcastService persistence and safe queue APIs", () => {
     });
   });
 
-  it("schedules campaigns without sending and records send-test/send-now logs as safe mock only", async () => {
+  it("schedules campaigns through tenant-scoped readiness checks without sending", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await withBroadcastRuntime(async ({ controller, prisma, outboundConsent, audit }) => {
+      const scheduled = await controller.scheduleCampaign("campaign-web", { scheduleAt: "2099-05-23T04:00:00.000Z" }, tenantId, userId);
+
+      expect(scheduled.status).toBe("scheduled");
+      expect(scheduled.scheduleAt).toBe("2099-05-23T04:00:00.000Z");
+      expect(scheduled.scheduledAt).toBe("2099-05-23T04:00:00.000Z");
+      expect(scheduled.approvalStatus).toBe("draft");
+      expect(scheduled.lastWorkflowAction).toBe("schedule");
+      expect(outboundConsent.getContext).toHaveBeenCalledWith(expect.objectContaining({
+        tenantId,
+        contactId: "contact-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat")
+      }));
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+        tenantId,
+        actorUserId: userId,
+        action: "broadcast.campaign_scheduled",
+        entityType: "broadcast_campaign",
+        entityId: "campaign-web",
+        metadata: expect.objectContaining({
+          campaignId: "campaign-web",
+          status: "scheduled",
+          platform: "webchat",
+          channelAccountId: accountId("webchat"),
+          externalCalls: 0
+        })
+      }));
+      expect(prisma.broadcastSendLog.create).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("persists approval request, approve, reject, and cancel approval as safe API workflow state", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await withBroadcastRuntime(async ({ controller, audit }) => {
+      const requested = await controller.requestApproval("campaign-web", { note: "review draft" }, tenantId, userId);
+      const approved = await controller.approveCampaign("campaign-web", { note: "approved safely" }, tenantId, userId);
+      const rejected = await controller.rejectCampaign("campaign-web", { note: "needs edit" }, tenantId, userId);
+      const returned = await controller.cancelApproval("campaign-web", { note: "return to draft" }, tenantId, userId);
+
+      expect(requested).toMatchObject({
+        id: "campaign-web",
+        status: "pending_approval",
+        approvalStatus: "pending_approval",
+        approvalNote: "review draft",
+        lastWorkflowAction: "request_approval"
+      });
+      expect(approved).toMatchObject({
+        id: "campaign-web",
+        status: "approved",
+        approvalStatus: "approved",
+        approvalReviewedBy: userId,
+        lastWorkflowAction: "approve"
+      });
+      expect(rejected).toMatchObject({
+        id: "campaign-web",
+        status: "rejected",
+        approvalStatus: "rejected",
+        scheduleAt: null,
+        approvalReviewedBy: userId,
+        lastWorkflowAction: "reject"
+      });
+      expect(returned).toMatchObject({
+        id: "campaign-web",
+        status: "draft",
+        approvalStatus: "draft",
+        approvalNote: "return to draft",
+        lastWorkflowAction: "cancel_approval"
+      });
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "broadcast.approval_requested" }));
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "broadcast.approved" }));
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "broadcast.rejected" }));
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: "broadcast.approval_cancelled" }));
+      expect(JSON.stringify({ requested, approved, rejected, returned })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("blocks schedule and outbound-like actions for rejected campaigns until returned to draft", async () => {
+    await withBroadcastRuntime(async ({ controller, prisma }) => {
+      await controller.rejectCampaign("campaign-web", { note: "needs review" }, tenantId, userId);
+
+      await expect(controller.scheduleCampaign("campaign-web", { scheduleAt: "2099-05-23T04:00:00.000Z" }, tenantId, userId)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.sendNow("campaign-web", { platform: "webchat" }, tenantId)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.broadcastSendLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  it("rejects invalid tenant schedule/approval calls before mutating campaign state", async () => {
+    await withBroadcastRuntime(async ({ controller, prisma }) => {
+      await expect(controller.scheduleCampaign("campaign-other", { scheduleAt: "2099-05-23T04:00:00.000Z" }, tenantId, userId)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(controller.requestApproval("campaign-other", {}, tenantId, userId)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(controller.scheduleCampaign("campaign-web", { scheduleAt: "2020-05-23T04:00:00.000Z" }, tenantId, userId)).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.broadcastCampaign.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "campaign-other" } }));
+    });
+  });
+
+  it("enforces suppression guardrails before scheduling or approval readiness", async () => {
+    await withBroadcastRuntime(async ({ controller, outboundConsent, prisma }) => {
+      outboundConsent.setConsent({ optOut: false, doNotContact: true, suppressedReason: "do_not_contact" });
+
+      await expect(controller.scheduleCampaign("campaign-web", { scheduleAt: "2099-05-23T04:00:00.000Z" }, tenantId, userId)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.requestApproval("campaign-web", {}, tenantId, userId)).rejects.toBeInstanceOf(BadRequestException);
+      expect(outboundConsent.recordBlocked).toHaveBeenCalledWith(expect.objectContaining({
+        action: "broadcast.recipient_suppressed",
+        reason: "do_not_contact",
+        metadata: expect.objectContaining({
+          campaignId: "campaign-web",
+          suppressed: true
+        })
+      }));
+      expect(prisma.broadcastSendLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  it("records send-test/send-now logs as safe mock only", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await withBroadcastRuntime(async ({ controller, prisma }) => {
-      const scheduled = await controller.scheduleCampaign("campaign-web", { scheduleAt: "2026-05-23T04:00:00.000Z" }, tenantId);
       const testResult = await controller.sendTest("campaign-web", { platform: "webchat", payloadJson: { source: "test" } }, tenantId);
       const sendResult = await controller.sendNow("campaign-web", { platform: "webchat" }, tenantId);
       const logs = await controller.listSendLogs("campaign-web", {}, tenantId);
       const logItems = Array.isArray(logs) ? logs : logs.items;
 
-      expect(scheduled.status).toBe("scheduled");
       expect(testResult.logs[0]?.status).toBe("sent_mock");
       expect(sendResult.externalCalls).toEqual([]);
       expect(sendResult.logs.map((log) => log.status).sort()).toEqual(["sent_mock", "skipped_mock"]);
@@ -466,11 +583,13 @@ async function withBroadcastRuntime<T>(
 async function buildBroadcastRuntime() {
   const prisma = buildPrismaFake();
   const outboundConsent = buildOutboundConsentFake();
+  const audit = buildAuditFake();
 
   @Module({
     controllers: [BroadcastsController],
     providers: [
       BroadcastService,
+      { provide: AuditService, useValue: audit },
       { provide: OutboundConsentService, useValue: outboundConsent },
       { provide: PrismaService, useValue: prisma }
     ]
@@ -482,8 +601,20 @@ async function buildBroadcastRuntime() {
     controller: app.get(BroadcastsController),
     service: app.get(BroadcastService),
     outboundConsent,
+    audit,
     prisma,
     close: () => app.close()
+  };
+}
+
+function buildAuditFake() {
+  return {
+    record: vi.fn(async (input: Record<string, any>) => ({
+      id: `audit-${input.action}`,
+      ...input,
+      metadata: { ...(input.metadata ?? {}), externalCalls: 0 },
+      createdAt: new Date("2026-05-21T05:10:00.000Z")
+    }))
   };
 }
 

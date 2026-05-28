@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import {
   broadcastAudiencePreviewRequestSchema,
+  broadcastApprovalRequestSchema,
   broadcastComplianceFiltersSchema,
   broadcastSendTestRequestSchema,
   broadcastSendLogFiltersSchema,
@@ -65,8 +66,53 @@ export class BroadcastsController {
   }
 
   @Post("campaigns/:campaignId/schedule")
-  async scheduleCampaign(@Param("campaignId") campaignId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
-    return this.broadcasts.scheduleCampaign(requireTenantId(tenant), campaignId, scheduleBroadcastCampaignRequestSchema.parse(body));
+  async scheduleCampaign(
+    @Param("campaignId") campaignId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.broadcasts.scheduleCampaign(requireTenantId(tenant), campaignId, userId, scheduleBroadcastCampaignRequestSchema.parse(body));
+  }
+
+  @Post("campaigns/:campaignId/request-approval")
+  async requestApproval(
+    @Param("campaignId") campaignId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.broadcasts.requestApproval(requireTenantId(tenant), campaignId, userId, broadcastApprovalRequestSchema.parse(body ?? {}));
+  }
+
+  @Post("campaigns/:campaignId/approve")
+  async approveCampaign(
+    @Param("campaignId") campaignId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.broadcasts.approveCampaign(requireTenantId(tenant), campaignId, userId, broadcastApprovalRequestSchema.parse(body ?? {}));
+  }
+
+  @Post("campaigns/:campaignId/reject")
+  async rejectCampaign(
+    @Param("campaignId") campaignId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.broadcasts.rejectCampaign(requireTenantId(tenant), campaignId, userId, broadcastApprovalRequestSchema.parse(body ?? {}));
+  }
+
+  @Post("campaigns/:campaignId/cancel-approval")
+  async cancelApproval(
+    @Param("campaignId") campaignId: string,
+    @Body() body: unknown,
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.broadcasts.cancelApproval(requireTenantId(tenant), campaignId, userId, broadcastApprovalRequestSchema.parse(body ?? {}));
   }
 
   @Post("campaigns/:campaignId/send-test")
