@@ -71,6 +71,7 @@ describe("BroadcastService persistence and safe queue APIs", () => {
   it("lists, creates, updates, and deletes segments", async () => {
     await withBroadcastRuntime(async ({ controller }) => {
       const listed = await controller.listSegments(tenantId);
+      const found = await controller.getSegment("segment-web", tenantId);
       const created = await controller.createSegment({
         name: "Created segment",
         description: "API segment",
@@ -80,9 +81,75 @@ describe("BroadcastService persistence and safe queue APIs", () => {
       const deleted = await controller.deleteSegment(created.id, tenantId);
 
       expect(listed.map((segment) => segment.id)).toEqual(["segment-web", "segment-line"]);
+      expect(found).toMatchObject({ id: "segment-web", name: "Web interested" });
       expect(created.rules[0]?.field).toBe("leadStatus");
       expect(updated.estimatedCount).toBe(3);
       expect(deleted.id).toBe(created.id);
+      await expect(controller.getSegment("segment-other", tenantId)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  it("previews unsaved and saved segments and applies tenant-owned campaign segments", async () => {
+    await withBroadcastRuntime(async ({ controller, outboundConsent }) => {
+      const unsaved = await controller.previewSegment({
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        rules: [{ id: "rule-preview", field: "leadStatus", operator: "equals", value: "interested" }]
+      }, tenantId);
+      const saved = await controller.getSegmentPreview("segment-web", { platform: "webchat", channelAccountId: accountId("webchat"), limit: "100" }, tenantId);
+      const applied = await controller.applySegment("campaign-web", { segmentId: "segment-line" }, tenantId);
+      const cleared = await controller.applySegment("campaign-web", { segmentId: null }, tenantId);
+
+      expect(unsaved).toMatchObject({
+        campaignId: "segment-preview",
+        eligibleCount: 1,
+        suppressedCount: 0,
+        invalidCount: 1,
+        externalCalls: 0
+      });
+      expect(saved).toMatchObject({
+        campaignId: "segment-web",
+        eligibleCount: 1,
+        suppressedCount: 0,
+        invalidCount: 1,
+        externalCalls: 0
+      });
+      expect(saved.recipients[0]).toMatchObject({
+        tenantId,
+        campaignId: "segment-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        contactIdentityId: "identity-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        externalCalls: 0
+      });
+      expect(applied).toMatchObject({ id: "campaign-web", segmentId: "segment-line" });
+      expect(cleared).toMatchObject({ id: "campaign-web", segmentId: null });
+
+      outboundConsent.setConsent({ optOut: true, doNotContact: true, suppressedReason: "do_not_contact" });
+      const blocked = await controller.getSegmentPreview("segment-web", { platform: "webchat", channelAccountId: accountId("webchat") }, tenantId);
+      expect(blocked.eligibleCount).toBe(0);
+      expect(blocked.suppressedCount).toBe(1);
+      expect(blocked.blockedCount).toBe(1);
+      expect(blocked.suppressedRecipients[0]).toMatchObject({
+        tenantId,
+        campaignId: "segment-web",
+        customerId: "contact-web",
+        contactId: "contact-web",
+        conversationId: "conv-web",
+        platform: "webchat",
+        channelAccountId: accountId("webchat"),
+        roomId: "room-webchat",
+        reason: "do_not_contact",
+        externalCalls: 0
+      });
+      expect(JSON.stringify({ unsaved, saved, blocked, applied })).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-|providerRaw|rawPayload/i);
+      await expect(controller.getSegmentPreview("segment-other", { platform: "webchat" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(controller.applySegment("campaign-web", { segmentId: "segment-other" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(controller.applySegment("campaign-other", { segmentId: "segment-web" }, tenantId)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

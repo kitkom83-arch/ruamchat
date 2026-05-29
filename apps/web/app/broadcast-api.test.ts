@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  applyBroadcastSegmentToCampaign,
   approveBroadcastCampaign,
   cancelBroadcastCampaignApproval,
   createBroadcastCampaign,
@@ -15,6 +16,8 @@ import {
   getBroadcastDeliveryExport,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
+  previewBroadcastSegment,
+  previewSavedBroadcastSegment,
   rejectBroadcastCampaign,
   requestBroadcastCampaignApproval,
   scheduleBroadcastCampaign,
@@ -282,6 +285,9 @@ describe("Broadcast API mode frontend", () => {
       .mockResolvedValueOnce(jsonResponse(complianceLogPageResponse([complianceLogResponse("audit-filtered", "campaign-created")], { limit: 25, total: 1 })))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Created Segment")))
       .mockResolvedValueOnce(jsonResponse({ ...segmentResponse("segment-created", "Updated Segment"), estimatedCount: 3 }))
+      .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("segment-preview")))
+      .mockResolvedValueOnce(jsonResponse(audiencePreviewResponse("segment-created")))
+      .mockResolvedValueOnce(jsonResponse({ ...campaignResponse("campaign-created", "Updated Broadcast"), segmentId: "segment-created" }))
       .mockResolvedValueOnce(jsonResponse(segmentResponse("segment-created", "Updated Segment")));
 
     const created = await createBroadcastCampaign(campaignPayload("Created Broadcast"));
@@ -306,6 +312,12 @@ describe("Broadcast API mode frontend", () => {
     });
     const segment = await createBroadcastSegment({ name: "Created Segment", rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }] });
     const updatedSegment = await updateBroadcastSegment(segment.id, { name: "Updated Segment", estimatedCount: 3 });
+    const draftSegmentPreview = await previewBroadcastSegment({
+      rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }],
+      platform: "webchat"
+    });
+    const savedSegmentPreview = await previewSavedBroadcastSegment(segment.id, { platform: "webchat" });
+    const applied = await applyBroadcastSegmentToCampaign(created.id, { segmentId: segment.id });
     const deletedSegment = await deleteBroadcastSegment(segment.id);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns", expect.objectContaining({ method: "POST" }));
@@ -335,6 +347,10 @@ describe("Broadcast API mode frontend", () => {
     }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/segment-created", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/preview", expect.objectContaining({ method: "POST" }));
+    expect(String(fetchMock.mock.calls[13]?.[0])).toContain("/broadcasts/segments/segment-created/preview?");
+    expect(String(fetchMock.mock.calls[13]?.[0])).toContain("platform=webchat");
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/campaigns/campaign-created/apply-segment", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/broadcasts/segments/segment-created", expect.objectContaining({ method: "DELETE" }));
     expectTenantHeaderForAll(fetchMock);
     expect(updated.status).toBe("paused");
@@ -391,7 +407,25 @@ describe("Broadcast API mode frontend", () => {
     });
     expect(JSON.stringify(complianceLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer|sk-/i);
     expect(updatedSegment.estimatedCount).toBe(3);
+    expect(draftSegmentPreview).toMatchObject({ campaignId: "segment-preview", eligibleCount: 1, externalCalls: 0 });
+    expect(savedSegmentPreview).toMatchObject({ campaignId: "segment-created", eligibleCount: 1, externalCalls: 0 });
+    expect(applied.segmentId).toBe(segment.id);
     expect(deletedSegment.id).toBe(segment.id);
+  });
+
+  it("surfaces segment preview/apply API errors without mock fallback", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ message: "segment preview unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "saved segment preview unavailable" }, 503))
+      .mockResolvedValueOnce(jsonResponse({ message: "apply unavailable" }, 503));
+    const mockData = await loadBroadcastBuilderData("mock");
+    const before = JSON.stringify(mockData.store.segments);
+
+    await expect(previewBroadcastSegment({ rules: [{ id: "rule-api", field: "leadStatus", operator: "equals", value: "interested" }] })).rejects.toThrow("API request failed (503): segment preview unavailable");
+    await expect(previewSavedBroadcastSegment("segment-api", { platform: "webchat" })).rejects.toThrow("API request failed (503): saved segment preview unavailable");
+    await expect(applyBroadcastSegmentToCampaign("campaign-api", { segmentId: "segment-api" })).rejects.toThrow("API request failed (503): apply unavailable");
+
+    expect(JSON.stringify(mockData.store.segments)).toBe(before);
   });
 });
 

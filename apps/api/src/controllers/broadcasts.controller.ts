@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import {
+  applyBroadcastSegmentRequestSchema,
   broadcastAudiencePreviewRequestSchema,
   broadcastApprovalRequestSchema,
   broadcastComplianceFiltersSchema,
@@ -134,6 +135,12 @@ export class BroadcastsController {
     return this.broadcasts.sendNow(requireTenantId(tenant), campaignId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
   }
 
+  @Post("campaigns/:campaignId/apply-segment")
+  async applySegment(@Param("campaignId") campaignId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
+    const parsed = applyBroadcastSegmentRequestSchema.parse(body ?? {});
+    return this.broadcasts.applySegment(requireTenantId(tenant), campaignId, parsed.segmentId);
+  }
+
   @Get("send-logs")
   async listSendLogPage(@Query() query: Record<string, unknown>, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.listSendLogPage(requireTenantId(tenant), broadcastSendLogFiltersSchema.parse(query));
@@ -184,9 +191,20 @@ export class BroadcastsController {
     return this.broadcasts.listSegments(requireTenantId(tenant));
   }
 
+  @Get("segments/:segmentId")
+  async getSegment(@Param("segmentId") segmentId: string, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.getSegment(requireTenantId(tenant), segmentId);
+  }
+
   @Post("segments")
   async createSegment(@Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.createSegment(requireTenantId(tenant), createBroadcastSegmentRequestSchema.parse(body));
+  }
+
+  @Post("segments/preview")
+  async previewSegment(@Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
+    const parsed = parseSegmentPreviewBody(body);
+    return this.broadcasts.previewSegment(requireTenantId(tenant), parsed.segment, parsed.preview);
   }
 
   @Patch("segments/:segmentId")
@@ -194,10 +212,53 @@ export class BroadcastsController {
     return this.broadcasts.updateSegment(requireTenantId(tenant), segmentId, updateBroadcastSegmentRequestSchema.parse(body));
   }
 
+  @Get("segments/:segmentId/preview")
+  async getSegmentPreview(
+    @Param("segmentId") segmentId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    return this.broadcasts.segmentAudiencePreview(requireTenantId(tenant), segmentId, broadcastAudiencePreviewRequestSchema.parse(query));
+  }
+
+  @Post("segments/:segmentId/audience-preview")
+  async segmentAudiencePreview(@Param("segmentId") segmentId: string, @Body() body: unknown, @Headers("x-tenant-id") tenant: string | undefined) {
+    return this.broadcasts.segmentAudiencePreview(requireTenantId(tenant), segmentId, broadcastAudiencePreviewRequestSchema.parse(body ?? {}));
+  }
+
+  @Get("segments/:segmentId/audience-preview")
+  async getSegmentAudiencePreview(
+    @Param("segmentId") segmentId: string,
+    @Query() query: Record<string, unknown>,
+    @Headers("x-tenant-id") tenant: string | undefined
+  ) {
+    return this.broadcasts.segmentAudiencePreview(requireTenantId(tenant), segmentId, broadcastAudiencePreviewRequestSchema.parse(query));
+  }
+
   @Delete("segments/:segmentId")
   async deleteSegment(@Param("segmentId") segmentId: string, @Headers("x-tenant-id") tenant: string | undefined) {
     return this.broadcasts.deleteSegment(requireTenantId(tenant), segmentId);
   }
+}
+
+function parseSegmentPreviewBody(body: unknown) {
+  const value = typeof body === "object" && body !== null ? body as Record<string, unknown> : {};
+  const segmentSource = typeof value.segment === "object" && value.segment !== null ? value.segment as Record<string, unknown> : value;
+  const previewSource = typeof value.preview === "object" && value.preview !== null ? value.preview as Record<string, unknown> : value;
+  return {
+    segment: updateBroadcastSegmentRequestSchema.parse({
+      name: segmentSource.name,
+      description: segmentSource.description,
+      rules: segmentSource.rules,
+      rulesJson: segmentSource.rulesJson,
+      estimatedCount: segmentSource.estimatedCount
+    }),
+    preview: broadcastAudiencePreviewRequestSchema.parse({
+      platform: previewSource.platform,
+      channelAccountId: previewSource.channelAccountId,
+      limit: previewSource.limit
+    })
+  };
 }
 
 function requireTenantId(tenant: string | undefined) {

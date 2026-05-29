@@ -8,6 +8,7 @@ import {
   analyticsOverviewSchema,
   analyticsSlaSchema,
   analyticsTasksSchema,
+  applyBroadcastSegmentRequestSchema,
   aiSuggestedReplySchema,
   aiSuggestionFeedbackRequestSchema,
   aiSuggestionFeedbackSchema,
@@ -103,6 +104,7 @@ import {
   type AiSuggestionFeedback,
   type AiSuggestionFeedbackRequest,
   type ApiHealth,
+  type ApplyBroadcastSegmentRequest,
   type BroadcastAudiencePreviewRequest,
   type BroadcastApprovalRequest,
   type BroadcastAudiencePreviewResult,
@@ -472,6 +474,44 @@ export async function getBroadcastComplianceHistory(filters: BroadcastCompliance
 
 export async function getBroadcastSegments(): Promise<BroadcastSegment[]> {
   return request("/broadcasts/segments", broadcastSegmentSchema.array());
+}
+
+export async function previewBroadcastSegment(payload: UpdateBroadcastSegmentRequest & BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {
+  const value = payload as UpdateBroadcastSegmentRequest & BroadcastAudiencePreviewRequest;
+  const segmentBody = updateBroadcastSegmentRequestSchema.parse({
+    name: value.name,
+    description: value.description,
+    rules: value.rules,
+    rulesJson: value.rulesJson,
+    estimatedCount: value.estimatedCount
+  });
+  const previewBody = broadcastAudiencePreviewRequestSchema.parse({
+    platform: value.platform,
+    channelAccountId: value.channelAccountId,
+    limit: value.limit
+  });
+  return request("/broadcasts/segments/preview", broadcastAudiencePreviewResultSchema, {
+    method: "POST",
+    body: JSON.stringify({ segment: segmentBody, preview: previewBody })
+  });
+}
+
+export async function previewSavedBroadcastSegment(segmentId: string, payload: BroadcastAudiencePreviewRequest = {}): Promise<BroadcastAudiencePreviewResult> {
+  const parsed = broadcastAudiencePreviewRequestSchema.parse(payload);
+  const params = new URLSearchParams();
+  if (parsed.platform) params.set("platform", parsed.platform);
+  if (parsed.channelAccountId !== undefined && parsed.channelAccountId !== null) params.set("channelAccountId", parsed.channelAccountId);
+  if (parsed.limit !== undefined) params.set("limit", String(parsed.limit));
+  const search = params.toString();
+  return request(`/broadcasts/segments/${encodeURIComponent(segmentId)}/preview${search ? `?${search}` : ""}`, broadcastAudiencePreviewResultSchema);
+}
+
+export async function applyBroadcastSegmentToCampaign(campaignId: string, payload: ApplyBroadcastSegmentRequest): Promise<BroadcastCampaign> {
+  const body = applyBroadcastSegmentRequestSchema.parse(payload);
+  return request(`/broadcasts/campaigns/${encodeURIComponent(campaignId)}/apply-segment`, broadcastCampaignSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
 }
 
 export async function createBroadcastSegment(payload: CreateBroadcastSegmentRequest): Promise<BroadcastSegment> {

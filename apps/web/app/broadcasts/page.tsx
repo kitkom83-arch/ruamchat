@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { BroadcastAudiencePreviewRecipient, BroadcastAudiencePreviewResult, BroadcastCampaign, BroadcastCampaignAnalytics, BroadcastCampaignDetail, BroadcastComplianceFilters, BroadcastComplianceLog, BroadcastDeliveryExport, BroadcastSegmentRule, BroadcastSendLog, BroadcastSendLogFilters, BroadcastSendLogPage, BroadcastSegment, BroadcastSuppressedRecipient, BroadcastTemplate, Platform } from "@ai-omni/shared";
 import {
+  applyBroadcastSegmentToCampaign,
   createBroadcastCampaign,
   createBroadcastSegment,
   approveBroadcastCampaign,
@@ -38,6 +39,8 @@ import {
   getBroadcastSegments,
   getBroadcastSendLogPage,
   previewBroadcastAudience,
+  previewBroadcastSegment,
+  previewSavedBroadcastSegment,
   rejectBroadcastCampaign,
   requestBroadcastCampaignApproval,
   scheduleBroadcastCampaign,
@@ -502,9 +505,11 @@ function ApiBroadcastsPage() {
     failedMock: campaignAnalytics?.counts.failed ?? sendLogs.filter((log) => log.status === "failed_mock" || log.status === "failed_safe").length,
     blocked: (campaignAnalytics?.counts.blocked ?? sendLogs.filter((log) => log.status === "blocked").length) + (campaignAnalytics?.counts.suppressed ?? sendLogs.filter((log) => log.status === "suppressed").length),
     previewCount: preview.length,
+    eligiblePreview: previewStats?.eligibleCount ?? preview.length,
     suppressedPreview: previewStats?.suppressedCount ?? 0,
+    invalidPreview: previewStats?.invalidCount ?? 0,
     compliance: complianceLogs.length
-  }), [campaignAnalytics, campaigns, complianceLogs.length, preview.length, previewStats?.suppressedCount, sendLogs]);
+  }), [campaignAnalytics, campaigns, complianceLogs.length, preview.length, previewStats?.eligibleCount, previewStats?.invalidCount, previewStats?.suppressedCount, sendLogs]);
 
   useEffect(() => {
     void refreshApiData();
@@ -796,6 +801,70 @@ function ApiBroadcastsPage() {
     });
   }
 
+  function applyPreviewResult(result: BroadcastAudiencePreviewResult) {
+    setPreview(result.recipients);
+    setSuppressedRecipients(result.suppressedRecipients ?? []);
+    setPreviewStats({
+      candidateCount: result.candidateCount ?? result.total,
+      eligibleCount: result.eligibleCount ?? result.recipients.length,
+      suppressedCount: result.suppressedCount ?? 0,
+      blockedCount: result.blockedCount ?? result.suppressedCount ?? 0,
+      invalidCount: result.invalidCount ?? result.invalidRecipients?.length ?? 0,
+      suppressedByReason: result.suppressedByReason ?? {},
+      externalCalls: result.externalCalls ?? 0
+    });
+  }
+
+  async function previewDraftSegment() {
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await previewBroadcastSegment({
+        name: segmentForm.name,
+        description: segmentForm.description,
+        rules: [draftRule()],
+        platform: campaignForm.channelPlatform,
+        channelAccountId: campaignForm.channelAccountId.trim() || null,
+        limit: 100
+      });
+      applyPreviewResult(result);
+      setStatusText(`Draft segment preview returned ${result.eligibleCount ?? result.total} eligible, ${result.suppressedCount ?? 0} suppressed, ${result.invalidCount ?? 0} invalid`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Segment preview failed";
+      setPreview([]);
+      setSuppressedRecipients([]);
+      setPreviewStats(null);
+      setError(message);
+      setStatusText("Segment preview failed");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function previewSavedSegment() {
+    if (!selectedSegmentId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const result = await previewSavedBroadcastSegment(selectedSegmentId, {
+        platform: campaignForm.channelPlatform,
+        channelAccountId: campaignForm.channelAccountId.trim() || null,
+        limit: 100
+      });
+      applyPreviewResult(result);
+      setStatusText(`Saved segment preview returned ${result.eligibleCount ?? result.total} eligible, ${result.suppressedCount ?? 0} suppressed, ${result.invalidCount ?? 0} invalid`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Saved segment preview failed";
+      setPreview([]);
+      setSuppressedRecipients([]);
+      setPreviewStats(null);
+      setError(message);
+      setStatusText("Saved segment preview failed");
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function previewSelected() {
     if (!selectedCampaign) return;
     setWorking(true);
@@ -805,17 +874,7 @@ function ApiBroadcastsPage() {
         platform: campaignForm.channelPlatform,
         channelAccountId: campaignForm.channelAccountId.trim() || null
       });
-      setPreview(result.recipients);
-      setSuppressedRecipients(result.suppressedRecipients ?? []);
-      setPreviewStats({
-        candidateCount: result.candidateCount ?? result.total,
-        eligibleCount: result.eligibleCount ?? result.recipients.length,
-        suppressedCount: result.suppressedCount ?? 0,
-        blockedCount: result.blockedCount ?? result.suppressedCount ?? 0,
-        invalidCount: result.invalidCount ?? result.invalidRecipients?.length ?? 0,
-        suppressedByReason: result.suppressedByReason ?? {},
-        externalCalls: result.externalCalls ?? 0
-      });
+      applyPreviewResult(result);
       setStatusText(`Audience preview returned ${result.eligibleCount ?? result.total} eligible and ${result.suppressedCount ?? 0} suppressed recipient(s)`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Audience preview failed";
@@ -903,7 +962,9 @@ function ApiBroadcastsPage() {
           <MiniStat label="failed_mock" value={apiMetrics.failedMock} />
           <MiniStat label="Blocked" value={apiMetrics.blocked} />
           <MiniStat label="Preview" value={apiMetrics.previewCount} />
+          <MiniStat label="Eligible" value={apiMetrics.eligiblePreview} />
           <MiniStat label="Suppressed" value={apiMetrics.suppressedPreview} />
+          <MiniStat label="Invalid" value={apiMetrics.invalidPreview} />
           <MiniStat label="Compliance" value={apiMetrics.compliance} />
         </section>
 
@@ -1027,6 +1088,13 @@ function ApiBroadcastsPage() {
                 await updateBroadcastSegment(selectedSegmentId, { name: segmentForm.name, description: segmentForm.description, rules: [draftRule()] });
                 return "Segment updated through API";
               })} disabled={working || !selectedSegmentId}><ClipboardCheck size={14} /> Update Segment</button>
+              <button type="button" onClick={() => void previewDraftSegment()} disabled={working}><Eye size={14} /> Preview Draft</button>
+              <button type="button" onClick={() => void previewSavedSegment()} disabled={working || !selectedSegmentId}><Search size={14} /> Preview Saved</button>
+              <button type="button" onClick={() => selectedCampaign && void runApiAction("Segment applied", async () => {
+                const updated = await applyBroadcastSegmentToCampaign(selectedCampaign.id, { segmentId: selectedSegmentId || null });
+                setCampaignForm((current) => ({ ...current, segmentId: updated.segmentId ?? "" }));
+                return updated.segmentId ? "Segment applied to campaign through API" : "Campaign segment cleared through API";
+              }, selectedCampaign.id)} disabled={working || !selectedCampaign}>Apply to Campaign</button>
               <button type="button" onClick={() => selectedSegmentId && void runApiAction("Segment deleted", async () => {
                 await deleteBroadcastSegment(selectedSegmentId);
                 return "Segment deleted through API";

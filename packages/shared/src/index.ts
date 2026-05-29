@@ -1314,6 +1314,11 @@ export const updateBroadcastSegmentRequestSchema = z.object({
 }).strict();
 export type UpdateBroadcastSegmentRequest = z.input<typeof updateBroadcastSegmentRequestSchema>;
 
+export const applyBroadcastSegmentRequestSchema = z.object({
+  segmentId: z.string().min(1).nullable()
+}).strict();
+export type ApplyBroadcastSegmentRequest = z.input<typeof applyBroadcastSegmentRequestSchema>;
+
 export const aiIntentSchema = z.enum([
   "pricing",
   "product_info",

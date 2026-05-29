@@ -194,6 +194,7 @@ export class BroadcastService {
 
   async createCampaign(tenantId: string, actorUserId: string | undefined, request: CreateBroadcastCampaignRequest) {
     const normalized = normalizeCampaignInput(createBroadcastCampaignRequestSchema.parse(request));
+    if (normalized.segmentId) await this.ensureSegment(tenantId, normalized.segmentId);
     const campaign = await this.prisma.broadcastCampaign.create({
       data: {
         tenantId,
@@ -234,6 +235,7 @@ export class BroadcastService {
       platformScope: request.platformScope,
       roomIds: request.roomIds
     }));
+    if (normalized.segmentId) await this.ensureSegment(tenantId, normalized.segmentId);
 
     const campaign = await this.prisma.broadcastCampaign.update({
       where: { id: campaignId },
@@ -287,6 +289,10 @@ export class BroadcastService {
     return segments.map(mapSegment);
   }
 
+  async getSegment(tenantId: string, segmentId: string) {
+    return mapSegment(await this.ensureSegment(tenantId, segmentId));
+  }
+
   async createSegment(tenantId: string, request: CreateBroadcastSegmentRequest) {
     const normalized = normalizeSegmentInput(createBroadcastSegmentRequestSchema.parse(request));
     const segment = await this.prisma.broadcastSegment.create({
@@ -326,24 +332,52 @@ export class BroadcastService {
     return mapSegment(segment);
   }
 
+  async previewSegment(tenantId: string, request: UpdateBroadcastSegmentRequest = {}, preview: BroadcastAudiencePreviewRequest = {}) {
+    const normalized = normalizeSegmentInput(updateBroadcastSegmentRequestSchema.parse(request));
+    const rules = rulesFromSegmentValue(normalized.rulesJson ?? { rules: [] });
+    const candidates = await this.buildAudienceFromRules(tenantId, {
+      campaignId: "segment-preview",
+      channelPlatform: platformFromPreview(preview),
+      channelAccountId: preview.channelAccountId ?? null,
+      contentJson: { message: "Safe broadcast segment preview", safeMockOnly: true },
+      rules,
+      request: preview,
+      options: { includeSkipped: true }
+    });
+    const screened = await this.screenAudience(tenantId, "segment-preview", candidates, "preview");
+    return audiencePreviewResult("segment-preview", screened);
+  }
+
+  async segmentAudiencePreview(tenantId: string, segmentId: string, request: BroadcastAudiencePreviewRequest = {}) {
+    const segment = await this.ensureSegment(tenantId, segmentId);
+    const candidates = await this.buildAudienceFromRules(tenantId, {
+      campaignId: segmentId,
+      channelPlatform: platformFromPreview(request),
+      channelAccountId: request.channelAccountId ?? null,
+      contentJson: { message: "Safe broadcast segment preview", safeMockOnly: true },
+      rules: rulesFromSegment(segment),
+      request,
+      options: { includeSkipped: true }
+    });
+    const screened = await this.screenAudience(tenantId, segmentId, candidates, "preview");
+    return audiencePreviewResult(segmentId, screened);
+  }
+
+  async applySegment(tenantId: string, campaignId: string, segmentId: string | null) {
+    await this.ensureCampaign(tenantId, campaignId);
+    if (segmentId) await this.ensureSegment(tenantId, segmentId);
+    const campaign = await this.prisma.broadcastCampaign.update({
+      where: { id: campaignId },
+      data: { segmentId }
+    });
+    return mapCampaign(campaign);
+  }
+
   async audiencePreview(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
     const campaign = await this.ensureCampaign(tenantId, campaignId);
     const candidates = await this.buildAudience(tenantId, campaign, request, { includeSkipped: true });
     const screened = await this.screenAudience(tenantId, campaignId, candidates, "preview");
-    return {
-      campaignId,
-      total: screened.eligible.length,
-      candidateCount: screened.candidates.length,
-      eligibleCount: screened.eligible.length,
-      suppressedCount: screened.suppressed.length,
-      blockedCount: screened.suppressed.length,
-      invalidCount: screened.invalid.length,
-      suppressedByReason: screened.suppressedByReason,
-      externalCalls: 0,
-      recipients: screened.eligible,
-      suppressedRecipients: screened.suppressed,
-      invalidRecipients: screened.invalid
-    };
+    return audiencePreviewResult(campaignId, screened);
   }
 
   async dryRun(tenantId: string, campaignId: string, request: BroadcastAudiencePreviewRequest = {}) {
@@ -811,12 +845,35 @@ export class BroadcastService {
     request: BroadcastAudiencePreviewRequest,
     options: { includeSkipped: boolean; limit?: number }
   ) {
-    const limit = Number(options.limit ?? request.limit ?? 100);
-    const targetPlatform = request.platform && request.platform !== "all"
-      ? request.platform
-      : campaign.channelPlatform;
-    const channelAccountId = request.channelAccountId === undefined ? campaign.channelAccountId : request.channelAccountId;
     const segment = campaign.segmentId ? await this.prisma.broadcastSegment.findFirst({ where: { id: campaign.segmentId, tenantId } }) as BroadcastSegmentRecord | null : null;
+    return this.buildAudienceFromRules(tenantId, {
+      campaignId: campaign.id,
+      channelPlatform: campaign.channelPlatform,
+      channelAccountId: campaign.channelAccountId,
+      contentJson: campaign.contentJson,
+      rules: segment ? rulesFromSegment(segment) : [],
+      request,
+      options
+    });
+  }
+
+  private async buildAudienceFromRules(
+    tenantId: string,
+    input: {
+      campaignId: string;
+      channelPlatform: Platform;
+      channelAccountId: string | null;
+      contentJson: Prisma.JsonValue;
+      rules: BroadcastSegmentRule[];
+      request: BroadcastAudiencePreviewRequest;
+      options: { includeSkipped: boolean; limit?: number };
+    }
+  ) {
+    const limit = Number(input.options.limit ?? input.request.limit ?? 100);
+    const targetPlatform = input.request.platform && input.request.platform !== "all"
+      ? input.request.platform
+      : input.channelPlatform;
+    const channelAccountId = input.request.channelAccountId === undefined ? input.channelAccountId : input.request.channelAccountId;
     const contacts = await this.prisma.contact.findMany({
       where: { tenantId },
       include: {
@@ -829,24 +886,23 @@ export class BroadcastService {
       take: 1000
     }) as ContactRecord[];
 
-    const rules = segment ? rulesFromSegment(segment) : [];
-    const content = readObject(campaign.contentJson);
+    const content = readObject(input.contentJson);
     const message = String(content.message ?? content.body ?? "Safe broadcast mock message");
     const candidates: AudienceCandidate[] = [];
 
     for (const contact of contacts) {
-      if (!matchesRules(contact, rules)) continue;
+      if (!matchesRules(contact, input.rules)) continue;
       const identities = contact.identities.filter((identity) =>
         identity.platform === targetPlatform &&
         (!channelAccountId || identity.channelAccountId === channelAccountId)
       );
       if (identities.length === 0) {
-        if (options.includeSkipped) {
-          candidates.push(candidateFromContact(campaign.id, contact, null, targetPlatform, channelAccountId, message, "no supported identity for campaign platform"));
+        if (input.options.includeSkipped) {
+          candidates.push(candidateFromContact(input.campaignId, contact, null, targetPlatform, channelAccountId, message, "no supported identity for campaign platform"));
         }
       } else {
         identities.forEach((identity) => {
-          candidates.push(candidateFromContact(campaign.id, contact, identity, identity.platform, identity.channelAccountId, message, null));
+          candidates.push(candidateFromContact(input.campaignId, contact, identity, identity.platform, identity.channelAccountId, message, null));
         });
       }
       if (candidates.length >= limit) break;
@@ -1143,6 +1199,23 @@ function buildSendResult(campaignId: string, logs: BroadcastSendLog[], screening
   };
 }
 
+function audiencePreviewResult(campaignId: string, screened: AudienceScreeningResult) {
+  return {
+    campaignId,
+    total: screened.eligible.length,
+    candidateCount: screened.candidates.length,
+    eligibleCount: screened.eligible.length,
+    suppressedCount: screened.suppressed.length,
+    blockedCount: screened.suppressed.length,
+    invalidCount: screened.invalid.length,
+    suppressedByReason: screened.suppressedByReason,
+    externalCalls: 0,
+    recipients: screened.eligible,
+    suppressedRecipients: screened.suppressed,
+    invalidRecipients: screened.invalid
+  };
+}
+
 function summarizeSendLogs(logs: BroadcastSendLog[]): BroadcastCampaignDeliverySummary {
   return {
     total: logs.length,
@@ -1382,9 +1455,17 @@ function roomKey(platform: Platform, channelAccountId: string) {
   return `${platform}:${channelAccountId}`;
 }
 
+function platformFromPreview(preview: BroadcastAudiencePreviewRequest): Platform {
+  return preview.platform && preview.platform !== "all" ? preview.platform : "webchat";
+}
+
 function rulesFromSegment(segment: BroadcastSegmentRecord) {
-  const value = readObject(segment.rulesJson);
-  const rawRules = Array.isArray(value.rules) ? value.rules : Array.isArray(segment.rulesJson) ? segment.rulesJson : [];
+  return rulesFromSegmentValue(segment.rulesJson);
+}
+
+function rulesFromSegmentValue(rulesJson: unknown) {
+  const value = readObject(rulesJson);
+  const rawRules = Array.isArray(value.rules) ? value.rules : Array.isArray(rulesJson) ? rulesJson : [];
   return rawRules
     .map((rule) => broadcastSegmentRuleSchema.safeParse(rule))
     .filter((rule) => rule.success)
