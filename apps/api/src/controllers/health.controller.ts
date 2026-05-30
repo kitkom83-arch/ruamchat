@@ -1,4 +1,5 @@
 import { Controller, Get } from "@nestjs/common";
+import { buildReadinessSnapshot } from "../readiness.js";
 
 @Controller("health")
 export class HealthController {
@@ -10,5 +11,10 @@ export class HealthController {
       time: new Date().toISOString(),
       mode: process.env.API_MODE ?? "local"
     };
+  }
+
+  @Get("readiness")
+  readiness() {
+    return buildReadinessSnapshot();
   }
 }
