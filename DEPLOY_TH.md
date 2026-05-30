@@ -59,6 +59,8 @@ APP_ENCRYPTION_KEY=base64 32 bytes
 JWT_SECRET=รหัสลับยาวๆ
 AI_MODE=mock
 PROVIDER_OUTBOUND_MODE=disabled
+PROVIDER_OUTBOUND_ENABLED=false
+PROVIDER_SANDBOX_MODE=disabled
 CHANNEL_MODE=mock
 META_CHANNEL_MODE=mock
 ```
@@ -75,7 +77,22 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
-สำหรับ Sprint 52 pilot readiness ให้คง `AI_MODE=mock` และ `OPENAI_API_KEY=` ว่างไว้ก่อน เพื่อไม่ให้มี external API call
+สำหรับ Sprint 53 pilot readiness ให้คง `AI_MODE=mock` และ `OPENAI_API_KEY=` ว่างไว้ก่อน เพื่อไม่ให้มี external API call และให้ `externalCalls=0`
+
+ค่า provider sandbox ในไฟล์ที่ commit ต้องเป็นค่า safe default:
+
+```text
+PROVIDER_OUTBOUND_MODE=disabled
+PROVIDER_OUTBOUND_ENABLED=false
+PROVIDER_SANDBOX_MODE=disabled
+PROVIDER_SANDBOX_ALLOWLIST=
+LINE_SANDBOX_ALLOWLIST=
+TELEGRAM_SANDBOX_ALLOWLIST=
+FACEBOOK_SANDBOX_ALLOWLIST=
+INSTAGRAM_SANDBOX_ALLOWLIST=
+```
+
+ถ้าจะทดสอบ sandbox นอก git ให้ตั้ง `PROVIDER_OUTBOUND_MODE=sandbox`, `PROVIDER_OUTBOUND_ENABLED=true`, `PROVIDER_SANDBOX_MODE=enabled` และใส่ recipient allowlist ผ่าน secret/env ของเครื่อง deploy เท่านั้น เช่น `<line-test-recipient-id>` หรือ `<telegram-test-chat-id>` ห้าม commit token, secret, page access token, channel secret, webhook secret, หรือ recipient จริงลง repo
 
 ## 4. Build และเปิดระบบ
 
@@ -144,6 +161,18 @@ Webhook URL สำหรับ LINE:
 
 ```text
 https://chat.example.com/webhooks/line/CHANNEL_ACCOUNT_ID
+```
+
+Webhook URL สำหรับ Facebook Messenger:
+
+```text
+https://chat.example.com/webhooks/facebook/CHANNEL_ACCOUNT_ID
+```
+
+Webhook URL สำหรับ Instagram Messaging:
+
+```text
+https://chat.example.com/webhooks/instagram/CHANNEL_ACCOUNT_ID
 ```
 
 ## 6. คำสั่งดูแลระบบ
@@ -225,7 +254,9 @@ docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.
 
 1. ตั้งค่า Telegram Bot webhook มาที่ URL production โดยยังไม่เปิด real outbound
 2. ตั้งค่า LINE webhook และ verify signature โดยยังไม่เปิด real outbound
-3. ตรวจ `GET /api/health/readiness` ว่าไม่แสดง credential หรือ raw provider payload
-4. เพิ่มหน้า Settings สำหรับกรอก credential/channel account ผ่าน UI
-5. ทำ backup PostgreSQL รายวันและทดสอบ rollback
+3. ตั้งค่า Facebook Messenger และ Instagram Messaging webhook challenge/signature โดยยังไม่เปิด real outbound
+4. ตรวจ `GET /api/health/readiness` ว่า provider readiness แสดงเฉพาะ configured/not_configured และ allowlist counts
+5. ยืนยันว่า `PROVIDER_OUTBOUND_ENABLED=false`, provider outbound disabled, และ `externalCalls=0`
+6. เพิ่มหน้า Settings สำหรับกรอก credential/channel account ผ่าน UI
+7. ทำ backup PostgreSQL รายวันและทดสอบ rollback
 

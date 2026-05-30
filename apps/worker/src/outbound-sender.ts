@@ -1,3 +1,8 @@
+import {
+  type ProviderSandboxProvider,
+  validateProviderSandboxOutbound
+} from "@ai-omni/shared";
+
 export type OutboundPlatform = "webchat" | "telegram" | "line" | "facebook" | "instagram";
 export type OutboundSendStatus = "queued_mock" | "sent_mock" | "skipped_mock" | "failed_mock";
 
@@ -17,6 +22,20 @@ export type MockSendResult = {
   externalConversationId?: string | null;
   mockMessageId: string;
   error?: string;
+};
+
+export type ProviderOutboundGuardInput = {
+  provider: ProviderSandboxProvider;
+  recipientId: string;
+  tenantId?: string | null;
+  channelAccountId?: string | null;
+  channelAccountTenantId?: string | null;
+};
+
+type ProviderTextGuardInput = {
+  tenantId?: string | null;
+  channelAccountId?: string | null;
+  channelAccountTenantId?: string | null;
 };
 
 export async function sendMockOutboundText(input: OutboundTextInput): Promise<MockSendResult> {
@@ -42,7 +61,15 @@ export async function sendMockOutboundText(input: OutboundTextInput): Promise<Mo
   };
 }
 
-export async function sendLineTextMessage(input: { token?: string | null; to: string; text: string }) {
+export async function sendLineTextMessage(input: { token?: string | null; to: string; text: string } & ProviderTextGuardInput) {
+  assertProviderOutboundAllowed({
+    provider: "line",
+    recipientId: input.to,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
   const token = input.token ?? process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) {
     throw new Error("LINE_CHANNEL_ACCESS_TOKEN is required to send a real LINE message");
@@ -65,7 +92,15 @@ export async function sendLineTextMessage(input: { token?: string | null; to: st
   }
 }
 
-export async function sendTelegramTextMessage(input: { token?: string | null; chatId: string; text: string }) {
+export async function sendTelegramTextMessage(input: { token?: string | null; chatId: string; text: string } & ProviderTextGuardInput) {
+  assertProviderOutboundAllowed({
+    provider: "telegram",
+    recipientId: input.chatId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
   const token = input.token ?? process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN is required to send a real Telegram message");
@@ -85,7 +120,15 @@ export async function sendTelegramTextMessage(input: { token?: string | null; ch
   }
 }
 
-export async function sendFacebookTextMessage(input: { token?: string | null; recipientId: string; text: string }) {
+export async function sendFacebookTextMessage(input: { token?: string | null; recipientId: string; text: string } & ProviderTextGuardInput) {
+  assertProviderOutboundAllowed({
+    provider: "facebook",
+    recipientId: input.recipientId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
   const token = input.token ?? process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
   if (!token) {
     throw new Error("FACEBOOK_PAGE_ACCESS_TOKEN is required to send a real Facebook message");
@@ -108,7 +151,15 @@ export async function sendFacebookTextMessage(input: { token?: string | null; re
   }
 }
 
-export async function sendInstagramTextMessage(input: { token?: string | null; recipientId: string; text: string }) {
+export async function sendInstagramTextMessage(input: { token?: string | null; recipientId: string; text: string } & ProviderTextGuardInput) {
+  assertProviderOutboundAllowed({
+    provider: "instagram",
+    recipientId: input.recipientId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
   const token = input.token ?? process.env.INSTAGRAM_ACCESS_TOKEN;
   if (!token) {
     throw new Error("INSTAGRAM_ACCESS_TOKEN is required to send a real Instagram message");
@@ -140,6 +191,27 @@ export function providerOutboundMode() {
   return (process.env.PROVIDER_OUTBOUND_MODE ?? "disabled").toLowerCase();
 }
 
-export function shouldUseRealChannelSend() {
-  return providerOutboundMode() === "real" && channelMode() === "real";
+export function providerOutboundEnabled() {
+  return (process.env.PROVIDER_OUTBOUND_ENABLED ?? "false").toLowerCase() === "true";
+}
+
+export function providerSandboxMode() {
+  return (process.env.PROVIDER_SANDBOX_MODE ?? "disabled").toLowerCase();
+}
+
+export function validateProviderOutboundGuard(input: ProviderOutboundGuardInput) {
+  return validateProviderSandboxOutbound({ ...input, env: process.env });
+}
+
+export function assertProviderOutboundAllowed(input: ProviderOutboundGuardInput) {
+  const result = validateProviderOutboundGuard(input);
+  if (!result.allowed) {
+    throw new Error(`Provider outbound blocked: ${result.reason}`);
+  }
+  return result;
+}
+
+export function shouldUseRealChannelSend(input?: ProviderOutboundGuardInput) {
+  if (!input) return false;
+  return validateProviderOutboundGuard(input).allowed;
 }

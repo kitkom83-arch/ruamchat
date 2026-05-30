@@ -2,6 +2,11 @@ import { Inject, Injectable, NotFoundException, UnauthorizedException } from "@n
 import crypto from "node:crypto";
 import { Platform } from "@ai-omni/shared";
 import { ChannelAccount } from "@prisma/client";
+import {
+  verifyLineWebhookSignatureReadiness,
+  verifyMetaWebhookSignatureReadiness,
+  verifyTelegramWebhookSecretReadiness
+} from "../provider-webhook-readiness.js";
 import { PrismaService } from "./prisma.service.js";
 
 @Injectable()
@@ -32,18 +37,11 @@ export class ChannelAccountsService {
     if (isMockChannelMode() && signature === "mock-line-signature") {
       return true;
     }
-    if (!rawBody || !signature) {
+    const verification = verifyLineWebhookSignatureReadiness({ rawBody, signature, channelSecret: secret });
+    if (verification.status === "missing_input") {
       throw new UnauthorizedException("Missing LINE signature");
     }
-
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(rawBody)
-      .digest("base64");
-
-    const actual = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-    if (actual.length !== expectedBuffer.length || !crypto.timingSafeEqual(actual, expectedBuffer)) {
+    if (!verification.valid) {
       throw new UnauthorizedException("Invalid LINE signature");
     }
     return true;
@@ -57,12 +55,11 @@ export class ChannelAccountsService {
     if (isMockChannelMode() && secretToken === "mock-telegram-secret") {
       return true;
     }
-    if (!secretToken) {
+    const verification = verifyTelegramWebhookSecretReadiness({ secretToken, webhookSecret: secret });
+    if (verification.status === "missing_input") {
       throw new UnauthorizedException("Missing Telegram webhook secret");
     }
-    const actual = Buffer.from(secretToken);
-    const expected = Buffer.from(secret);
-    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    if (!verification.valid) {
       throw new UnauthorizedException("Invalid Telegram webhook secret");
     }
     return true;
@@ -94,14 +91,11 @@ export class ChannelAccountsService {
       if (isMockChannelMode()) return true;
       throw new UnauthorizedException("META_APP_SECRET is required for Meta signature verification");
     }
-    if (!rawBody || !signature) {
+    const verification = verifyMetaWebhookSignatureReadiness({ provider: "facebook", rawBody, signature, appSecret: secret });
+    if (verification.status === "missing_input") {
       throw new UnauthorizedException("Missing Meta signature");
     }
-
-    const expected = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`;
-    const actual = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-    if (actual.length !== expectedBuffer.length || !crypto.timingSafeEqual(actual, expectedBuffer)) {
+    if (!verification.valid) {
       throw new UnauthorizedException("Invalid Meta signature");
     }
     return true;

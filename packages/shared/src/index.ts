@@ -3,6 +3,172 @@ import { z } from "zod";
 export const platformSchema = z.enum(["webchat", "telegram", "line", "facebook", "instagram"]);
 export type Platform = z.infer<typeof platformSchema>;
 
+export const providerSandboxProviderSchema = z.enum(["line", "telegram", "facebook", "instagram"]);
+export type ProviderSandboxProvider = z.infer<typeof providerSandboxProviderSchema>;
+
+export type ProviderSandboxEnv = Record<string, string | undefined>;
+
+export type ProviderSandboxAllowlistEntry = {
+  provider: ProviderSandboxProvider | "all";
+  recipientId: string;
+};
+
+export type ProviderSandboxValidationInput = {
+  provider: ProviderSandboxProvider;
+  recipientId: string;
+  tenantId?: string | null;
+  channelAccountTenantId?: string | null;
+  env: ProviderSandboxEnv;
+};
+
+export type ProviderSandboxValidationResult = {
+  allowed: boolean;
+  reason:
+    | "allowed"
+    | "provider_outbound_disabled"
+    | "provider_sandbox_disabled"
+    | "provider_channel_mode_not_enabled"
+    | "allowlist_required"
+    | "recipient_not_allowlisted"
+    | "tenant_ownership_required";
+  gates: {
+    outboundEnabled: boolean;
+    sandboxEnabled: boolean;
+    channelModeEnabled: boolean;
+    allowlistConfigured: boolean;
+    recipientAllowlisted: boolean;
+    tenantScopedOwnership: boolean;
+  };
+};
+
+export const providerSandboxProviders: ProviderSandboxProvider[] = ["line", "telegram", "facebook", "instagram"];
+
+export const providerSandboxAllowlistEnvNames: Record<ProviderSandboxProvider, string> = {
+  line: "LINE_SANDBOX_ALLOWLIST",
+  telegram: "TELEGRAM_SANDBOX_ALLOWLIST",
+  facebook: "FACEBOOK_SANDBOX_ALLOWLIST",
+  instagram: "INSTAGRAM_SANDBOX_ALLOWLIST"
+};
+
+export function parseProviderSandboxAllowlist(env: ProviderSandboxEnv): ProviderSandboxAllowlistEntry[] {
+  const entries: ProviderSandboxAllowlistEntry[] = [];
+
+  for (const rawEntry of splitAllowlist(env.PROVIDER_SANDBOX_ALLOWLIST)) {
+    const parsed = parseAllowlistEntry(rawEntry);
+    if (parsed) entries.push(parsed);
+  }
+
+  for (const provider of providerSandboxProviders) {
+    for (const recipientId of splitAllowlist(env[providerSandboxAllowlistEnvNames[provider]])) {
+      entries.push({ provider, recipientId });
+    }
+  }
+
+  return dedupeAllowlist(entries);
+}
+
+export function summarizeProviderSandboxAllowlist(env: ProviderSandboxEnv) {
+  const entries = parseProviderSandboxAllowlist(env);
+  const providerEntryCounts = Object.fromEntries(providerSandboxProviders.map((provider) => [
+    provider,
+    entries.filter((entry) => entry.provider === provider).length
+  ])) as Record<ProviderSandboxProvider, number>;
+
+  return {
+    configured: entries.length > 0,
+    entryCount: entries.length,
+    globalEntryCount: entries.filter((entry) => entry.provider === "all").length,
+    providers: providerSandboxProviders.map((provider) => ({
+      name: provider,
+      entryCount: providerEntryCounts[provider]
+    }))
+  };
+}
+
+export function isProviderSandboxRecipientAllowed(provider: ProviderSandboxProvider, recipientId: string, env: ProviderSandboxEnv) {
+  const normalizedRecipient = recipientId.trim();
+  if (!normalizedRecipient) return false;
+  return parseProviderSandboxAllowlist(env).some((entry) =>
+    (entry.provider === "all" || entry.provider === provider) && entry.recipientId === normalizedRecipient
+  );
+}
+
+export function validateProviderSandboxOutbound(input: ProviderSandboxValidationInput): ProviderSandboxValidationResult {
+  const outboundMode = normalizedEnv(input.env.PROVIDER_OUTBOUND_MODE, "disabled");
+  const outboundEnabled = normalizedEnv(input.env.PROVIDER_OUTBOUND_ENABLED, "false") === "true" && (outboundMode === "real" || outboundMode === "sandbox");
+  const sandboxEnabled = normalizedEnv(input.env.PROVIDER_SANDBOX_MODE, "disabled") === "enabled";
+  const channelModeEnabled = providerChannelModeEnabled(input.provider, input.env);
+  const allowlistConfigured = parseProviderSandboxAllowlist(input.env).length > 0;
+  const recipientAllowlisted = isProviderSandboxRecipientAllowed(input.provider, input.recipientId, input.env);
+  const tenantScopedOwnership = Boolean(
+    input.tenantId?.trim() &&
+    input.channelAccountTenantId?.trim() &&
+    input.tenantId.trim() === input.channelAccountTenantId.trim()
+  );
+  const gates = {
+    outboundEnabled,
+    sandboxEnabled,
+    channelModeEnabled,
+    allowlistConfigured,
+    recipientAllowlisted,
+    tenantScopedOwnership
+  };
+
+  if (!outboundEnabled) return { allowed: false, reason: "provider_outbound_disabled", gates };
+  if (!sandboxEnabled) return { allowed: false, reason: "provider_sandbox_disabled", gates };
+  if (!channelModeEnabled) return { allowed: false, reason: "provider_channel_mode_not_enabled", gates };
+  if (!allowlistConfigured) return { allowed: false, reason: "allowlist_required", gates };
+  if (!recipientAllowlisted) return { allowed: false, reason: "recipient_not_allowlisted", gates };
+  if (!tenantScopedOwnership) return { allowed: false, reason: "tenant_ownership_required", gates };
+  return { allowed: true, reason: "allowed", gates };
+}
+
+function splitAllowlist(value: string | undefined) {
+  return (value ?? "")
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function parseAllowlistEntry(value: string): ProviderSandboxAllowlistEntry | null {
+  const separator = value.indexOf(":");
+  if (separator === -1) {
+    return { provider: "all", recipientId: value };
+  }
+
+  const provider = value.slice(0, separator).trim().toLowerCase();
+  const recipientId = value.slice(separator + 1).trim();
+  if (!providerSandboxProviderSchema.safeParse(provider).success || !recipientId) {
+    return null;
+  }
+
+  return { provider: provider as ProviderSandboxProvider, recipientId };
+}
+
+function dedupeAllowlist(entries: ProviderSandboxAllowlistEntry[]) {
+  const seen = new Set<string>();
+  const deduped: ProviderSandboxAllowlistEntry[] = [];
+  for (const entry of entries) {
+    const key = `${entry.provider}:${entry.recipientId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(entry);
+  }
+  return deduped;
+}
+
+function providerChannelModeEnabled(provider: ProviderSandboxProvider, env: ProviderSandboxEnv) {
+  const mode = provider === "facebook" || provider === "instagram"
+    ? normalizedEnv(env.META_CHANNEL_MODE ?? env.CHANNEL_MODE, "mock")
+    : normalizedEnv(env.CHANNEL_MODE, "mock");
+  return mode === "real" || mode === "sandbox";
+}
+
+function normalizedEnv(value: string | undefined, fallback: string) {
+  const trimmed = value?.trim().toLowerCase();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
 export const messageTypeSchema = z.enum(["text", "image", "audio", "file", "event"]);
 export type MessageType = z.infer<typeof messageTypeSchema>;
 

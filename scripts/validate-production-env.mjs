@@ -28,15 +28,24 @@ const requiredNames = [
   "OPENAI_REPLY_MODEL",
   "OPENAI_VECTOR_STORE_ID",
   "PROVIDER_OUTBOUND_MODE",
+  "PROVIDER_OUTBOUND_ENABLED",
+  "PROVIDER_SANDBOX_MODE",
+  "PROVIDER_SANDBOX_ALLOWLIST",
   "CHANNEL_MODE",
   "META_CHANNEL_MODE",
+  "LINE_SANDBOX_ALLOWLIST",
   "LINE_CHANNEL_SECRET",
   "LINE_CHANNEL_ACCESS_TOKEN",
+  "TELEGRAM_SANDBOX_ALLOWLIST",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_WEBHOOK_SECRET",
   "META_VERIFY_TOKEN",
+  "FACEBOOK_VERIFY_TOKEN",
+  "INSTAGRAM_VERIFY_TOKEN",
   "META_APP_SECRET",
+  "FACEBOOK_SANDBOX_ALLOWLIST",
   "FACEBOOK_PAGE_ACCESS_TOKEN",
+  "INSTAGRAM_SANDBOX_ALLOWLIST",
   "INSTAGRAM_ACCESS_TOKEN"
 ];
 
@@ -85,11 +94,14 @@ export function validateProductionEnv(env) {
   add("S3 storage configured", ["S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"].every((name) => configured(env[name]) && !placeholderPattern.test(env[name])), "Object storage names must be replaced.");
   add("APP_ENCRYPTION_KEY is base64 32 bytes", isBase64Key32(env.APP_ENCRYPTION_KEY), "Generate with: openssl rand -base64 32.");
   add("JWT_SECRET replaced", configured(env.JWT_SECRET) && !placeholderPattern.test(env.JWT_SECRET) && env.JWT_SECRET.length >= 32, "Use a long random value.");
-  add("AI_MODE is mock", env.AI_MODE === "mock", "Sprint 52 pilot readiness keeps AI local/mock.");
+  add("AI_MODE is mock", env.AI_MODE === "mock", "Sprint 53 pilot readiness keeps AI local/mock.");
   add("provider outbound disabled", env.PROVIDER_OUTBOUND_MODE === "disabled", "Real LINE/Telegram/Facebook/Instagram outbound must stay disabled.");
+  add("PROVIDER_OUTBOUND_ENABLED is false", env.PROVIDER_OUTBOUND_ENABLED === "false", "Provider outbound requires an explicit runtime flag and is false by default.");
+  add("PROVIDER_SANDBOX_MODE is disabled", env.PROVIDER_SANDBOX_MODE === "disabled", "Provider sandbox outbound is disabled by default.");
   add("CHANNEL_MODE is mock", env.CHANNEL_MODE === "mock", "Provider channel mode must stay mock.");
   add("META_CHANNEL_MODE is mock", env.META_CHANNEL_MODE === "mock", "Meta provider mode must stay mock.");
   add("provider credential names present", providerEnvNames().every((name) => Object.prototype.hasOwnProperty.call(env, name)), "Provider readiness can be checked without enabling outbound.");
+  add("provider sandbox allowlist names present", providerSandboxEnvNames().every((name) => Object.prototype.hasOwnProperty.call(env, name)), "Provider sandbox allowlists are documented without exposing recipient values.");
 
   const failed = checks.filter((check) => !check.ok);
   return {
@@ -120,9 +132,21 @@ export function providerEnvNames() {
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_WEBHOOK_SECRET",
     "META_VERIFY_TOKEN",
+    "FACEBOOK_VERIFY_TOKEN",
+    "INSTAGRAM_VERIFY_TOKEN",
     "META_APP_SECRET",
     "FACEBOOK_PAGE_ACCESS_TOKEN",
     "INSTAGRAM_ACCESS_TOKEN"
+  ];
+}
+
+export function providerSandboxEnvNames() {
+  return [
+    "PROVIDER_SANDBOX_ALLOWLIST",
+    "LINE_SANDBOX_ALLOWLIST",
+    "TELEGRAM_SANDBOX_ALLOWLIST",
+    "FACEBOOK_SANDBOX_ALLOWLIST",
+    "INSTAGRAM_SANDBOX_ALLOWLIST"
   ];
 }
 
