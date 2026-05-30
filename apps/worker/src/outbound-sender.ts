@@ -136,6 +136,10 @@ export function channelMode() {
   return (process.env.META_CHANNEL_MODE ?? process.env.CHANNEL_MODE ?? process.env.AI_MODE ?? "mock").toLowerCase();
 }
 
+export function providerOutboundMode() {
+  return (process.env.PROVIDER_OUTBOUND_MODE ?? "disabled").toLowerCase();
+}
+
 export function shouldUseRealChannelSend() {
-  return channelMode() === "real";
+  return providerOutboundMode() === "real" && channelMode() === "real";
 }

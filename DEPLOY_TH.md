@@ -57,7 +57,10 @@ S3_ACCESS_KEY=ชื่อผู้ใช้ MinIO
 S3_SECRET_KEY=รหัสผ่าน MinIO ยาวๆ
 APP_ENCRYPTION_KEY=base64 32 bytes
 JWT_SECRET=รหัสลับยาวๆ
-OPENAI_API_KEY=sk-...
+AI_MODE=mock
+PROVIDER_OUTBOUND_MODE=disabled
+CHANNEL_MODE=mock
+META_CHANNEL_MODE=mock
 ```
 
 สร้าง `APP_ENCRYPTION_KEY`:
@@ -72,9 +75,15 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
-ถ้ายังไม่ใส่ `OPENAI_API_KEY` ระบบยังเปิดได้ แต่ AI จะใช้ fallback draft สำหรับทดสอบ
+สำหรับ Sprint 52 pilot readiness ให้คง `AI_MODE=mock` และ `OPENAI_API_KEY=` ว่างไว้ก่อน เพื่อไม่ให้มี external API call
 
 ## 4. Build และเปิดระบบ
+
+ตรวจ env ก่อน deploy:
+
+```bash
+npm run validate:production-env -- .env.production
+```
 
 ใช้สคริปต์ที่เตรียมไว้:
 
@@ -110,6 +119,13 @@ API ผ่าน reverse proxy:
 
 ```text
 https://chat.example.com/api/rooms
+```
+
+Health/readiness:
+
+```text
+https://chat.example.com/api/health
+https://chat.example.com/api/health/readiness
 ```
 
 Webhook URL สำหรับ Webchat demo:
@@ -207,9 +223,9 @@ docker compose -p aiomni-prod --env-file .env.production -f docker-compose.prod.
 
 ## 8. ขั้นต่อไปหลัง deploy ติด
 
-1. ตั้งค่า Telegram Bot webhook มาที่ URL production
-2. ตั้งค่า LINE webhook และ verify signature
-3. ใส่ `OPENAI_API_KEY` เพื่อใช้ AI จริง
-4. เพิ่มหน้า Settings สำหรับกรอก token/channel account ผ่าน UI
-5. ทำ backup PostgreSQL รายวัน
+1. ตั้งค่า Telegram Bot webhook มาที่ URL production โดยยังไม่เปิด real outbound
+2. ตั้งค่า LINE webhook และ verify signature โดยยังไม่เปิด real outbound
+3. ตรวจ `GET /api/health/readiness` ว่าไม่แสดง credential หรือ raw provider payload
+4. เพิ่มหน้า Settings สำหรับกรอก credential/channel account ผ่าน UI
+5. ทำ backup PostgreSQL รายวันและทดสอบ rollback
 

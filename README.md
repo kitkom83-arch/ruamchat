@@ -105,8 +105,10 @@ docker compose -p aiomni-dev -f docker-compose.dev.yml down
 - `.env.production.example`
 - `scripts/deploy-vps.sh`
 - `DEPLOY_TH.md`
+- `docs/PRODUCTION_READINESS.md`
 
 อ่านขั้นตอนเต็มได้ที่ [DEPLOY_TH.md](./DEPLOY_TH.md)
+Production/pilot readiness checklist อยู่ที่ [docs/PRODUCTION_READINESS.md](./docs/PRODUCTION_READINESS.md)
 
 สรุปคำสั่งบน VPS:
 
@@ -147,6 +149,7 @@ https://โดเมนของพี่
 npm run typecheck
 npm test
 npm run build
+npm run smoke:sprint52
 ```
 
 ตรวจ API:
@@ -267,12 +270,13 @@ npm run build
 
 ## หมายเหตุเรื่อง AI
 
-ถ้ายังไม่ใส่ `OPENAI_API_KEY` ระบบจะใช้ fallback policy ภายในแทน เพื่อให้ทดสอบ flow ได้โดยไม่เรียก OpenAI จริง
+สำหรับ Sprint 52 pilot readiness ให้ตั้ง `AI_MODE=mock` และเว้น `OPENAI_API_KEY` ว่างไว้ เพื่อให้ externalCalls คงเป็น `0`
 
-เมื่อพร้อมใช้งานจริง ค่อยใส่ค่าใน `.env`:
+เมื่อมี sprint สำหรับเปิด AI จริงค่อยเปลี่ยนค่าใน `.env`:
 
 ```text
-OPENAI_API_KEY=...
+AI_MODE=openai
+OPENAI_API_KEY=<set outside git>
 ```
 
 ## MVP Guardrails

@@ -57,7 +57,9 @@
     "smoke:sprint48": "node scripts/smoke-sprint48-api.mjs",
     "smoke:sprint49": "node scripts/smoke-sprint49-api.mjs",
     "smoke:sprint50": "node scripts/smoke-sprint50-api.mjs",
-    "smoke:sprint51": "node scripts/smoke-sprint51-api.mjs"
+    "smoke:sprint51": "node scripts/smoke-sprint51-api.mjs",
+    "smoke:sprint52": "node scripts/smoke-sprint52-production-readiness.mjs",
+    "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

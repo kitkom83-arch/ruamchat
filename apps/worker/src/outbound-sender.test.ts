@@ -5,6 +5,7 @@ import {
   sendLineTextMessage,
   sendMockOutboundText,
   sendTelegramTextMessage,
+  providerOutboundMode,
   shouldUseRealChannelSend
 } from "./outbound-sender.js";
 
@@ -63,17 +64,45 @@ describe("outbound sender", () => {
     const previousChannelMode = process.env.CHANNEL_MODE;
     const previousMetaChannelMode = process.env.META_CHANNEL_MODE;
     const previousAiMode = process.env.AI_MODE;
+    const previousProviderOutboundMode = process.env.PROVIDER_OUTBOUND_MODE;
     delete process.env.CHANNEL_MODE;
     delete process.env.META_CHANNEL_MODE;
     delete process.env.AI_MODE;
+    delete process.env.PROVIDER_OUTBOUND_MODE;
 
+    expect(providerOutboundMode()).toBe("disabled");
     expect(shouldUseRealChannelSend()).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
 
     restoreEnv("CHANNEL_MODE", previousChannelMode);
     restoreEnv("META_CHANNEL_MODE", previousMetaChannelMode);
     restoreEnv("AI_MODE", previousAiMode);
+    restoreEnv("PROVIDER_OUTBOUND_MODE", previousProviderOutboundMode);
     fetchSpy.mockRestore();
+  });
+
+  it("requires an explicit provider outbound mode before real sends", () => {
+    const previousChannelMode = process.env.CHANNEL_MODE;
+    const previousMetaChannelMode = process.env.META_CHANNEL_MODE;
+    const previousAiMode = process.env.AI_MODE;
+    const previousProviderOutboundMode = process.env.PROVIDER_OUTBOUND_MODE;
+    process.env.CHANNEL_MODE = "real";
+    delete process.env.META_CHANNEL_MODE;
+    delete process.env.AI_MODE;
+    delete process.env.PROVIDER_OUTBOUND_MODE;
+
+    expect(shouldUseRealChannelSend()).toBe(false);
+
+    process.env.PROVIDER_OUTBOUND_MODE = "disabled";
+    expect(shouldUseRealChannelSend()).toBe(false);
+
+    process.env.PROVIDER_OUTBOUND_MODE = "real";
+    expect(shouldUseRealChannelSend()).toBe(true);
+
+    restoreEnv("CHANNEL_MODE", previousChannelMode);
+    restoreEnv("META_CHANNEL_MODE", previousMetaChannelMode);
+    restoreEnv("AI_MODE", previousAiMode);
+    restoreEnv("PROVIDER_OUTBOUND_MODE", previousProviderOutboundMode);
   });
 
   it("real LINE sender requires a token before network access", async () => {
