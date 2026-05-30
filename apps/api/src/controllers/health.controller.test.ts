@@ -23,6 +23,13 @@ describe("HealthController", () => {
       "CHANNEL_MODE",
       "META_CHANNEL_MODE",
       "PROVIDER_OUTBOUND_MODE",
+      "PROVIDER_OUTBOUND_ENABLED",
+      "PROVIDER_SANDBOX_MODE",
+      "PROVIDER_SANDBOX_ALLOWLIST",
+      "LINE_SANDBOX_ALLOWLIST",
+      "TELEGRAM_SANDBOX_ALLOWLIST",
+      "FACEBOOK_SANDBOX_ALLOWLIST",
+      "INSTAGRAM_SANDBOX_ALLOWLIST",
       "LINE_CHANNEL_ACCESS_TOKEN",
       "LINE_CHANNEL_SECRET",
       "TELEGRAM_BOT_TOKEN",
@@ -41,6 +48,13 @@ describe("HealthController", () => {
     process.env.CHANNEL_MODE = "real";
     process.env.META_CHANNEL_MODE = "real";
     process.env.PROVIDER_OUTBOUND_MODE = "disabled";
+    process.env.PROVIDER_OUTBOUND_ENABLED = "false";
+    process.env.PROVIDER_SANDBOX_MODE = "disabled";
+    process.env.PROVIDER_SANDBOX_ALLOWLIST = "line:U-sprint53-secret-recipient";
+    process.env.LINE_SANDBOX_ALLOWLIST = "U-line-sprint53-secret-recipient";
+    process.env.TELEGRAM_SANDBOX_ALLOWLIST = "55201";
+    process.env.FACEBOOK_SANDBOX_ALLOWLIST = "fb-user-sprint53-secret";
+    process.env.INSTAGRAM_SANDBOX_ALLOWLIST = "ig-user-sprint53-secret";
     process.env.LINE_CHANNEL_ACCESS_TOKEN = "sprint52-line-value";
     process.env.LINE_CHANNEL_SECRET = "sprint52-line-webhook-value";
     process.env.TELEGRAM_BOT_TOKEN = "sprint52-telegram-value";
@@ -56,13 +70,21 @@ describe("HealthController", () => {
       expect(result.status).toBe("ok");
       expect(result.externalCalls).toBe(0);
       expect(result.providerReadiness.realOutboundEnabled).toBe(false);
-      expect(result.providerReadiness.providers.every((provider) => provider.status === "safe_readiness_only")).toBe(true);
+      expect(result.providerReadiness.outboundEnabledByEnv).toBe(false);
+      expect(result.providerReadiness.sandboxEnabled).toBe(false);
+      expect(result.providerReadiness.allowlist.entryCount).toBe(5);
+      expect(result.providerReadiness.providers.every((provider) => provider.status === "disabled_by_default")).toBe(true);
+      expect(result.providerReadiness.providers.every((provider) => provider.outboundEnabled === false)).toBe(true);
       expect(serialized).not.toContain("sprint52-line-value");
       expect(serialized).not.toContain("sprint52-line-webhook-value");
       expect(serialized).not.toContain("sprint52-telegram-value");
       expect(serialized).not.toContain("sprint52-telegram-webhook-value");
       expect(serialized).not.toContain("sprint52-meta-value");
       expect(serialized).not.toContain("sprint52-db-value");
+      expect(serialized).not.toContain("U-sprint53-secret-recipient");
+      expect(serialized).not.toContain("U-line-sprint53-secret-recipient");
+      expect(serialized).not.toContain("fb-user-sprint53-secret");
+      expect(serialized).not.toContain("ig-user-sprint53-secret");
       expect(serialized).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|authorization|payloadJson|providerRaw|rawPayload/i);
     } finally {
       restoreEnv(previous);

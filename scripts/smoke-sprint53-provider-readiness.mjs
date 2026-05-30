@@ -8,34 +8,41 @@ const userId = process.env.USER_ID ?? "00000000-0000-4000-8000-000000000011";
 const results = [];
 
 async function main() {
-  record("local API only", isLocalBaseUrl(baseUrl), baseUrl);
+  record("local API only", isLocalBaseUrl(baseUrl));
 
   const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
   const envExample = loadEnvFile(".env.example");
   const prodEnvExample = loadEnvFile(".env.production.example");
   const readinessDoc = readFileSync("docs/PRODUCTION_READINESS.md", "utf8");
+  const deployDoc = readFileSync("DEPLOY_TH.md", "utf8");
   const requiredNames = requiredProductionEnvNames();
 
+  record("smoke script registered", rootPackage.scripts?.["smoke:sprint53"] === "node scripts/smoke-sprint53-provider-readiness.mjs");
   record("required env names documented", requiredNames.every((name) => Object.prototype.hasOwnProperty.call(prodEnvExample, name)));
-  record("local mock mode remains available", envExample.NEXT_PUBLIC_DATA_MODE === "mock" && envExample.CHANNEL_MODE === "mock" && envExample.PROVIDER_OUTBOUND_MODE === "disabled");
-  record("production API mode explicit", prodEnvExample.API_MODE === "api" && prodEnvExample.DATA_MODE === "api" && prodEnvExample.NEXT_PUBLIC_DATA_MODE === "api" && prodEnvExample.NEXT_PUBLIC_API_BASE_URL === "/api");
-  record("provider outbound disabled in production example", prodEnvExample.PROVIDER_OUTBOUND_MODE === "disabled" && prodEnvExample.PROVIDER_OUTBOUND_ENABLED === "false" && prodEnvExample.PROVIDER_SANDBOX_MODE === "disabled" && prodEnvExample.CHANNEL_MODE === "mock" && prodEnvExample.META_CHANNEL_MODE === "mock");
-  record("AI external mode disabled in production example", prodEnvExample.AI_MODE === "mock" && prodEnvExample.OPENAI_API_KEY === "");
-  record("deployment checklist documented", ["domain", "SSL", "database", "redis", "env vars", "migrations", "backup", "rollback", "monitoring"].every((term) => readinessDoc.toLowerCase().includes(term.toLowerCase())));
-  record("provider readiness checklist documented", ["LINE", "Telegram", "Facebook", "Instagram"].every((term) => readinessDoc.includes(term)));
-  record("regression smokes referenced", ["smoke:sprint51", "smoke:sprint50", "smoke:sprint49", "smoke:sprint48"].every((name) => Boolean(rootPackage.scripts?.[name]) && readinessDoc.includes(name)));
+  record("local mock mode remains available", envExample.NEXT_PUBLIC_DATA_MODE === "mock" && envExample.CHANNEL_MODE === "mock" && envExample.PROVIDER_OUTBOUND_MODE === "disabled" && envExample.PROVIDER_OUTBOUND_ENABLED === "false");
+  record("production provider outbound disabled by default", prodEnvExample.PROVIDER_OUTBOUND_MODE === "disabled" && prodEnvExample.PROVIDER_OUTBOUND_ENABLED === "false" && prodEnvExample.PROVIDER_SANDBOX_MODE === "disabled");
+  record("provider sandbox placeholders documented", ["PROVIDER_SANDBOX_ALLOWLIST", "LINE_SANDBOX_ALLOWLIST", "TELEGRAM_SANDBOX_ALLOWLIST", "FACEBOOK_SANDBOX_ALLOWLIST", "INSTAGRAM_SANDBOX_ALLOWLIST"].every((name) => Object.prototype.hasOwnProperty.call(prodEnvExample, name)));
+  record("provider docs cover all channels", ["LINE", "Telegram", "Facebook Messenger", "Instagram Messaging"].every((term) => readinessDoc.includes(term)));
+  record("deploy docs keep outbound disabled", ["PROVIDER_OUTBOUND_ENABLED=false", "PROVIDER_SANDBOX_MODE=disabled", "externalCalls=0"].every((term) => deployDoc.includes(term) || readinessDoc.includes(term)));
 
-  const validationSecret = "sprint52-sensitive-value-must-not-print";
+  const validationSecret = "sprint53-sensitive-value-must-not-print";
   const validation = validateProductionEnv(safePilotEnv({
     POSTGRES_PASSWORD: validationSecret,
     DATABASE_URL: `postgresql://aiomni:${validationSecret}@postgres:5432/aiomni?schema=public`,
     S3_SECRET_KEY: validationSecret,
     JWT_SECRET: `${validationSecret}-jwt-with-32-characters`,
-    LINE_CHANNEL_ACCESS_TOKEN: validationSecret
+    LINE_CHANNEL_ACCESS_TOKEN: validationSecret,
+    PROVIDER_SANDBOX_ALLOWLIST: "line:<line-test-recipient-id>",
+    LINE_SANDBOX_ALLOWLIST: "<line-test-recipient-id>"
   }));
   const validationReport = formatValidationReport(validation);
-  record("env validation safe pilot passes", validation.ok && validation.externalCalls === 0);
-  record("env validation does not print configured values", !validationReport.includes(validationSecret));
+  record("env validation accepts safe provider sandbox placeholders", validation.ok && validation.externalCalls === 0);
+  record("env validation does not print secrets or allowlist values", !validationReport.includes(validationSecret) && !validationReport.includes("<line-test-recipient-id>"));
+
+  const missingSandboxEnv = safePilotEnv();
+  delete missingSandboxEnv.PROVIDER_SANDBOX_MODE;
+  const missingValidation = validateProductionEnv(missingSandboxEnv);
+  record("env validation rejects missing required provider sandbox placeholder", !missingValidation.ok && missingValidation.checks.some((check) => check.name === "name documented: PROVIDER_SANDBOX_MODE" && !check.ok));
 
   const health = await request("GET", "/health");
   record("health endpoint reachable", health.status === 200);
@@ -46,17 +53,15 @@ async function main() {
   record("readiness endpoint reachable", readiness.status === 200);
   const readinessBody = await safeJson(readiness);
   record("readiness response passes", readinessBody?.status === "ok" && readinessBody?.externalCalls === 0);
-  record("readiness response does not expose secrets", noRawSecretFields(readinessBody));
-  record("readiness provider outbound disabled", readinessBody?.providerReadiness?.realOutboundEnabled === false && (readinessBody?.providerReadiness?.providers ?? []).every((provider) => provider.outboundEnabled === false));
+  record("provider readiness section exists", Boolean(readinessBody?.providerReadiness?.providers));
+  record("provider readiness redacts allowlists", safeProviderReadiness(readinessBody?.providerReadiness));
+  record("provider outbound disabled by default", readinessBody?.providerReadiness?.realOutboundEnabled === false && readinessBody?.providerReadiness?.outboundEnabledByEnv === false && readinessBody?.providerReadiness?.providers?.every((provider) => provider.outboundEnabled === false));
+  record("readiness response does not expose secrets or payloads", noRawSecretFields(readinessBody));
   record("readiness monitoring baseline safe", readinessBody?.monitoring?.auditSafetyBaseline === true && readinessBody?.monitoring?.providerPayloadsExposed === false && readinessBody?.monitoring?.externalCalls === 0);
 
-  const broadcasts = await request("GET", "/broadcasts/campaigns");
-  record("Sprint 51 broadcasts API still reachable", broadcasts.status === 200);
-  const broadcastBody = await safeJson(broadcasts);
-  record("broadcasts API has no mock fallback raw output", Array.isArray(broadcastBody) && noRawSecretFields(broadcastBody) && noNonzeroExternalCalls(broadcastBody));
-
-  record("no provider outbound", !containsProviderOutbound({ readinessBody, broadcastBody }));
-  record("externalCalls = 0", noNonzeroExternalCalls({ readinessBody, broadcastBody, validation }));
+  record("Sprint 52 readiness regression present", rootPackage.scripts?.["smoke:sprint52"] === "node scripts/smoke-sprint52-production-readiness.mjs" && noNonzeroExternalCalls({ readinessBody, validation }));
+  record("no provider outbound", !containsProviderOutbound({ readinessBody, healthBody }));
+  record("externalCalls = 0", noNonzeroExternalCalls({ readinessBody, healthBody, validation }));
 
   finish();
 }
@@ -128,6 +133,13 @@ function safePilotEnv(overrides = {}) {
     INSTAGRAM_ACCESS_TOKEN: "",
     ...overrides
   };
+}
+
+function safeProviderReadiness(readiness) {
+  if (!readiness || typeof readiness !== "object") return false;
+  if (!readiness.allowlist || typeof readiness.allowlist.entryCount !== "number") return false;
+  const serialized = JSON.stringify(readiness);
+  return !/line-test-recipient|telegram-test-chat|messenger-test-recipient|instagram-test-recipient|fb-user-|ig-user-|U-sprint|replyToken|messaging|events|rawPayload|providerRaw/i.test(serialized);
 }
 
 function isLocalBaseUrl(value) {
@@ -208,7 +220,7 @@ function finish() {
   const failed = results.filter((result) => !result.ok);
   console.log(JSON.stringify({ baseUrl, tenantId, externalCalls: 0, results }, null, 2));
   if (failed.length > 0) {
-    throw new Error(`Sprint 52 smoke failed: ${failed.map((item) => item.name).join(", ")}`);
+    throw new Error(`Sprint 53 smoke failed: ${failed.map((item) => item.name).join(", ")}`);
   }
 }
 

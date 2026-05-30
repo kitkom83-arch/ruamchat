@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  assertProviderOutboundAllowed,
+  providerOutboundEnabled,
   sendFacebookTextMessage,
   sendInstagramTextMessage,
   sendLineTextMessage,
   sendMockOutboundText,
   sendTelegramTextMessage,
   providerOutboundMode,
+  providerSandboxMode,
+  validateProviderOutboundGuard,
   shouldUseRealChannelSend
 } from "./outbound-sender.js";
 
@@ -61,103 +65,247 @@ describe("outbound sender", () => {
 
   it("does not use real provider sends by default", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const previousChannelMode = process.env.CHANNEL_MODE;
-    const previousMetaChannelMode = process.env.META_CHANNEL_MODE;
-    const previousAiMode = process.env.AI_MODE;
-    const previousProviderOutboundMode = process.env.PROVIDER_OUTBOUND_MODE;
-    delete process.env.CHANNEL_MODE;
-    delete process.env.META_CHANNEL_MODE;
-    delete process.env.AI_MODE;
-    delete process.env.PROVIDER_OUTBOUND_MODE;
+    const previous = snapshotEnv(providerEnvKeys);
+    clearProviderEnv();
 
-    expect(providerOutboundMode()).toBe("disabled");
-    expect(shouldUseRealChannelSend()).toBe(false);
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    restoreEnv("CHANNEL_MODE", previousChannelMode);
-    restoreEnv("META_CHANNEL_MODE", previousMetaChannelMode);
-    restoreEnv("AI_MODE", previousAiMode);
-    restoreEnv("PROVIDER_OUTBOUND_MODE", previousProviderOutboundMode);
-    fetchSpy.mockRestore();
+    try {
+      expect(providerOutboundMode()).toBe("disabled");
+      expect(providerOutboundEnabled()).toBe(false);
+      expect(providerSandboxMode()).toBe("disabled");
+      expect(shouldUseRealChannelSend()).toBe(false);
+      expect(shouldUseRealChannelSend({
+        provider: "line",
+        recipientId: "U123",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
   });
 
-  it("requires an explicit provider outbound mode before real sends", () => {
-    const previousChannelMode = process.env.CHANNEL_MODE;
-    const previousMetaChannelMode = process.env.META_CHANNEL_MODE;
-    const previousAiMode = process.env.AI_MODE;
-    const previousProviderOutboundMode = process.env.PROVIDER_OUTBOUND_MODE;
-    process.env.CHANNEL_MODE = "real";
-    delete process.env.META_CHANNEL_MODE;
-    delete process.env.AI_MODE;
-    delete process.env.PROVIDER_OUTBOUND_MODE;
+  it("requires outbound enabled, sandbox mode, allowlist, and tenant ownership before real sends", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    clearProviderEnv();
 
-    expect(shouldUseRealChannelSend()).toBe(false);
+    try {
+      process.env.CHANNEL_MODE = "real";
+      process.env.PROVIDER_OUTBOUND_MODE = "real";
+      expect(validateProviderOutboundGuard(lineGuard()).reason).toBe("provider_outbound_disabled");
 
-    process.env.PROVIDER_OUTBOUND_MODE = "disabled";
-    expect(shouldUseRealChannelSend()).toBe(false);
+      process.env.PROVIDER_OUTBOUND_ENABLED = "true";
+      expect(validateProviderOutboundGuard(lineGuard()).reason).toBe("provider_sandbox_disabled");
 
-    process.env.PROVIDER_OUTBOUND_MODE = "real";
-    expect(shouldUseRealChannelSend()).toBe(true);
+      process.env.PROVIDER_SANDBOX_MODE = "enabled";
+      expect(validateProviderOutboundGuard(lineGuard()).reason).toBe("allowlist_required");
 
-    restoreEnv("CHANNEL_MODE", previousChannelMode);
-    restoreEnv("META_CHANNEL_MODE", previousMetaChannelMode);
-    restoreEnv("AI_MODE", previousAiMode);
-    restoreEnv("PROVIDER_OUTBOUND_MODE", previousProviderOutboundMode);
+      process.env.PROVIDER_SANDBOX_ALLOWLIST = "line:U123";
+      expect(validateProviderOutboundGuard(lineGuard({ recipientId: "U999" })).reason).toBe("recipient_not_allowlisted");
+      expect(validateProviderOutboundGuard(lineGuard({ channelAccountTenantId: "tenant-other" })).reason).toBe("tenant_ownership_required");
+      expect(validateProviderOutboundGuard(lineGuard()).allowed).toBe(true);
+      expect(shouldUseRealChannelSend(lineGuard())).toBe(true);
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
   });
 
-  it("real LINE sender requires a token before network access", async () => {
+  it("provider allowlist blocks non-allowlisted recipients before network access", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const previous = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "line:U123" });
+
+    try {
+      const guard = validateProviderOutboundGuard(lineGuard({ recipientId: "U999" }));
+      expect(guard.allowed).toBe(false);
+      expect(guard.reason).toBe("recipient_not_allowlisted");
+      expect(() => assertProviderOutboundAllowed(lineGuard({ recipientId: "U999" }))).toThrow("recipient_not_allowlisted");
+      await expect(sendLineTextMessage({
+        to: "U999",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("recipient_not_allowlisted");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("provider allowlist allows only an explicitly allowlisted test recipient in sandbox logic", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "line:U123,telegram:55201" });
+
+    try {
+      expect(validateProviderOutboundGuard(lineGuard()).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "55201" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "facebook", recipientId: "fb-user-381" })).reason).toBe("recipient_not_allowlisted");
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
+  });
+
+  it("real LINE sender is disabled by default even when a token-like value exists", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const previous = snapshotEnv(providerEnvKeys);
+    clearProviderEnv();
+    process.env.LINE_CHANNEL_ACCESS_TOKEN = "fake-line-token-for-test";
+
+    try {
+      await expect(sendLineTextMessage({
+        to: "U123",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("provider_outbound_disabled");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("real LINE sender requires a token only after sandbox gates pass", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "line:U123" });
     delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
-    await expect(sendLineTextMessage({ to: "U123", text: "hello" })).rejects.toThrow("LINE_CHANNEL_ACCESS_TOKEN is required");
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    restoreEnv("LINE_CHANNEL_ACCESS_TOKEN", previous);
-    fetchSpy.mockRestore();
+    try {
+      await expect(sendLineTextMessage({
+        to: "U123",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("LINE_CHANNEL_ACCESS_TOKEN is required");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
   });
 
-  it("real Telegram sender requires a token before network access", async () => {
+  it("real Telegram sender requires a token only after sandbox gates pass", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const previous = process.env.TELEGRAM_BOT_TOKEN;
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
     delete process.env.TELEGRAM_BOT_TOKEN;
 
-    await expect(sendTelegramTextMessage({ chatId: "123", text: "hello" })).rejects.toThrow("TELEGRAM_BOT_TOKEN is required");
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    restoreEnv("TELEGRAM_BOT_TOKEN", previous);
-    fetchSpy.mockRestore();
+    try {
+      await expect(sendTelegramTextMessage({
+        chatId: "55201",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("TELEGRAM_BOT_TOKEN is required");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
   });
 
-  it("real Facebook sender requires a token before network access", async () => {
+  it("real Facebook sender requires a token only after sandbox gates pass", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const previous = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "facebook:fb-user-381", meta: true });
     delete process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
 
-    await expect(sendFacebookTextMessage({ recipientId: "fb-user-381", text: "hello" })).rejects.toThrow("FACEBOOK_PAGE_ACCESS_TOKEN is required");
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    restoreEnv("FACEBOOK_PAGE_ACCESS_TOKEN", previous);
-    fetchSpy.mockRestore();
+    try {
+      await expect(sendFacebookTextMessage({
+        recipientId: "fb-user-381",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("FACEBOOK_PAGE_ACCESS_TOKEN is required");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
   });
 
-  it("real Instagram sender requires a token before network access", async () => {
+  it("real Instagram sender requires a token only after sandbox gates pass", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const previous = process.env.INSTAGRAM_ACCESS_TOKEN;
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "instagram:ig-user-mint", meta: true });
     delete process.env.INSTAGRAM_ACCESS_TOKEN;
 
-    await expect(sendInstagramTextMessage({ recipientId: "ig-user-mint", text: "hello" })).rejects.toThrow("INSTAGRAM_ACCESS_TOKEN is required");
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    restoreEnv("INSTAGRAM_ACCESS_TOKEN", previous);
-    fetchSpy.mockRestore();
+    try {
+      await expect(sendInstagramTextMessage({
+        recipientId: "ig-user-mint",
+        text: "hello",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("INSTAGRAM_ACCESS_TOKEN is required");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
   });
 });
 
-function restoreEnv(key: string, value: string | undefined) {
-  if (value === undefined) {
-    delete process.env[key];
-    return;
+const tenantIdForTest = "00000000-0000-4000-8000-000000000001";
+
+const providerEnvKeys = [
+  "CHANNEL_MODE",
+  "META_CHANNEL_MODE",
+  "AI_MODE",
+  "PROVIDER_OUTBOUND_MODE",
+  "PROVIDER_OUTBOUND_ENABLED",
+  "PROVIDER_SANDBOX_MODE",
+  "PROVIDER_SANDBOX_ALLOWLIST",
+  "LINE_SANDBOX_ALLOWLIST",
+  "TELEGRAM_SANDBOX_ALLOWLIST",
+  "FACEBOOK_SANDBOX_ALLOWLIST",
+  "INSTAGRAM_SANDBOX_ALLOWLIST",
+  "LINE_CHANNEL_ACCESS_TOKEN",
+  "TELEGRAM_BOT_TOKEN",
+  "FACEBOOK_PAGE_ACCESS_TOKEN",
+  "INSTAGRAM_ACCESS_TOKEN"
+];
+
+function lineGuard(overrides: Partial<Parameters<typeof validateProviderOutboundGuard>[0]> = {}) {
+  return {
+    provider: "line" as const,
+    recipientId: "U123",
+    tenantId: tenantIdForTest,
+    channelAccountTenantId: tenantIdForTest,
+    ...overrides
+  };
+}
+
+function setSandboxEnv(options: { allowlist: string; meta?: boolean }) {
+  clearProviderEnv();
+  process.env.PROVIDER_OUTBOUND_MODE = "real";
+  process.env.PROVIDER_OUTBOUND_ENABLED = "true";
+  process.env.PROVIDER_SANDBOX_MODE = "enabled";
+  process.env.PROVIDER_SANDBOX_ALLOWLIST = options.allowlist;
+  process.env.CHANNEL_MODE = "real";
+  if (options.meta) {
+    process.env.META_CHANNEL_MODE = "real";
   }
-  process.env[key] = value;
+}
+
+function clearProviderEnv() {
+  for (const key of providerEnvKeys) {
+    delete process.env[key];
+  }
+}
+
+function snapshotEnv(keys: string[]) {
+  return new Map(keys.map((key) => [key, process.env[key]]));
+}
+
+function restoreEnvSnapshot(values: Map<string, string | undefined>) {
+  for (const [key, value] of values) {
+    if (value === undefined) {
+      delete process.env[key];
+      continue;
+    }
+    process.env[key] = value;
+  }
 }

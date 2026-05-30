@@ -59,6 +59,7 @@
     "smoke:sprint50": "node scripts/smoke-sprint50-api.mjs",
     "smoke:sprint51": "node scripts/smoke-sprint51-api.mjs",
     "smoke:sprint52": "node scripts/smoke-sprint52-production-readiness.mjs",
+    "smoke:sprint53": "node scripts/smoke-sprint53-provider-readiness.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

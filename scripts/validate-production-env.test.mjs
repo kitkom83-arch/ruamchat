@@ -28,13 +28,32 @@ describe("production env validation", () => {
     const result = validateProductionEnv(safePilotEnv({
       API_MODE: "local",
       NEXT_PUBLIC_DATA_MODE: "mock",
-      PROVIDER_OUTBOUND_MODE: "real"
+      PROVIDER_OUTBOUND_MODE: "real",
+      PROVIDER_OUTBOUND_ENABLED: "true",
+      PROVIDER_SANDBOX_MODE: "enabled"
     }));
 
     expect(result.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "API_MODE is api")?.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "NEXT_PUBLIC_DATA_MODE is api")?.ok).toBe(false);
     expect(result.checks.find((check) => check.name === "provider outbound disabled")?.ok).toBe(false);
+    expect(result.checks.find((check) => check.name === "PROVIDER_OUTBOUND_ENABLED is false")?.ok).toBe(false);
+    expect(result.checks.find((check) => check.name === "PROVIDER_SANDBOX_MODE is disabled")?.ok).toBe(false);
+  });
+
+  it("rejects missing provider sandbox env placeholders without printing values", () => {
+    const env = safePilotEnv({
+      PROVIDER_SANDBOX_ALLOWLIST: undefined
+    });
+    delete env.PROVIDER_SANDBOX_ALLOWLIST;
+
+    const result = validateProductionEnv(env);
+    const report = formatValidationReport(result);
+
+    expect(result.ok).toBe(false);
+    expect(result.checks.find((check) => check.name === "name documented: PROVIDER_SANDBOX_ALLOWLIST")?.ok).toBe(false);
+    expect(result.checks.find((check) => check.name === "provider sandbox allowlist names present")?.ok).toBe(false);
+    expect(report).not.toContain("sprint53-provider-secret");
   });
 
   it("parses env files without expanding or leaking values", () => {
@@ -77,15 +96,24 @@ function safePilotEnv(overrides = {}) {
     OPENAI_REPLY_MODEL: "gpt-5.5",
     OPENAI_VECTOR_STORE_ID: "",
     PROVIDER_OUTBOUND_MODE: "disabled",
+    PROVIDER_OUTBOUND_ENABLED: "false",
+    PROVIDER_SANDBOX_MODE: "disabled",
+    PROVIDER_SANDBOX_ALLOWLIST: "",
     CHANNEL_MODE: "mock",
     META_CHANNEL_MODE: "mock",
+    LINE_SANDBOX_ALLOWLIST: "",
     LINE_CHANNEL_SECRET: "",
     LINE_CHANNEL_ACCESS_TOKEN: "",
+    TELEGRAM_SANDBOX_ALLOWLIST: "",
     TELEGRAM_BOT_TOKEN: "",
     TELEGRAM_WEBHOOK_SECRET: "",
     META_VERIFY_TOKEN: "",
+    FACEBOOK_VERIFY_TOKEN: "",
+    INSTAGRAM_VERIFY_TOKEN: "",
     META_APP_SECRET: "",
+    FACEBOOK_SANDBOX_ALLOWLIST: "",
     FACEBOOK_PAGE_ACCESS_TOKEN: "",
+    INSTAGRAM_SANDBOX_ALLOWLIST: "",
     INSTAGRAM_ACCESS_TOKEN: "",
     ...overrides
   };
