@@ -9,12 +9,14 @@ import {
   createKnowledgeBase,
   createKnowledgeChunk,
   createKnowledgeDocument,
+  createProviderWebhookSandboxEvent,
   deleteKnowledgeBase,
   createWebchatMessage,
   deleteKnowledgeChunk,
   deleteKnowledgeDocument,
   getConversationAuditLogs,
   getProviderReadiness,
+  getProviderWebhookEvents,
   getKnowledgeBases,
   getKnowledgeChunks,
   getKnowledgeDocuments,
@@ -112,6 +114,45 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "readiness unavailable" }, 503));
 
     await expect(getProviderReadiness()).rejects.toThrow("API request failed (503): readiness unavailable");
+  });
+
+  it("sends x-tenant-id for provider webhook event list and sandbox event create", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([providerWebhookEventResponse("provider-webhook-event-1")]))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookEventResponse("provider-webhook-event-2", "telegram")));
+
+    const events = await getProviderWebhookEvents();
+    const created = await createProviderWebhookSandboxEvent({
+      provider: "telegram",
+      channel: "telegram",
+      eventType: "webhook.verified",
+      mode: "dry_run",
+      payload: {
+        updateId: "safe-update",
+        token: "sensitive-sample-a",
+        signature: "sensitive-sample-b"
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/events", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/sandbox-events", expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
+      provider: "telegram",
+      channel: "telegram",
+      eventType: "webhook.verified",
+      mode: "dry_run"
+    });
+    expectTenantHeaderForAll(fetchMock);
+    expect(events[0]?.externalCalls).toBe(0);
+    expect(created.provider).toBe("telegram");
+    expect(JSON.stringify({ events, created })).not.toContain("sensitive-sample-a");
+    expect(JSON.stringify({ events, created })).not.toMatch(/token|secret|signature|authorization|cookie|rawPayload|providerRaw|payloadJson/i);
+  });
+
+  it("surfaces provider webhook event API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "webhook events unavailable" }, 503));
+
+    await expect(getProviderWebhookEvents()).rejects.toThrow("API request failed (503): webhook events unavailable");
   });
 
   it("validates conversations and keeps room filters explicit", async () => {
@@ -968,6 +1009,23 @@ function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
     status: "disabled_by_default"
+  };
+}
+
+function providerWebhookEventResponse(id: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
+  return {
+    id,
+    tenantId: defaultTenantId,
+    provider,
+    channel: provider,
+    eventType: provider === "telegram" ? "webhook.verified" : "message.created",
+    mode: "dry_run",
+    status: provider === "telegram" ? "verified" : "received",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
+    payloadFieldCount: 2,
+    payloadDigest: "sha256:safeeventdigest",
+    externalCalls: 0
   };
 }
 

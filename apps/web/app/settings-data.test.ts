@@ -4,9 +4,12 @@ import {
   getCannedRepliesForMode,
   loadSettingsChannelsData,
   loadSettingsProviderReadinessData,
+  loadSettingsProviderWebhookEventsData,
+  createSettingsProviderWebhookSandboxEvent,
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
   mockProviderReadiness,
+  mockProviderWebhookEvents,
   resolveCannedReplyComposerDraft,
   mockSettingsChannels,
   searchCannedReplyList
@@ -17,7 +20,9 @@ const api = vi.hoisted(() => ({
   getSettingsCannedReplies: vi.fn(),
   getSettingsSlaPolicies: vi.fn(),
   getSettingsTeam: vi.fn(),
-  getProviderReadiness: vi.fn()
+  getProviderReadiness: vi.fn(),
+  getProviderWebhookEvents: vi.fn(),
+  createProviderWebhookSandboxEvent: vi.fn()
 }));
 
 vi.mock("./api-client", () => ({
@@ -25,7 +30,9 @@ vi.mock("./api-client", () => ({
   getSettingsCannedReplies: api.getSettingsCannedReplies,
   getSettingsSlaPolicies: api.getSettingsSlaPolicies,
   getSettingsTeam: api.getSettingsTeam,
-  getProviderReadiness: api.getProviderReadiness
+  getProviderReadiness: api.getProviderReadiness,
+  getProviderWebhookEvents: api.getProviderWebhookEvents,
+  createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent
 }));
 
 beforeEach(() => {
@@ -34,6 +41,8 @@ beforeEach(() => {
   api.getSettingsSlaPolicies.mockReset();
   api.getSettingsTeam.mockReset();
   api.getProviderReadiness.mockReset();
+  api.getProviderWebhookEvents.mockReset();
+  api.createProviderWebhookSandboxEvent.mockReset();
 });
 
 describe("settings API-mode data loaders", () => {
@@ -131,6 +140,59 @@ describe("settings API-mode data loaders", () => {
     await expect(loadSettingsProviderReadinessData("api")).rejects.toThrow("readiness unavailable");
   });
 
+  it("loads provider webhook events from API mode without exposing raw payload values", async () => {
+    api.getProviderWebhookEvents.mockResolvedValueOnce([providerWebhookEventResponse("provider-webhook-event-api")]);
+
+    const data = await loadSettingsProviderWebhookEventsData("api");
+
+    expect(api.getProviderWebhookEvents).toHaveBeenCalled();
+    expect(data.mode).toBe("api");
+    expect(data.events[0]).toMatchObject({
+      id: "provider-webhook-event-api",
+      provider: "line",
+      channel: "line",
+      eventType: "message.created",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(data.events)).not.toContain("raw-line-token");
+    expect(JSON.stringify(data.events)).not.toMatch(/token|secret|signature|authorization|cookie|providerRaw|rawPayload|payloadJson/i);
+  });
+
+  it("creates provider webhook sandbox events through API mode without local fallback", async () => {
+    api.createProviderWebhookSandboxEvent.mockResolvedValueOnce(providerWebhookEventResponse("provider-webhook-event-created", "telegram"));
+
+    const event = await createSettingsProviderWebhookSandboxEvent("api", {
+      provider: "telegram",
+      eventType: "webhook.verified",
+      mode: "dry_run",
+      payload: { updateId: "safe-update", token: "sensitive-sample-a" }
+    });
+
+    expect(api.createProviderWebhookSandboxEvent).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "telegram",
+      eventType: "webhook.verified",
+      mode: "dry_run"
+    }));
+    expect(event.provider).toBe("telegram");
+    expect(event.externalCalls).toBe(0);
+    expect(JSON.stringify(event)).not.toContain("sensitive-sample-a");
+  });
+
+  it("does not fallback to mock provider webhook events when API mode fails", async () => {
+    api.getProviderWebhookEvents.mockRejectedValueOnce(new Error("API request failed (503): webhook events unavailable"));
+
+    await expect(loadSettingsProviderWebhookEventsData("api")).rejects.toThrow("webhook events unavailable");
+
+    api.createProviderWebhookSandboxEvent.mockRejectedValueOnce(new Error("API request failed (503): sandbox intake unavailable"));
+
+    await expect(createSettingsProviderWebhookSandboxEvent("api", {
+      provider: "line",
+      eventType: "message.created",
+      mode: "dry_run",
+      payload: { safe: true }
+    })).rejects.toThrow("sandbox intake unavailable");
+  });
+
   it("does not fallback to mock team when API mode fails", async () => {
     api.getSettingsTeam.mockRejectedValueOnce(new Error("API request failed (503): team unavailable"));
     api.getSettingsSlaPolicies.mockResolvedValueOnce([settingsSlaPolicyResponse("sla-api")]);
@@ -146,6 +208,7 @@ describe("settings API-mode data loaders", () => {
 
     expect(channels.channels).toEqual(mockSettingsChannels);
     expect(readiness.providerReadiness).toEqual(mockProviderReadiness);
+    expect((await loadSettingsProviderWebhookEventsData("mock")).events).toEqual(mockProviderWebhookEvents);
     expect(team.members.map((member) => member.id)).toEqual(["agent-may", "agent-ton", "agent-beam", "agent-nok"]);
     expect(team.slaPolicies.map((policy) => policy.priorityScope)).toEqual(["low", "medium", "high", "urgent"]);
     expect(team.cannedReplies.map((reply) => reply.shortcut)).toEqual(["/hello", "/price", "/followup", "/human"]);
@@ -349,5 +412,22 @@ function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
     status: "disabled_by_default"
+  };
+}
+
+function providerWebhookEventResponse(id: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
+  return {
+    id,
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider,
+    channel: provider,
+    eventType: provider === "telegram" ? "webhook.verified" : "message.created",
+    mode: "dry_run",
+    status: provider === "telegram" ? "verified" : "received",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
+    payloadFieldCount: 2,
+    payloadDigest: "sha256:safeeventdigest",
+    externalCalls: 0
   };
 }

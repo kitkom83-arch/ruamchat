@@ -1,20 +1,29 @@
 "use client";
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, SettingsChannelAccount } from "@ai-omni/shared";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
-import { loadSettingsChannelsData, loadSettingsProviderReadinessData } from "../../settings-data";
+import {
+  createSettingsProviderWebhookSandboxEvent,
+  loadSettingsChannelsData,
+  loadSettingsProviderReadinessData,
+  loadSettingsProviderWebhookEventsData
+} from "../../settings-data";
 import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
 export default function ChannelSettingsPage() {
   const [copied, setCopied] = useState("");
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
+  const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [providerLoading, setProviderLoading] = useState(true);
+  const [webhookEventsLoading, setWebhookEventsLoading] = useState(true);
+  const [webhookEventSaving, setWebhookEventSaving] = useState(false);
   const [error, setError] = useState("");
   const [providerError, setProviderError] = useState("");
+  const [webhookEventsError, setWebhookEventsError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -60,6 +69,24 @@ export default function ChannelSettingsPage() {
     };
   }, []);
 
+  const refreshWebhookEvents = useCallback(async () => {
+    setWebhookEventsLoading(true);
+    setWebhookEventsError("");
+    try {
+      const data = await loadSettingsProviderWebhookEventsData(dataMode);
+      setWebhookEvents(data.events);
+    } catch (reason) {
+      setWebhookEvents([]);
+      setWebhookEventsError(`Webhook Events API error: ${reason instanceof Error ? reason.message : "Unable to load webhook events"}`);
+    } finally {
+      setWebhookEventsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWebhookEvents();
+  }, [refreshWebhookEvents]);
+
   const groupedChannels = useMemo(() => {
     const groups = new Map<string, SettingsChannelAccount[]>();
     for (const channel of channels) {
@@ -80,6 +107,19 @@ export default function ChannelSettingsPage() {
     window.setTimeout(() => setCopied(""), 1400);
   }
 
+  async function createSandboxEvent(payload: ProviderWebhookSandboxEventRequest) {
+    setWebhookEventSaving(true);
+    setWebhookEventsError("");
+    try {
+      await createSettingsProviderWebhookSandboxEvent(dataMode, payload);
+      await refreshWebhookEvents();
+    } catch (reason) {
+      setWebhookEventsError(`Webhook Events API error: ${reason instanceof Error ? reason.message : "Unable to submit webhook event"}`);
+    } finally {
+      setWebhookEventSaving(false);
+    }
+  }
+
   return (
     <main className="settingsPage">
       <header className="settingsHeader">
@@ -93,7 +133,16 @@ export default function ChannelSettingsPage() {
       {error ? <section className="apiErrorBox" role="alert">{error}</section> : null}
       {loading ? <section className="apiLoadingBox">Loading channel settings...</section> : null}
 
-      <ProviderReadinessPanel readiness={providerReadiness} loading={providerLoading} error={providerError} />
+      <ProviderReadinessPanel
+        readiness={providerReadiness}
+        loading={providerLoading}
+        error={providerError}
+        webhookEvents={webhookEvents}
+        webhookEventsLoading={webhookEventsLoading}
+        webhookEventsError={webhookEventsError}
+        webhookEventSaving={webhookEventSaving}
+        onCreateSandboxEvent={createSandboxEvent}
+      />
 
       <section className="channelGrid" aria-label="Channel webhook settings">
         {groupedChannels.map(([platform, items]) => (

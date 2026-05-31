@@ -1,14 +1,51 @@
-import React from "react";
-import { RadioTower, ShieldCheck } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider } from "@ai-omni/shared";
+import React, { useState } from "react";
+import { RadioTower, Send, ShieldCheck } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookSandboxEventRequest } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
   loading: boolean;
   error: string;
+  webhookEvents?: ProviderWebhookEvent[];
+  webhookEventsLoading?: boolean;
+  webhookEventsError?: string;
+  webhookEventSaving?: boolean;
+  onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
 };
 
-export function ProviderReadinessPanel({ readiness, loading, error }: ProviderReadinessPanelProps) {
+const providers = ["line", "telegram", "facebook", "instagram"] as const;
+type ProviderOption = (typeof providers)[number];
+const eventTypes: ProviderWebhookEventType[] = ["message.created", "webhook.verified", "webhook.failed"];
+
+export function ProviderReadinessPanel({
+  readiness,
+  loading,
+  error,
+  webhookEvents = [],
+  webhookEventsLoading = false,
+  webhookEventsError = "",
+  webhookEventSaving = false,
+  onCreateSandboxEvent
+}: ProviderReadinessPanelProps) {
+  const [provider, setProvider] = useState<ProviderOption>("line");
+  const [eventType, setEventType] = useState<ProviderWebhookEventType>("message.created");
+  const lastEvent = webhookEvents[0] ?? null;
+
+  async function submitSandboxEvent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onCreateSandboxEvent?.({
+      provider,
+      channel: provider,
+      eventType,
+      mode: "dry_run",
+      status: eventType === "webhook.failed" ? "failed" : eventType === "webhook.verified" ? "verified" : "received",
+      payload: {
+        sample: true,
+        source: "settings-provider-readiness-panel"
+      }
+    });
+  }
+
   return e("section", { className: "providerReadinessPanel", "aria-label": "Provider sandbox and webhook readiness" },
     e("div", { className: "providerReadinessHeader" },
       e("div", { className: "channelPanelTop" },
@@ -31,7 +68,54 @@ export function ProviderReadinessPanel({ readiness, loading, error }: ProviderRe
     !loading && !error && !readiness ? e("div", { className: "providerEmptyState" }, "No provider readiness data returned.") : null,
     readiness ? e("div", { className: "providerReadinessGrid" },
       ...readiness.providers.map((provider) => e(ProviderReadinessCard, { key: provider.name, provider }))
-    ) : null
+    ) : null,
+    e("div", { className: "webhookEventSurface", "aria-label": "Webhook sandbox event log" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", null,
+          e("h3", null, "Webhook sandbox event log"),
+          e("p", null, "Dry-run intake summary only. Raw provider payloads and credentials are never displayed.")
+        ),
+        lastEvent ? e("div", { className: "webhookLastEvent", "aria-label": "Last received dry-run event" },
+          e("span", null, "last received dry-run event"),
+          e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`)
+        ) : null
+      ),
+      webhookEventsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, webhookEventsError) : null,
+      webhookEventsLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading webhook sandbox events...") : null,
+      e("form", { className: "webhookEventForm", onSubmit: submitSandboxEvent },
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Provider"),
+          e("select", { value: provider, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => setProvider(event.target.value as ProviderOption) },
+            ...providers.map((item) => e("option", { key: item, value: item }, providerLabel(item)))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Event type"),
+          e("select", { value: eventType, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => setEventType(event.target.value as ProviderWebhookEventType) },
+            ...eventTypes.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("button", { className: "webhookEventButton", type: "submit", disabled: webhookEventSaving || !onCreateSandboxEvent },
+          e(Send, { size: 15 }),
+          webhookEventSaving ? "Submitting..." : "Submit dry-run"
+        )
+      ),
+      webhookEvents.length > 0 ? e("div", { className: "webhookEventList" },
+        ...webhookEvents.slice(0, 5).map((event) => e("article", { key: event.id, className: "webhookEventRow" },
+          e("div", null,
+            e("strong", null, `${providerLabel(event.provider)} / ${providerLabel(event.channel)}`),
+            e("span", null, `${event.eventType} / ${event.status}`)
+          ),
+          e("div", null,
+            e("span", null, `mode=${event.mode}`),
+            e("span", null, `externalCalls=${event.externalCalls}`),
+            e("span", null, formatDate(event.receivedAt))
+          ),
+          e("p", null, event.payloadSummary),
+          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest}`)
+        ))
+      ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
+    )
   );
 }
 
@@ -73,6 +157,10 @@ function providerLabel(provider: ProviderReadinessProvider["name"]) {
 
 function formatStatus(status: ProviderReadinessProvider["credentialStatus"]) {
   return status === "configured" ? "configured" : "not configured";
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString("th-TH");
 }
 
 const e = React.createElement;

@@ -1994,6 +1994,41 @@ export const providerReadinessSchema = z.object({
 }).strict();
 export type ProviderReadiness = z.infer<typeof providerReadinessSchema>;
 
+export const providerWebhookEventTypeSchema = z.enum(["message.created", "webhook.verified", "webhook.failed"]);
+export type ProviderWebhookEventType = z.infer<typeof providerWebhookEventTypeSchema>;
+
+export const providerWebhookEventModeSchema = z.enum(["sandbox", "dry_run"]);
+export type ProviderWebhookEventMode = z.infer<typeof providerWebhookEventModeSchema>;
+
+export const providerWebhookEventStatusSchema = z.enum(["received", "verified", "failed"]);
+export type ProviderWebhookEventStatus = z.infer<typeof providerWebhookEventStatusSchema>;
+
+export const providerWebhookSandboxEventRequestSchema = z.object({
+  provider: providerSandboxProviderSchema,
+  channel: providerSandboxProviderSchema.optional(),
+  eventType: providerWebhookEventTypeSchema,
+  mode: providerWebhookEventModeSchema.default("dry_run"),
+  status: providerWebhookEventStatusSchema.default("received"),
+  payload: z.unknown().optional()
+}).strict();
+export type ProviderWebhookSandboxEventRequest = z.input<typeof providerWebhookSandboxEventRequestSchema>;
+
+export const providerWebhookEventSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  channel: providerSandboxProviderSchema,
+  eventType: providerWebhookEventTypeSchema,
+  mode: providerWebhookEventModeSchema,
+  status: providerWebhookEventStatusSchema,
+  receivedAt: z.string().datetime(),
+  payloadSummary: z.string().min(1),
+  payloadFieldCount: z.number().int().nonnegative(),
+  payloadDigest: z.string().min(1),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;
+
 export const apiReadinessSchema = z.object({
   status: z.literal("ok"),
   service: z.literal("api"),

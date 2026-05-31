@@ -1,5 +1,23 @@
-import type { CannedReply, DataMode, ProviderReadiness, SettingsCannedReply, SettingsChannelAccount, SettingsSlaPolicy, SettingsTeamMember } from "@ai-omni/shared";
-import { getProviderReadiness, getSettingsCannedReplies, getSettingsChannels, getSettingsSlaPolicies, getSettingsTeam } from "./api-client";
+import type {
+  CannedReply,
+  DataMode,
+  ProviderReadiness,
+  ProviderWebhookEvent,
+  ProviderWebhookSandboxEventRequest,
+  SettingsCannedReply,
+  SettingsChannelAccount,
+  SettingsSlaPolicy,
+  SettingsTeamMember
+} from "@ai-omni/shared";
+import {
+  createProviderWebhookSandboxEvent,
+  getProviderReadiness,
+  getProviderWebhookEvents,
+  getSettingsCannedReplies,
+  getSettingsChannels,
+  getSettingsSlaPolicies,
+  getSettingsTeam
+} from "./api-client";
 import { createDefaultAdminStore, mockCannedReplies, mockSlaPolicies } from "./admin-data";
 
 const now = "2026-05-21T04:00:00.000Z";
@@ -19,6 +37,11 @@ export type SettingsTeamData = {
 export type SettingsProviderReadinessData = {
   mode: DataMode;
   providerReadiness: ProviderReadiness;
+};
+
+export type SettingsProviderWebhookEventsData = {
+  mode: DataMode;
+  events: ProviderWebhookEvent[];
 };
 
 export const mockSettingsChannels: SettingsChannelAccount[] = [
@@ -54,6 +77,30 @@ export async function loadSettingsProviderReadinessData(mode: DataMode): Promise
     mode,
     providerReadiness: mockProviderReadiness
   };
+}
+
+export async function loadSettingsProviderWebhookEventsData(mode: DataMode): Promise<SettingsProviderWebhookEventsData> {
+  if (mode === "api") {
+    return {
+      mode,
+      events: await getProviderWebhookEvents()
+    };
+  }
+
+  return {
+    mode,
+    events: mockProviderWebhookEvents
+  };
+}
+
+export async function createSettingsProviderWebhookSandboxEvent(mode: DataMode, payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {
+  if (mode === "api") {
+    return createProviderWebhookSandboxEvent(payload);
+  }
+
+  const event = createMockProviderWebhookEvent(payload);
+  mockProviderWebhookEvents = [event, ...mockProviderWebhookEvents].slice(0, 25);
+  return event;
 }
 
 export async function loadSettingsTeamData(mode: DataMode): Promise<SettingsTeamData> {
@@ -214,6 +261,23 @@ export const mockProviderReadiness: ProviderReadiness = {
   ]
 };
 
+export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
+  {
+    id: "provider-webhook-event-local-1",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider: "line",
+    channel: "line",
+    eventType: "message.created",
+    mode: "dry_run",
+    status: "received",
+    receivedAt: now,
+    payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
+    payloadFieldCount: 2,
+    payloadDigest: "sha256:localdryrunsample",
+    externalCalls: 0
+  }
+];
+
 function provider(
   name: ProviderReadiness["providers"][number]["name"],
   configured: boolean,
@@ -233,4 +297,26 @@ function provider(
     outboundEnabled: false,
     status: "disabled_by_default"
   };
+}
+
+function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequest): ProviderWebhookEvent {
+  const providerName = payload.provider;
+  return {
+    id: `provider-webhook-event-local-${safeId()}`,
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider: providerName,
+    channel: payload.channel ?? providerName,
+    eventType: payload.eventType,
+    mode: payload.mode ?? "dry_run",
+    status: payload.status ?? "received",
+    receivedAt: new Date().toISOString(),
+    payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
+    payloadFieldCount: 2,
+    payloadDigest: `sha256:${safeId().slice(0, 16)}`,
+    externalCalls: 0
+  };
+}
+
+function safeId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

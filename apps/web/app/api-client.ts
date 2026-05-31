@@ -14,6 +14,8 @@ import {
   aiSuggestionFeedbackRequestSchema,
   aiSuggestionFeedbackSchema,
   apiHealthSchema,
+  providerWebhookEventSchema,
+  providerWebhookSandboxEventRequestSchema,
   coreConversationCardSchema,
   coreConversationTabSchema,
   coreMessageSchema,
@@ -153,6 +155,8 @@ import {
   type LinkContactIdentityRequest,
   type Platform,
   type ProviderReadiness,
+  type ProviderWebhookEvent,
+  type ProviderWebhookSandboxEventRequest,
   type RoomAiPolicy,
   type RoomAiPolicyPatch,
   type ScheduleBroadcastCampaignRequest,
@@ -242,6 +246,18 @@ export async function getApiReadiness(): Promise<ApiReadiness> {
 export async function getProviderReadiness(): Promise<ProviderReadiness> {
   const readiness = await getApiReadiness();
   return readiness.providerReadiness;
+}
+
+export async function getProviderWebhookEvents(): Promise<ProviderWebhookEvent[]> {
+  return request("/provider-webhooks/events", providerWebhookEventSchema.array());
+}
+
+export async function createProviderWebhookSandboxEvent(payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {
+  const body = providerWebhookSandboxEventRequestSchema.parse(payload);
+  return request("/provider-webhooks/sandbox-events", providerWebhookEventSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
 }
 
 export async function getAnalyticsOverview(query: AnalyticsQuery = {}): Promise<AnalyticsOverview> {
