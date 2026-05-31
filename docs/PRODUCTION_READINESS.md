@@ -1,10 +1,10 @@
-# Sprint 53 Provider Sandbox And Webhook Readiness
+# Sprint 54 Provider Sandbox UI And Webhook Readiness
 
 This checklist prepares Ruamchat for a controlled production or pilot deployment while keeping real provider outbound disabled.
 
 ## Safety Posture
 
-- `PROVIDER_OUTBOUND_MODE=disabled`, `PROVIDER_OUTBOUND_ENABLED=false`, `PROVIDER_SANDBOX_MODE=disabled`, `CHANNEL_MODE=mock`, and `META_CHANNEL_MODE=mock` are required for Sprint 53.
+- `PROVIDER_OUTBOUND_MODE=disabled`, `PROVIDER_OUTBOUND_ENABLED=false`, `PROVIDER_SANDBOX_MODE=disabled`, `CHANNEL_MODE=mock`, and `META_CHANNEL_MODE=mock` are required for Sprint 54.
 - `AI_MODE=mock` is required for this pilot readiness pass so external calls remain `0`.
 - `NEXT_PUBLIC_DATA_MODE=api` is required in production so the web app calls the API and does not silently fall back to mock data.
 - Mock/local mode remains available through `.env.example` with `NEXT_PUBLIC_DATA_MODE=mock`.
@@ -115,6 +115,8 @@ Readiness responses expose only boolean/configuration state and safe mode names.
 
 Provider readiness exposes `configured` or `not_configured` style status and allowlist counts. It must not return allowlist entries, signatures, raw webhook bodies, tokens, secrets, or provider payloads. `externalCalls=0` remains the readiness baseline.
 
+The web settings channel page includes a provider sandbox readiness panel. In `NEXT_PUBLIC_DATA_MODE=api`, it fetches `GET /health/readiness` through the API client and must show a visible Provider Readiness API error if the backend is unavailable. It must not silently render mock provider rows after an API failure.
+
 ## Smoke And Regression
 
 Run the Sprint 52 readiness smoke with the API running:
@@ -122,6 +124,7 @@ Run the Sprint 52 readiness smoke with the API running:
 ```bash
 npm run smoke:sprint52
 npm run smoke:sprint53
+npm run smoke:sprint54
 ```
 
 Then run the regression smokes required for this sprint:
@@ -134,6 +137,8 @@ npm run smoke:sprint48
 ```
 
 `smoke:sprint52` verifies the readiness docs/env posture, health endpoints, provider outbound safety, `externalCalls=0`, and that `/broadcasts/campaigns` still responds in API mode.
+
+`smoke:sprint54` verifies the provider readiness UI wiring, provider readiness response shape, `realOutboundEnabled=false`, `externalCalls=0`, allowlist count-only summaries, and absence of raw token/secret/provider payload fields.
 
 ## Backup And Rollback
 

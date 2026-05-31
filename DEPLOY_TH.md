@@ -77,7 +77,7 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
-สำหรับ Sprint 53 pilot readiness ให้คง `AI_MODE=mock` และ `OPENAI_API_KEY=` ว่างไว้ก่อน เพื่อไม่ให้มี external API call และให้ `externalCalls=0`
+สำหรับ Sprint 54 pilot readiness ให้คง `AI_MODE=mock` และ `OPENAI_API_KEY=` ว่างไว้ก่อน เพื่อไม่ให้มี external API call และให้ `externalCalls=0`
 
 ค่า provider sandbox ในไฟล์ที่ commit ต้องเป็นค่า safe default:
 
@@ -144,6 +144,8 @@ Health/readiness:
 https://chat.example.com/api/health
 https://chat.example.com/api/health/readiness
 ```
+
+หน้า Settings > Channels จะแสดง Provider sandbox readiness โดยอ่านจาก API readiness ใน `NEXT_PUBLIC_DATA_MODE=api` เท่านั้น ถ้า API ล่มหรือปิดอยู่ หน้าเว็บต้องแสดง Provider Readiness API error / Failed to fetch และห้าม fallback เป็น mock provider readiness อัตโนมัติ
 
 Webhook URL สำหรับ Webchat demo:
 

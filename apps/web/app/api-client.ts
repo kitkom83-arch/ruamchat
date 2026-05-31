@@ -9,6 +9,7 @@ import {
   analyticsSlaSchema,
   analyticsTasksSchema,
   applyBroadcastSegmentRequestSchema,
+  apiReadinessSchema,
   aiSuggestedReplySchema,
   aiSuggestionFeedbackRequestSchema,
   aiSuggestionFeedbackSchema,
@@ -100,6 +101,7 @@ import {
   type AnalyticsOverview,
   type AnalyticsSla,
   type AnalyticsTasks,
+  type ApiReadiness,
   type AiSuggestedReply,
   type AiSuggestionFeedback,
   type AiSuggestionFeedbackRequest,
@@ -150,6 +152,7 @@ import {
   type KnowledgeDocument,
   type LinkContactIdentityRequest,
   type Platform,
+  type ProviderReadiness,
   type RoomAiPolicy,
   type RoomAiPolicyPatch,
   type ScheduleBroadcastCampaignRequest,
@@ -230,6 +233,15 @@ export const defaultApiUserId = "00000000-0000-4000-8000-000000000011";
 
 export async function getApiHealth(): Promise<ApiHealth> {
   return request("/health", apiHealthSchema);
+}
+
+export async function getApiReadiness(): Promise<ApiReadiness> {
+  return request("/health/readiness", apiReadinessSchema);
+}
+
+export async function getProviderReadiness(): Promise<ProviderReadiness> {
+  const readiness = await getApiReadiness();
+  return readiness.providerReadiness;
 }
 
 export async function getAnalyticsOverview(query: AnalyticsQuery = {}): Promise<AnalyticsOverview> {

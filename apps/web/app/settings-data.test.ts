@@ -3,8 +3,10 @@ import {
   findCannedReplyInList,
   getCannedRepliesForMode,
   loadSettingsChannelsData,
+  loadSettingsProviderReadinessData,
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
+  mockProviderReadiness,
   resolveCannedReplyComposerDraft,
   mockSettingsChannels,
   searchCannedReplyList
@@ -14,14 +16,16 @@ const api = vi.hoisted(() => ({
   getSettingsChannels: vi.fn(),
   getSettingsCannedReplies: vi.fn(),
   getSettingsSlaPolicies: vi.fn(),
-  getSettingsTeam: vi.fn()
+  getSettingsTeam: vi.fn(),
+  getProviderReadiness: vi.fn()
 }));
 
 vi.mock("./api-client", () => ({
   getSettingsChannels: api.getSettingsChannels,
   getSettingsCannedReplies: api.getSettingsCannedReplies,
   getSettingsSlaPolicies: api.getSettingsSlaPolicies,
-  getSettingsTeam: api.getSettingsTeam
+  getSettingsTeam: api.getSettingsTeam,
+  getProviderReadiness: api.getProviderReadiness
 }));
 
 beforeEach(() => {
@@ -29,6 +33,7 @@ beforeEach(() => {
   api.getSettingsCannedReplies.mockReset();
   api.getSettingsSlaPolicies.mockReset();
   api.getSettingsTeam.mockReset();
+  api.getProviderReadiness.mockReset();
 });
 
 describe("settings API-mode data loaders", () => {
@@ -100,6 +105,32 @@ describe("settings API-mode data loaders", () => {
     await expect(loadSettingsChannelsData("api")).rejects.toThrow("settings unavailable");
   });
 
+  it("loads provider readiness from API mode without exposing raw values", async () => {
+    api.getProviderReadiness.mockResolvedValueOnce(providerReadinessResponse());
+
+    const data = await loadSettingsProviderReadinessData("api");
+
+    expect(api.getProviderReadiness).toHaveBeenCalled();
+    expect(data.mode).toBe("api");
+    expect(data.providerReadiness.realOutboundEnabled).toBe(false);
+    expect(data.providerReadiness.externalCalls).toBe(0);
+    expect(data.providerReadiness.allowlistCount).toBe(2);
+    expect(data.providerReadiness.providers[0]).toMatchObject({
+      name: "line",
+      credentialStatus: "configured",
+      webhookVerificationConfigured: true,
+      allowlistCount: 1
+    });
+    expect(JSON.stringify(data.providerReadiness)).not.toContain("U-raw-provider-test");
+    expect(JSON.stringify(data.providerReadiness)).not.toMatch(/token|secret|providerRaw|rawPayload|payloadJson/i);
+  });
+
+  it("does not fallback to mock provider readiness when API mode fails", async () => {
+    api.getProviderReadiness.mockRejectedValueOnce(new Error("API request failed (503): readiness unavailable"));
+
+    await expect(loadSettingsProviderReadinessData("api")).rejects.toThrow("readiness unavailable");
+  });
+
   it("does not fallback to mock team when API mode fails", async () => {
     api.getSettingsTeam.mockRejectedValueOnce(new Error("API request failed (503): team unavailable"));
     api.getSettingsSlaPolicies.mockResolvedValueOnce([settingsSlaPolicyResponse("sla-api")]);
@@ -111,8 +142,10 @@ describe("settings API-mode data loaders", () => {
   it("keeps settings channels and team mock/local mode available", async () => {
     const channels = await loadSettingsChannelsData("mock");
     const team = await loadSettingsTeamData("mock");
+    const readiness = await loadSettingsProviderReadinessData("mock");
 
     expect(channels.channels).toEqual(mockSettingsChannels);
+    expect(readiness.providerReadiness).toEqual(mockProviderReadiness);
     expect(team.members.map((member) => member.id)).toEqual(["agent-may", "agent-ton", "agent-beam", "agent-nok"]);
     expect(team.slaPolicies.map((policy) => policy.priorityScope)).toEqual(["low", "medium", "high", "urgent"]);
     expect(team.cannedReplies.map((reply) => reply.shortcut)).toEqual(["/hello", "/price", "/followup", "/human"]);
@@ -120,6 +153,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsTeam).not.toHaveBeenCalled();
     expect(api.getSettingsSlaPolicies).not.toHaveBeenCalled();
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
+    expect(api.getProviderReadiness).not.toHaveBeenCalled();
   });
 
   it("maps inbox canned replies from API responses and keeps API empty states separate from mock data", () => {
@@ -268,5 +302,52 @@ function settingsCannedReplyResponse(id: string) {
     status: "active",
     createdAt: "2026-05-21T04:00:00.000Z",
     updatedAt: "2026-05-21T04:00:00.000Z"
+  };
+}
+
+function providerReadinessResponse() {
+  return {
+    mode: "disabled",
+    outboundEnabledByEnv: false,
+    sandboxMode: "disabled",
+    sandboxEnabled: false,
+    channelMode: "mock",
+    metaChannelMode: "mock",
+    realOutboundEnabled: false,
+    allowlistCount: 2,
+    externalCalls: 0,
+    allowlist: {
+      configured: true,
+      entryCount: 2,
+      globalEntryCount: 0,
+      providers: [
+        { name: "line", entryCount: 1 },
+        { name: "telegram", entryCount: 1 },
+        { name: "facebook", entryCount: 0 },
+        { name: "instagram", entryCount: 0 }
+      ]
+    },
+    providers: [
+      providerReadinessProviderResponse("line", true, true, 1),
+      providerReadinessProviderResponse("telegram", true, true, 1),
+      providerReadinessProviderResponse("facebook", false, false, 0),
+      providerReadinessProviderResponse("instagram", false, false, 0)
+    ]
+  };
+}
+
+function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook" | "instagram", configured: boolean, webhookConfigured: boolean, allowlistCount: number) {
+  return {
+    name,
+    configured,
+    credentialStatus: configured ? "configured" : "not_configured",
+    webhookStatus: webhookConfigured ? "configured" : "not_configured",
+    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
+    allowlistEntryCount: allowlistCount,
+    allowlistCount,
+    webhookVerificationReady: webhookConfigured,
+    webhookVerificationConfigured: webhookConfigured,
+    outboundEnabled: false,
+    status: "disabled_by_default"
   };
 }

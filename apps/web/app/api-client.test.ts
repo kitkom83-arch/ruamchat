@@ -14,6 +14,7 @@ import {
   deleteKnowledgeChunk,
   deleteKnowledgeDocument,
   getConversationAuditLogs,
+  getProviderReadiness,
   getKnowledgeBases,
   getKnowledgeChunks,
   getKnowledgeDocuments,
@@ -90,6 +91,27 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/rooms", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(rooms[0]?.accountName).toBe("Main Website");
+  });
+
+  it("fetches provider readiness through the tenant-scoped API client without exposing secrets", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse(providerReadinessResponse()));
+
+    const readiness = await getProviderReadiness();
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/health/readiness", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(readiness.realOutboundEnabled).toBe(false);
+    expect(readiness.externalCalls).toBe(0);
+    expect(readiness.allowlistCount).toBe(2);
+    expect(readiness.providers.map((provider) => provider.name)).toEqual(["line", "telegram", "facebook", "instagram"]);
+    expect(JSON.stringify(readiness)).not.toContain("U-raw-provider-test");
+    expect(JSON.stringify(readiness)).not.toMatch(/token|secret|payloadJson|providerRaw|rawPayload/i);
+  });
+
+  it("surfaces provider readiness API errors instead of returning local readiness", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "readiness unavailable" }, 503));
+
+    await expect(getProviderReadiness()).rejects.toThrow("API request failed (503): readiness unavailable");
   });
 
   it("validates conversations and keeps room filters explicit", async () => {
@@ -873,6 +895,80 @@ function jsonResponse(body: unknown, status = 200) {
     statusText: status === 200 ? "OK" : "Error",
     text: async () => JSON.stringify(body)
   } as Response;
+}
+
+function providerReadinessResponse() {
+  return {
+    status: "ok",
+    service: "api",
+    time: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0,
+    apiMode: {
+      apiMode: "api",
+      dataMode: "api",
+      publicDataMode: "api",
+      apiModeExplicit: true,
+      dataModeExplicit: true,
+      publicDataModeExplicit: true,
+      apiBaseConfigured: true
+    },
+    dependencies: {
+      databaseConfigured: true,
+      redisConfigured: true
+    },
+    providerReadiness: {
+      mode: "disabled",
+      outboundEnabledByEnv: false,
+      sandboxMode: "disabled",
+      sandboxEnabled: false,
+      channelMode: "mock",
+      metaChannelMode: "mock",
+      realOutboundEnabled: false,
+      allowlistCount: 2,
+      externalCalls: 0,
+      allowlist: {
+        configured: true,
+        entryCount: 2,
+        globalEntryCount: 0,
+        providers: [
+          { name: "line", entryCount: 1 },
+          { name: "telegram", entryCount: 1 },
+          { name: "facebook", entryCount: 0 },
+          { name: "instagram", entryCount: 0 }
+        ]
+      },
+      providers: [
+        providerReadinessProviderResponse("line", true, true, 1),
+        providerReadinessProviderResponse("telegram", true, true, 1),
+        providerReadinessProviderResponse("facebook", false, false, 0),
+        providerReadinessProviderResponse("instagram", false, false, 0)
+      ]
+    },
+    monitoring: {
+      auditSafetyBaseline: true,
+      providerPayloadsExposed: false,
+      externalCalls: 0
+    },
+    checks: [
+      { name: "provider outbound disabled", ok: true }
+    ]
+  };
+}
+
+function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook" | "instagram", configured: boolean, webhookConfigured: boolean, allowlistCount: number) {
+  return {
+    name,
+    configured,
+    credentialStatus: configured ? "configured" : "not_configured",
+    webhookStatus: webhookConfigured ? "configured" : "not_configured",
+    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
+    allowlistEntryCount: allowlistCount,
+    allowlistCount,
+    webhookVerificationReady: webhookConfigured,
+    webhookVerificationConfigured: webhookConfigured,
+    outboundEnabled: false,
+    status: "disabled_by_default"
+  };
 }
 
 function expectTenantHeaderForAll(fetchMock: { mock: { calls: Array<[unknown, RequestInit?]> } }) {

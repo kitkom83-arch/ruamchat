@@ -2563,6 +2563,89 @@ dd {
   margin: 0 auto;
 }
 
+.providerReadinessPanel {
+  display: grid;
+  gap: 14px;
+  max-width: 1120px;
+  margin: 0 auto 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.providerReadinessHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.providerReadinessSummary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  max-width: 560px;
+}
+
+.providerReadinessSummary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.providerReadinessGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.providerReadinessCard {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.providerReadinessMeta {
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.providerReadinessMeta dt,
+.channelMeta dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.providerReadinessMeta dd,
+.channelMeta dd {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.providerEmptyState {
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .channelPlatformGroup {
   display: grid;
   gap: 10px;
@@ -2644,6 +2727,12 @@ dd {
   padding: 11px 13px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.apiErrorBox.compact,
+.apiLoadingBox.compact {
+  max-width: none;
+  margin: 0;
 }
 
 .apiLoadingBox {
@@ -3087,8 +3176,18 @@ dd {
   .executiveSummary,
   .knowledgeWorkspace,
   .testLabGrid,
-  .teamSettingsGrid {
+  .teamSettingsGrid,
+  .providerReadinessHeader {
     display: block;
+  }
+
+  .providerReadinessGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .providerReadinessSummary {
+    justify-content: flex-start;
+    margin-top: 12px;
   }
 
   .analyticsPage {
