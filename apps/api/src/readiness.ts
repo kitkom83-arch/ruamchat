@@ -57,6 +57,8 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
       channelMode,
       metaChannelMode,
       realOutboundEnabled,
+      allowlistCount: allowlist.entryCount,
+      externalCalls: 0 as const,
       allowlist: {
         configured: allowlist.configured,
         entryCount: allowlist.entryCount,
@@ -101,11 +103,14 @@ function providerReadiness(
   const allowlistConfigured = Boolean(allowlist && allowlist.entryCount > 0);
   return {
     name,
+    configured: credentialConfigured,
     credentialStatus: credentialConfigured ? "configured" : "not_configured",
     webhookStatus: webhookConfigured ? "configured" : "not_configured",
     allowlistStatus: allowlistConfigured ? "configured" : "not_configured",
     allowlistEntryCount: allowlist?.entryCount ?? 0,
+    allowlistCount: allowlist?.entryCount ?? 0,
     webhookVerificationReady: webhookConfigured,
+    webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
     status: providerStatus(gates, allowlistConfigured)
   };

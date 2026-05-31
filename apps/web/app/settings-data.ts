@@ -1,5 +1,5 @@
-import type { CannedReply, DataMode, SettingsCannedReply, SettingsChannelAccount, SettingsSlaPolicy, SettingsTeamMember } from "@ai-omni/shared";
-import { getSettingsCannedReplies, getSettingsChannels, getSettingsSlaPolicies, getSettingsTeam } from "./api-client";
+import type { CannedReply, DataMode, ProviderReadiness, SettingsCannedReply, SettingsChannelAccount, SettingsSlaPolicy, SettingsTeamMember } from "@ai-omni/shared";
+import { getProviderReadiness, getSettingsCannedReplies, getSettingsChannels, getSettingsSlaPolicies, getSettingsTeam } from "./api-client";
 import { createDefaultAdminStore, mockCannedReplies, mockSlaPolicies } from "./admin-data";
 
 const now = "2026-05-21T04:00:00.000Z";
@@ -14,6 +14,11 @@ export type SettingsTeamData = {
   members: SettingsTeamMember[];
   slaPolicies: SettingsSlaPolicy[];
   cannedReplies: SettingsCannedReply[];
+};
+
+export type SettingsProviderReadinessData = {
+  mode: DataMode;
+  providerReadiness: ProviderReadiness;
 };
 
 export const mockSettingsChannels: SettingsChannelAccount[] = [
@@ -34,6 +39,20 @@ export async function loadSettingsChannelsData(mode: DataMode): Promise<Settings
   return {
     mode,
     channels: mockSettingsChannels
+  };
+}
+
+export async function loadSettingsProviderReadinessData(mode: DataMode): Promise<SettingsProviderReadinessData> {
+  if (mode === "api") {
+    return {
+      mode,
+      providerReadiness: await getProviderReadiness()
+    };
+  }
+
+  return {
+    mode,
+    providerReadiness: mockProviderReadiness
   };
 }
 
@@ -163,5 +182,55 @@ function channel(
     tokenMasked: null,
     secretConfigured,
     secretMasked: secretConfigured ? `masked:${secretState}` : null
+  };
+}
+
+export const mockProviderReadiness: ProviderReadiness = {
+  mode: "disabled",
+  outboundEnabledByEnv: false,
+  sandboxMode: "disabled",
+  sandboxEnabled: false,
+  channelMode: "mock",
+  metaChannelMode: "mock",
+  realOutboundEnabled: false,
+  allowlistCount: 0,
+  externalCalls: 0,
+  allowlist: {
+    configured: false,
+    entryCount: 0,
+    globalEntryCount: 0,
+    providers: [
+      { name: "line", entryCount: 0 },
+      { name: "telegram", entryCount: 0 },
+      { name: "facebook", entryCount: 0 },
+      { name: "instagram", entryCount: 0 }
+    ]
+  },
+  providers: [
+    provider("line", false, false, 0),
+    provider("telegram", false, false, 0),
+    provider("facebook", false, false, 0),
+    provider("instagram", false, false, 0)
+  ]
+};
+
+function provider(
+  name: ProviderReadiness["providers"][number]["name"],
+  configured: boolean,
+  webhookConfigured: boolean,
+  allowlistCount: number
+): ProviderReadiness["providers"][number] {
+  return {
+    name,
+    configured,
+    credentialStatus: configured ? "configured" : "not_configured",
+    webhookStatus: webhookConfigured ? "configured" : "not_configured",
+    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
+    allowlistEntryCount: allowlistCount,
+    allowlistCount,
+    webhookVerificationReady: webhookConfigured,
+    webhookVerificationConfigured: webhookConfigured,
+    outboundEnabled: false,
+    status: "disabled_by_default"
   };
 }

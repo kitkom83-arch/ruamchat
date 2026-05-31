@@ -2,15 +2,19 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
-import { loadSettingsChannelsData } from "../../settings-data";
+import { loadSettingsChannelsData, loadSettingsProviderReadinessData } from "../../settings-data";
+import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
 export default function ChannelSettingsPage() {
   const [copied, setCopied] = useState("");
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
+  const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [loading, setLoading] = useState(true);
+  const [providerLoading, setProviderLoading] = useState(true);
   const [error, setError] = useState("");
+  const [providerError, setProviderError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -28,6 +32,28 @@ export default function ChannelSettingsPage() {
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setProviderLoading(true);
+    setProviderError("");
+    loadSettingsProviderReadinessData(dataMode)
+      .then((data) => {
+        if (!active) return;
+        setProviderReadiness(data.providerReadiness);
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setProviderReadiness(null);
+        setProviderError(`Provider Readiness API error: ${reason instanceof Error ? reason.message : "Unable to load provider readiness"}`);
+      })
+      .finally(() => {
+        if (active) setProviderLoading(false);
       });
     return () => {
       active = false;
@@ -66,6 +92,8 @@ export default function ChannelSettingsPage() {
 
       {error ? <section className="apiErrorBox" role="alert">{error}</section> : null}
       {loading ? <section className="apiLoadingBox">Loading channel settings...</section> : null}
+
+      <ProviderReadinessPanel readiness={providerReadiness} loading={providerLoading} error={providerError} />
 
       <section className="channelGrid" aria-label="Channel webhook settings">
         {groupedChannels.map(([platform, items]) => (

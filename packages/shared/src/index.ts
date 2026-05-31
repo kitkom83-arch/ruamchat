@@ -1944,6 +1944,87 @@ export const apiHealthSchema = z.object({
 }).strict();
 export type ApiHealth = z.infer<typeof apiHealthSchema>;
 
+export const providerReadinessProviderStatusSchema = z.enum([
+  "disabled_by_default",
+  "blocked_sandbox_required",
+  "blocked_channel_mode_required",
+  "blocked_allowlist_required",
+  "sandbox_ready_recipient_check_required"
+]);
+export type ProviderReadinessProviderStatus = z.infer<typeof providerReadinessProviderStatusSchema>;
+
+export const providerConfigurationStatusSchema = z.enum(["configured", "not_configured"]);
+export type ProviderConfigurationStatus = z.infer<typeof providerConfigurationStatusSchema>;
+
+export const providerReadinessProviderSchema = z.object({
+  name: providerSandboxProviderSchema,
+  configured: z.boolean(),
+  credentialStatus: providerConfigurationStatusSchema,
+  webhookStatus: providerConfigurationStatusSchema,
+  allowlistStatus: providerConfigurationStatusSchema,
+  allowlistEntryCount: z.number().int().nonnegative(),
+  allowlistCount: z.number().int().nonnegative(),
+  webhookVerificationReady: z.boolean(),
+  webhookVerificationConfigured: z.boolean(),
+  outboundEnabled: z.literal(false),
+  status: providerReadinessProviderStatusSchema
+}).strict();
+export type ProviderReadinessProvider = z.infer<typeof providerReadinessProviderSchema>;
+
+export const providerReadinessSchema = z.object({
+  mode: z.string().min(1),
+  outboundEnabledByEnv: z.boolean(),
+  sandboxMode: z.string().min(1),
+  sandboxEnabled: z.boolean(),
+  channelMode: z.string().min(1),
+  metaChannelMode: z.string().min(1),
+  realOutboundEnabled: z.boolean(),
+  allowlistCount: z.number().int().nonnegative(),
+  externalCalls: z.literal(0),
+  allowlist: z.object({
+    configured: z.boolean(),
+    entryCount: z.number().int().nonnegative(),
+    globalEntryCount: z.number().int().nonnegative(),
+    providers: z.array(z.object({
+      name: providerSandboxProviderSchema,
+      entryCount: z.number().int().nonnegative()
+    }).strict())
+  }).strict(),
+  providers: z.array(providerReadinessProviderSchema)
+}).strict();
+export type ProviderReadiness = z.infer<typeof providerReadinessSchema>;
+
+export const apiReadinessSchema = z.object({
+  status: z.literal("ok"),
+  service: z.literal("api"),
+  time: z.string().datetime(),
+  externalCalls: z.literal(0),
+  apiMode: z.object({
+    apiMode: z.string().min(1),
+    dataMode: z.string().min(1),
+    publicDataMode: z.string().min(1),
+    apiModeExplicit: z.boolean(),
+    dataModeExplicit: z.boolean(),
+    publicDataModeExplicit: z.boolean(),
+    apiBaseConfigured: z.boolean()
+  }).strict(),
+  dependencies: z.object({
+    databaseConfigured: z.boolean(),
+    redisConfigured: z.boolean()
+  }).strict(),
+  providerReadiness: providerReadinessSchema,
+  monitoring: z.object({
+    auditSafetyBaseline: z.boolean(),
+    providerPayloadsExposed: z.literal(false),
+    externalCalls: z.literal(0)
+  }).strict(),
+  checks: z.array(z.object({
+    name: z.string().min(1),
+    ok: z.boolean()
+  }).strict())
+}).strict();
+export type ApiReadiness = z.infer<typeof apiReadinessSchema>;
+
 export const coreRoomSchema = z.object({
   id: z.string().min(1),
   platform: platformSchema,
