@@ -7,6 +7,7 @@ import { ContactsController } from "./controllers/contacts.controller.js";
 import { ConversationsController, TasksController } from "./controllers/conversations.controller.js";
 import { FlowsController } from "./controllers/flows.controller.js";
 import { HealthController } from "./controllers/health.controller.js";
+import { ProviderWebhooksController } from "./controllers/provider-webhooks.controller.js";
 import { RoomsController } from "./controllers/rooms.controller.js";
 import { SettingsController } from "./controllers/settings.controller.js";
 import { WebhooksController } from "./controllers/webhooks.controller.js";
@@ -24,12 +25,13 @@ import { OpenAiOrchestratorService } from "./services/openai-orchestrator.servic
 import { OutboundConsentService } from "./services/outbound-consent.service.js";
 import { OutboundQueueService } from "./services/outbound-queue.service.js";
 import { PrismaService } from "./services/prisma.service.js";
+import { ProviderWebhookEventsService } from "./services/provider-webhook-events.service.js";
 import { RealtimeGateway } from "./services/realtime.gateway.js";
 import { SettingsService } from "./services/settings.service.js";
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
-  controllers: [AiController, AnalyticsController, BroadcastsController, ContactsController, ConversationsController, TasksController, FlowsController, HealthController, RoomsController, SettingsController, WebhooksController],
+  controllers: [AiController, AnalyticsController, BroadcastsController, ContactsController, ConversationsController, TasksController, FlowsController, HealthController, ProviderWebhooksController, RoomsController, SettingsController, WebhooksController],
   providers: [
     AnalyticsService,
     AuditService,
@@ -45,6 +47,7 @@ import { SettingsService } from "./services/settings.service.js";
     OutboundConsentService,
     OutboundQueueService,
     PrismaService,
+    ProviderWebhookEventsService,
     RealtimeGateway,
     SettingsService
   ]

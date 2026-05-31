@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookEvent } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -9,7 +9,8 @@ describe("ProviderReadinessPanel", () => {
     const html = renderToString(React.createElement(ProviderReadinessPanel, {
       readiness: providerReadiness(),
       loading: false,
-      error: ""
+      error: "",
+      webhookEvents: [providerWebhookEvent()]
     }));
 
     expect(html).toContain("Provider sandbox readiness");
@@ -21,10 +22,16 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
     expect(html).toContain("Webhook verification");
+    expect(html).toContain("Webhook sandbox event log");
+    expect(html).toContain("last received dry-run event");
+    expect(html).toContain("message.created / received");
+    expect(html).toContain("payloadFieldCount=2");
+    expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("configured");
     expect(html).not.toContain("U-raw-provider-test");
     expect(html).not.toContain("raw-line-token");
-    expect(html).not.toMatch(/channel secret|webhook secret value|providerRaw|rawPayload|payloadJson|Bearer|sk-/i);
+    expect(html).not.toContain("raw-line-token");
+    expect(html).not.toMatch(/channel secret|webhook secret value|providerRaw|rawPayload|payloadJson|Bearer|sk-|authorization|cookie/i);
   });
 
   it("renders an API error state without fake provider rows", () => {
@@ -35,9 +42,23 @@ describe("ProviderReadinessPanel", () => {
     }));
 
     expect(html).toContain("Provider Readiness API error: Failed to fetch");
-    expect(html).not.toContain("LINE");
-    expect(html).not.toContain("Telegram");
+    expect(html).not.toContain("Credential");
     expect(html).not.toContain("allowlist count=");
+  });
+
+  it("renders a webhook API error state without fake event rows", () => {
+    const html = renderToString(React.createElement(ProviderReadinessPanel, {
+      readiness: providerReadiness(),
+      loading: false,
+      error: "",
+      webhookEvents: [],
+      webhookEventsLoading: false,
+      webhookEventsError: "Webhook Events API error: Failed to fetch"
+    }));
+
+    expect(html).toContain("Webhook Events API error: Failed to fetch");
+    expect(html).not.toContain("payloadFieldCount=");
+    expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|Bearer|sk-/i);
   });
 });
 
@@ -85,5 +106,22 @@ function provider(name: ProviderReadiness["providers"][number]["name"], configur
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false as const,
     status: "disabled_by_default" as const
+  };
+}
+
+function providerWebhookEvent(): ProviderWebhookEvent {
+  return {
+    id: "provider-webhook-event-1",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider: "line",
+    channel: "line",
+    eventType: "message.created",
+    mode: "dry_run",
+    status: "received",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
+    payloadFieldCount: 2,
+    payloadDigest: "sha256:safeeventdigest",
+    externalCalls: 0
   };
 }
