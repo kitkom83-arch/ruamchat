@@ -21,8 +21,14 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("allowlist count=2");
     expect(html).toContain("signature verification=sandbox-ready");
     expect(html).toContain("replay guardrails=enabled");
+    expect(html).toContain("normalization=enabled");
+    expect(html).toContain("dryRunRouting=enabled");
     expect(html).toContain("latest signature=verified");
     expect(html).toContain("latest replay=fresh");
+    expect(html).toContain("latest normalization=normalized");
+    expect(html).toContain("latest routing=dry-run-only");
+    expect(html).toContain("normalizedEventCount=3");
+    expect(html).toContain("routingBlockedCount=1");
     expect(html).toContain("replayDetectedCount=1");
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
@@ -32,10 +38,17 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("message.created / received");
     expect(html).toContain("signature=verified");
     expect(html).toContain("replay=duplicate");
+    expect(html).toContain("normalization=blocked-replay");
+    expect(html).toContain("normalizedEventType=unknown");
+    expect(html).toContain("messageType=unknown");
+    expect(html).toContain("routing=blocked-replay");
+    expect(html).toContain("lookup=skipped");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("signatureVerified=true");
     expect(html).toContain("replayDetected=true");
+    expect(html).toContain("conversationKeyDigest=none");
+    expect(html).toContain("roomIdDigest=none");
     expect(html).toContain("configured");
     expect(html).not.toContain("U-raw-provider-test");
     expect(html).not.toContain("raw-line-token");
@@ -91,6 +104,12 @@ function providerReadiness(): ProviderReadiness {
     lastSandboxEventSignatureStatus: "verified",
     latestReplayStatus: "fresh",
     replayDetectedCount: 1,
+    webhookNormalizationEnabled: true,
+    webhookDryRunRoutingEnabled: true,
+    lastSandboxEventNormalizationStatus: "normalized",
+    latestRoutingStatus: "dry-run-only",
+    normalizedEventCount: 3,
+    routingBlockedCount: 1,
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -138,6 +157,22 @@ function providerWebhookEvent(): ProviderWebhookEvent {
     replayStatus: "duplicate",
     dedupKeyDigest: "sha256:safededupdigest",
     previousEventSeenAt: "2026-05-30T23:59:00.000Z",
+    normalized: false,
+    normalizationStatus: "blocked-replay",
+    normalizedEventType: "unknown",
+    direction: "inbound",
+    messageType: "unknown",
+    textPreview: null,
+    textLength: null,
+    mediaSummary: null,
+    senderKeyDigest: null,
+    roomKeyDigest: null,
+    dryRunRouting: true,
+    routingStatus: "blocked-replay",
+    conversationLookupStatus: "skipped",
+    conversationKeyDigest: null,
+    channelAccountId: null,
+    roomIdDigest: null,
     externalCalls: 0
   };
 }

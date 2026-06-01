@@ -251,6 +251,12 @@ export const mockProviderReadiness: ProviderReadiness = {
   lastSandboxEventSignatureStatus: "verified",
   latestReplayStatus: "fresh",
   replayDetectedCount: 0,
+  webhookNormalizationEnabled: true,
+  webhookDryRunRoutingEnabled: true,
+  lastSandboxEventNormalizationStatus: "normalized",
+  latestRoutingStatus: "dry-run-only",
+  normalizedEventCount: 1,
+  routingBlockedCount: 0,
   lastSandboxEventAt: now,
   externalCalls: 0,
   providers: [
@@ -283,6 +289,22 @@ export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
     replayStatus: "fresh",
     dedupKeyDigest: "sha256:localdedupsample",
     previousEventSeenAt: null,
+    normalized: true,
+    normalizationStatus: "normalized",
+    normalizedEventType: "message",
+    direction: "inbound",
+    messageType: "text",
+    textPreview: "Local dry-run message",
+    textLength: 21,
+    mediaSummary: null,
+    senderKeyDigest: "sha256:localsenderdigest",
+    roomKeyDigest: "sha256:localroomdigest",
+    dryRunRouting: true,
+    routingStatus: "dry-run-only",
+    conversationLookupStatus: "not-found",
+    conversationKeyDigest: "sha256:localconversationdigest",
+    channelAccountId: "sandbox:line",
+    roomIdDigest: "sha256:localroomiddigest",
     externalCalls: 0
   }
 ];
@@ -318,6 +340,8 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     mockWebhookDedupSeenAt.set(dedupKeyDigest, receivedAt);
   }
   const signatureStatus = payload.signature ? "verified" : "missing";
+  const normalized = signatureStatus === "verified" && !previousEventSeenAt;
+  const routingBlocked = signatureStatus !== "verified" || Boolean(previousEventSeenAt);
   return {
     id: `provider-webhook-event-local-${safeId()}`,
     tenantId: "00000000-0000-4000-8000-000000000001",
@@ -339,6 +363,22 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     replayStatus: previousEventSeenAt ? "duplicate" : "fresh",
     dedupKeyDigest,
     previousEventSeenAt,
+    normalized,
+    normalizationStatus: signatureStatus !== "verified" ? "skipped" : previousEventSeenAt ? "blocked-replay" : "normalized",
+    normalizedEventType: normalized ? "message" : "unknown",
+    direction: "inbound",
+    messageType: normalized ? "text" : "unknown",
+    textPreview: normalized ? "Local dry-run message" : null,
+    textLength: normalized ? 21 : null,
+    mediaSummary: null,
+    senderKeyDigest: normalized ? `sha256:${safeDigest(`sender:${providerName}`)}` : null,
+    roomKeyDigest: normalized ? `sha256:${safeDigest(`room:${providerName}`)}` : null,
+    dryRunRouting: normalized,
+    routingStatus: signatureStatus !== "verified" ? "skipped" : previousEventSeenAt ? "blocked-replay" : "dry-run-only",
+    conversationLookupStatus: routingBlocked ? "skipped" : "not-found",
+    conversationKeyDigest: normalized ? `sha256:${safeDigest(`conversation:${providerName}`)}` : null,
+    channelAccountId: normalized ? `sandbox:${payload.channel ?? providerName}` : null,
+    roomIdDigest: normalized ? `sha256:${safeDigest(`room-id:${providerName}`)}` : null,
     externalCalls: 0
   };
 }

@@ -72,8 +72,14 @@ export function ProviderReadinessPanel({
         e("span", null, `allowlist count=${readiness.allowlistCount}`),
         e("span", null, `signature verification=${readiness.webhookSignatureVerificationReady ? "sandbox-ready" : "not ready"}`),
         e("span", null, `replay guardrails=${readiness.replayGuardrailsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `normalization=${readiness.webhookNormalizationEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `dryRunRouting=${readiness.webhookDryRunRoutingEnabled ? "enabled" : "disabled"}`),
         e("span", null, `latest signature=${readiness.lastSandboxEventSignatureStatus ?? "none"}`),
         e("span", null, `latest replay=${readiness.latestReplayStatus ?? "none"}`),
+        e("span", null, `latest normalization=${readiness.lastSandboxEventNormalizationStatus ?? "none"}`),
+        e("span", null, `latest routing=${readiness.latestRoutingStatus ?? "none"}`),
+        e("span", null, `normalizedEventCount=${readiness.normalizedEventCount}`),
+        e("span", null, `routingBlockedCount=${readiness.routingBlockedCount}`),
         e("span", null, `replayDetectedCount=${replayDetectedCount}`)
       ) : null
     ),
@@ -92,7 +98,8 @@ export function ProviderReadinessPanel({
         lastEvent ? e("div", { className: "webhookLastEvent", "aria-label": "Last received dry-run event" },
           e("span", null, "last received dry-run event"),
           e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`),
-          e("span", null, `signature=${lastEvent.signatureStatus} / replay=${lastEvent.replayStatus}`)
+          e("span", null, `signature=${lastEvent.signatureStatus} / replay=${lastEvent.replayStatus}`),
+          e("span", null, `normalization=${lastEvent.normalizationStatus} / routing=${lastEvent.routingStatus}`)
         ) : null
       ),
       webhookEventsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, webhookEventsError) : null,
@@ -151,11 +158,16 @@ export function ProviderReadinessPanel({
             e("span", null, `mode=${event.mode}`),
             e("span", null, `signature=${event.signatureStatus}`),
             e("span", null, `replay=${event.replayStatus}`),
+            e("span", null, `normalization=${event.normalizationStatus}`),
+            e("span", null, `normalizedEventType=${event.normalizedEventType}`),
+            e("span", null, `messageType=${event.messageType}`),
+            e("span", null, `routing=${event.routingStatus}`),
+            e("span", null, `lookup=${event.conversationLookupStatus}`),
             e("span", null, `externalCalls=${event.externalCalls}`),
             e("span", null, formatDate(event.receivedAt))
           ),
           e("p", null, event.payloadSummary),
-          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)}`)
+          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)} / dryRunRouting=${String(event.dryRunRouting)} / conversationKeyDigest=${event.conversationKeyDigest ?? "none"} / roomIdDigest=${event.roomIdDigest ?? "none"}`)
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
     )

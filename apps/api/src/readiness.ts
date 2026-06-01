@@ -74,6 +74,12 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
       lastSandboxEventSignatureStatus: webhookGuardrails.lastSandboxEventSignatureStatus,
       latestReplayStatus: webhookGuardrails.latestReplayStatus,
       replayDetectedCount: webhookGuardrails.replayDetectedCount,
+      webhookNormalizationEnabled: webhookGuardrails.webhookNormalizationEnabled,
+      webhookDryRunRoutingEnabled: webhookGuardrails.webhookDryRunRoutingEnabled,
+      lastSandboxEventNormalizationStatus: webhookGuardrails.lastSandboxEventNormalizationStatus,
+      latestRoutingStatus: webhookGuardrails.latestRoutingStatus,
+      normalizedEventCount: webhookGuardrails.normalizedEventCount,
+      routingBlockedCount: webhookGuardrails.routingBlockedCount,
       lastSandboxEventAt: webhookGuardrails.lastSandboxEventAt,
       externalCalls: 0 as const,
       providers: providerSandboxProviders.map((name) => providerReadiness(name, env, {

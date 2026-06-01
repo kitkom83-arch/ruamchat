@@ -49,15 +49,32 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(event.signatureAlgorithm).toBe("hmac-sha256");
     expect(event.replayDetected).toBe(false);
     expect(event.replayStatus).toBe("fresh");
+    expect(event.normalized).toBe(false);
+    expect(event.normalizationStatus).toBe("skipped");
+    expect(event.normalizedEventType).toBe("unknown");
+    expect(event.messageType).toBe("unknown");
+    expect(event.dryRunRouting).toBe(false);
+    expect(event.routingStatus).toBe("skipped");
+    expect(event.conversationLookupStatus).toBe("skipped");
     expect(event.dedupKeyDigest).toBeNull();
     expect(events).toHaveLength(1);
     expect(Object.keys(event).sort()).toEqual([
       "channel",
+      "channelAccountId",
+      "conversationKeyDigest",
+      "conversationLookupStatus",
       "dedupKeyDigest",
+      "direction",
+      "dryRunRouting",
       "eventType",
       "externalCalls",
       "id",
+      "mediaSummary",
+      "messageType",
       "mode",
+      "normalizationStatus",
+      "normalized",
+      "normalizedEventType",
       "payloadDigest",
       "payloadFieldCount",
       "payloadSummary",
@@ -66,12 +83,18 @@ describe("ProviderWebhooksController sandbox events", () => {
       "receivedAt",
       "replayDetected",
       "replayStatus",
+      "roomIdDigest",
+      "roomKeyDigest",
+      "routingStatus",
+      "senderKeyDigest",
       "signatureAlgorithm",
       "signatureFingerprint",
       "signatureStatus",
       "signatureVerified",
       "signedAt",
       "status",
+      "textLength",
+      "textPreview",
       "tenantId"
     ].sort());
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
@@ -82,12 +105,20 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toContain("sensitive-sample-a");
     expect(serialized).not.toContain("sensitive-provider-body");
     expect(serialized).not.toContain("sensitive-sample-b");
-    expect(serialized).not.toMatch(/accessToken|webhookSecret|authorization|cookie|rawPayload|providerRaw|payloadJson/i);
+    expect(serialized).not.toMatch(/accessToken|webhookSecret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken/i);
   });
 
   it("verifies a valid sandbox signature without returning raw inputs", async () => {
     const { controller } = buildController();
-    const payload = { message: { type: "text", length: 12 } };
+    const payload = {
+      events: [{
+        type: "message",
+        timestamp: 1760000000000,
+        replyToken: "raw-reply-token-must-not-return",
+        source: { type: "room", userId: "raw-line-user-1", roomId: "raw-line-room-1" },
+        message: { id: "raw-line-message-1", type: "text", text: "Safe hello from sandbox" }
+      }]
+    };
     const signature = signPayload(payload);
 
     const event = await controller.createSandboxEvent(tenantId, undefined, {
@@ -107,13 +138,28 @@ describe("ProviderWebhooksController sandbox events", () => {
       signatureAlgorithm: "hmac-sha256",
       replayDetected: false,
       replayStatus: "fresh",
+      normalized: true,
+      normalizationStatus: "normalized",
+      normalizedEventType: "message",
+      direction: "inbound",
+      messageType: "text",
+      dryRunRouting: true,
+      routingStatus: "dry-run-only",
+      conversationLookupStatus: "not-found",
       externalCalls: 0
     });
+    expect(event.textPreview).toBe("Safe hello from sandbox");
+    expect(event.textLength).toBe("Safe hello from sandbox".length);
+    expect(event.senderKeyDigest).toMatch(/^sha256:/);
+    expect(event.roomKeyDigest).toMatch(/^sha256:/);
+    expect(event.conversationKeyDigest).toMatch(/^sha256:/);
+    expect(event.roomIdDigest).toMatch(/^sha256:/);
+    expect(event.channelAccountId).toBe("sandbox:line");
     expect(event.signatureFingerprint).toMatch(/^sha256:/);
     expect(event.dedupKeyDigest).toMatch(/^sha256:/);
     expect(serialized).not.toContain(signature);
     expect(serialized).not.toContain("event-valid-1");
-    expect(serialized).not.toMatch(/authorization|cookie|rawPayload|providerRaw|payloadJson|webhookSecret/i);
+    expect(serialized).not.toMatch(/authorization|cookie|rawPayload|providerRaw|payloadJson|webhookSecret|replyToken|raw-line-user-1|raw-line-room-1|raw-line-message-1/i);
   });
 
   it("marks invalid sandbox signatures as failed safely", async () => {
@@ -133,6 +179,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(event.signatureVerified).toBe(false);
     expect(event.signatureStatus).toBe("failed");
     expect(event.status).toBe("failed");
+    expect(event.normalized).toBe(false);
+    expect(event.normalizationStatus).toBe("blocked-signature");
+    expect(event.routingStatus).toBe("blocked-signature");
+    expect(event.conversationLookupStatus).toBe("skipped");
     expect(event.externalCalls).toBe(0);
     expect(serialized).not.toContain("invalid-sandbox-proof");
     expect(serialized).not.toContain("event-invalid-1");
@@ -161,6 +211,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(first.replayStatus).toBe("fresh");
     expect(second.replayDetected).toBe(true);
     expect(second.replayStatus).toBe("duplicate");
+    expect(second.normalized).toBe(false);
+    expect(second.normalizationStatus).toBe("blocked-replay");
+    expect(second.routingStatus).toBe("blocked-replay");
+    expect(second.conversationLookupStatus).toBe("skipped");
     expect(second.previousEventSeenAt).toEqual(expect.any(String));
     expect(events).toHaveLength(2);
     expect(events.every((event) => event.externalCalls === 0)).toBe(true);
