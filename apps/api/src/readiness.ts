@@ -86,6 +86,11 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
       inboundPersistenceBlockedCount: webhookGuardrails.inboundPersistenceBlockedCount,
       inboundPersistenceReplayBlockedCount: webhookGuardrails.inboundPersistenceReplayBlockedCount,
       inboundPersistenceSkippedNoMatchCount: webhookGuardrails.inboundPersistenceSkippedNoMatchCount,
+      webhookUnmatchedInboundReviewEnabled: webhookGuardrails.webhookUnmatchedInboundReviewEnabled,
+      unmatchedInboundOpenCount: webhookGuardrails.unmatchedInboundOpenCount,
+      unmatchedInboundQueuedCount: webhookGuardrails.unmatchedInboundQueuedCount,
+      unmatchedInboundReplayBlockedCount: webhookGuardrails.unmatchedInboundReplayBlockedCount,
+      latestUnmatchedInboundStatus: webhookGuardrails.latestUnmatchedInboundStatus,
       lastSandboxEventAt: webhookGuardrails.lastSandboxEventAt,
       externalCalls: 0 as const,
       providers: providerSandboxProviders.map((name) => providerReadiness(name, env, {

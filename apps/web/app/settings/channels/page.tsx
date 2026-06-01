@@ -2,13 +2,14 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundItem, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   createSettingsProviderWebhookSandboxEvent,
   loadSettingsChannelsData,
   loadSettingsProviderReadinessData,
-  loadSettingsProviderWebhookEventsData
+  loadSettingsProviderWebhookEventsData,
+  loadSettingsProviderWebhookUnmatchedInboundData
 } from "../../settings-data";
 import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
@@ -17,13 +18,16 @@ export default function ChannelSettingsPage() {
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
+  const [unmatchedInboundItems, setUnmatchedInboundItems] = useState<ProviderWebhookUnmatchedInboundItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [providerLoading, setProviderLoading] = useState(true);
   const [webhookEventsLoading, setWebhookEventsLoading] = useState(true);
+  const [unmatchedInboundLoading, setUnmatchedInboundLoading] = useState(true);
   const [webhookEventSaving, setWebhookEventSaving] = useState(false);
   const [error, setError] = useState("");
   const [providerError, setProviderError] = useState("");
   const [webhookEventsError, setWebhookEventsError] = useState("");
+  const [unmatchedInboundError, setUnmatchedInboundError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -71,15 +75,24 @@ export default function ChannelSettingsPage() {
 
   const refreshWebhookEvents = useCallback(async () => {
     setWebhookEventsLoading(true);
+    setUnmatchedInboundLoading(true);
     setWebhookEventsError("");
+    setUnmatchedInboundError("");
     try {
-      const data = await loadSettingsProviderWebhookEventsData(dataMode);
+      const [data, unmatched] = await Promise.all([
+        loadSettingsProviderWebhookEventsData(dataMode),
+        loadSettingsProviderWebhookUnmatchedInboundData(dataMode)
+      ]);
       setWebhookEvents(data.events);
+      setUnmatchedInboundItems(unmatched.items);
     } catch (reason) {
       setWebhookEvents([]);
+      setUnmatchedInboundItems([]);
       setWebhookEventsError(`Webhook Events API error: ${reason instanceof Error ? reason.message : "Unable to load webhook events"}`);
+      setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to load unmatched inbound review"}`);
     } finally {
       setWebhookEventsLoading(false);
+      setUnmatchedInboundLoading(false);
     }
   }, []);
 
@@ -140,6 +153,9 @@ export default function ChannelSettingsPage() {
         webhookEvents={webhookEvents}
         webhookEventsLoading={webhookEventsLoading}
         webhookEventsError={webhookEventsError}
+        unmatchedInboundItems={unmatchedInboundItems}
+        unmatchedInboundLoading={unmatchedInboundLoading}
+        unmatchedInboundError={unmatchedInboundError}
         webhookEventSaving={webhookEventSaving}
         onCreateSandboxEvent={createSandboxEvent}
       />

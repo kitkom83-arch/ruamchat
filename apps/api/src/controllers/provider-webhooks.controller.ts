@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Headers, Inject, Post } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query } from "@nestjs/common";
+import { providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -8,6 +9,16 @@ export class ProviderWebhooksController {
   @Get("events")
   listEvents(@Headers("x-tenant-id") tenant: string | undefined) {
     return this.events.list(requireTenantId(tenant));
+  }
+
+  @Get("unmatched-inbound")
+  listUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query("status") status: string | undefined
+  ) {
+    const parsedStatus = providerWebhookUnmatchedInboundStatusFilterSchema.safeParse(status);
+    if (!parsedStatus.success) throw new BadRequestException("Invalid unmatched inbound status filter");
+    return this.events.listUnmatchedInbound(requireTenantId(tenant), parsedStatus.data);
   }
 
   @Post("sandbox-events")

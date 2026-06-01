@@ -268,6 +268,10 @@ function safeEventShape(value) {
     "messagePersisted",
     "persistedMessageId",
     "conversationId",
+    "unmatchedInboundQueued",
+    "unmatchedInboundId",
+    "unmatchedStatus",
+    "unmatchedReason",
     "inboundAuditStatus",
     "externalCalls"
   ]);

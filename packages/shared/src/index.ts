@@ -2009,6 +2009,19 @@ export type ProviderWebhookInboundPersistenceStatus = z.infer<typeof providerWeb
 export const providerWebhookInboundAuditStatusSchema = z.enum(["recorded", "skipped", "failed"]);
 export type ProviderWebhookInboundAuditStatus = z.infer<typeof providerWebhookInboundAuditStatusSchema>;
 
+export const providerWebhookUnmatchedInboundStatusSchema = z.enum([
+  "open",
+  "review-needed",
+  "reviewed",
+  "blocked",
+  "skipped",
+  "duplicate-skipped"
+]);
+export type ProviderWebhookUnmatchedInboundStatus = z.infer<typeof providerWebhookUnmatchedInboundStatusSchema>;
+
+export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open", "reviewed", "blocked", "skipped"]).optional();
+export type ProviderWebhookUnmatchedInboundStatusFilter = z.infer<typeof providerWebhookUnmatchedInboundStatusFilterSchema>;
+
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
   entryCount: z.number().int().nonnegative()
@@ -2055,6 +2068,11 @@ export const providerReadinessSchema = z.object({
   inboundPersistenceBlockedCount: z.number().int().nonnegative(),
   inboundPersistenceReplayBlockedCount: z.number().int().nonnegative(),
   inboundPersistenceSkippedNoMatchCount: z.number().int().nonnegative(),
+  webhookUnmatchedInboundReviewEnabled: z.boolean(),
+  unmatchedInboundOpenCount: z.number().int().nonnegative(),
+  unmatchedInboundQueuedCount: z.number().int().nonnegative(),
+  unmatchedInboundReplayBlockedCount: z.number().int().nonnegative(),
+  latestUnmatchedInboundStatus: providerWebhookUnmatchedInboundStatusSchema.nullable(),
   lastSandboxEventAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0),
   providers: z.array(providerReadinessProviderSchema)
@@ -2127,10 +2145,40 @@ export const providerWebhookEventSchema = z.object({
   messagePersisted: z.boolean(),
   persistedMessageId: z.string().min(1).nullable(),
   conversationId: z.string().min(1).nullable(),
+  unmatchedInboundQueued: z.boolean(),
+  unmatchedInboundId: z.string().min(1).nullable(),
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.nullable(),
+  unmatchedReason: z.string().min(1).nullable(),
   inboundAuditStatus: providerWebhookInboundAuditStatusSchema,
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;
+
+export const providerWebhookUnmatchedInboundItemSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  mode: z.literal("sandbox"),
+  eventType: providerWebhookEventTypeSchema,
+  normalizedEventType: providerWebhookNormalizedEventTypeSchema,
+  messageType: providerWebhookMessageTypeSchema,
+  normalizationStatus: providerWebhookNormalizationStatusSchema,
+  routingStatus: providerWebhookRoutingStatusSchema,
+  conversationLookupStatus: z.literal("not-found"),
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  unmatchedReason: z.string().min(1),
+  payloadDigest: z.string().min(1),
+  providerEventDigest: z.string().min(1).nullable(),
+  deliveryDigest: z.string().min(1).nullable(),
+  senderKeyDigest: z.string().min(1).nullable(),
+  roomKeyDigest: z.string().min(1).nullable(),
+  textPreview: z.string().min(1).nullable(),
+  textLength: z.number().int().nonnegative().nullable(),
+  receivedAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundItem = z.infer<typeof providerWebhookUnmatchedInboundItemSchema>;
 
 export const apiReadinessSchema = z.object({
   status: z.literal("ok"),

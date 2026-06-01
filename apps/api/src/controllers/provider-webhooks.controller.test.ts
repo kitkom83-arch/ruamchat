@@ -104,7 +104,11 @@ describe("ProviderWebhooksController sandbox events", () => {
       "status",
       "textLength",
       "textPreview",
-      "tenantId"
+      "tenantId",
+      "unmatchedInboundId",
+      "unmatchedInboundQueued",
+      "unmatchedReason",
+      "unmatchedStatus"
     ].sort());
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
       tenantId,
@@ -169,6 +173,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(event.channelAccountId).toBe("sandbox:line");
     expect(event.signatureFingerprint).toMatch(/^sha256:/);
     expect(event.dedupKeyDigest).toMatch(/^sha256:/);
+    expect(event.unmatchedInboundQueued).toBe(true);
+    expect(event.unmatchedInboundId).toMatch(/^provider-webhook-unmatched-/);
+    expect(event.unmatchedStatus).toBe("review-needed");
+    expect(event.unmatchedReason).toBe("safe-review-required-no-conversation-match");
     expect(serialized).not.toContain(signature);
     expect(serialized).not.toContain("event-valid-1");
     expect(serialized).not.toMatch(/authorization|cookie|rawPayload|providerRaw|payloadJson|webhookSecret|replyToken|raw-line-user-1|raw-line-room-1|raw-line-message-1/i);
@@ -196,6 +204,9 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(event.routingStatus).toBe("blocked-signature");
     expect(event.conversationLookupStatus).toBe("skipped");
     expect(event.inboundPersistenceStatus).toBe("dry-run-only");
+    expect(event.unmatchedInboundQueued).toBe(false);
+    expect(event.unmatchedStatus).toBe("blocked");
+    expect(event.unmatchedReason).toBe("blocked-signature");
     expect(event.messagePersisted).toBe(false);
     expect(event.externalCalls).toBe(0);
     expect(serialized).not.toContain("invalid-sandbox-proof");
@@ -230,6 +241,9 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(second.routingStatus).toBe("blocked-replay");
     expect(second.conversationLookupStatus).toBe("skipped");
     expect(second.inboundPersistenceStatus).toBe("dry-run-only");
+    expect(second.unmatchedInboundQueued).toBe(false);
+    expect(second.unmatchedStatus).toBeNull();
+    expect(second.unmatchedReason).toBeNull();
     expect(second.messagePersisted).toBe(false);
     expect(second.previousEventSeenAt).toEqual(expect.any(String));
     expect(events).toHaveLength(2);
@@ -358,7 +372,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(conversations.persistSandboxWebhookInboundMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("skips sandbox-persist safely when no existing route matches", async () => {
+  it("queues a safe unmatched review item when sandbox-persist has no existing route match", async () => {
     const conversations = {
       persistSandboxWebhookInboundMessage: vi.fn(async () => ({
         status: "not-found",
@@ -385,6 +399,97 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(event.messagePersisted).toBe(false);
     expect(event.conversationId).toBeNull();
     expect(event.persistedMessageId).toBeNull();
+    expect(event.unmatchedInboundQueued).toBe(true);
+    expect(event.unmatchedInboundId).toMatch(/^provider-webhook-unmatched-/);
+    expect(event.unmatchedStatus).toBe("review-needed");
+    expect(event.unmatchedReason).toBe("safe-review-required-no-conversation-match");
+
+    const unmatched = controller.listUnmatchedInbound(tenantId, undefined);
+    const serialized = JSON.stringify({ event, unmatched });
+    expect(unmatched).toHaveLength(1);
+    expect(unmatched[0]).toMatchObject({
+      id: event.unmatchedInboundId,
+      tenantId,
+      provider: "line",
+      channelAccountId: "sandbox:line",
+      mode: "sandbox",
+      eventType: "message.created",
+      normalizedEventType: "message",
+      messageType: "text",
+      normalizationStatus: "normalized",
+      routingStatus: "dry-run-only",
+      conversationLookupStatus: "not-found",
+      unmatchedStatus: "review-needed",
+      unmatchedReason: "safe-review-required-no-conversation-match",
+      externalCalls: 0
+    });
+    expect(unmatched[0]?.payloadDigest).toMatch(/^sha256:/);
+    expect(unmatched[0]?.providerEventDigest).toMatch(/^sha256:/);
+    expect(unmatched[0]?.senderKeyDigest).toMatch(/^sha256:/);
+    expect(unmatched[0]?.roomKeyDigest).toMatch(/^sha256:/);
+    expect(unmatched[0]?.textPreview).toBe("Safe no match inbound");
+    expect(serialized).not.toContain("raw-no-match-room-58");
+    expect(serialized).not.toContain("raw-no-match-sender-58");
+    expect(serialized).not.toContain("event-no-match-58");
+    expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
+  it("does not duplicate unmatched review items on replay", async () => {
+    const conversations = {
+      persistSandboxWebhookInboundMessage: vi.fn(async () => ({
+        status: "not-found",
+        conversation: null,
+        message: null,
+        duplicate: false
+      }))
+    };
+    const { controller } = buildController(conversations);
+    const payload = lineMessagePayload("raw-no-match-room-59", "raw-no-match-sender-59", "Safe duplicate unmatched inbound");
+    const request = {
+      provider: "line" as const,
+      eventType: "message.created" as const,
+      mode: "sandbox" as const,
+      inboundPersistenceMode: "sandbox-persist" as const,
+      eventId: "event-no-match-duplicate-59",
+      signature: signPayload(payload),
+      payload
+    };
+
+    const first = await controller.createSandboxEvent(tenantId, undefined, request);
+    const second = await controller.createSandboxEvent(tenantId, undefined, request);
+    const unmatched = controller.listUnmatchedInbound(tenantId, undefined);
+
+    expect(first.unmatchedInboundQueued).toBe(true);
+    expect(second.replayDetected).toBe(true);
+    expect(second.inboundPersistenceStatus).toBe("blocked-replay");
+    expect(second.unmatchedInboundQueued).toBe(false);
+    expect(second.unmatchedStatus).toBe("duplicate-skipped");
+    expect(unmatched).toHaveLength(1);
+    expect(conversations.persistSandboxWebhookInboundMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips unsupported sandbox events without queueing unmatched items", async () => {
+    const conversations = { persistSandboxWebhookInboundMessage: vi.fn() };
+    const { controller } = buildController(conversations);
+    const payload = { not_supported: true };
+
+    const event = await controller.createSandboxEvent(tenantId, undefined, {
+      provider: "line",
+      eventType: "message.created",
+      mode: "sandbox",
+      inboundPersistenceMode: "sandbox-persist",
+      eventId: "event-unsupported-59",
+      signature: signPayload(payload),
+      payload
+    });
+
+    expect(event.normalizationStatus).toBe("unsupported");
+    expect(event.inboundPersistenceStatus).toBe("unsupported");
+    expect(event.unmatchedInboundQueued).toBe(false);
+    expect(event.unmatchedStatus).toBe("skipped");
+    expect(event.unmatchedReason).toBe("unsupported");
+    expect(controller.listUnmatchedInbound(tenantId, undefined)).toHaveLength(0);
+    expect(conversations.persistSandboxWebhookInboundMessage).not.toHaveBeenCalled();
   });
 
   it("keeps tenant event logs separated", async () => {
@@ -401,6 +506,43 @@ describe("ProviderWebhooksController sandbox events", () => {
 
     expect(controller.listEvents(tenantId).map((event) => event.provider)).toEqual(["line"]);
     expect(controller.listEvents(otherTenantId).map((event) => event.provider)).toEqual(["telegram"]);
+  });
+
+  it("keeps unmatched inbound review lists tenant scoped", async () => {
+    const conversations = {
+      persistSandboxWebhookInboundMessage: vi.fn(async () => ({
+        status: "not-found",
+        conversation: null,
+        message: null,
+        duplicate: false
+      }))
+    };
+    const { controller } = buildController(conversations);
+    const otherTenantId = "00000000-0000-4000-8000-000000000099";
+    const firstPayload = lineMessagePayload("raw-tenant-room-1", "raw-tenant-sender-1", "Safe tenant one");
+    const secondPayload = lineMessagePayload("raw-tenant-room-2", "raw-tenant-sender-2", "Safe tenant two");
+
+    await controller.createSandboxEvent(tenantId, undefined, {
+      provider: "line",
+      eventType: "message.created",
+      mode: "sandbox",
+      inboundPersistenceMode: "sandbox-persist",
+      eventId: "event-tenant-one-59",
+      signature: signPayload(firstPayload),
+      payload: firstPayload
+    });
+    await controller.createSandboxEvent(otherTenantId, undefined, {
+      provider: "line",
+      eventType: "message.created",
+      mode: "sandbox",
+      inboundPersistenceMode: "sandbox-persist",
+      eventId: "event-tenant-two-59",
+      signature: signPayload(secondPayload),
+      payload: secondPayload
+    });
+
+    expect(controller.listUnmatchedInbound(tenantId, undefined).map((item) => item.textPreview)).toEqual(["Safe tenant one"]);
+    expect(controller.listUnmatchedInbound(otherTenantId, "open").map((item) => item.textPreview)).toEqual(["Safe tenant two"]);
   });
 
   it("rejects live provider outbound mode", async () => {
