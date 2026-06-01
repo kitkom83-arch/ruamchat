@@ -3,6 +3,7 @@ import type {
   DataMode,
   ProviderReadiness,
   ProviderWebhookEvent,
+  ProviderWebhookUnmatchedInboundItem,
   ProviderWebhookSandboxEventRequest,
   SettingsCannedReply,
   SettingsChannelAccount,
@@ -13,6 +14,7 @@ import {
   createProviderWebhookSandboxEvent,
   getProviderReadiness,
   getProviderWebhookEvents,
+  getProviderWebhookUnmatchedInbound,
   getSettingsCannedReplies,
   getSettingsChannels,
   getSettingsSlaPolicies,
@@ -42,6 +44,11 @@ export type SettingsProviderReadinessData = {
 export type SettingsProviderWebhookEventsData = {
   mode: DataMode;
   events: ProviderWebhookEvent[];
+};
+
+export type SettingsProviderWebhookUnmatchedInboundData = {
+  mode: DataMode;
+  items: ProviderWebhookUnmatchedInboundItem[];
 };
 
 export const mockSettingsChannels: SettingsChannelAccount[] = [
@@ -90,6 +97,20 @@ export async function loadSettingsProviderWebhookEventsData(mode: DataMode): Pro
   return {
     mode,
     events: mockProviderWebhookEvents
+  };
+}
+
+export async function loadSettingsProviderWebhookUnmatchedInboundData(mode: DataMode): Promise<SettingsProviderWebhookUnmatchedInboundData> {
+  if (mode === "api") {
+    return {
+      mode,
+      items: await getProviderWebhookUnmatchedInbound()
+    };
+  }
+
+  return {
+    mode,
+    items: mockProviderWebhookUnmatchedInbound
   };
 }
 
@@ -263,6 +284,11 @@ export const mockProviderReadiness: ProviderReadiness = {
   inboundPersistenceBlockedCount: 0,
   inboundPersistenceReplayBlockedCount: 0,
   inboundPersistenceSkippedNoMatchCount: 0,
+  webhookUnmatchedInboundReviewEnabled: true,
+  unmatchedInboundOpenCount: 1,
+  unmatchedInboundQueuedCount: 1,
+  unmatchedInboundReplayBlockedCount: 0,
+  latestUnmatchedInboundStatus: "review-needed",
   lastSandboxEventAt: now,
   externalCalls: 0,
   providers: [
@@ -316,7 +342,38 @@ export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
     messagePersisted: false,
     persistedMessageId: null,
     conversationId: null,
+    unmatchedInboundQueued: true,
+    unmatchedInboundId: "provider-webhook-unmatched-local-1",
+    unmatchedStatus: "review-needed",
+    unmatchedReason: "safe-review-required-no-conversation-match",
     inboundAuditStatus: "recorded",
+    externalCalls: 0
+  }
+];
+
+export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundItem[] = [
+  {
+    id: "provider-webhook-unmatched-local-1",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    mode: "sandbox",
+    eventType: "message.created",
+    normalizedEventType: "message",
+    messageType: "text",
+    normalizationStatus: "normalized",
+    routingStatus: "dry-run-only",
+    conversationLookupStatus: "not-found",
+    unmatchedStatus: "review-needed",
+    unmatchedReason: "safe-review-required-no-conversation-match",
+    payloadDigest: "sha256:localdryrunsample",
+    providerEventDigest: "sha256:localdedupsample",
+    deliveryDigest: "sha256:localdedupsample",
+    senderKeyDigest: "sha256:localsenderdigest",
+    roomKeyDigest: "sha256:localroomdigest",
+    textPreview: "Local dry-run message",
+    textLength: 21,
+    receivedAt: now,
     externalCalls: 0
   }
 ];
@@ -354,6 +411,8 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
   const signatureStatus = payload.signature ? "verified" : "missing";
   const normalized = signatureStatus === "verified" && !previousEventSeenAt;
   const routingBlocked = signatureStatus !== "verified" || Boolean(previousEventSeenAt);
+  const unmatchedInboundQueued = normalized && !routingBlocked;
+  const unmatchedStatus = previousEventSeenAt ? "duplicate-skipped" : signatureStatus !== "verified" ? "blocked" : unmatchedInboundQueued ? "review-needed" : null;
   return {
     id: `provider-webhook-event-local-${safeId()}`,
     tenantId: "00000000-0000-4000-8000-000000000001",
@@ -398,6 +457,10 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     messagePersisted: false,
     persistedMessageId: null,
     conversationId: null,
+    unmatchedInboundQueued,
+    unmatchedInboundId: unmatchedInboundQueued ? `provider-webhook-unmatched-local-${safeId()}` : previousEventSeenAt ? "provider-webhook-unmatched-local-1" : null,
+    unmatchedStatus,
+    unmatchedReason: previousEventSeenAt ? "blocked-replay" : signatureStatus !== "verified" ? "blocked-signature" : unmatchedInboundQueued ? "safe-review-required-no-conversation-match" : null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   };

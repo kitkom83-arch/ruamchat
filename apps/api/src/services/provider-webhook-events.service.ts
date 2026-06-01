@@ -6,7 +6,10 @@ import {
   type ProviderWebhookEvent,
   type ProviderWebhookMessageType,
   type ProviderWebhookNormalizedEventType,
-  type ProviderWebhookSandboxEventRequest
+  type ProviderWebhookSandboxEventRequest,
+  type ProviderWebhookUnmatchedInboundItem,
+  type ProviderWebhookUnmatchedInboundStatus,
+  type ProviderWebhookUnmatchedInboundStatusFilter
 } from "@ai-omni/shared";
 import { MessageType as PrismaMessageType } from "@prisma/client";
 import { AuditService } from "./audit.service.js";
@@ -14,6 +17,7 @@ import { ConversationService } from "./conversation.service.js";
 
 const maxStoredEvents = 100;
 const events: ProviderWebhookEvent[] = [];
+const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 @Injectable()
@@ -25,6 +29,15 @@ export class ProviderWebhookEventsService {
 
   list(tenantId: string) {
     return events.filter((event) => event.tenantId === tenantId);
+  }
+
+  listUnmatchedInbound(tenantId: string, status?: ProviderWebhookUnmatchedInboundStatusFilter) {
+    return unmatchedInboundItems.filter((item) => {
+      if (item.tenantId !== tenantId) return false;
+      if (!status) return true;
+      if (status === "open") return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
+      return item.unmatchedStatus === status;
+    });
   }
 
   async create(tenantId: string, body: unknown, actorUserId?: string) {
@@ -40,8 +53,9 @@ export class ProviderWebhookEventsService {
     const replay = checkReplayGuardrail(tenantId, input);
     const normalization = normalizeSandboxEvent(input, signature, replay);
     const routing = summarizeDryRunRouting(tenantId, input, normalization, signature, replay);
-    const persistence = await this.persistSandboxInbound(tenantId, input, normalization, signature, replay, routing);
     const receivedAt = new Date().toISOString();
+    const persistence = await this.persistSandboxInbound(tenantId, input, normalization, signature, replay, routing);
+    const unmatched = this.prepareUnmatchedInboundReviewItem(tenantId, input, payload, normalization, signature, replay, routing, persistence, receivedAt);
     const event: ProviderWebhookEvent = {
       id: `provider-webhook-event-${crypto.randomUUID()}`,
       tenantId,
@@ -84,6 +98,10 @@ export class ProviderWebhookEventsService {
       messagePersisted: persistence.messagePersisted,
       persistedMessageId: persistence.persistedMessageId,
       conversationId: persistence.conversationId,
+      unmatchedInboundQueued: unmatched.unmatchedInboundQueued,
+      unmatchedInboundId: unmatched.unmatchedInboundId,
+      unmatchedStatus: unmatched.unmatchedStatus,
+      unmatchedReason: unmatched.unmatchedReason,
       inboundAuditStatus: "skipped",
       externalCalls: 0
     };
@@ -93,6 +111,87 @@ export class ProviderWebhookEventsService {
     events.splice(maxStoredEvents);
     event.inboundAuditStatus = await this.recordAudit(event, actorUserId);
     return event;
+  }
+
+  private prepareUnmatchedInboundReviewItem(
+    tenantId: string,
+    input: ProviderWebhookSandboxEventRequest,
+    payload: ReturnType<typeof summarizePayload>,
+    normalization: ReturnType<typeof normalizeSandboxEvent>,
+    signature: ReturnType<typeof verifySandboxSignature>,
+    replay: ReturnType<typeof checkReplayGuardrail>,
+    routing: ReturnType<typeof summarizeDryRunRouting>,
+    persistence: Awaited<ReturnType<ProviderWebhookEventsService["persistSandboxInbound"]>>,
+    receivedAt: string
+  ): {
+    unmatchedInboundQueued: boolean;
+    unmatchedInboundId: string | null;
+    unmatchedStatus: ProviderWebhookUnmatchedInboundStatus | null;
+    unmatchedReason: string | null;
+  } {
+    if (input.mode !== "sandbox") return unmatchedSkipped(null, null);
+    if (signature.signatureStatus === "failed" || signature.signatureStatus === "missing") {
+      return unmatchedSkipped("blocked", "blocked-signature");
+    }
+    if (replay.replayDetected) {
+      return unmatchedSkipped("duplicate-skipped", "blocked-replay");
+    }
+    if (!normalization.normalized) {
+      return unmatchedSkipped("skipped", normalization.normalizationStatus === "unsupported" ? "unsupported" : "normalization-skipped");
+    }
+
+    const conversationLookupStatus = persistence.conversationLookupStatus ?? routing.conversationLookupStatus;
+    if (conversationLookupStatus !== "not-found") return unmatchedSkipped(null, null);
+
+    const channelAccountId = persistence.channelAccountId ?? routing.channelAccountId;
+    const idempotencyDigest = replay.dedupKeyDigest ?? payload.digest;
+    const existing = unmatchedInboundItems.find((item) =>
+      item.tenantId === tenantId &&
+      item.provider === input.provider &&
+      (item.providerEventDigest === idempotencyDigest || item.payloadDigest === payload.digest)
+    );
+    if (existing) {
+      return {
+        unmatchedInboundQueued: false,
+        unmatchedInboundId: existing.id,
+        unmatchedStatus: "duplicate-skipped",
+        unmatchedReason: "duplicate-unmatched-inbound"
+      };
+    }
+
+    const item: ProviderWebhookUnmatchedInboundItem = {
+      id: `provider-webhook-unmatched-${crypto.randomUUID()}`,
+      tenantId,
+      provider: input.provider,
+      channelAccountId,
+      mode: "sandbox",
+      eventType: input.eventType,
+      normalizedEventType: normalization.normalizedEventType,
+      messageType: normalization.messageType,
+      normalizationStatus: normalization.normalizationStatus,
+      routingStatus: persistence.routingStatus ?? routing.routingStatus,
+      conversationLookupStatus: "not-found",
+      unmatchedStatus: "review-needed",
+      unmatchedReason: "safe-review-required-no-conversation-match",
+      payloadDigest: payload.digest,
+      providerEventDigest: replay.dedupKeyDigest ?? payloadEventDigest(tenantId, input, routing),
+      deliveryDigest: replay.dedupKeyDigest,
+      senderKeyDigest: normalization.senderKeyDigest,
+      roomKeyDigest: normalization.roomKeyDigest,
+      textPreview: normalization.textPreview,
+      textLength: normalization.textLength,
+      receivedAt,
+      externalCalls: 0
+    };
+
+    unmatchedInboundItems.unshift(item);
+    unmatchedInboundItems.splice(maxStoredEvents);
+    return {
+      unmatchedInboundQueued: true,
+      unmatchedInboundId: item.id,
+      unmatchedStatus: item.unmatchedStatus,
+      unmatchedReason: item.unmatchedReason
+    };
   }
 
   private async persistSandboxInbound(
@@ -212,6 +311,10 @@ export class ProviderWebhookEventsService {
           messagePersisted: event.messagePersisted,
           persistedMessageId: event.persistedMessageId,
           conversationId: event.conversationId,
+          unmatchedInboundQueued: event.unmatchedInboundQueued,
+          unmatchedInboundId: event.unmatchedInboundId,
+          unmatchedStatus: event.unmatchedStatus,
+          unmatchedReason: event.unmatchedReason,
           externalCalls: 0
         }
       });
@@ -250,21 +353,48 @@ export class ProviderWebhookEventsService {
           });
         }
       }
+      await this.recordUnmatchedAudit(event, actorUserId);
       return "recorded";
     } catch {
       // Sandbox event intake must not fail just because optional audit persistence is unavailable.
       return "failed";
     }
   }
+
+  private async recordUnmatchedAudit(event: ProviderWebhookEvent, actorUserId?: string) {
+    const action = unmatchedAuditAction(event);
+    if (!action) return;
+    await this.audit.record({
+      tenantId: event.tenantId,
+      actorUserId,
+      action,
+      entityType: "provider_webhook_unmatched_inbound",
+      entityId: event.unmatchedInboundId ?? event.id,
+      metadata: {
+        tenantId: event.tenantId,
+        provider: event.provider,
+        channelAccountId: event.channelAccountId,
+        eventDigest: event.dedupKeyDigest,
+        payloadDigest: event.payloadDigest,
+        senderKeyDigest: event.senderKeyDigest,
+        roomKeyDigest: event.roomKeyDigest,
+        status: event.unmatchedStatus,
+        reason: event.unmatchedReason,
+        externalCalls: 0
+      }
+    });
+  }
 }
 
 export function resetProviderWebhookEventStoreForTest() {
   events.splice(0);
+  unmatchedInboundItems.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
 export function getProviderWebhookGuardrailReadinessSnapshot() {
   const latest = events[0] ?? null;
+  const latestUnmatched = unmatchedInboundItems[0] ?? null;
   return {
     webhookSignatureVerificationConfigured: true,
     webhookSignatureVerificationReady: true,
@@ -288,7 +418,24 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     ).length,
     inboundPersistenceReplayBlockedCount: events.filter((event) => event.inboundPersistenceStatus === "blocked-replay").length,
     inboundPersistenceSkippedNoMatchCount: events.filter((event) => event.inboundPersistenceStatus === "skipped-no-match").length,
+    webhookUnmatchedInboundReviewEnabled: true,
+    unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
+    unmatchedInboundQueuedCount: unmatchedInboundItems.length,
+    unmatchedInboundReplayBlockedCount: events.filter((event) => event.unmatchedStatus === "duplicate-skipped" || event.unmatchedReason === "blocked-replay").length,
+    latestUnmatchedInboundStatus: latestUnmatched?.unmatchedStatus ?? latest?.unmatchedStatus ?? null,
     lastSandboxEventAt: latest?.receivedAt ?? null
+  };
+}
+
+function unmatchedSkipped(
+  unmatchedStatus: ProviderWebhookUnmatchedInboundStatus | null,
+  unmatchedReason: string | null
+) {
+  return {
+    unmatchedInboundQueued: false,
+    unmatchedInboundId: null,
+    unmatchedStatus,
+    unmatchedReason
   };
 }
 
@@ -450,6 +597,13 @@ function inboundPersistenceAuditAction(status: ProviderWebhookEvent["inboundPers
   if (status === "blocked-replay") return "provider_webhook.inbound_persistence_blocked_replay";
   if (status === "skipped-no-match") return "provider_webhook.inbound_persistence_skipped_no_match";
   return "provider_webhook.inbound_persistence_attempted";
+}
+
+function unmatchedAuditAction(event: ProviderWebhookEvent) {
+  if (event.unmatchedInboundQueued) return "provider_webhook.unmatched_inbound_queued";
+  if (event.unmatchedStatus === "duplicate-skipped") return "provider_webhook.unmatched_inbound_duplicate_skipped";
+  if (event.unmatchedReason === "blocked-signature") return "provider_webhook.unmatched_inbound_blocked_signature";
+  return null;
 }
 
 function summarizePayload(payload: ProviderWebhookSandboxEventRequest["payload"]) {

@@ -197,6 +197,10 @@ function safeEventShape(value) {
     "inboundPersistenceStatus",
     "messagePersisted",
     "persistedMessageId",
+    "unmatchedInboundQueued",
+    "unmatchedInboundId",
+    "unmatchedStatus",
+    "unmatchedReason",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))

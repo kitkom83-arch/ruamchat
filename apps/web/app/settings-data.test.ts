@@ -5,6 +5,7 @@ import {
   loadSettingsChannelsData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
+  loadSettingsProviderWebhookUnmatchedInboundData,
   createSettingsProviderWebhookSandboxEvent,
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
@@ -22,6 +23,7 @@ const api = vi.hoisted(() => ({
   getSettingsTeam: vi.fn(),
   getProviderReadiness: vi.fn(),
   getProviderWebhookEvents: vi.fn(),
+  getProviderWebhookUnmatchedInbound: vi.fn(),
   createProviderWebhookSandboxEvent: vi.fn()
 }));
 
@@ -32,6 +34,7 @@ vi.mock("./api-client", () => ({
   getSettingsTeam: api.getSettingsTeam,
   getProviderReadiness: api.getProviderReadiness,
   getProviderWebhookEvents: api.getProviderWebhookEvents,
+  getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
   createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent
 }));
 
@@ -42,6 +45,7 @@ beforeEach(() => {
   api.getSettingsTeam.mockReset();
   api.getProviderReadiness.mockReset();
   api.getProviderWebhookEvents.mockReset();
+  api.getProviderWebhookUnmatchedInbound.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
 });
 
@@ -158,6 +162,25 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify(data.events)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson/i);
   });
 
+  it("loads unmatched inbound review items from API mode without exposing raw values", async () => {
+    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]);
+
+    const data = await loadSettingsProviderWebhookUnmatchedInboundData("api");
+
+    expect(api.getProviderWebhookUnmatchedInbound).toHaveBeenCalled();
+    expect(data.mode).toBe("api");
+    expect(data.items[0]).toMatchObject({
+      id: "provider-webhook-unmatched-api",
+      provider: "line",
+      channelAccountId: "sandbox:line",
+      conversationLookupStatus: "not-found",
+      unmatchedStatus: "review-needed",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(data.items)).not.toContain("raw-line-token");
+    expect(JSON.stringify(data.items)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
+  });
+
   it("creates provider webhook sandbox events through API mode without local fallback", async () => {
     api.createProviderWebhookSandboxEvent.mockResolvedValueOnce(providerWebhookEventResponse("provider-webhook-event-created", "telegram"));
 
@@ -182,6 +205,10 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookEvents.mockRejectedValueOnce(new Error("API request failed (503): webhook events unavailable"));
 
     await expect(loadSettingsProviderWebhookEventsData("api")).rejects.toThrow("webhook events unavailable");
+
+    api.getProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): unmatched unavailable"));
+
+    await expect(loadSettingsProviderWebhookUnmatchedInboundData("api")).rejects.toThrow("unmatched unavailable");
 
     api.createProviderWebhookSandboxEvent.mockRejectedValueOnce(new Error("API request failed (503): sandbox intake unavailable"));
 
@@ -209,6 +236,7 @@ describe("settings API-mode data loaders", () => {
     expect(channels.channels).toEqual(mockSettingsChannels);
     expect(readiness.providerReadiness).toEqual(mockProviderReadiness);
     expect((await loadSettingsProviderWebhookEventsData("mock")).events).toEqual(mockProviderWebhookEvents);
+    expect((await loadSettingsProviderWebhookUnmatchedInboundData("mock")).items[0]?.unmatchedStatus).toBe("review-needed");
     expect(team.members.map((member) => member.id)).toEqual(["agent-may", "agent-ton", "agent-beam", "agent-nok"]);
     expect(team.slaPolicies.map((policy) => policy.priorityScope)).toEqual(["low", "medium", "high", "urgent"]);
     expect(team.cannedReplies.map((reply) => reply.shortcut)).toEqual(["/hello", "/price", "/followup", "/human"]);
@@ -217,6 +245,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsSlaPolicies).not.toHaveBeenCalled();
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
   });
 
   it("maps inbox canned replies from API responses and keeps API empty states separate from mock data", () => {
@@ -400,6 +429,11 @@ function providerReadinessResponse() {
     inboundPersistenceBlockedCount: 0,
     inboundPersistenceReplayBlockedCount: 0,
     inboundPersistenceSkippedNoMatchCount: 0,
+    webhookUnmatchedInboundReviewEnabled: true,
+    unmatchedInboundOpenCount: 1,
+    unmatchedInboundQueuedCount: 1,
+    unmatchedInboundReplayBlockedCount: 0,
+    latestUnmatchedInboundStatus: "review-needed",
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -468,7 +502,38 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     messagePersisted: false,
     persistedMessageId: null,
     conversationId: null,
+    unmatchedInboundQueued: true,
+    unmatchedInboundId: "provider-webhook-unmatched-api",
+    unmatchedStatus: "review-needed",
+    unmatchedReason: "safe-review-required-no-conversation-match",
     inboundAuditStatus: "recorded",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
+  return {
+    id,
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider,
+    channelAccountId: `sandbox:${provider}`,
+    mode: "sandbox",
+    eventType: "message.created",
+    normalizedEventType: "message",
+    messageType: "text",
+    normalizationStatus: "normalized",
+    routingStatus: "dry-run-only",
+    conversationLookupStatus: "not-found",
+    unmatchedStatus: "review-needed",
+    unmatchedReason: "safe-review-required-no-conversation-match",
+    payloadDigest: "sha256:safeeventdigest",
+    providerEventDigest: "sha256:safededupdigest",
+    deliveryDigest: "sha256:safededupdigest",
+    senderKeyDigest: "sha256:safesenderdigest",
+    roomKeyDigest: "sha256:saferoomdigest",
+    textPreview: "Safe sandbox preview",
+    textLength: 20,
+    receivedAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0
   };
 }

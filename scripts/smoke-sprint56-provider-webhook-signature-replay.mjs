@@ -179,6 +179,10 @@ function safeEventShape(value) {
     "senderKeyDigest",
     "textLength",
     "textPreview",
+    "unmatchedInboundQueued",
+    "unmatchedInboundId",
+    "unmatchedStatus",
+    "unmatchedReason",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))

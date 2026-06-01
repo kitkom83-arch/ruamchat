@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookEvent } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -10,7 +10,8 @@ describe("ProviderReadinessPanel", () => {
       readiness: providerReadiness(),
       loading: false,
       error: "",
-      webhookEvents: [providerWebhookEvent()]
+      webhookEvents: [providerWebhookEvent()],
+      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()]
     }));
 
     expect(html).toContain("Provider sandbox readiness");
@@ -35,6 +36,11 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("inboundPersistenceBlockedCount=1");
     expect(html).toContain("inboundPersistenceReplayBlockedCount=1");
     expect(html).toContain("inboundPersistenceSkippedNoMatchCount=1");
+    expect(html).toContain("unmatched inbound review=enabled");
+    expect(html).toContain("open unmatched count=1");
+    expect(html).toContain("unmatched queued count=2");
+    expect(html).toContain("unmatched replay blocked count=1");
+    expect(html).toContain("latest unmatched status=review-needed");
     expect(html).toContain("replayDetectedCount=1");
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
@@ -52,6 +58,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("inboundPersistence=blocked-replay");
     expect(html).toContain("messagePersisted=false");
     expect(html).toContain("messageId=none");
+    expect(html).toContain("unmatchedQueued=false");
+    expect(html).toContain("unmatchedStatus=duplicate-skipped");
+    expect(html).toContain("unmatchedReason=blocked-replay");
+    expect(html).toContain("unmatchedId=provider-webhook-unmatched-1");
+    expect(html).toContain("Unmatched inbound review");
+    expect(html).toContain("LINE unmatched inbound");
+    expect(html).toContain("safe-review-required-no-conversation-match");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("signatureVerified=true");
@@ -85,10 +98,14 @@ describe("ProviderReadinessPanel", () => {
       error: "",
       webhookEvents: [],
       webhookEventsLoading: false,
-      webhookEventsError: "Webhook Events API error: Failed to fetch"
+      webhookEventsError: "Webhook Events API error: Failed to fetch",
+      unmatchedInboundItems: [],
+      unmatchedInboundLoading: false,
+      unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch"
     }));
 
     expect(html).toContain("Webhook Events API error: Failed to fetch");
+    expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).not.toContain("payloadFieldCount=");
     expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|Bearer|sk-/i);
   });
@@ -126,6 +143,11 @@ function providerReadiness(): ProviderReadiness {
     inboundPersistenceBlockedCount: 1,
     inboundPersistenceReplayBlockedCount: 1,
     inboundPersistenceSkippedNoMatchCount: 1,
+    webhookUnmatchedInboundReviewEnabled: true,
+    unmatchedInboundOpenCount: 1,
+    unmatchedInboundQueuedCount: 2,
+    unmatchedInboundReplayBlockedCount: 1,
+    latestUnmatchedInboundStatus: "review-needed",
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -194,7 +216,38 @@ function providerWebhookEvent(): ProviderWebhookEvent {
     messagePersisted: false,
     persistedMessageId: null,
     conversationId: null,
+    unmatchedInboundQueued: false,
+    unmatchedInboundId: "provider-webhook-unmatched-1",
+    unmatchedStatus: "duplicate-skipped",
+    unmatchedReason: "blocked-replay",
     inboundAuditStatus: "recorded",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundItem {
+  return {
+    id: "provider-webhook-unmatched-1",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    mode: "sandbox",
+    eventType: "message.created",
+    normalizedEventType: "message",
+    messageType: "text",
+    normalizationStatus: "normalized",
+    routingStatus: "dry-run-only",
+    conversationLookupStatus: "not-found",
+    unmatchedStatus: "review-needed",
+    unmatchedReason: "safe-review-required-no-conversation-match",
+    payloadDigest: "sha256:safeeventdigest",
+    providerEventDigest: "sha256:safededupdigest",
+    deliveryDigest: "sha256:safededupdigest",
+    senderKeyDigest: "sha256:safesenderdigest",
+    roomKeyDigest: "sha256:saferoomdigest",
+    textPreview: "Safe sandbox preview",
+    textLength: 20,
+    receivedAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0
   };
 }

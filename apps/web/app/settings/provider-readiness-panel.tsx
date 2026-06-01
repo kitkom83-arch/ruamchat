@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { RadioTower, Send, ShieldCheck } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -9,6 +9,9 @@ type ProviderReadinessPanelProps = {
   webhookEvents?: ProviderWebhookEvent[];
   webhookEventsLoading?: boolean;
   webhookEventsError?: string;
+  unmatchedInboundItems?: ProviderWebhookUnmatchedInboundItem[];
+  unmatchedInboundLoading?: boolean;
+  unmatchedInboundError?: string;
   webhookEventSaving?: boolean;
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
 };
@@ -24,6 +27,9 @@ export function ProviderReadinessPanel({
   webhookEvents = [],
   webhookEventsLoading = false,
   webhookEventsError = "",
+  unmatchedInboundItems = [],
+  unmatchedInboundLoading = false,
+  unmatchedInboundError = "",
   webhookEventSaving = false,
   onCreateSandboxEvent
 }: ProviderReadinessPanelProps) {
@@ -88,6 +94,11 @@ export function ProviderReadinessPanel({
         e("span", null, `inboundPersistenceBlockedCount=${readiness.inboundPersistenceBlockedCount}`),
         e("span", null, `inboundPersistenceReplayBlockedCount=${readiness.inboundPersistenceReplayBlockedCount}`),
         e("span", null, `inboundPersistenceSkippedNoMatchCount=${readiness.inboundPersistenceSkippedNoMatchCount}`),
+        e("span", null, `unmatched inbound review=${readiness.webhookUnmatchedInboundReviewEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
+        e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
+        e("span", null, `unmatched replay blocked count=${readiness.unmatchedInboundReplayBlockedCount}`),
+        e("span", null, `latest unmatched status=${readiness.latestUnmatchedInboundStatus ?? "none"}`),
         e("span", null, `replayDetectedCount=${replayDetectedCount}`)
       ) : null
     ),
@@ -108,7 +119,8 @@ export function ProviderReadinessPanel({
           e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`),
           e("span", null, `signature=${lastEvent.signatureStatus} / replay=${lastEvent.replayStatus}`),
           e("span", null, `normalization=${lastEvent.normalizationStatus} / routing=${lastEvent.routingStatus}`),
-          e("span", null, `inboundPersistence=${lastEvent.inboundPersistenceStatus} / messagePersisted=${String(lastEvent.messagePersisted)}`)
+          e("span", null, `inboundPersistence=${lastEvent.inboundPersistenceStatus} / messagePersisted=${String(lastEvent.messagePersisted)}`),
+          e("span", null, `unmatchedQueued=${String(lastEvent.unmatchedInboundQueued)} / unmatchedStatus=${lastEvent.unmatchedStatus ?? "none"}`)
         ) : null
       ),
       webhookEventsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, webhookEventsError) : null,
@@ -182,6 +194,10 @@ export function ProviderReadinessPanel({
             e("span", null, `inboundPersistence=${event.inboundPersistenceStatus}`),
             e("span", null, `messagePersisted=${String(event.messagePersisted)}`),
             e("span", null, `messageId=${event.persistedMessageId ?? "none"}`),
+            e("span", null, `unmatchedQueued=${String(event.unmatchedInboundQueued)}`),
+            e("span", null, `unmatchedStatus=${event.unmatchedStatus ?? "none"}`),
+            e("span", null, `unmatchedReason=${event.unmatchedReason ?? "none"}`),
+            e("span", null, `unmatchedId=${event.unmatchedInboundId ?? "none"}`),
             e("span", null, `externalCalls=${event.externalCalls}`),
             e("span", null, formatDate(event.receivedAt))
           ),
@@ -189,6 +205,38 @@ export function ProviderReadinessPanel({
           e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)} / dryRunRouting=${String(event.dryRunRouting)} / conversationKeyDigest=${event.conversationKeyDigest ?? "none"} / roomIdDigest=${event.roomIdDigest ?? "none"} / conversationId=${event.conversationId ?? "none"} / inboundAuditStatus=${event.inboundAuditStatus}`)
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
+    ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Unmatched inbound review queue" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", null,
+          e("h3", null, "Unmatched inbound review"),
+          e("p", null, "Sandbox no-match queue with safe digests only.")
+        )
+      ),
+      unmatchedInboundError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedInboundError) : null,
+      unmatchedInboundLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound review items...") : null,
+      unmatchedInboundItems.length > 0 ? e("div", { className: "webhookEventList" },
+        ...unmatchedInboundItems.slice(0, 5).map((item) => e("article", { key: item.id, className: "webhookEventRow" },
+          e("div", null,
+            e("strong", null, `${providerLabel(item.provider)} unmatched inbound`),
+            e("span", null, `${item.eventType} / ${item.unmatchedStatus}`)
+          ),
+          e("div", null,
+            e("span", null, `id=${item.id}`),
+            e("span", null, `channelAccountId=${item.channelAccountId ?? "none"}`),
+            e("span", null, `normalization=${item.normalizationStatus}`),
+            e("span", null, `normalizedEventType=${item.normalizedEventType}`),
+            e("span", null, `messageType=${item.messageType}`),
+            e("span", null, `routing=${item.routingStatus}`),
+            e("span", null, `lookup=${item.conversationLookupStatus}`),
+            e("span", null, `reason=${item.unmatchedReason}`),
+            e("span", null, `externalCalls=${item.externalCalls}`),
+            e("span", null, formatDate(item.receivedAt))
+          ),
+          item.textPreview ? e("p", null, item.textPreview) : null,
+          e("small", null, `payloadDigest=${item.payloadDigest} / providerEventDigest=${item.providerEventDigest ?? "none"} / deliveryDigest=${item.deliveryDigest ?? "none"} / senderKeyDigest=${item.senderKeyDigest ?? "none"} / roomKeyDigest=${item.roomKeyDigest ?? "none"} / textLength=${item.textLength ?? "none"}`)
+        ))
+      ) : !unmatchedInboundLoading && !unmatchedInboundError ? e("div", { className: "providerEmptyState" }, "No unmatched inbound review items.") : null
     )
   );
 }

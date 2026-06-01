@@ -15,6 +15,7 @@ import {
   aiSuggestionFeedbackSchema,
   apiHealthSchema,
   providerWebhookEventSchema,
+  providerWebhookUnmatchedInboundItemSchema,
   providerWebhookSandboxEventRequestSchema,
   coreConversationCardSchema,
   coreConversationTabSchema,
@@ -156,6 +157,7 @@ import {
   type Platform,
   type ProviderReadiness,
   type ProviderWebhookEvent,
+  type ProviderWebhookUnmatchedInboundItem,
   type ProviderWebhookSandboxEventRequest,
   type RoomAiPolicy,
   type RoomAiPolicyPatch,
@@ -250,6 +252,10 @@ export async function getProviderReadiness(): Promise<ProviderReadiness> {
 
 export async function getProviderWebhookEvents(): Promise<ProviderWebhookEvent[]> {
   return request("/provider-webhooks/events", providerWebhookEventSchema.array());
+}
+
+export async function getProviderWebhookUnmatchedInbound(): Promise<ProviderWebhookUnmatchedInboundItem[]> {
+  return request("/provider-webhooks/unmatched-inbound", providerWebhookUnmatchedInboundItemSchema.array());
 }
 
 export async function createProviderWebhookSandboxEvent(payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {
