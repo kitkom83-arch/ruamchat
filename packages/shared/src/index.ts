@@ -1962,6 +1962,34 @@ export type ProviderWebhookSignatureStatus = z.infer<typeof providerWebhookSigna
 export const providerWebhookReplayStatusSchema = z.enum(["fresh", "duplicate", "replay-blocked"]);
 export type ProviderWebhookReplayStatus = z.infer<typeof providerWebhookReplayStatusSchema>;
 
+export const providerWebhookNormalizationStatusSchema = z.enum([
+  "normalized",
+  "skipped",
+  "failed",
+  "blocked-signature",
+  "blocked-replay",
+  "unsupported"
+]);
+export type ProviderWebhookNormalizationStatus = z.infer<typeof providerWebhookNormalizationStatusSchema>;
+
+export const providerWebhookNormalizedEventTypeSchema = z.enum(["message", "delivery", "follow", "postback", "unknown"]);
+export type ProviderWebhookNormalizedEventType = z.infer<typeof providerWebhookNormalizedEventTypeSchema>;
+
+export const providerWebhookMessageTypeSchema = z.enum(["text", "image", "file", "sticker", "unknown"]);
+export type ProviderWebhookMessageType = z.infer<typeof providerWebhookMessageTypeSchema>;
+
+export const providerWebhookRoutingStatusSchema = z.enum([
+  "dry-run-only",
+  "blocked-signature",
+  "blocked-replay",
+  "unsupported",
+  "skipped"
+]);
+export type ProviderWebhookRoutingStatus = z.infer<typeof providerWebhookRoutingStatusSchema>;
+
+export const providerWebhookConversationLookupStatusSchema = z.enum(["matched", "not-found", "skipped"]);
+export type ProviderWebhookConversationLookupStatus = z.infer<typeof providerWebhookConversationLookupStatusSchema>;
+
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
   entryCount: z.number().int().nonnegative()
@@ -1996,6 +2024,12 @@ export const providerReadinessSchema = z.object({
   lastSandboxEventSignatureStatus: providerWebhookSignatureStatusSchema.nullable(),
   latestReplayStatus: providerWebhookReplayStatusSchema.nullable(),
   replayDetectedCount: z.number().int().nonnegative(),
+  webhookNormalizationEnabled: z.boolean(),
+  webhookDryRunRoutingEnabled: z.boolean(),
+  lastSandboxEventNormalizationStatus: providerWebhookNormalizationStatusSchema.nullable(),
+  latestRoutingStatus: providerWebhookRoutingStatusSchema.nullable(),
+  normalizedEventCount: z.number().int().nonnegative(),
+  routingBlockedCount: z.number().int().nonnegative(),
   lastSandboxEventAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0),
   providers: z.array(providerReadinessProviderSchema)
@@ -2046,6 +2080,22 @@ export const providerWebhookEventSchema = z.object({
   replayStatus: providerWebhookReplayStatusSchema,
   dedupKeyDigest: z.string().min(1).nullable(),
   previousEventSeenAt: z.string().datetime().nullable(),
+  normalized: z.boolean(),
+  normalizationStatus: providerWebhookNormalizationStatusSchema,
+  normalizedEventType: providerWebhookNormalizedEventTypeSchema,
+  direction: z.literal("inbound"),
+  messageType: providerWebhookMessageTypeSchema,
+  textPreview: z.string().min(1).nullable(),
+  textLength: z.number().int().nonnegative().nullable(),
+  mediaSummary: z.string().min(1).nullable(),
+  senderKeyDigest: z.string().min(1).nullable(),
+  roomKeyDigest: z.string().min(1).nullable(),
+  dryRunRouting: z.boolean(),
+  routingStatus: providerWebhookRoutingStatusSchema,
+  conversationLookupStatus: providerWebhookConversationLookupStatusSchema,
+  conversationKeyDigest: z.string().min(1).nullable(),
+  channelAccountId: z.string().min(1).nullable(),
+  roomIdDigest: z.string().min(1).nullable(),
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;

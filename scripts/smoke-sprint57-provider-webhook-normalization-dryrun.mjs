@@ -17,15 +17,15 @@ async function main() {
   const providerPanel = readFileSync("apps/web/app/settings/provider-readiness-panel.tsx", "utf8");
   const providerService = readFileSync("apps/api/src/services/provider-webhook-events.service.ts", "utf8");
 
-  record("smoke script registered", rootPackage.scripts?.["smoke:sprint56"] === "node scripts/smoke-sprint56-provider-webhook-signature-replay.mjs");
+  record("smoke script registered", rootPackage.scripts?.["smoke:sprint57"] === "node scripts/smoke-sprint57-provider-webhook-normalization-dryrun.mjs");
+  record("Sprint 56 regression script registered", rootPackage.scripts?.["smoke:sprint56"] === "node scripts/smoke-sprint56-provider-webhook-signature-replay.mjs");
   record("Sprint 55 regression script registered", rootPackage.scripts?.["smoke:sprint55"] === "node scripts/smoke-sprint55-provider-webhook-events.mjs");
   record("Sprint 54 regression script registered", rootPackage.scripts?.["smoke:sprint54"] === "node scripts/smoke-sprint54-provider-ui-readiness.mjs");
   record("Sprint 53 regression script registered", rootPackage.scripts?.["smoke:sprint53"] === "node scripts/smoke-sprint53-provider-readiness.mjs");
   record("API client sends tenant header", apiClient.includes("\"x-tenant-id\": getApiTenantId()"));
   record("API mode event log has no mock fallback", settingsData.includes("mode === \"api\"") && settingsData.includes("await getProviderWebhookEvents()"));
-  record("provider UI renders signature and replay summaries", providerPanel.includes("signature verification=") && providerPanel.includes("replay guardrails=") && providerPanel.includes("replayDetectedCount="));
-  record("event service verifies signatures locally", providerService.includes("createHmac(\"sha256\"") && providerService.includes("signatureFingerprint"));
-  record("event service has replay guardrail", providerService.includes("dedupFirstSeenAtByDigest") && providerService.includes("replayDetected"));
+  record("provider UI renders normalization and routing summaries", providerPanel.includes("latest normalization=") && providerPanel.includes("routingBlockedCount=") && providerPanel.includes("conversationKeyDigest="));
+  record("event service normalizes and routes dry-run only", providerService.includes("normalizeSandboxEvent") && providerService.includes("summarizeDryRunRouting") && providerService.includes("dry-run-only"));
   record("event service does not call provider SDKs", !/api\.line\.me|api\.telegram\.org|graph\.facebook\.com|line\.push|telegram\.send|facebook\.send|instagram\.send/i.test(providerService));
 
   const health = await request("GET", "/health");
@@ -37,18 +37,25 @@ async function main() {
   record("GET /health/readiness reachable", readiness.status === 200);
   const readinessBody = await safeJson(readiness);
   const providerReadiness = readinessBody?.providerReadiness;
-  record("readiness exposes signature/replay summary", providerReadiness?.webhookSignatureVerificationReady === true && providerReadiness?.replayGuardrailsEnabled === true && typeof providerReadiness?.replayDetectedCount === "number");
+  record("readiness exposes normalization/routing summary", providerReadiness?.webhookNormalizationEnabled === true && providerReadiness?.webhookDryRunRoutingEnabled === true && typeof providerReadiness?.normalizedEventCount === "number" && typeof providerReadiness?.routingBlockedCount === "number");
   record("readiness externalCalls=0", noNonzeroExternalCalls(readinessBody));
-  record("Sprint 54 readiness regression passes", providerReadiness?.providers?.every((provider) => provider.outboundEnabled === false) && readinessBody?.monitoring?.providerPayloadsExposed === false);
-  record("Sprint 53 readiness regression passes", providerReadiness?.realOutboundEnabled === false && safeProviderReadiness(providerReadiness));
+  record("readiness remains safe", safeProviderReadiness(providerReadiness) && noRawSecretFields(readinessBody));
 
   const before = await request("GET", "/provider-webhooks/events");
   record("GET /provider-webhooks/events reachable", before.status === 200);
   const beforeBody = await safeJson(before);
   record("initial event list is safe", Array.isArray(beforeBody) && noRawSecretFields(beforeBody) && noRawPayloadValues(beforeBody));
 
-  const payload = { message: { type: "text", length: 21 }, sample: true };
-  const eventId = `sprint56-event-${Date.now()}`;
+  const eventId = `sprint57-event-${Date.now()}`;
+  const payload = {
+    events: [{
+      type: "message",
+      timestamp: 1760000000000,
+      replyToken: "raw-reply-token-sprint57",
+      source: { type: "room", userId: "raw-sender-sprint57", roomId: "raw-room-sprint57" },
+      message: { id: "raw-message-sprint57", type: "text", text: "Safe sandbox message for routing" }
+    }]
+  };
   const validSignature = signPayload(payload);
   const validEvent = {
     provider: "line",
@@ -57,7 +64,7 @@ async function main() {
     mode: "sandbox",
     status: "received",
     eventId,
-    timestamp: "2026-05-31T02:00:00.000Z",
+    timestamp: "2026-06-01T02:00:00.000Z",
     signature: validSignature,
     payload
   };
@@ -67,41 +74,52 @@ async function main() {
   const validBody = await safeJson(valid);
   record("valid event signature verified", validBody?.signatureVerified === true && validBody?.signatureStatus === "verified");
   record("valid event replay fresh", validBody?.replayDetected === false && validBody?.replayStatus === "fresh");
+  record("valid event normalized", validBody?.normalized === true && validBody?.normalizationStatus === "normalized");
+  record("valid event normalized event/message type present", validBody?.normalizedEventType === "message" && validBody?.messageType === "text");
+  record("valid event dry-run routed", validBody?.dryRunRouting === true && validBody?.routingStatus === "dry-run-only" && validBody?.conversationLookupStatus === "not-found");
+  record("valid event route digest only", isDigest(validBody?.conversationKeyDigest) && isDigest(validBody?.roomIdDigest) && isDigest(validBody?.senderKeyDigest) && isDigest(validBody?.roomKeyDigest));
   record("valid event externalCalls=0", validBody?.externalCalls === 0);
   record("valid event safe DTO", safeEventShape(validBody) && noRawSecretFields(validBody) && noRawPayloadValues(validBody));
   record("valid event raw signature not returned", !JSON.stringify(validBody ?? {}).includes(validSignature));
-  record("valid event raw dedup id not returned", !JSON.stringify(validBody ?? {}).includes(eventId));
+  record("valid event raw ids not returned", !/raw-sender-sprint57|raw-room-sprint57|raw-message-sprint57|raw-reply-token-sprint57/.test(JSON.stringify(validBody ?? {})));
 
   const invalid = await request("POST", "/provider-webhooks/sandbox-events", {
     ...validEvent,
     eventId: `${eventId}-invalid`,
-    signature: "sha256=invalid-sprint56-proof",
-    payload: { sample: true, message: { type: "text", length: 22 } }
+    signature: "sha256=invalid-sprint57-proof",
+    payload: {
+      events: [{
+        type: "message",
+        source: { type: "user", userId: "raw-invalid-user" },
+        message: { id: "raw-invalid-message", type: "text", text: "Safe invalid signature sample" }
+      }]
+    }
   });
   record("POST invalid signature sandbox event reachable", invalid.status === 201 || invalid.status === 200);
   const invalidBody = await safeJson(invalid);
-  record("invalid signature failed safely", invalidBody?.signatureVerified === false && invalidBody?.signatureStatus === "failed" && invalidBody?.externalCalls === 0);
-  record("invalid signature raw value not returned", !JSON.stringify(invalidBody ?? {}).includes("invalid-sprint56-proof"));
+  record("invalid signature normalization blocked", invalidBody?.signatureStatus === "failed" && invalidBody?.normalizationStatus === "blocked-signature" && invalidBody?.routingStatus === "blocked-signature");
+  record("invalid signature routing skipped lookup", invalidBody?.conversationLookupStatus === "skipped" && invalidBody?.externalCalls === 0);
   record("invalid event safe DTO", safeEventShape(invalidBody) && noRawSecretFields(invalidBody) && noRawPayloadValues(invalidBody));
 
   const duplicate = await request("POST", "/provider-webhooks/sandbox-events", validEvent);
   record("POST duplicate sandbox event reachable", duplicate.status === 201 || duplicate.status === 200);
   const duplicateBody = await safeJson(duplicate);
-  record("duplicate event replay detected", duplicateBody?.replayDetected === true && ["duplicate", "replay-blocked"].includes(duplicateBody?.replayStatus));
-  record("duplicate event externalCalls=0", duplicateBody?.externalCalls === 0);
-  record("duplicate event safe DTO", safeEventShape(duplicateBody) && noRawSecretFields(duplicateBody) && noRawPayloadValues(duplicateBody));
+  record("duplicate replay detected", duplicateBody?.replayDetected === true && ["duplicate", "replay-blocked"].includes(duplicateBody?.replayStatus));
+  record("duplicate dry-run routing blocked", duplicateBody?.normalizationStatus === "blocked-replay" && duplicateBody?.routingStatus === "blocked-replay" && duplicateBody?.conversationLookupStatus === "skipped");
+  record("duplicate did not create unsafe routing action", duplicateBody?.conversationKeyDigest === null && duplicateBody?.externalCalls === 0);
+  record("duplicate safe DTO", safeEventShape(duplicateBody) && noRawSecretFields(duplicateBody) && noRawPayloadValues(duplicateBody));
 
   const after = await request("GET", "/provider-webhooks/events");
   record("GET /provider-webhooks/events after creates reachable", after.status === 200);
   const afterBody = await safeJson(after);
+  const validFound = Array.isArray(afterBody) ? afterBody.find((event) => event.id === validBody?.id) : null;
   const duplicateFound = Array.isArray(afterBody) ? afterBody.find((event) => event.id === duplicateBody?.id) : null;
-  record("event log includes safe signature/replay fields", Boolean(duplicateFound) && safeEventShape(duplicateFound));
+  record("event log includes safe normalization/routing fields", Boolean(validFound) && safeEventShape(validFound) && Boolean(duplicateFound) && safeEventShape(duplicateFound));
   record("event log raw payload not returned", noRawSecretFields(afterBody) && noRawPayloadValues(afterBody));
   record("event log raw signature not returned", !JSON.stringify(afterBody ?? {}).includes(validSignature));
   record("event log externalCalls=0", noNonzeroExternalCalls(afterBody));
   record("no provider outbound", !containsProviderOutbound({ healthBody, readinessBody, validBody, invalidBody, duplicateBody, afterBody }));
   record("no live provider network call evidence", noLiveProviderNetworkEvidence({ healthBody, readinessBody, validBody, invalidBody, duplicateBody, afterBody }));
-  record("Sprint 55 event log regression passes", Array.isArray(afterBody) && afterBody.every((event) => safeEventShape(event)) && noRawPayloadValues(afterBody));
 
   finish();
 }
@@ -141,9 +159,6 @@ function safeEventShape(value) {
     "tenantId",
     "provider",
     "channel",
-    "channelAccountId",
-    "conversationKeyDigest",
-    "conversationLookupStatus",
     "eventType",
     "mode",
     "status",
@@ -151,13 +166,6 @@ function safeEventShape(value) {
     "payloadSummary",
     "payloadFieldCount",
     "payloadDigest",
-    "direction",
-    "dryRunRouting",
-    "mediaSummary",
-    "messageType",
-    "normalizationStatus",
-    "normalized",
-    "normalizedEventType",
     "signatureVerified",
     "signatureStatus",
     "signatureAlgorithm",
@@ -167,18 +175,35 @@ function safeEventShape(value) {
     "replayStatus",
     "dedupKeyDigest",
     "previousEventSeenAt",
-    "roomIdDigest",
-    "roomKeyDigest",
-    "routingStatus",
-    "senderKeyDigest",
-    "textLength",
+    "normalized",
+    "normalizationStatus",
+    "normalizedEventType",
+    "direction",
+    "messageType",
     "textPreview",
+    "textLength",
+    "mediaSummary",
+    "senderKeyDigest",
+    "roomKeyDigest",
+    "dryRunRouting",
+    "routingStatus",
+    "conversationLookupStatus",
+    "conversationKeyDigest",
+    "channelAccountId",
+    "roomIdDigest",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
+    && value.direction === "inbound"
     && value.externalCalls === 0
     && ["verified", "failed", "missing", "skipped"].includes(value.signatureStatus)
-    && ["fresh", "duplicate", "replay-blocked"].includes(value.replayStatus);
+    && ["fresh", "duplicate", "replay-blocked"].includes(value.replayStatus)
+    && ["normalized", "skipped", "failed", "blocked-signature", "blocked-replay", "unsupported"].includes(value.normalizationStatus)
+    && ["dry-run-only", "blocked-signature", "blocked-replay", "unsupported", "skipped"].includes(value.routingStatus);
+}
+
+function isDigest(value) {
+  return typeof value === "string" && /^sha256:[a-f0-9]{8,}$/i.test(value);
 }
 
 function isLocalBaseUrl(value) {
@@ -194,7 +219,7 @@ function safeProviderReadiness(readiness) {
   if (!readiness || typeof readiness !== "object") return false;
   if (!readiness.allowlist || typeof readiness.allowlist.entryCount !== "number") return false;
   const serialized = JSON.stringify(readiness);
-  const rawProviderValues = /line-test-recipient|telegram-test-chat|messenger-test-recipient|instagram-test-recipient|fb-user-|ig-user-|U-sprint|replyToken/i;
+  const rawProviderValues = /line-test-recipient|telegram-test-chat|messenger-test-recipient|instagram-test-recipient|fb-user-|ig-user-|U-sprint|replyToken|raw-room|raw-sender/i;
   const rawProviderKeys = /"(messaging|events|rawPayload|providerRaw|payloadJson)"\s*:/i;
   return !rawProviderValues.test(serialized) && !rawProviderKeys.test(serialized);
 }
@@ -247,7 +272,8 @@ function findUnsafeSecretPath(value) {
     "signature",
     "payloadJson",
     "providerRaw",
-    "rawPayload"
+    "rawPayload",
+    "replyToken"
   ]);
   const stack = [{ value, path: "$" }];
   while (stack.length > 0) {
@@ -266,7 +292,7 @@ function findUnsafeSecretPath(value) {
 }
 
 function noRawPayloadValues(value) {
-  return !/sensitive-sample-a|sensitive-sample-b|sensitive-sample-c|sensitive-sample-d|sensitive-sample-e|sensitive-provider-body|invalid-sprint56-proof/i.test(JSON.stringify(value ?? {}));
+  return !/sensitive-sample-|sensitive-provider-body|invalid-sprint57-proof|raw-sender-sprint57|raw-room-sprint57|raw-message-sprint57|raw-reply-token-sprint57|raw-invalid-user|raw-invalid-message/i.test(JSON.stringify(value ?? {}));
 }
 
 function looksRawSecret(value) {
@@ -279,7 +305,7 @@ function finish() {
   const failed = results.filter((result) => !result.ok);
   console.log(JSON.stringify({ baseUrl, tenantId, externalCalls: 0, results }, null, 2));
   if (failed.length > 0) {
-    throw new Error(`Sprint 56 smoke failed: ${failed.map((item) => item.name).join(", ")}`);
+    throw new Error(`Sprint 57 smoke failed: ${failed.map((item) => item.name).join(", ")}`);
   }
 }
 
