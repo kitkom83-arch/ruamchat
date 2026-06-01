@@ -3,6 +3,7 @@ import {
   providerSandboxProviders,
   summarizeProviderSandboxAllowlist
 } from "@ai-omni/shared";
+import { getProviderWebhookGuardrailReadinessSnapshot } from "./services/provider-webhook-events.service.js";
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -30,12 +31,17 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
   const realOutboundEnabled = providerOutboundEnabled && sandboxEnabled && providerChannelEnabled && allowlist.configured;
   const databaseConfigured = configured(env.DATABASE_URL);
   const redisConfigured = configured(env.REDIS_URL);
+  const webhookGuardrails = getProviderWebhookGuardrailReadinessSnapshot();
 
   return {
     status: "ok" as const,
     service: "api" as const,
     time: new Date().toISOString(),
     externalCalls: 0 as const,
+    allowlist: {
+      configured: allowlist.configured,
+      entryCount: allowlist.entryCount
+    },
     apiMode: {
       apiMode,
       dataMode,
@@ -58,13 +64,18 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
       metaChannelMode,
       realOutboundEnabled,
       allowlistCount: allowlist.entryCount,
-      externalCalls: 0 as const,
       allowlist: {
         configured: allowlist.configured,
-        entryCount: allowlist.entryCount,
-        globalEntryCount: allowlist.globalEntryCount,
-        providers: allowlist.providers
+        entryCount: allowlist.entryCount
       },
+      webhookSignatureVerificationConfigured: webhookGuardrails.webhookSignatureVerificationConfigured,
+      webhookSignatureVerificationReady: webhookGuardrails.webhookSignatureVerificationReady,
+      replayGuardrailsEnabled: webhookGuardrails.replayGuardrailsEnabled,
+      lastSandboxEventSignatureStatus: webhookGuardrails.lastSandboxEventSignatureStatus,
+      latestReplayStatus: webhookGuardrails.latestReplayStatus,
+      replayDetectedCount: webhookGuardrails.replayDetectedCount,
+      lastSandboxEventAt: webhookGuardrails.lastSandboxEventAt,
+      externalCalls: 0 as const,
       providers: providerSandboxProviders.map((name) => providerReadiness(name, env, {
         providerOutboundEnabled,
         sandboxEnabled,
@@ -106,9 +117,6 @@ function providerReadiness(
     configured: credentialConfigured,
     credentialStatus: credentialConfigured ? "configured" : "not_configured",
     webhookStatus: webhookConfigured ? "configured" : "not_configured",
-    allowlistStatus: allowlistConfigured ? "configured" : "not_configured",
-    allowlistEntryCount: allowlist?.entryCount ?? 0,
-    allowlistCount: allowlist?.entryCount ?? 0,
     webhookVerificationReady: webhookConfigured,
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,

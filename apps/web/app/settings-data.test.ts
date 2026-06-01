@@ -127,9 +127,9 @@ describe("settings API-mode data loaders", () => {
     expect(data.providerReadiness.providers[0]).toMatchObject({
       name: "line",
       credentialStatus: "configured",
-      webhookVerificationConfigured: true,
-      allowlistCount: 1
+      webhookVerificationConfigured: true
     });
+    expect(data.providerReadiness.providers.every((provider) => !("allowlistCount" in provider))).toBe(true);
     expect(JSON.stringify(data.providerReadiness)).not.toContain("U-raw-provider-test");
     expect(JSON.stringify(data.providerReadiness)).not.toMatch(/token|secret|providerRaw|rawPayload|payloadJson/i);
   });
@@ -155,7 +155,7 @@ describe("settings API-mode data loaders", () => {
       externalCalls: 0
     });
     expect(JSON.stringify(data.events)).not.toContain("raw-line-token");
-    expect(JSON.stringify(data.events)).not.toMatch(/token|secret|signature|authorization|cookie|providerRaw|rawPayload|payloadJson/i);
+    expect(JSON.stringify(data.events)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson/i);
   });
 
   it("creates provider webhook sandbox events through API mode without local fallback", async () => {
@@ -378,18 +378,18 @@ function providerReadinessResponse() {
     metaChannelMode: "mock",
     realOutboundEnabled: false,
     allowlistCount: 2,
-    externalCalls: 0,
     allowlist: {
       configured: true,
-      entryCount: 2,
-      globalEntryCount: 0,
-      providers: [
-        { name: "line", entryCount: 1 },
-        { name: "telegram", entryCount: 1 },
-        { name: "facebook", entryCount: 0 },
-        { name: "instagram", entryCount: 0 }
-      ]
+      entryCount: 2
     },
+    webhookSignatureVerificationConfigured: true,
+    webhookSignatureVerificationReady: true,
+    replayGuardrailsEnabled: true,
+    lastSandboxEventSignatureStatus: "verified",
+    latestReplayStatus: "fresh",
+    replayDetectedCount: 0,
+    lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0,
     providers: [
       providerReadinessProviderResponse("line", true, true, 1),
       providerReadinessProviderResponse("telegram", true, true, 1),
@@ -400,14 +400,12 @@ function providerReadinessResponse() {
 }
 
 function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook" | "instagram", configured: boolean, webhookConfigured: boolean, allowlistCount: number) {
+  void allowlistCount;
   return {
     name,
     configured,
     credentialStatus: configured ? "configured" : "not_configured",
     webhookStatus: webhookConfigured ? "configured" : "not_configured",
-    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
-    allowlistEntryCount: allowlistCount,
-    allowlistCount,
     webhookVerificationReady: webhookConfigured,
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
@@ -428,6 +426,15 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
     payloadFieldCount: 2,
     payloadDigest: "sha256:safeeventdigest",
+    signatureVerified: true,
+    signatureStatus: "verified",
+    signatureAlgorithm: "hmac-sha256",
+    signatureFingerprint: "sha256:safesignature",
+    signedAt: "2026-05-31T00:00:00.000Z",
+    replayDetected: false,
+    replayStatus: "fresh",
+    dedupKeyDigest: "sha256:safededupdigest",
+    previousEventSeenAt: null,
     externalCalls: 0
   };
 }

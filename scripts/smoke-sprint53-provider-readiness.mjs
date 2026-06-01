@@ -139,7 +139,9 @@ function safeProviderReadiness(readiness) {
   if (!readiness || typeof readiness !== "object") return false;
   if (!readiness.allowlist || typeof readiness.allowlist.entryCount !== "number") return false;
   const serialized = JSON.stringify(readiness);
-  return !/line-test-recipient|telegram-test-chat|messenger-test-recipient|instagram-test-recipient|fb-user-|ig-user-|U-sprint|replyToken|messaging|events|rawPayload|providerRaw/i.test(serialized);
+  const rawProviderValues = /line-test-recipient|telegram-test-chat|messenger-test-recipient|instagram-test-recipient|fb-user-|ig-user-|U-sprint|replyToken/i;
+  const rawProviderKeys = /"(messaging|events|rawPayload|providerRaw)"\s*:/i;
+  return !rawProviderValues.test(serialized) && !rawProviderKeys.test(serialized);
 }
 
 function isLocalBaseUrl(value) {

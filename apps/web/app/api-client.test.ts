@@ -106,6 +106,7 @@ describe("frontend API client", () => {
     expect(readiness.externalCalls).toBe(0);
     expect(readiness.allowlistCount).toBe(2);
     expect(readiness.providers.map((provider) => provider.name)).toEqual(["line", "telegram", "facebook", "instagram"]);
+    expect(readiness.providers.every((provider) => !("allowlistCount" in provider))).toBe(true);
     expect(JSON.stringify(readiness)).not.toContain("U-raw-provider-test");
     expect(JSON.stringify(readiness)).not.toMatch(/token|secret|payloadJson|providerRaw|rawPayload/i);
   });
@@ -127,10 +128,12 @@ describe("frontend API client", () => {
       channel: "telegram",
       eventType: "webhook.verified",
       mode: "dry_run",
+      eventId: "safe-event-id-1",
+      timestamp: "2026-05-31T00:00:00.000Z",
+      signature: "sha256=sensitive-sample-b",
       payload: {
         updateId: "safe-update",
-        token: "sensitive-sample-a",
-        signature: "sensitive-sample-b"
+        token: "sensitive-sample-a"
       }
     });
 
@@ -140,13 +143,15 @@ describe("frontend API client", () => {
       provider: "telegram",
       channel: "telegram",
       eventType: "webhook.verified",
-      mode: "dry_run"
+      mode: "dry_run",
+      eventId: "safe-event-id-1",
+      signature: "sha256=sensitive-sample-b"
     });
     expectTenantHeaderForAll(fetchMock);
     expect(events[0]?.externalCalls).toBe(0);
     expect(created.provider).toBe("telegram");
     expect(JSON.stringify({ events, created })).not.toContain("sensitive-sample-a");
-    expect(JSON.stringify({ events, created })).not.toMatch(/token|secret|signature|authorization|cookie|rawPayload|providerRaw|payloadJson/i);
+    expect(JSON.stringify({ events, created })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson/i);
   });
 
   it("surfaces provider webhook event API errors without local fallback", async () => {
@@ -944,6 +949,10 @@ function providerReadinessResponse() {
     service: "api",
     time: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
+    allowlist: {
+      configured: true,
+      entryCount: 2
+    },
     apiMode: {
       apiMode: "api",
       dataMode: "api",
@@ -966,18 +975,18 @@ function providerReadinessResponse() {
       metaChannelMode: "mock",
       realOutboundEnabled: false,
       allowlistCount: 2,
-      externalCalls: 0,
       allowlist: {
         configured: true,
-        entryCount: 2,
-        globalEntryCount: 0,
-        providers: [
-          { name: "line", entryCount: 1 },
-          { name: "telegram", entryCount: 1 },
-          { name: "facebook", entryCount: 0 },
-          { name: "instagram", entryCount: 0 }
-        ]
+        entryCount: 2
       },
+      webhookSignatureVerificationConfigured: true,
+      webhookSignatureVerificationReady: true,
+      replayGuardrailsEnabled: true,
+      lastSandboxEventSignatureStatus: "verified",
+      latestReplayStatus: "fresh",
+      replayDetectedCount: 0,
+      lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
+      externalCalls: 0,
       providers: [
         providerReadinessProviderResponse("line", true, true, 1),
         providerReadinessProviderResponse("telegram", true, true, 1),
@@ -997,14 +1006,12 @@ function providerReadinessResponse() {
 }
 
 function providerReadinessProviderResponse(name: "line" | "telegram" | "facebook" | "instagram", configured: boolean, webhookConfigured: boolean, allowlistCount: number) {
+  void allowlistCount;
   return {
     name,
     configured,
     credentialStatus: configured ? "configured" : "not_configured",
     webhookStatus: webhookConfigured ? "configured" : "not_configured",
-    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
-    allowlistEntryCount: allowlistCount,
-    allowlistCount,
     webhookVerificationReady: webhookConfigured,
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
@@ -1025,6 +1032,15 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
     payloadFieldCount: 2,
     payloadDigest: "sha256:safeeventdigest",
+    signatureVerified: true,
+    signatureStatus: "verified",
+    signatureAlgorithm: "hmac-sha256",
+    signatureFingerprint: "sha256:safesignature",
+    signedAt: "2026-05-31T00:00:00.000Z",
+    replayDetected: false,
+    replayStatus: "fresh",
+    dedupKeyDigest: "sha256:safededupdigest",
+    previousEventSeenAt: null,
     externalCalls: 0
   };
 }

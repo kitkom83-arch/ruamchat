@@ -119,6 +119,15 @@ function safeEventShape(value) {
     "payloadSummary",
     "payloadFieldCount",
     "payloadDigest",
+    "signatureVerified",
+    "signatureStatus",
+    "signatureAlgorithm",
+    "signatureFingerprint",
+    "signedAt",
+    "replayDetected",
+    "replayStatus",
+    "dedupKeyDigest",
+    "previousEventSeenAt",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key)) && value.externalCalls === 0;

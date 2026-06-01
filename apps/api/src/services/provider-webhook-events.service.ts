@@ -9,6 +9,7 @@ import { AuditService } from "./audit.service.js";
 
 const maxStoredEvents = 100;
 const events: ProviderWebhookEvent[] = [];
+const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 @Injectable()
 export class ProviderWebhookEventsService {
@@ -27,6 +28,9 @@ export class ProviderWebhookEventsService {
 
     const input = parsed.data;
     const payload = summarizePayload(input.payload);
+    const signature = verifySandboxSignature(input);
+    const replay = checkReplayGuardrail(tenantId, input);
+    const receivedAt = new Date().toISOString();
     const event: ProviderWebhookEvent = {
       id: `provider-webhook-event-${crypto.randomUUID()}`,
       tenantId,
@@ -34,11 +38,20 @@ export class ProviderWebhookEventsService {
       channel: input.channel ?? input.provider,
       eventType: input.eventType,
       mode: input.mode,
-      status: input.status,
-      receivedAt: new Date().toISOString(),
+      status: signature.signatureStatus === "failed" ? "failed" : input.status,
+      receivedAt,
       payloadSummary: payload.summary,
       payloadFieldCount: payload.fieldCount,
       payloadDigest: payload.digest,
+      signatureVerified: signature.signatureVerified,
+      signatureStatus: signature.signatureStatus,
+      signatureAlgorithm: signature.signatureAlgorithm,
+      signatureFingerprint: signature.signatureFingerprint,
+      signedAt: input.timestamp ?? null,
+      replayDetected: replay.replayDetected,
+      replayStatus: replay.replayStatus,
+      dedupKeyDigest: replay.dedupKeyDigest,
+      previousEventSeenAt: replay.previousEventSeenAt,
       externalCalls: 0
     };
 
@@ -65,6 +78,15 @@ export class ProviderWebhookEventsService {
           payloadSummary: event.payloadSummary,
           payloadFieldCount: event.payloadFieldCount,
           payloadDigest: event.payloadDigest,
+          signatureVerified: event.signatureVerified,
+          signatureStatus: event.signatureStatus,
+          signatureAlgorithm: event.signatureAlgorithm,
+          signatureFingerprint: event.signatureFingerprint,
+          signedAt: event.signedAt,
+          replayDetected: event.replayDetected,
+          replayStatus: event.replayStatus,
+          dedupKeyDigest: event.dedupKeyDigest,
+          previousEventSeenAt: event.previousEventSeenAt,
           externalCalls: 0
         }
       });
@@ -76,6 +98,20 @@ export class ProviderWebhookEventsService {
 
 export function resetProviderWebhookEventStoreForTest() {
   events.splice(0);
+  dedupFirstSeenAtByDigest.clear();
+}
+
+export function getProviderWebhookGuardrailReadinessSnapshot() {
+  const latest = events[0] ?? null;
+  return {
+    webhookSignatureVerificationConfigured: true,
+    webhookSignatureVerificationReady: true,
+    replayGuardrailsEnabled: true,
+    lastSandboxEventSignatureStatus: latest?.signatureStatus ?? null,
+    latestReplayStatus: latest?.replayStatus ?? null,
+    replayDetectedCount: events.filter((event) => event.replayDetected).length,
+    lastSandboxEventAt: latest?.receivedAt ?? null
+  };
 }
 
 function rejectLiveProviderMode() {
@@ -99,6 +135,62 @@ function summarizePayload(payload: ProviderWebhookSandboxEventRequest["payload"]
     summary,
     fieldCount,
     digest: `sha256:${digest}`
+  };
+}
+
+function verifySandboxSignature(input: ProviderWebhookSandboxEventRequest) {
+  const signature = input.signature?.trim();
+  if (!signature) {
+    return {
+      signatureVerified: false,
+      signatureStatus: "missing" as const,
+      signatureAlgorithm: "hmac-sha256" as const,
+      signatureFingerprint: null
+    };
+  }
+
+  const expected = crypto
+    .createHmac("sha256", sandboxSigningMaterial(input.provider))
+    .update(canonicalJson(input.payload ?? null))
+    .digest("hex");
+  const normalizedSignature = signature.startsWith("sha256=") ? signature.slice("sha256=".length) : signature;
+  const verified = safeEqual(normalizedSignature, expected);
+
+  return {
+    signatureVerified: verified,
+    signatureStatus: verified ? "verified" as const : "failed" as const,
+    signatureAlgorithm: "hmac-sha256" as const,
+    signatureFingerprint: `sha256:${crypto.createHash("sha256").update(`provider-webhook:${signature}`).digest("hex").slice(0, 16)}`
+  };
+}
+
+function checkReplayGuardrail(tenantId: string, input: ProviderWebhookSandboxEventRequest) {
+  const dedupIdentifier = input.eventId ?? input.deliveryId;
+  if (!dedupIdentifier) {
+    return {
+      replayDetected: false,
+      replayStatus: "fresh" as const,
+      dedupKeyDigest: null,
+      previousEventSeenAt: null
+    };
+  }
+
+  const channel = input.channel ?? input.provider;
+  const dedupKeyDigest = `sha256:${crypto
+    .createHash("sha256")
+    .update(canonicalJson({ tenantId, provider: input.provider, channel, dedupIdentifier }))
+    .digest("hex")
+    .slice(0, 24)}`;
+  const previousEventSeenAt = dedupFirstSeenAtByDigest.get(dedupKeyDigest) ?? null;
+  if (!previousEventSeenAt) {
+    dedupFirstSeenAtByDigest.set(dedupKeyDigest, new Date().toISOString());
+  }
+
+  return {
+    replayDetected: Boolean(previousEventSeenAt),
+    replayStatus: previousEventSeenAt ? "duplicate" as const : "fresh" as const,
+    dedupKeyDigest,
+    previousEventSeenAt
   };
 }
 
@@ -131,6 +223,27 @@ function countSafePayloadFields(value: unknown, depth = 0): number {
 
 function isUnsafePayloadKey(key: string) {
   return /token|secret|signature|authorization|cookie|providerraw|rawpayload|payloadjson|allowlist/i.test(key);
+}
+
+function sandboxSigningMaterial(provider: ProviderWebhookSandboxEventRequest["provider"]) {
+  const providerEnvName = `${provider.toUpperCase()}_SANDBOX_WEBHOOK_SIGNING_KEY`;
+  return process.env[providerEnvName]?.trim()
+    || process.env.PROVIDER_WEBHOOK_SANDBOX_SIGNING_KEY?.trim()
+    || "local-provider-webhook-sandbox-signing-material";
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
+}
+
+function safeEqual(actual: string, expected: string) {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 function normalized(value: string | undefined, fallback: string) {

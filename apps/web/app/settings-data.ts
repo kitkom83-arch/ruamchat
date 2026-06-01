@@ -241,18 +241,18 @@ export const mockProviderReadiness: ProviderReadiness = {
   metaChannelMode: "mock",
   realOutboundEnabled: false,
   allowlistCount: 0,
-  externalCalls: 0,
   allowlist: {
     configured: false,
-    entryCount: 0,
-    globalEntryCount: 0,
-    providers: [
-      { name: "line", entryCount: 0 },
-      { name: "telegram", entryCount: 0 },
-      { name: "facebook", entryCount: 0 },
-      { name: "instagram", entryCount: 0 }
-    ]
+    entryCount: 0
   },
+  webhookSignatureVerificationConfigured: true,
+  webhookSignatureVerificationReady: true,
+  replayGuardrailsEnabled: true,
+  lastSandboxEventSignatureStatus: "verified",
+  latestReplayStatus: "fresh",
+  replayDetectedCount: 0,
+  lastSandboxEventAt: now,
+  externalCalls: 0,
   providers: [
     provider("line", false, false, 0),
     provider("telegram", false, false, 0),
@@ -274,24 +274,32 @@ export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
     payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
     payloadFieldCount: 2,
     payloadDigest: "sha256:localdryrunsample",
+    signatureVerified: true,
+    signatureStatus: "verified",
+    signatureAlgorithm: "hmac-sha256",
+    signatureFingerprint: "sha256:localsignature",
+    signedAt: now,
+    replayDetected: false,
+    replayStatus: "fresh",
+    dedupKeyDigest: "sha256:localdedupsample",
+    previousEventSeenAt: null,
     externalCalls: 0
   }
 ];
+
+const mockWebhookDedupSeenAt = new Map<string, string>([["sha256:localdedupsample", now]]);
 
 function provider(
   name: ProviderReadiness["providers"][number]["name"],
   configured: boolean,
   webhookConfigured: boolean,
-  allowlistCount: number
+  _allowlistCount: number
 ): ProviderReadiness["providers"][number] {
   return {
     name,
     configured,
     credentialStatus: configured ? "configured" : "not_configured",
     webhookStatus: webhookConfigured ? "configured" : "not_configured",
-    allowlistStatus: allowlistCount > 0 ? "configured" : "not_configured",
-    allowlistEntryCount: allowlistCount,
-    allowlistCount,
     webhookVerificationReady: webhookConfigured,
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false,
@@ -301,6 +309,15 @@ function provider(
 
 function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequest): ProviderWebhookEvent {
   const providerName = payload.provider;
+  const dedupKeyDigest = payload.eventId || payload.deliveryId
+    ? `sha256:${safeDigest(["mock", providerName, payload.channel ?? providerName, payload.eventId ?? payload.deliveryId].join(":"))}`
+    : null;
+  const previousEventSeenAt = dedupKeyDigest ? mockWebhookDedupSeenAt.get(dedupKeyDigest) ?? null : null;
+  const receivedAt = new Date().toISOString();
+  if (dedupKeyDigest && !previousEventSeenAt) {
+    mockWebhookDedupSeenAt.set(dedupKeyDigest, receivedAt);
+  }
+  const signatureStatus = payload.signature ? "verified" : "missing";
   return {
     id: `provider-webhook-event-local-${safeId()}`,
     tenantId: "00000000-0000-4000-8000-000000000001",
@@ -309,14 +326,32 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     eventType: payload.eventType,
     mode: payload.mode ?? "dry_run",
     status: payload.status ?? "received",
-    receivedAt: new Date().toISOString(),
+    receivedAt,
     payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
     payloadFieldCount: 2,
     payloadDigest: `sha256:${safeId().slice(0, 16)}`,
+    signatureVerified: signatureStatus === "verified",
+    signatureStatus,
+    signatureAlgorithm: "hmac-sha256",
+    signatureFingerprint: payload.signature ? `sha256:${safeDigest(`signature:${payload.signature}`)}` : null,
+    signedAt: payload.timestamp ?? null,
+    replayDetected: Boolean(previousEventSeenAt),
+    replayStatus: previousEventSeenAt ? "duplicate" : "fresh",
+    dedupKeyDigest,
+    previousEventSeenAt,
     externalCalls: 0
   };
 }
 
 function safeId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function safeDigest(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash).toString(16).padStart(8, "0").slice(0, 16);
 }
