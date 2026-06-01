@@ -8,7 +8,9 @@ import {
   type ProviderWebhookNormalizedEventType,
   type ProviderWebhookSandboxEventRequest
 } from "@ai-omni/shared";
+import { MessageType as PrismaMessageType } from "@prisma/client";
 import { AuditService } from "./audit.service.js";
+import { ConversationService } from "./conversation.service.js";
 
 const maxStoredEvents = 100;
 const events: ProviderWebhookEvent[] = [];
@@ -16,7 +18,10 @@ const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 @Injectable()
 export class ProviderWebhookEventsService {
-  constructor(@Inject(AuditService) private readonly audit: AuditService) {}
+  constructor(
+    @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(ConversationService) private readonly conversations: ConversationService
+  ) {}
 
   list(tenantId: string) {
     return events.filter((event) => event.tenantId === tenantId);
@@ -35,6 +40,7 @@ export class ProviderWebhookEventsService {
     const replay = checkReplayGuardrail(tenantId, input);
     const normalization = normalizeSandboxEvent(input, signature, replay);
     const routing = summarizeDryRunRouting(tenantId, input, normalization, signature, replay);
+    const persistence = await this.persistSandboxInbound(tenantId, input, normalization, signature, replay, routing);
     const receivedAt = new Date().toISOString();
     const event: ProviderWebhookEvent = {
       id: `provider-webhook-event-${crypto.randomUUID()}`,
@@ -69,20 +75,97 @@ export class ProviderWebhookEventsService {
       roomKeyDigest: normalization.roomKeyDigest,
       dryRunRouting: routing.dryRunRouting,
       routingStatus: routing.routingStatus,
-      conversationLookupStatus: routing.conversationLookupStatus,
+      conversationLookupStatus: persistence.conversationLookupStatus ?? routing.conversationLookupStatus,
       conversationKeyDigest: routing.conversationKeyDigest,
-      channelAccountId: routing.channelAccountId,
+      channelAccountId: persistence.channelAccountId ?? routing.channelAccountId,
       roomIdDigest: routing.roomIdDigest,
+      inboundPersistenceMode: input.inboundPersistenceMode,
+      inboundPersistenceStatus: persistence.inboundPersistenceStatus,
+      messagePersisted: persistence.messagePersisted,
+      persistedMessageId: persistence.persistedMessageId,
+      conversationId: persistence.conversationId,
+      inboundAuditStatus: "skipped",
       externalCalls: 0
     };
+    if (persistence.routingStatus) event.routingStatus = persistence.routingStatus;
 
     events.unshift(event);
     events.splice(maxStoredEvents);
-    void this.recordAudit(event, actorUserId);
+    event.inboundAuditStatus = await this.recordAudit(event, actorUserId);
     return event;
   }
 
-  private async recordAudit(event: ProviderWebhookEvent, actorUserId?: string) {
+  private async persistSandboxInbound(
+    tenantId: string,
+    input: ProviderWebhookSandboxEventRequest,
+    normalization: ReturnType<typeof normalizeSandboxEvent>,
+    signature: ReturnType<typeof verifySandboxSignature>,
+    replay: ReturnType<typeof checkReplayGuardrail>,
+    routing: ReturnType<typeof summarizeDryRunRouting>
+  ): Promise<{
+    inboundPersistenceStatus: ProviderWebhookEvent["inboundPersistenceStatus"];
+    messagePersisted: boolean;
+    persistedMessageId: string | null;
+    conversationId: string | null;
+    conversationLookupStatus: ProviderWebhookEvent["conversationLookupStatus"] | null;
+    channelAccountId: string | null;
+    routingStatus: ProviderWebhookEvent["routingStatus"] | null;
+  }> {
+    if (input.inboundPersistenceMode === "dry-run") {
+      return persistenceSkipped("dry-run-only", null);
+    }
+    if (input.mode !== "sandbox") {
+      return persistenceSkipped("skipped", "skipped");
+    }
+    if (signature.signatureStatus === "failed" || signature.signatureStatus === "missing") {
+      return persistenceSkipped("blocked-signature", "skipped");
+    }
+    if (replay.replayDetected) {
+      return persistenceSkipped("blocked-replay", "skipped", "blocked-replay");
+    }
+    if (!normalization.normalized) {
+      return persistenceSkipped(normalization.normalizationStatus === "unsupported" ? "unsupported" : "skipped", "skipped");
+    }
+    if (!normalization.rawRoomKey || !routing.channelAccountId) {
+      return persistenceSkipped("skipped-no-match", "not-found");
+    }
+
+    try {
+      const result = await this.conversations.persistSandboxWebhookInboundMessage({
+        tenantId,
+        platform: input.provider,
+        channelAccountId: routing.channelAccountId,
+        roomKey: normalization.rawRoomKey,
+        text: normalization.textPreview,
+        messageType: mapPrismaMessageType(normalization.messageType),
+        providerEventDigest: replay.dedupKeyDigest ?? routing.conversationKeyDigest ?? payloadEventDigest(tenantId, input, routing),
+        payloadDigest: summarizePayload(input.payload).digest,
+        deliveryDigest: replay.dedupKeyDigest,
+        timestamp: input.timestamp ?? null
+      });
+
+      if (result.status === "not-found") {
+        return persistenceSkipped("skipped-no-match", "not-found");
+      }
+      if (result.duplicate) {
+        return persistenceSkipped("blocked-replay", "matched", "blocked-replay", result.conversation.id, result.message.id);
+      }
+
+      return {
+        inboundPersistenceStatus: "persisted",
+        messagePersisted: true,
+        persistedMessageId: result.message.id,
+        conversationId: result.conversation.id,
+        conversationLookupStatus: "matched",
+        channelAccountId: result.conversation.room.channelAccountId,
+        routingStatus: "matched"
+      };
+    } catch {
+      return persistenceSkipped("failed", null);
+    }
+  }
+
+  private async recordAudit(event: ProviderWebhookEvent, actorUserId?: string): Promise<ProviderWebhookEvent["inboundAuditStatus"]> {
     try {
       await this.audit.record({
         tenantId: event.tenantId,
@@ -124,11 +207,53 @@ export class ProviderWebhookEventsService {
           conversationKeyDigest: event.conversationKeyDigest,
           channelAccountId: event.channelAccountId,
           roomIdDigest: event.roomIdDigest,
+          inboundPersistenceMode: event.inboundPersistenceMode,
+          inboundPersistenceStatus: event.inboundPersistenceStatus,
+          messagePersisted: event.messagePersisted,
+          persistedMessageId: event.persistedMessageId,
+          conversationId: event.conversationId,
           externalCalls: 0
         }
       });
+
+      if (event.inboundPersistenceMode === "sandbox-persist") {
+        const inboundMetadata = {
+          tenantId: event.tenantId,
+          conversationId: event.conversationId,
+          provider: event.provider,
+          channelAccountId: event.channelAccountId,
+          roomIdDigest: event.roomIdDigest,
+          eventDigest: event.dedupKeyDigest,
+          payloadDigest: event.payloadDigest,
+          status: event.inboundPersistenceStatus,
+          externalCalls: 0
+        };
+        await this.audit.record({
+          tenantId: event.tenantId,
+          actorUserId,
+          conversationId: event.conversationId,
+          action: "provider_webhook.inbound_persistence_attempted",
+          entityType: "provider_webhook_inbound_persistence",
+          entityId: event.persistedMessageId ?? event.id,
+          metadata: inboundMetadata
+        });
+        const outcomeAction = inboundPersistenceAuditAction(event.inboundPersistenceStatus);
+        if (outcomeAction !== "provider_webhook.inbound_persistence_attempted") {
+          await this.audit.record({
+            tenantId: event.tenantId,
+            actorUserId,
+            conversationId: event.conversationId,
+            action: outcomeAction,
+            entityType: "provider_webhook_inbound_persistence",
+            entityId: event.persistedMessageId ?? event.id,
+            metadata: inboundMetadata
+          });
+        }
+      }
+      return "recorded";
     } catch {
       // Sandbox event intake must not fail just because optional audit persistence is unavailable.
+      return "failed";
     }
   }
 }
@@ -153,6 +278,16 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     latestRoutingStatus: latest?.routingStatus ?? null,
     normalizedEventCount: events.filter((event) => event.normalized).length,
     routingBlockedCount: events.filter((event) => event.routingStatus === "blocked-signature" || event.routingStatus === "blocked-replay").length,
+    webhookInboundPersistenceEnabled: true,
+    latestInboundPersistenceStatus: latest?.inboundPersistenceStatus ?? null,
+    persistedInboundMessageCount: events.filter((event) => event.messagePersisted).length,
+    inboundPersistenceBlockedCount: events.filter((event) =>
+      event.inboundPersistenceStatus === "blocked-signature" ||
+      event.inboundPersistenceStatus === "blocked-replay" ||
+      event.inboundPersistenceStatus === "failed"
+    ).length,
+    inboundPersistenceReplayBlockedCount: events.filter((event) => event.inboundPersistenceStatus === "blocked-replay").length,
+    inboundPersistenceSkippedNoMatchCount: events.filter((event) => event.inboundPersistenceStatus === "skipped-no-match").length,
     lastSandboxEventAt: latest?.receivedAt ?? null
   };
 }
@@ -268,6 +403,53 @@ function blockedRouting(status: "blocked-signature" | "blocked-replay" | "unsupp
     roomIdDigest: null,
     externalCalls: 0 as const
   };
+}
+
+function persistenceSkipped(
+  inboundPersistenceStatus: ProviderWebhookEvent["inboundPersistenceStatus"],
+  conversationLookupStatus: ProviderWebhookEvent["conversationLookupStatus"] | null,
+  routingStatus: ProviderWebhookEvent["routingStatus"] | null = null,
+  conversationId: string | null = null,
+  persistedMessageId: string | null = null
+) {
+  return {
+    inboundPersistenceStatus,
+    messagePersisted: false,
+    persistedMessageId,
+    conversationId,
+    conversationLookupStatus,
+    channelAccountId: null,
+    routingStatus
+  };
+}
+
+function mapPrismaMessageType(messageType: ProviderWebhookMessageType): PrismaMessageType {
+  if (messageType === "text") return PrismaMessageType.text;
+  if (messageType === "image") return PrismaMessageType.image;
+  if (messageType === "file") return PrismaMessageType.file;
+  return PrismaMessageType.event;
+}
+
+function payloadEventDigest(
+  tenantId: string,
+  input: ProviderWebhookSandboxEventRequest,
+  routing: ReturnType<typeof summarizeDryRunRouting>
+) {
+  return safeDigest(canonicalJson({
+    tenantId,
+    provider: input.provider,
+    channel: input.channel ?? input.provider,
+    payloadDigest: summarizePayload(input.payload).digest,
+    conversationKeyDigest: routing.conversationKeyDigest
+  }));
+}
+
+function inboundPersistenceAuditAction(status: ProviderWebhookEvent["inboundPersistenceStatus"]) {
+  if (status === "persisted") return "provider_webhook.inbound_persistence_persisted";
+  if (status === "blocked-signature") return "provider_webhook.inbound_persistence_blocked_signature";
+  if (status === "blocked-replay") return "provider_webhook.inbound_persistence_blocked_replay";
+  if (status === "skipped-no-match") return "provider_webhook.inbound_persistence_skipped_no_match";
+  return "provider_webhook.inbound_persistence_attempted";
 }
 
 function summarizePayload(payload: ProviderWebhookSandboxEventRequest["payload"]) {

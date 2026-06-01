@@ -991,6 +991,12 @@ function providerReadinessResponse() {
       latestRoutingStatus: "dry-run-only",
       normalizedEventCount: 1,
       routingBlockedCount: 0,
+      webhookInboundPersistenceEnabled: true,
+      latestInboundPersistenceStatus: "dry-run-only",
+      persistedInboundMessageCount: 0,
+      inboundPersistenceBlockedCount: 0,
+      inboundPersistenceReplayBlockedCount: 0,
+      inboundPersistenceSkippedNoMatchCount: 0,
       lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
       externalCalls: 0,
       providers: [
@@ -1063,6 +1069,12 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     conversationKeyDigest: "sha256:safeconversationdigest",
     channelAccountId: `sandbox:${provider}`,
     roomIdDigest: "sha256:saferoomiddigest",
+    inboundPersistenceMode: "dry-run",
+    inboundPersistenceStatus: "dry-run-only",
+    messagePersisted: false,
+    persistedMessageId: null,
+    conversationId: null,
+    inboundAuditStatus: "recorded",
     externalCalls: 0
   };
 }
