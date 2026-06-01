@@ -19,14 +19,23 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("realOutboundEnabled=false");
     expect(html).toContain("externalCalls=0");
     expect(html).toContain("allowlist count=2");
+    expect(html).toContain("signature verification=sandbox-ready");
+    expect(html).toContain("replay guardrails=enabled");
+    expect(html).toContain("latest signature=verified");
+    expect(html).toContain("latest replay=fresh");
+    expect(html).toContain("replayDetectedCount=1");
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
     expect(html).toContain("Webhook verification");
     expect(html).toContain("Webhook sandbox event log");
     expect(html).toContain("last received dry-run event");
     expect(html).toContain("message.created / received");
+    expect(html).toContain("signature=verified");
+    expect(html).toContain("replay=duplicate");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
+    expect(html).toContain("signatureVerified=true");
+    expect(html).toContain("replayDetected=true");
     expect(html).toContain("configured");
     expect(html).not.toContain("U-raw-provider-test");
     expect(html).not.toContain("raw-line-token");
@@ -72,18 +81,18 @@ function providerReadiness(): ProviderReadiness {
     metaChannelMode: "mock",
     realOutboundEnabled: false,
     allowlistCount: 2,
-    externalCalls: 0,
     allowlist: {
       configured: true,
-      entryCount: 2,
-      globalEntryCount: 0,
-      providers: [
-        { name: "line", entryCount: 1 },
-        { name: "telegram", entryCount: 1 },
-        { name: "facebook", entryCount: 0 },
-        { name: "instagram", entryCount: 0 }
-      ]
+      entryCount: 2
     },
+    webhookSignatureVerificationConfigured: true,
+    webhookSignatureVerificationReady: true,
+    replayGuardrailsEnabled: true,
+    lastSandboxEventSignatureStatus: "verified",
+    latestReplayStatus: "fresh",
+    replayDetectedCount: 1,
+    lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0,
     providers: [
       provider("line", true, true, 1),
       provider("telegram", true, true, 1),
@@ -94,14 +103,12 @@ function providerReadiness(): ProviderReadiness {
 }
 
 function provider(name: ProviderReadiness["providers"][number]["name"], configured: boolean, webhookConfigured: boolean, allowlistCount: number) {
+  void allowlistCount;
   return {
     name,
     configured,
     credentialStatus: configured ? "configured" as const : "not_configured" as const,
     webhookStatus: webhookConfigured ? "configured" as const : "not_configured" as const,
-    allowlistStatus: allowlistCount > 0 ? "configured" as const : "not_configured" as const,
-    allowlistEntryCount: allowlistCount,
-    allowlistCount,
     webhookVerificationReady: webhookConfigured,
     webhookVerificationConfigured: webhookConfigured,
     outboundEnabled: false as const,
@@ -122,6 +129,15 @@ function providerWebhookEvent(): ProviderWebhookEvent {
     payloadSummary: "Dry-run object payload accepted with 2 safe fields.",
     payloadFieldCount: 2,
     payloadDigest: "sha256:safeeventdigest",
+    signatureVerified: true,
+    signatureStatus: "verified",
+    signatureAlgorithm: "hmac-sha256",
+    signatureFingerprint: "sha256:safesignature",
+    signedAt: "2026-05-31T00:00:00.000Z",
+    replayDetected: true,
+    replayStatus: "duplicate",
+    dedupKeyDigest: "sha256:safededupdigest",
+    previousEventSeenAt: "2026-05-30T23:59:00.000Z",
     externalCalls: 0
   };
 }

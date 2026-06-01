@@ -62,6 +62,7 @@
     "smoke:sprint53": "node scripts/smoke-sprint53-provider-readiness.mjs",
     "smoke:sprint54": "node scripts/smoke-sprint54-provider-ui-readiness.mjs",
     "smoke:sprint55": "node scripts/smoke-sprint55-provider-webhook-events.mjs",
+    "smoke:sprint56": "node scripts/smoke-sprint56-provider-webhook-signature-replay.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

@@ -29,7 +29,11 @@ export function ProviderReadinessPanel({
 }: ProviderReadinessPanelProps) {
   const [provider, setProvider] = useState<ProviderOption>("line");
   const [eventType, setEventType] = useState<ProviderWebhookEventType>("message.created");
+  const [eventId, setEventId] = useState("sandbox-event-001");
+  const [deliveryId, setDeliveryId] = useState("");
+  const [signature, setSignature] = useState("");
   const lastEvent = webhookEvents[0] ?? null;
+  const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
 
   async function submitSandboxEvent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,11 +43,16 @@ export function ProviderReadinessPanel({
       eventType,
       mode: "dry_run",
       status: eventType === "webhook.failed" ? "failed" : eventType === "webhook.verified" ? "verified" : "received",
+      eventId: eventId.trim() || undefined,
+      deliveryId: deliveryId.trim() || undefined,
+      timestamp: new Date().toISOString(),
+      signature: signature.trim() || undefined,
       payload: {
         sample: true,
         source: "settings-provider-readiness-panel"
       }
     });
+    setSignature("");
   }
 
   return e("section", { className: "providerReadinessPanel", "aria-label": "Provider sandbox and webhook readiness" },
@@ -60,7 +69,12 @@ export function ProviderReadinessPanel({
         e("span", null, `sandbox mode: ${readiness.sandboxMode}`),
         e("span", null, `realOutboundEnabled=${String(readiness.realOutboundEnabled)}`),
         e("span", null, `externalCalls=${readiness.externalCalls}`),
-        e("span", null, `allowlist count=${readiness.allowlistCount}`)
+        e("span", null, `allowlist count=${readiness.allowlistCount}`),
+        e("span", null, `signature verification=${readiness.webhookSignatureVerificationReady ? "sandbox-ready" : "not ready"}`),
+        e("span", null, `replay guardrails=${readiness.replayGuardrailsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `latest signature=${readiness.lastSandboxEventSignatureStatus ?? "none"}`),
+        e("span", null, `latest replay=${readiness.latestReplayStatus ?? "none"}`),
+        e("span", null, `replayDetectedCount=${replayDetectedCount}`)
       ) : null
     ),
     error ? e("div", { className: "apiErrorBox compact", role: "alert" }, error) : null,
@@ -77,7 +91,8 @@ export function ProviderReadinessPanel({
         ),
         lastEvent ? e("div", { className: "webhookLastEvent", "aria-label": "Last received dry-run event" },
           e("span", null, "last received dry-run event"),
-          e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`)
+          e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`),
+          e("span", null, `signature=${lastEvent.signatureStatus} / replay=${lastEvent.replayStatus}`)
         ) : null
       ),
       webhookEventsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, webhookEventsError) : null,
@@ -95,6 +110,32 @@ export function ProviderReadinessPanel({
             ...eventTypes.map((item) => e("option", { key: item, value: item }, item))
           )
         ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Event ID"),
+          e("input", {
+            value: eventId,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setEventId(event.target.value),
+            placeholder: "sandbox-event-001"
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Delivery ID"),
+          e("input", {
+            value: deliveryId,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDeliveryId(event.target.value),
+            placeholder: "optional"
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Sandbox signature"),
+          e("input", {
+            type: "password",
+            value: signature,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSignature(event.target.value),
+            placeholder: "optional local HMAC",
+            autoComplete: "off"
+          })
+        ),
         e("button", { className: "webhookEventButton", type: "submit", disabled: webhookEventSaving || !onCreateSandboxEvent },
           e(Send, { size: 15 }),
           webhookEventSaving ? "Submitting..." : "Submit dry-run"
@@ -108,11 +149,13 @@ export function ProviderReadinessPanel({
           ),
           e("div", null,
             e("span", null, `mode=${event.mode}`),
+            e("span", null, `signature=${event.signatureStatus}`),
+            e("span", null, `replay=${event.replayStatus}`),
             e("span", null, `externalCalls=${event.externalCalls}`),
             e("span", null, formatDate(event.receivedAt))
           ),
           e("p", null, event.payloadSummary),
-          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest}`)
+          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)}`)
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
     )
@@ -131,8 +174,8 @@ function ProviderReadinessCard({ provider }: { provider: ProviderReadinessProvid
     e("dl", { className: "channelMeta providerReadinessMeta" },
       definition("Credential", formatStatus(provider.credentialStatus)),
       definition("Webhook verification", provider.webhookVerificationConfigured ? "configured" : "not configured"),
+      definition("Signature guardrail", provider.webhookVerificationReady ? "sandbox-ready" : "not ready"),
       definition("Webhook secret", formatStatus(provider.webhookStatus)),
-      definition("Allowlist", `${provider.allowlistCount} entries`),
       definition("Outbound enabled", String(provider.outboundEnabled))
     )
   );

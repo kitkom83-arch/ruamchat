@@ -1956,14 +1956,23 @@ export type ProviderReadinessProviderStatus = z.infer<typeof providerReadinessPr
 export const providerConfigurationStatusSchema = z.enum(["configured", "not_configured"]);
 export type ProviderConfigurationStatus = z.infer<typeof providerConfigurationStatusSchema>;
 
+export const providerWebhookSignatureStatusSchema = z.enum(["verified", "failed", "missing", "skipped"]);
+export type ProviderWebhookSignatureStatus = z.infer<typeof providerWebhookSignatureStatusSchema>;
+
+export const providerWebhookReplayStatusSchema = z.enum(["fresh", "duplicate", "replay-blocked"]);
+export type ProviderWebhookReplayStatus = z.infer<typeof providerWebhookReplayStatusSchema>;
+
+export const providerAllowlistSummarySchema = z.object({
+  configured: z.boolean(),
+  entryCount: z.number().int().nonnegative()
+}).strict();
+export type ProviderAllowlistSummary = z.infer<typeof providerAllowlistSummarySchema>;
+
 export const providerReadinessProviderSchema = z.object({
   name: providerSandboxProviderSchema,
   configured: z.boolean(),
   credentialStatus: providerConfigurationStatusSchema,
   webhookStatus: providerConfigurationStatusSchema,
-  allowlistStatus: providerConfigurationStatusSchema,
-  allowlistEntryCount: z.number().int().nonnegative(),
-  allowlistCount: z.number().int().nonnegative(),
   webhookVerificationReady: z.boolean(),
   webhookVerificationConfigured: z.boolean(),
   outboundEnabled: z.literal(false),
@@ -1980,16 +1989,15 @@ export const providerReadinessSchema = z.object({
   metaChannelMode: z.string().min(1),
   realOutboundEnabled: z.boolean(),
   allowlistCount: z.number().int().nonnegative(),
+  allowlist: providerAllowlistSummarySchema,
+  webhookSignatureVerificationConfigured: z.boolean(),
+  webhookSignatureVerificationReady: z.boolean(),
+  replayGuardrailsEnabled: z.boolean(),
+  lastSandboxEventSignatureStatus: providerWebhookSignatureStatusSchema.nullable(),
+  latestReplayStatus: providerWebhookReplayStatusSchema.nullable(),
+  replayDetectedCount: z.number().int().nonnegative(),
+  lastSandboxEventAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0),
-  allowlist: z.object({
-    configured: z.boolean(),
-    entryCount: z.number().int().nonnegative(),
-    globalEntryCount: z.number().int().nonnegative(),
-    providers: z.array(z.object({
-      name: providerSandboxProviderSchema,
-      entryCount: z.number().int().nonnegative()
-    }).strict())
-  }).strict(),
   providers: z.array(providerReadinessProviderSchema)
 }).strict();
 export type ProviderReadiness = z.infer<typeof providerReadinessSchema>;
@@ -2009,6 +2017,10 @@ export const providerWebhookSandboxEventRequestSchema = z.object({
   eventType: providerWebhookEventTypeSchema,
   mode: providerWebhookEventModeSchema.default("dry_run"),
   status: providerWebhookEventStatusSchema.default("received"),
+  eventId: z.string().trim().min(1).optional(),
+  deliveryId: z.string().trim().min(1).optional(),
+  timestamp: z.string().trim().min(1).optional(),
+  signature: z.string().trim().min(1).optional(),
   payload: z.unknown().optional()
 }).strict();
 export type ProviderWebhookSandboxEventRequest = z.input<typeof providerWebhookSandboxEventRequestSchema>;
@@ -2025,6 +2037,15 @@ export const providerWebhookEventSchema = z.object({
   payloadSummary: z.string().min(1),
   payloadFieldCount: z.number().int().nonnegative(),
   payloadDigest: z.string().min(1),
+  signatureVerified: z.boolean(),
+  signatureStatus: providerWebhookSignatureStatusSchema,
+  signatureAlgorithm: z.literal("hmac-sha256"),
+  signatureFingerprint: z.string().min(1).nullable(),
+  signedAt: z.string().min(1).nullable(),
+  replayDetected: z.boolean(),
+  replayStatus: providerWebhookReplayStatusSchema,
+  dedupKeyDigest: z.string().min(1).nullable(),
+  previousEventSeenAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;
@@ -2034,6 +2055,7 @@ export const apiReadinessSchema = z.object({
   service: z.literal("api"),
   time: z.string().datetime(),
   externalCalls: z.literal(0),
+  allowlist: providerAllowlistSummarySchema,
   apiMode: z.object({
     apiMode: z.string().min(1),
     dataMode: z.string().min(1),
