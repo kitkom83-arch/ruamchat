@@ -142,6 +142,7 @@ function safeEventShape(value) {
     "provider",
     "channel",
     "channelAccountId",
+    "conversationId",
     "conversationKeyDigest",
     "conversationLookupStatus",
     "eventType",
@@ -151,9 +152,14 @@ function safeEventShape(value) {
     "payloadSummary",
     "payloadFieldCount",
     "payloadDigest",
+    "persistedMessageId",
     "direction",
     "dryRunRouting",
+    "inboundAuditStatus",
+    "inboundPersistenceMode",
+    "inboundPersistenceStatus",
     "mediaSummary",
+    "messagePersisted",
     "messageType",
     "normalizationStatus",
     "normalized",
@@ -272,6 +278,7 @@ function noRawPayloadValues(value) {
 function looksRawSecret(value) {
   if (value === null || value === undefined) return false;
   const text = String(value);
+  if (/^sha256:[a-f0-9]{8,}$/i.test(text)) return false;
   return /(^|[^a-z])sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(text);
 }
 

@@ -81,6 +81,9 @@ describe("HealthController", () => {
       expect(result.providerReadiness.providers.every((provider) => provider.outboundEnabled === false)).toBe(true);
       expect(result.providerReadiness.providers.every((provider) => typeof provider.webhookVerificationConfigured === "boolean")).toBe(true);
       expect(result.providerReadiness.providers.every((provider) => !("allowlistCount" in provider))).toBe(true);
+      expect(result.providerReadiness.webhookInboundPersistenceEnabled).toBe(true);
+      expect(result.providerReadiness.persistedInboundMessageCount).toEqual(expect.any(Number));
+      expect(result.providerReadiness.inboundPersistenceBlockedCount).toEqual(expect.any(Number));
       expect(serialized).not.toContain("sprint52-line-value");
       expect(serialized).not.toContain("sprint52-line-webhook-value");
       expect(serialized).not.toContain("sprint52-telegram-value");

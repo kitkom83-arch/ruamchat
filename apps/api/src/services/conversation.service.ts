@@ -16,7 +16,7 @@ import {
   UpdateConversationStatusRequest,
   UpdateTaskRequest
 } from "@ai-omni/shared";
-import { ConversationPriority, ConversationSlaStatus, ConversationStatus, Platform, Prisma, SenderType } from "@prisma/client";
+import { ConversationPriority, ConversationSlaStatus, ConversationStatus, MessageType as PrismaMessageType, Platform, Prisma, SenderType } from "@prisma/client";
 import crypto from "node:crypto";
 import { AuditService } from "./audit.service.js";
 import { OutboundConsentService, consentSnapshot } from "./outbound-consent.service.js";
@@ -495,6 +495,110 @@ export class ConversationService {
     if (!result.duplicate) {
       await this.outboundQueue.enqueueAi(result.conversation.id, result.message.id);
       this.realtime.conversationUpdated(message.tenantId, { conversationId: result.conversation.id });
+    }
+
+    return result;
+  }
+
+  async persistSandboxWebhookInboundMessage(input: {
+    tenantId: string;
+    platform: Platform;
+    channelAccountId: string;
+    roomKey: string;
+    text: string | null;
+    messageType: PrismaMessageType;
+    providerEventDigest: string;
+    payloadDigest: string;
+    deliveryDigest: string | null;
+    timestamp: string | null;
+  }) {
+    const safeCreatedAt = parseSafeDate(input.timestamp);
+    const result = await this.prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.findFirst({
+        where: {
+          tenantId: input.tenantId,
+          externalConversationId: input.roomKey,
+          status: { notIn: ["closed", "spam"] },
+          room: {
+            is: {
+              platform: input.platform,
+              channelAccountId: input.channelAccountId
+            }
+          }
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              platform: true,
+              channelAccountId: true
+            }
+          }
+        },
+        orderBy: { lastMessageAt: "desc" }
+      });
+
+      if (!conversation) {
+        return { status: "not-found" as const, conversation: null, message: null, duplicate: false };
+      }
+
+      const existingMessage = await tx.message.findUnique({
+        where: {
+          channelAccountId_platformMessageId: {
+            channelAccountId: input.channelAccountId,
+            platformMessageId: input.providerEventDigest
+          }
+        }
+      });
+
+      if (existingMessage) {
+        return { status: "matched" as const, conversation, message: existingMessage, duplicate: true };
+      }
+
+      const savedMessage = await tx.message.create({
+        data: {
+          tenantId: input.tenantId,
+          conversationId: conversation.id,
+          channelAccountId: input.channelAccountId,
+          platformMessageId: input.providerEventDigest,
+          senderType: "user",
+          messageType: input.messageType,
+          text: input.text,
+          createdAt: safeCreatedAt,
+          rawPayload: {
+            source: "sandbox-webhook",
+            payloadDigest: input.payloadDigest,
+            providerEventDigest: input.providerEventDigest,
+            deliveryDigest: input.deliveryDigest,
+            externalCalls: 0
+          }
+        }
+      });
+
+      const updatedConversation = await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: safeCreatedAt,
+          unread: true,
+          unreplied: true,
+          aiState: "need_human"
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              platform: true,
+              channelAccountId: true
+            }
+          }
+        }
+      });
+
+      return { status: "matched" as const, conversation: updatedConversation, message: savedMessage, duplicate: false };
+    });
+
+    if (result.conversation && !result.duplicate) {
+      this.realtime.conversationUpdated(input.tenantId, { conversationId: result.conversation.id });
     }
 
     return result;
@@ -1599,4 +1703,10 @@ function mapSenderType(senderType: SenderType) {
 
 function formatApiTime(date: Date) {
   return new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function parseSafeDate(value: string | null) {
+  if (!value) return new Date();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
 }

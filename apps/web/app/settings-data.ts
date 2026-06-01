@@ -257,6 +257,12 @@ export const mockProviderReadiness: ProviderReadiness = {
   latestRoutingStatus: "dry-run-only",
   normalizedEventCount: 1,
   routingBlockedCount: 0,
+  webhookInboundPersistenceEnabled: true,
+  latestInboundPersistenceStatus: "dry-run-only",
+  persistedInboundMessageCount: 0,
+  inboundPersistenceBlockedCount: 0,
+  inboundPersistenceReplayBlockedCount: 0,
+  inboundPersistenceSkippedNoMatchCount: 0,
   lastSandboxEventAt: now,
   externalCalls: 0,
   providers: [
@@ -305,6 +311,12 @@ export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
     conversationKeyDigest: "sha256:localconversationdigest",
     channelAccountId: "sandbox:line",
     roomIdDigest: "sha256:localroomiddigest",
+    inboundPersistenceMode: "dry-run",
+    inboundPersistenceStatus: "dry-run-only",
+    messagePersisted: false,
+    persistedMessageId: null,
+    conversationId: null,
+    inboundAuditStatus: "recorded",
     externalCalls: 0
   }
 ];
@@ -379,6 +391,14 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     conversationKeyDigest: normalized ? `sha256:${safeDigest(`conversation:${providerName}`)}` : null,
     channelAccountId: normalized ? `sandbox:${payload.channel ?? providerName}` : null,
     roomIdDigest: normalized ? `sha256:${safeDigest(`room-id:${providerName}`)}` : null,
+    inboundPersistenceMode: payload.inboundPersistenceMode ?? "dry-run",
+    inboundPersistenceStatus: payload.inboundPersistenceMode === "sandbox-persist"
+      ? normalized && !routingBlocked ? "skipped-no-match" : previousEventSeenAt ? "blocked-replay" : signatureStatus === "verified" ? "skipped" : "blocked-signature"
+      : "dry-run-only",
+    messagePersisted: false,
+    persistedMessageId: null,
+    conversationId: null,
+    inboundAuditStatus: "recorded",
     externalCalls: 0
   };
 }

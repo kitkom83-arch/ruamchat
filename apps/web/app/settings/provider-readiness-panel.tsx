@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { RadioTower, Send, ShieldCheck } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookSandboxEventRequest } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -32,6 +32,7 @@ export function ProviderReadinessPanel({
   const [eventId, setEventId] = useState("sandbox-event-001");
   const [deliveryId, setDeliveryId] = useState("");
   const [signature, setSignature] = useState("");
+  const [inboundPersistenceMode, setInboundPersistenceMode] = useState<ProviderWebhookInboundPersistenceMode>("dry-run");
   const lastEvent = webhookEvents[0] ?? null;
   const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
 
@@ -41,12 +42,13 @@ export function ProviderReadinessPanel({
       provider,
       channel: provider,
       eventType,
-      mode: "dry_run",
+      mode: inboundPersistenceMode === "sandbox-persist" ? "sandbox" : "dry_run",
       status: eventType === "webhook.failed" ? "failed" : eventType === "webhook.verified" ? "verified" : "received",
       eventId: eventId.trim() || undefined,
       deliveryId: deliveryId.trim() || undefined,
       timestamp: new Date().toISOString(),
       signature: signature.trim() || undefined,
+      inboundPersistenceMode,
       payload: {
         sample: true,
         source: "settings-provider-readiness-panel"
@@ -80,6 +82,12 @@ export function ProviderReadinessPanel({
         e("span", null, `latest routing=${readiness.latestRoutingStatus ?? "none"}`),
         e("span", null, `normalizedEventCount=${readiness.normalizedEventCount}`),
         e("span", null, `routingBlockedCount=${readiness.routingBlockedCount}`),
+        e("span", null, `inbound persistence=${readiness.webhookInboundPersistenceEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `latest inbound persistence=${readiness.latestInboundPersistenceStatus ?? "none"}`),
+        e("span", null, `persistedInboundMessageCount=${readiness.persistedInboundMessageCount}`),
+        e("span", null, `inboundPersistenceBlockedCount=${readiness.inboundPersistenceBlockedCount}`),
+        e("span", null, `inboundPersistenceReplayBlockedCount=${readiness.inboundPersistenceReplayBlockedCount}`),
+        e("span", null, `inboundPersistenceSkippedNoMatchCount=${readiness.inboundPersistenceSkippedNoMatchCount}`),
         e("span", null, `replayDetectedCount=${replayDetectedCount}`)
       ) : null
     ),
@@ -99,7 +107,8 @@ export function ProviderReadinessPanel({
           e("span", null, "last received dry-run event"),
           e("strong", null, `${providerLabel(lastEvent.provider)} ${lastEvent.eventType} ${lastEvent.status}`),
           e("span", null, `signature=${lastEvent.signatureStatus} / replay=${lastEvent.replayStatus}`),
-          e("span", null, `normalization=${lastEvent.normalizationStatus} / routing=${lastEvent.routingStatus}`)
+          e("span", null, `normalization=${lastEvent.normalizationStatus} / routing=${lastEvent.routingStatus}`),
+          e("span", null, `inboundPersistence=${lastEvent.inboundPersistenceStatus} / messagePersisted=${String(lastEvent.messagePersisted)}`)
         ) : null
       ),
       webhookEventsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, webhookEventsError) : null,
@@ -115,6 +124,13 @@ export function ProviderReadinessPanel({
           e("span", null, "Event type"),
           e("select", { value: eventType, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => setEventType(event.target.value as ProviderWebhookEventType) },
             ...eventTypes.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Inbound persistence"),
+          e("select", { value: inboundPersistenceMode, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => setInboundPersistenceMode(event.target.value as ProviderWebhookInboundPersistenceMode) },
+            e("option", { value: "dry-run" }, "dry-run"),
+            e("option", { value: "sandbox-persist" }, "sandbox-persist")
           )
         ),
         e("label", { className: "settingsInlineField" },
@@ -163,11 +179,14 @@ export function ProviderReadinessPanel({
             e("span", null, `messageType=${event.messageType}`),
             e("span", null, `routing=${event.routingStatus}`),
             e("span", null, `lookup=${event.conversationLookupStatus}`),
+            e("span", null, `inboundPersistence=${event.inboundPersistenceStatus}`),
+            e("span", null, `messagePersisted=${String(event.messagePersisted)}`),
+            e("span", null, `messageId=${event.persistedMessageId ?? "none"}`),
             e("span", null, `externalCalls=${event.externalCalls}`),
             e("span", null, formatDate(event.receivedAt))
           ),
           e("p", null, event.payloadSummary),
-          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)} / dryRunRouting=${String(event.dryRunRouting)} / conversationKeyDigest=${event.conversationKeyDigest ?? "none"} / roomIdDigest=${event.roomIdDigest ?? "none"}`)
+          e("small", null, `payloadFieldCount=${event.payloadFieldCount} / payloadDigest=${event.payloadDigest} / signatureVerified=${String(event.signatureVerified)} / replayDetected=${String(event.replayDetected)} / dryRunRouting=${String(event.dryRunRouting)} / conversationKeyDigest=${event.conversationKeyDigest ?? "none"} / roomIdDigest=${event.roomIdDigest ?? "none"} / conversationId=${event.conversationId ?? "none"} / inboundAuditStatus=${event.inboundAuditStatus}`)
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
     )

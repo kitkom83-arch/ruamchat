@@ -1980,6 +1980,7 @@ export type ProviderWebhookMessageType = z.infer<typeof providerWebhookMessageTy
 
 export const providerWebhookRoutingStatusSchema = z.enum([
   "dry-run-only",
+  "matched",
   "blocked-signature",
   "blocked-replay",
   "unsupported",
@@ -1989,6 +1990,24 @@ export type ProviderWebhookRoutingStatus = z.infer<typeof providerWebhookRouting
 
 export const providerWebhookConversationLookupStatusSchema = z.enum(["matched", "not-found", "skipped"]);
 export type ProviderWebhookConversationLookupStatus = z.infer<typeof providerWebhookConversationLookupStatusSchema>;
+
+export const providerWebhookInboundPersistenceModeSchema = z.enum(["dry-run", "sandbox-persist"]);
+export type ProviderWebhookInboundPersistenceMode = z.infer<typeof providerWebhookInboundPersistenceModeSchema>;
+
+export const providerWebhookInboundPersistenceStatusSchema = z.enum([
+  "dry-run-only",
+  "persisted",
+  "skipped",
+  "skipped-no-match",
+  "blocked-signature",
+  "blocked-replay",
+  "unsupported",
+  "failed"
+]);
+export type ProviderWebhookInboundPersistenceStatus = z.infer<typeof providerWebhookInboundPersistenceStatusSchema>;
+
+export const providerWebhookInboundAuditStatusSchema = z.enum(["recorded", "skipped", "failed"]);
+export type ProviderWebhookInboundAuditStatus = z.infer<typeof providerWebhookInboundAuditStatusSchema>;
 
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
@@ -2030,6 +2049,12 @@ export const providerReadinessSchema = z.object({
   latestRoutingStatus: providerWebhookRoutingStatusSchema.nullable(),
   normalizedEventCount: z.number().int().nonnegative(),
   routingBlockedCount: z.number().int().nonnegative(),
+  webhookInboundPersistenceEnabled: z.boolean(),
+  latestInboundPersistenceStatus: providerWebhookInboundPersistenceStatusSchema.nullable(),
+  persistedInboundMessageCount: z.number().int().nonnegative(),
+  inboundPersistenceBlockedCount: z.number().int().nonnegative(),
+  inboundPersistenceReplayBlockedCount: z.number().int().nonnegative(),
+  inboundPersistenceSkippedNoMatchCount: z.number().int().nonnegative(),
   lastSandboxEventAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0),
   providers: z.array(providerReadinessProviderSchema)
@@ -2055,6 +2080,7 @@ export const providerWebhookSandboxEventRequestSchema = z.object({
   deliveryId: z.string().trim().min(1).optional(),
   timestamp: z.string().trim().min(1).optional(),
   signature: z.string().trim().min(1).optional(),
+  inboundPersistenceMode: providerWebhookInboundPersistenceModeSchema.default("dry-run"),
   payload: z.unknown().optional()
 }).strict();
 export type ProviderWebhookSandboxEventRequest = z.input<typeof providerWebhookSandboxEventRequestSchema>;
@@ -2096,6 +2122,12 @@ export const providerWebhookEventSchema = z.object({
   conversationKeyDigest: z.string().min(1).nullable(),
   channelAccountId: z.string().min(1).nullable(),
   roomIdDigest: z.string().min(1).nullable(),
+  inboundPersistenceMode: providerWebhookInboundPersistenceModeSchema,
+  inboundPersistenceStatus: providerWebhookInboundPersistenceStatusSchema,
+  messagePersisted: z.boolean(),
+  persistedMessageId: z.string().min(1).nullable(),
+  conversationId: z.string().min(1).nullable(),
+  inboundAuditStatus: providerWebhookInboundAuditStatusSchema,
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;

@@ -1298,6 +1298,137 @@ describe("ConversationService webhook persistence", () => {
     expect(telegram.conversation.id).not.toBe(line.conversation.id);
     expect(store.messages).toHaveLength(2);
   });
+
+  it("persists sandbox webhook inbound only into an existing matching conversation without enqueueing AI", async () => {
+    const { service, store, outboundQueue, realtime } = buildIngestService();
+    store.conversations.push({
+      id: "conversation-sandbox-line",
+      tenantId,
+      roomId: lineRoomId,
+      contactId: "contact-existing",
+      contactIdentityId: "identity-existing",
+      externalConversationId: "safe-existing-room",
+      status: "open",
+      priority: "normal",
+      assignedUserId: null,
+      unread: false,
+      unreplied: false,
+      aiState: "idle",
+      followUpAt: null,
+      lastMessageAt: new Date("2026-05-21T04:00:00.000Z"),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    const result = await service.persistSandboxWebhookInboundMessage({
+      tenantId,
+      platform: "line",
+      channelAccountId: lineAccountId,
+      roomKey: "safe-existing-room",
+      text: "Safe persisted sandbox inbound",
+      messageType: "text",
+      providerEventDigest: "sha256:safe-provider-event",
+      payloadDigest: "sha256:safe-payload",
+      deliveryDigest: "sha256:safe-delivery",
+      timestamp: "2026-06-01T03:30:00.000Z"
+    });
+
+    expect(result.status).toBe("matched");
+    expect(result.duplicate).toBe(false);
+    expect(result.conversation?.id).toBe("conversation-sandbox-line");
+    expect(result.message).toMatchObject({
+      conversationId: "conversation-sandbox-line",
+      channelAccountId: lineAccountId,
+      platformMessageId: "sha256:safe-provider-event",
+      senderType: "user",
+      messageType: "text",
+      text: "Safe persisted sandbox inbound",
+      rawPayload: {
+        source: "sandbox-webhook",
+        payloadDigest: "sha256:safe-payload",
+        providerEventDigest: "sha256:safe-provider-event",
+        deliveryDigest: "sha256:safe-delivery",
+        externalCalls: 0
+      }
+    });
+    expect(outboundQueue.enqueueAi).not.toHaveBeenCalled();
+    expect(realtime.conversationUpdated).toHaveBeenCalledWith(tenantId, { conversationId: "conversation-sandbox-line" });
+  });
+
+  it("keeps sandbox webhook persistence separated by platform, channel account, and room key", async () => {
+    const { service, store } = buildIngestService();
+    store.conversations.push(
+      {
+        id: "conversation-line-room-a",
+        tenantId,
+        roomId: lineRoomId,
+        contactId: "contact-line-a",
+        contactIdentityId: "identity-line-a",
+        externalConversationId: "shared-room-key",
+        status: "open",
+        aiState: "idle",
+        unread: false,
+        unreplied: false,
+        lastMessageAt: new Date()
+      },
+      {
+        id: "conversation-telegram-room-a",
+        tenantId,
+        roomId: telegramRoomId,
+        contactId: "contact-telegram-a",
+        contactIdentityId: "identity-telegram-a",
+        externalConversationId: "shared-room-key",
+        status: "open",
+        aiState: "idle",
+        unread: false,
+        unreplied: false,
+        lastMessageAt: new Date()
+      }
+    );
+
+    const line = await service.persistSandboxWebhookInboundMessage({
+      tenantId,
+      platform: "line",
+      channelAccountId: lineAccountId,
+      roomKey: "shared-room-key",
+      text: "line copy",
+      messageType: "text",
+      providerEventDigest: "sha256:line-copy",
+      payloadDigest: "sha256:line-payload",
+      deliveryDigest: "sha256:line-delivery",
+      timestamp: null
+    });
+    const telegram = await service.persistSandboxWebhookInboundMessage({
+      tenantId,
+      platform: "telegram",
+      channelAccountId: telegramAccountId,
+      roomKey: "shared-room-key",
+      text: "telegram copy",
+      messageType: "text",
+      providerEventDigest: "sha256:telegram-copy",
+      payloadDigest: "sha256:telegram-payload",
+      deliveryDigest: "sha256:telegram-delivery",
+      timestamp: null
+    });
+    const missing = await service.persistSandboxWebhookInboundMessage({
+      tenantId,
+      platform: "line",
+      channelAccountId: lineAccountId,
+      roomKey: "different-room-key",
+      text: "missing",
+      messageType: "text",
+      providerEventDigest: "sha256:missing",
+      payloadDigest: "sha256:missing-payload",
+      deliveryDigest: null,
+      timestamp: null
+    });
+
+    expect(line.conversation?.id).toBe("conversation-line-room-a");
+    expect(telegram.conversation?.id).toBe("conversation-telegram-room-a");
+    expect(line.conversation?.id).not.toBe(telegram.conversation?.id);
+    expect(missing.status).toBe("not-found");
+    expect(store.messages.map((message) => message.conversationId)).toEqual(["conversation-line-room-a", "conversation-telegram-room-a"]);
+  });
 });
 
 function buildIngestService() {
@@ -1377,14 +1508,23 @@ function buildIngestService() {
       })
     },
     conversation: {
-      findFirst: vi.fn(async ({ where }) =>
-        store.conversations.find((item) =>
-          item.tenantId === where.tenantId &&
-          item.roomId === where.roomId &&
-          item.contactIdentityId === where.contactIdentityId &&
-          !where.status?.notIn?.includes(item.status)
-        ) ?? null
-      ),
+      findFirst: vi.fn(async ({ where }) => {
+        const found = store.conversations.find((item) => {
+          if (item.tenantId !== where.tenantId) return false;
+          if (where.roomId && item.roomId !== where.roomId) return false;
+          if (where.contactIdentityId && item.contactIdentityId !== where.contactIdentityId) return false;
+          if (where.externalConversationId && item.externalConversationId !== where.externalConversationId) return false;
+          if (where.status?.notIn?.includes(item.status)) return false;
+          if (where.room?.is) {
+            const room = store.rooms.find((candidate) => candidate.id === item.roomId);
+            if (!room) return false;
+            if (where.room.is.platform && room.platform !== where.room.is.platform) return false;
+            if (where.room.is.channelAccountId && room.channelAccountId !== where.room.is.channelAccountId) return false;
+          }
+          return true;
+        }) ?? null;
+        return found ? withIncludedRoom(found, store.rooms) : null;
+      }),
       create: vi.fn(async ({ data }) => {
         const saved = {
           id: `conversation-${store.conversations.length + 1}`,
@@ -1399,13 +1539,13 @@ function buildIngestService() {
           ...data
         };
         store.conversations.push(saved);
-        return saved;
+        return withIncludedRoom(saved, store.rooms);
       }),
       update: vi.fn(async ({ where, data }) => {
         const index = store.conversations.findIndex((item) => item.id === where.id);
         const saved = { ...store.conversations[index], ...data, updatedAt: new Date() };
         store.conversations[index] = saved;
-        return saved;
+        return withIncludedRoom(saved, store.rooms);
       })
     },
     message: {
@@ -1487,6 +1627,18 @@ function buildOutboundConsentFake(audit: { record: (input: Record<string, any>) 
         ...(input.metadata ?? {})
       }
     }))
+  };
+}
+
+function withIncludedRoom(conversation: Record<string, any>, rooms: Array<Record<string, any>>) {
+  const room = rooms.find((item) => item.id === conversation.roomId);
+  return {
+    ...conversation,
+    room: room ? {
+      id: room.id,
+      platform: room.platform,
+      channelAccountId: room.channelAccountId
+    } : undefined
   };
 }
 

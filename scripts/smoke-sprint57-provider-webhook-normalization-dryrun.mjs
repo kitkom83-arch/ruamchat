@@ -189,8 +189,14 @@ function safeEventShape(value) {
     "routingStatus",
     "conversationLookupStatus",
     "conversationKeyDigest",
+    "conversationId",
     "channelAccountId",
     "roomIdDigest",
+    "inboundAuditStatus",
+    "inboundPersistenceMode",
+    "inboundPersistenceStatus",
+    "messagePersisted",
+    "persistedMessageId",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
@@ -199,7 +205,7 @@ function safeEventShape(value) {
     && ["verified", "failed", "missing", "skipped"].includes(value.signatureStatus)
     && ["fresh", "duplicate", "replay-blocked"].includes(value.replayStatus)
     && ["normalized", "skipped", "failed", "blocked-signature", "blocked-replay", "unsupported"].includes(value.normalizationStatus)
-    && ["dry-run-only", "blocked-signature", "blocked-replay", "unsupported", "skipped"].includes(value.routingStatus);
+    && ["dry-run-only", "matched", "blocked-signature", "blocked-replay", "unsupported", "skipped"].includes(value.routingStatus);
 }
 
 function isDigest(value) {
@@ -298,6 +304,7 @@ function noRawPayloadValues(value) {
 function looksRawSecret(value) {
   if (value === null || value === undefined) return false;
   const text = String(value);
+  if (/^sha256:[a-f0-9]{8,}$/i.test(text)) return false;
   return /(^|[^a-z])sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(text);
 }
 

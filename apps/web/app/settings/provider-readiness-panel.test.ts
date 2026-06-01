@@ -29,6 +29,12 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("latest routing=dry-run-only");
     expect(html).toContain("normalizedEventCount=3");
     expect(html).toContain("routingBlockedCount=1");
+    expect(html).toContain("inbound persistence=enabled");
+    expect(html).toContain("latest inbound persistence=blocked-replay");
+    expect(html).toContain("persistedInboundMessageCount=1");
+    expect(html).toContain("inboundPersistenceBlockedCount=1");
+    expect(html).toContain("inboundPersistenceReplayBlockedCount=1");
+    expect(html).toContain("inboundPersistenceSkippedNoMatchCount=1");
     expect(html).toContain("replayDetectedCount=1");
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
@@ -43,12 +49,16 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("messageType=unknown");
     expect(html).toContain("routing=blocked-replay");
     expect(html).toContain("lookup=skipped");
+    expect(html).toContain("inboundPersistence=blocked-replay");
+    expect(html).toContain("messagePersisted=false");
+    expect(html).toContain("messageId=none");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("signatureVerified=true");
     expect(html).toContain("replayDetected=true");
     expect(html).toContain("conversationKeyDigest=none");
     expect(html).toContain("roomIdDigest=none");
+    expect(html).toContain("inboundAuditStatus=recorded");
     expect(html).toContain("configured");
     expect(html).not.toContain("U-raw-provider-test");
     expect(html).not.toContain("raw-line-token");
@@ -110,6 +120,12 @@ function providerReadiness(): ProviderReadiness {
     latestRoutingStatus: "dry-run-only",
     normalizedEventCount: 3,
     routingBlockedCount: 1,
+    webhookInboundPersistenceEnabled: true,
+    latestInboundPersistenceStatus: "blocked-replay",
+    persistedInboundMessageCount: 1,
+    inboundPersistenceBlockedCount: 1,
+    inboundPersistenceReplayBlockedCount: 1,
+    inboundPersistenceSkippedNoMatchCount: 1,
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -173,6 +189,12 @@ function providerWebhookEvent(): ProviderWebhookEvent {
     conversationKeyDigest: null,
     channelAccountId: null,
     roomIdDigest: null,
+    inboundPersistenceMode: "sandbox-persist",
+    inboundPersistenceStatus: "blocked-replay",
+    messagePersisted: false,
+    persistedMessageId: null,
+    conversationId: null,
+    inboundAuditStatus: "recorded",
     externalCalls: 0
   };
 }
