@@ -10,6 +10,7 @@ import {
   createKnowledgeChunk,
   createKnowledgeDocument,
   createProviderWebhookSandboxEvent,
+  bulkReviewProviderWebhookUnmatchedInbound,
   deleteKnowledgeBase,
   createWebchatMessage,
   deleteKnowledgeChunk,
@@ -124,7 +125,7 @@ describe("frontend API client", () => {
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([providerWebhookEventResponse("provider-webhook-event-1")]))
-      .mockResolvedValueOnce(jsonResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")]))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookUnmatchedInboundPageResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")])))
       .mockResolvedValueOnce(jsonResponse(providerWebhookEventResponse("provider-webhook-event-2", "telegram")))
       .mockResolvedValueOnce(jsonResponse({ ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"), unmatchedStatus: "reviewed", reviewStatus: "reviewed" }))
       .mockResolvedValueOnce(jsonResponse({ ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"), unmatchedStatus: "linked", reviewStatus: "linked", linkStatus: "linked", linkedConversationId: "conversation-safe-internal" }));
@@ -151,7 +152,7 @@ describe("frontend API client", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/events", expect.any(Object));
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound?limit=10&offset=0&sortBy=receivedAt&sortOrder=desc", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/sandbox-events", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/review", expect.objectContaining({ method: "PATCH" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/link-conversation", expect.objectContaining({ method: "POST" }));
@@ -170,13 +171,14 @@ describe("frontend API client", () => {
     });
     expectTenantHeaderForAll(fetchMock);
     expect(events[0]?.externalCalls).toBe(0);
-    expect(unmatched[0]).toMatchObject({
+    expect(unmatched.items[0]).toMatchObject({
       id: "provider-webhook-unmatched-1",
       tenantId: defaultTenantId,
       conversationLookupStatus: "not-found",
       unmatchedStatus: "review-needed",
       externalCalls: 0
     });
+    expect(unmatched.pagination).toMatchObject({ totalCount: 1, limit: 10, offset: 0 });
     expect(created.provider).toBe("telegram");
     expect(reviewed.reviewStatus).toBe("reviewed");
     expect(linked.linkStatus).toBe("linked");
@@ -198,21 +200,24 @@ describe("frontend API client", () => {
 
   it("sends safe unmatched filters and x-tenant-id for candidate lookup", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")]))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookUnmatchedInboundPageResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")])))
       .mockResolvedValueOnce(jsonResponse([providerWebhookCandidateResponse("conversation-safe-internal")]));
 
     const unmatched = await getProviderWebhookUnmatchedInbound({
       provider: "line",
       reviewStatus: "pending",
       linkStatus: "none",
-      limit: 10
+      limit: 10,
+      offset: 20,
+      sortBy: "receivedAt",
+      sortOrder: "asc"
     });
     const candidates = await getProviderWebhookUnmatchedInboundCandidates("provider-webhook-unmatched-1");
 
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound?provider=line&reviewStatus=pending&linkStatus=none&limit=10", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound?provider=line&reviewStatus=pending&linkStatus=none&limit=10&offset=20&sortBy=receivedAt&sortOrder=asc", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/candidates", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
-    expect(unmatched[0]?.id).toBe("provider-webhook-unmatched-1");
+    expect(unmatched.items[0]?.id).toBe("provider-webhook-unmatched-1");
     expect(candidates[0]).toMatchObject({
       conversationId: "conversation-safe-internal",
       platform: "line",
@@ -220,6 +225,54 @@ describe("frontend API client", () => {
       externalCalls: 0
     });
     expect(JSON.stringify(candidates)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender/i);
+  });
+
+  it("sends x-tenant-id and safe body for bulk unmatched review", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({
+        reviewStatus: "reviewed",
+        results: [
+          {
+            id: "provider-webhook-unmatched-1",
+            ok: true,
+            resultStatus: "updated",
+            reviewStatus: "reviewed",
+            unmatchedStatus: "reviewed",
+            error: null,
+            externalCalls: 0
+          }
+        ],
+        summary: {
+          requestedCount: 1,
+          dedupedCount: 1,
+          successCount: 1,
+          errorCount: 0,
+          updatedCount: 1,
+          alreadyAppliedCount: 0
+        },
+        externalCalls: 0
+      }));
+
+    const result = await bulkReviewProviderWebhookUnmatchedInbound({
+      ids: ["provider-webhook-unmatched-1"],
+      reviewStatus: "reviewed",
+      reason: "safe bulk review"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/bulk-review", expect.objectContaining({ method: "PATCH" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      ids: ["provider-webhook-unmatched-1"],
+      reviewStatus: "reviewed",
+      reason: "safe bulk review"
+    });
+    expect(result.summary.successCount).toBe(1);
+    expect(result.results[0]).toMatchObject({
+      id: "provider-webhook-unmatched-1",
+      resultStatus: "updated",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(result)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender/i);
   });
 
   it("validates conversations and keeps room filters explicit", async () => {
@@ -1194,6 +1247,37 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookUnmatchedInboundPageResponse(items = [providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")]) {
+  return {
+    items,
+    pagination: {
+      totalCount: items.length,
+      limit: 10,
+      offset: 0,
+      returnedCount: items.length,
+      hasNextPage: false,
+      hasPreviousPage: false
+    },
+    appliedFilters: {
+      limit: 10,
+      offset: 0,
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    appliedSort: {
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    summary: {
+      openCount: items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
+      reviewedCount: items.filter((item) => item.reviewStatus === "reviewed").length,
+      skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
+      linkedCount: items.filter((item) => item.reviewStatus === "linked").length
+    },
     externalCalls: 0
   };
 }

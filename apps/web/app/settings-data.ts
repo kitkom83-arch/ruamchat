@@ -4,9 +4,12 @@ import type {
   ProviderReadiness,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookUnmatchedInboundBulkReviewRequest,
+  ProviderWebhookUnmatchedInboundBulkReviewResponse,
   ProviderWebhookUnmatchedInboundFilters,
   ProviderWebhookUnmatchedInboundLinkRequest,
   ProviderWebhookUnmatchedInboundItem,
+  ProviderWebhookUnmatchedInboundPage,
   ProviderWebhookUnmatchedInboundReviewRequest,
   ProviderWebhookSandboxEventRequest,
   SettingsCannedReply,
@@ -16,6 +19,7 @@ import type {
 } from "@ai-omni/shared";
 import {
   createProviderWebhookSandboxEvent,
+  bulkReviewProviderWebhookUnmatchedInbound,
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
@@ -56,6 +60,11 @@ export type SettingsProviderWebhookEventsData = {
 export type SettingsProviderWebhookUnmatchedInboundData = {
   mode: DataMode;
   items: ProviderWebhookUnmatchedInboundItem[];
+  pagination: ProviderWebhookUnmatchedInboundPage["pagination"];
+  appliedFilters: ProviderWebhookUnmatchedInboundPage["appliedFilters"];
+  appliedSort: ProviderWebhookUnmatchedInboundPage["appliedSort"];
+  summary: ProviderWebhookUnmatchedInboundPage["summary"];
+  externalCalls: 0;
 };
 
 export type SettingsProviderWebhookCandidateData = {
@@ -114,15 +123,17 @@ export async function loadSettingsProviderWebhookEventsData(mode: DataMode): Pro
 
 export async function loadSettingsProviderWebhookUnmatchedInboundData(mode: DataMode, filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<SettingsProviderWebhookUnmatchedInboundData> {
   if (mode === "api") {
+    const page = await getProviderWebhookUnmatchedInbound(filters);
     return {
       mode,
-      items: await getProviderWebhookUnmatchedInbound(filters)
+      ...page
     };
   }
 
+  const page = createMockUnmatchedInboundPage(filters);
   return {
     mode,
-    items: filterMockUnmatchedInbound(filters)
+    ...page
   };
 }
 
@@ -161,6 +172,9 @@ export async function reviewSettingsProviderWebhookUnmatchedInbound(
 
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
+  if (item.unmatchedStatus === payload.status && item.reviewStatus === payload.status) {
+    return item;
+  }
   const nowIso = new Date().toISOString();
   item.unmatchedStatus = payload.status;
   item.reviewStatus = payload.status;
@@ -171,10 +185,72 @@ export async function reviewSettingsProviderWebhookUnmatchedInbound(
   item.externalCalls = 0;
   mockProviderReadiness.latestUnmatchedReviewActionStatus = payload.status;
   mockProviderReadiness.latestUnmatchedInboundStatus = payload.status;
-  mockProviderReadiness.unmatchedInboundOpenCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.unmatchedStatus === "open" || candidate.unmatchedStatus === "review-needed").length;
-  mockProviderReadiness.unmatchedInboundReviewedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "reviewed").length;
-  mockProviderReadiness.unmatchedInboundSkippedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "skipped").length;
+  refreshMockUnmatchedCounts();
   return item;
+}
+
+export async function bulkReviewSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  payload: ProviderWebhookUnmatchedInboundBulkReviewRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkReviewResponse> {
+  if (mode === "api") {
+    return bulkReviewProviderWebhookUnmatchedInbound(payload);
+  }
+
+  const uniqueIds = Array.from(new Set(payload.ids.map((id) => id.trim()).filter(Boolean)));
+  if (uniqueIds.length === 0) throw new Error("Invalid unmatched inbound bulk review request");
+  if (payload.ids.length > 50) throw new Error("Invalid unmatched inbound bulk review request");
+
+  const results: ProviderWebhookUnmatchedInboundBulkReviewResponse["results"] = [];
+  for (const id of uniqueIds) {
+    const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === id);
+    if (!item) {
+      results.push({ id, ok: false, resultStatus: "not-found", reviewStatus: null, unmatchedStatus: null, error: "Unmatched inbound item not found", externalCalls: 0 });
+      continue;
+    }
+    if (item.unmatchedStatus === payload.reviewStatus && item.reviewStatus === payload.reviewStatus) {
+      results.push({ id, ok: true, resultStatus: "already-applied", reviewStatus: payload.reviewStatus, unmatchedStatus: item.unmatchedStatus, error: null, externalCalls: 0 });
+      continue;
+    }
+    if (item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed") {
+      results.push({
+        id,
+        ok: false,
+        resultStatus: "conflict",
+        reviewStatus: item.reviewStatus === "reviewed" || item.reviewStatus === "skipped" ? item.reviewStatus : null,
+        unmatchedStatus: item.unmatchedStatus,
+        error: "Unmatched inbound item is already resolved",
+        externalCalls: 0
+      });
+      continue;
+    }
+    const nowIso = new Date().toISOString();
+    item.unmatchedStatus = payload.reviewStatus;
+    item.reviewStatus = payload.reviewStatus;
+    item.reviewedAt = nowIso;
+    item.reviewedBy = "system";
+    item.reviewReason = safeMockReason(payload.reason);
+    item.unmatchedResolvedAt = nowIso;
+    item.externalCalls = 0;
+    results.push({ id, ok: true, resultStatus: "updated", reviewStatus: payload.reviewStatus, unmatchedStatus: item.unmatchedStatus, error: null, externalCalls: 0 });
+  }
+
+  mockProviderReadiness.latestUnmatchedReviewActionStatus = payload.reviewStatus;
+  mockProviderReadiness.latestUnmatchedInboundStatus = payload.reviewStatus;
+  refreshMockUnmatchedCounts();
+  return {
+    reviewStatus: payload.reviewStatus,
+    results,
+    summary: {
+      requestedCount: payload.ids.length,
+      dedupedCount: uniqueIds.length,
+      successCount: results.filter((result) => result.ok).length,
+      errorCount: results.filter((result) => !result.ok).length,
+      updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+      alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+    },
+    externalCalls: 0
+  };
 }
 
 export async function linkSettingsProviderWebhookUnmatchedInboundConversation(
@@ -199,8 +275,7 @@ export async function linkSettingsProviderWebhookUnmatchedInboundConversation(
   item.externalCalls = 0;
   mockProviderReadiness.latestUnmatchedLinkStatus = item.linkStatus;
   mockProviderReadiness.latestUnmatchedInboundStatus = "linked";
-  mockProviderReadiness.unmatchedInboundOpenCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.unmatchedStatus === "open" || candidate.unmatchedStatus === "review-needed").length;
-  mockProviderReadiness.unmatchedInboundLinkedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "linked").length;
+  refreshMockUnmatchedCounts();
   return item;
 }
 
@@ -333,7 +408,46 @@ function channel(
   };
 }
 
+function createMockUnmatchedInboundPage(filters: ProviderWebhookUnmatchedInboundFilters): Omit<SettingsProviderWebhookUnmatchedInboundData, "mode"> {
+  const limit = filters.limit ?? 10;
+  const offset = filters.offset ?? 0;
+  const sortBy = filters.sortBy ?? "receivedAt";
+  const sortOrder = filters.sortOrder ?? "desc";
+  const filtered = filterMockUnmatchedInbound(filters);
+  const sorted = [...filtered].sort((left, right) => {
+    const compared = left.receivedAt.localeCompare(right.receivedAt);
+    return sortOrder === "asc" ? compared : -compared;
+  });
+  const items = sorted.slice(offset, offset + limit);
+  return {
+    items,
+    pagination: {
+      totalCount: filtered.length,
+      limit,
+      offset,
+      returnedCount: items.length,
+      hasNextPage: offset + limit < filtered.length,
+      hasPreviousPage: offset > 0
+    },
+    appliedFilters: {
+      ...filters,
+      limit,
+      offset,
+      sortBy,
+      sortOrder
+    },
+    appliedSort: {
+      sortBy,
+      sortOrder
+    },
+    summary: summarizeMockUnmatchedInbound(filtered),
+    externalCalls: 0
+  };
+}
+
 function filterMockUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters) {
+  const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
+  const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
   return mockProviderWebhookUnmatchedInbound.filter((item) => {
     if (filters.status === "open" && item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed") return false;
     if (filters.status && filters.status !== "open" && item.unmatchedStatus !== filters.status) return false;
@@ -342,10 +456,27 @@ function filterMockUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilt
     if (filters.linkStatus && item.linkStatus !== filters.linkStatus) return false;
     if (filters.unmatchedStatus && item.unmatchedStatus !== filters.unmatchedStatus) return false;
     if (filters.eventType && item.eventType !== filters.eventType) return false;
-    if (filters.receivedFrom && item.receivedAt < new Date(filters.receivedFrom).toISOString()) return false;
-    if (filters.receivedTo && item.receivedAt > new Date(filters.receivedTo).toISOString()) return false;
+    if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
+    if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
     return true;
-  }).slice(0, filters.limit ?? mockProviderWebhookUnmatchedInbound.length);
+  });
+}
+
+function summarizeMockUnmatchedInbound(items: ProviderWebhookUnmatchedInboundItem[]) {
+  return {
+    openCount: items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
+    reviewedCount: items.filter((item) => item.reviewStatus === "reviewed").length,
+    skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
+    linkedCount: items.filter((item) => item.reviewStatus === "linked").length
+  };
+}
+
+function refreshMockUnmatchedCounts() {
+  const summary = summarizeMockUnmatchedInbound(mockProviderWebhookUnmatchedInbound);
+  mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
+  mockProviderReadiness.unmatchedInboundReviewedCount = summary.reviewedCount;
+  mockProviderReadiness.unmatchedInboundSkippedCount = summary.skippedCount;
+  mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {

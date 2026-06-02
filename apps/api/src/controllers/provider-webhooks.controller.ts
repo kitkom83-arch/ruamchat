@@ -15,8 +15,11 @@ export class ProviderWebhooksController {
   listUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
     @Query() query: unknown
-  ) {
-    return this.events.listUnmatchedInbound(requireTenantId(tenant), parseUnmatchedInboundFilters(query));
+  ): any {
+    const filters = parseUnmatchedInboundFilters(query);
+    return shouldReturnPagedUnmatchedInbound(query)
+      ? this.events.listUnmatchedInboundPage(requireTenantId(tenant), filters)
+      : this.events.listUnmatchedInbound(requireTenantId(tenant), filters);
   }
 
   @Get("unmatched-inbound/:id/candidates")
@@ -35,6 +38,15 @@ export class ProviderWebhooksController {
     @Body() body: unknown
   ) {
     return this.events.reviewUnmatchedInbound(requireTenantId(tenant), id, body, userId);
+  }
+
+  @Patch("unmatched-inbound/bulk-review")
+  bulkReviewUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.bulkReviewUnmatchedInbound(requireTenantId(tenant), body, userId);
   }
 
   @Post("unmatched-inbound/:id/link-conversation")
@@ -82,4 +94,10 @@ function parseUnmatchedInboundFilters(query: unknown) {
   const parsed = providerWebhookUnmatchedInboundFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound filters");
   return parsed.data;
+}
+
+function shouldReturnPagedUnmatchedInbound(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) return false;
+  const keys = new Set(Object.keys(query as Record<string, unknown>));
+  return keys.has("offset") || keys.has("sortBy") || keys.has("sortOrder") || keys.has("receivedAtFrom") || keys.has("receivedAtTo");
 }

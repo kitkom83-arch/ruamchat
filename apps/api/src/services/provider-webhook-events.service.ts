@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
+  providerWebhookUnmatchedInboundBulkReviewRequestSchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
+  type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
   type ProviderWebhookUnmatchedInboundReviewRequest,
   type ProviderWebhookUnmatchedInboundFilters,
   type ProviderSandboxProvider,
@@ -36,20 +38,46 @@ export class ProviderWebhookEventsService {
   }
 
   listUnmatchedInbound(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}) {
-    const normalizedFilters = typeof filters === "string" ? { status: filters } : filters;
-    const filtered = unmatchedInboundItems.filter((item) => {
-      if (item.tenantId !== tenantId) return false;
-      if (!matchesLegacyStatusFilter(item, normalizedFilters.status)) return false;
-      if (normalizedFilters.provider && item.provider !== normalizedFilters.provider) return false;
-      if (normalizedFilters.reviewStatus && item.reviewStatus !== normalizedFilters.reviewStatus) return false;
-      if (normalizedFilters.linkStatus && item.linkStatus !== normalizedFilters.linkStatus) return false;
-      if (normalizedFilters.unmatchedStatus && item.unmatchedStatus !== normalizedFilters.unmatchedStatus) return false;
-      if (normalizedFilters.eventType && item.eventType !== normalizedFilters.eventType) return false;
-      if (normalizedFilters.receivedFrom && item.receivedAt < new Date(normalizedFilters.receivedFrom).toISOString()) return false;
-      if (normalizedFilters.receivedTo && item.receivedAt > new Date(normalizedFilters.receivedTo).toISOString()) return false;
-      return true;
-    });
+    const normalizedFilters = normalizeUnmatchedInboundFilters(filters);
+    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters);
     return normalizedFilters.limit ? filtered.slice(0, normalizedFilters.limit) : filtered;
+  }
+
+  listUnmatchedInboundPage(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}) {
+    const normalizedFilters = normalizeUnmatchedInboundFilters(filters);
+    const limit = normalizedFilters.limit ?? 10;
+    const offset = normalizedFilters.offset ?? 0;
+    const appliedSort = {
+      sortBy: normalizedFilters.sortBy ?? "receivedAt" as const,
+      sortOrder: normalizedFilters.sortOrder ?? "desc" as const
+    };
+    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const sorted = [...filtered].sort((left, right) => {
+      const compared = left.receivedAt.localeCompare(right.receivedAt);
+      return appliedSort.sortOrder === "asc" ? compared : -compared;
+    });
+    const items = sorted.slice(offset, offset + limit);
+    return {
+      items,
+      pagination: {
+        totalCount: filtered.length,
+        limit,
+        offset,
+        returnedCount: items.length,
+        hasNextPage: offset + limit < filtered.length,
+        hasPreviousPage: offset > 0
+      },
+      appliedFilters: cleanUnmatchedInboundFilters({
+        ...normalizedFilters,
+        limit,
+        offset,
+        sortBy: appliedSort.sortBy,
+        sortOrder: appliedSort.sortOrder
+      }),
+      appliedSort,
+      summary: summarizeUnmatchedInboundItems(filtered),
+      externalCalls: 0 as const
+    };
   }
 
   async listUnmatchedInboundCandidates(tenantId: string, id: string) {
@@ -109,6 +137,75 @@ export class ProviderWebhookEventsService {
       messageId: null
     });
     return item;
+  }
+
+  async bulkReviewUnmatchedInbound(tenantId: string, body: unknown, actorUserId?: string) {
+    const parsed = providerWebhookUnmatchedInboundBulkReviewRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound bulk review request");
+
+    const input = parsed.data;
+    const uniqueIds = Array.from(new Set(input.ids.map((id) => id.trim()).filter(Boolean)));
+    const results: ProviderWebhookUnmatchedInboundBulkReviewItemResult[] = [];
+
+    for (const id of uniqueIds) {
+      const item = findUnmatchedInboundItem(tenantId, id);
+      if (!item) {
+        results.push(bulkReviewResult(id, false, "not-found", null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+
+      if (item.unmatchedStatus === input.reviewStatus && item.reviewStatus === input.reviewStatus) {
+        results.push(bulkReviewResult(item.id, true, "already-applied", item.reviewStatus, item.unmatchedStatus, null));
+        continue;
+      }
+
+      if (!isOpenUnmatchedStatus(item.unmatchedStatus)) {
+        results.push(bulkReviewResult(item.id, false, "conflict", safeBulkReviewStatus(item.reviewStatus), item.unmatchedStatus, "Unmatched inbound item is already resolved"));
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      item.unmatchedStatus = input.reviewStatus;
+      item.reviewStatus = input.reviewStatus;
+      item.reviewedAt = now;
+      item.reviewedBy = safeActorId(actorUserId);
+      item.reviewReason = safeReviewReason(input.reason);
+      item.unmatchedResolvedAt = now;
+      item.externalCalls = 0;
+
+      const event = findEventForUnmatchedItem(item);
+      if (event) {
+        event.unmatchedStatus = input.reviewStatus;
+        event.unmatchedReviewActionStatus = input.reviewStatus;
+        event.unmatchedResolvedAt = now;
+        event.externalCalls = 0;
+      }
+
+      await this.recordUnmatchedActionAudit({
+        tenantId,
+        actorUserId,
+        item,
+        action: input.reviewStatus === "reviewed" ? "provider_webhook.unmatched_inbound_bulk_reviewed" : "provider_webhook.unmatched_inbound_bulk_skipped",
+        status: input.reviewStatus,
+        conversationId: null,
+        messageId: null
+      });
+      results.push(bulkReviewResult(item.id, true, "updated", item.reviewStatus, item.unmatchedStatus, null));
+    }
+
+    return {
+      reviewStatus: input.reviewStatus,
+      results,
+      summary: {
+        requestedCount: input.ids.length,
+        dedupedCount: uniqueIds.length,
+        successCount: results.filter((result) => result.ok).length,
+        errorCount: results.filter((result) => !result.ok).length,
+        updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+        alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+      },
+      externalCalls: 0 as const
+    };
   }
 
   async linkUnmatchedInboundToConversation(tenantId: string, id: string, body: unknown, actorUserId?: string) {
@@ -731,6 +828,70 @@ function matchesLegacyStatusFilter(item: ProviderWebhookUnmatchedInboundItem, st
   if (!status) return true;
   if (status === "open") return isOpenUnmatchedStatus(item.unmatchedStatus);
   return item.unmatchedStatus === status;
+}
+
+function normalizeUnmatchedInboundFilters(filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter): ProviderWebhookUnmatchedInboundFilters {
+  if (typeof filters === "string") return { status: filters };
+  return filters ?? {};
+}
+
+function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters) {
+  const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
+  const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
+  return unmatchedInboundItems.filter((item) => {
+    if (item.tenantId !== tenantId) return false;
+    if (!matchesLegacyStatusFilter(item, filters.status)) return false;
+    if (filters.provider && item.provider !== filters.provider) return false;
+    if (filters.reviewStatus && item.reviewStatus !== filters.reviewStatus) return false;
+    if (filters.linkStatus && item.linkStatus !== filters.linkStatus) return false;
+    if (filters.unmatchedStatus && item.unmatchedStatus !== filters.unmatchedStatus) return false;
+    if (filters.eventType && item.eventType !== filters.eventType) return false;
+    if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
+    if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
+    return true;
+  });
+}
+
+function cleanUnmatchedInboundFilters(filters: ProviderWebhookUnmatchedInboundFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookUnmatchedInboundFilters;
+}
+
+function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundItem[]) {
+  return {
+    openCount: items.filter(isOpenUnmatchedStatusItem).length,
+    reviewedCount: items.filter((item) => item.reviewStatus === "reviewed").length,
+    skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
+    linkedCount: items.filter((item) => item.reviewStatus === "linked").length
+  };
+}
+
+function isOpenUnmatchedStatusItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return isOpenUnmatchedStatus(item.unmatchedStatus);
+}
+
+function bulkReviewResult(
+  id: string,
+  ok: boolean,
+  resultStatus: ProviderWebhookUnmatchedInboundBulkReviewItemResult["resultStatus"],
+  reviewStatus: ProviderWebhookUnmatchedInboundBulkReviewItemResult["reviewStatus"],
+  unmatchedStatus: ProviderWebhookUnmatchedInboundBulkReviewItemResult["unmatchedStatus"],
+  error: string | null
+): ProviderWebhookUnmatchedInboundBulkReviewItemResult {
+  return {
+    id,
+    ok,
+    resultStatus,
+    reviewStatus,
+    unmatchedStatus,
+    error,
+    externalCalls: 0
+  };
+}
+
+function safeBulkReviewStatus(status: ProviderWebhookUnmatchedInboundItem["reviewStatus"]) {
+  return status === "reviewed" || status === "skipped" ? status : null;
 }
 
 function isSafeLinkableUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {

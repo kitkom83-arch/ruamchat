@@ -2769,6 +2769,14 @@ dd {
   font-weight: 800;
 }
 
+.webhookEventActions,
+.webhookSelectRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .webhookCandidateSurface {
   display: grid;
   gap: 8px;

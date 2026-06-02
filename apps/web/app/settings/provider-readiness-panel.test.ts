@@ -12,6 +12,24 @@ describe("ProviderReadinessPanel", () => {
       error: "",
       webhookEvents: [providerWebhookEvent()],
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
+      unmatchedPagination: {
+        totalCount: 12,
+        limit: 5,
+        offset: 5,
+        returnedCount: 1,
+        hasNextPage: true,
+        hasPreviousPage: true
+      },
+      unmatchedAppliedSort: {
+        sortBy: "receivedAt",
+        sortOrder: "asc"
+      },
+      unmatchedPageSummary: {
+        openCount: 4,
+        reviewedCount: 3,
+        skippedCount: 2,
+        linkedCount: 1
+      },
       candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
       unmatchedActionStatus: "Unmatched inbound provider-webhook-unmatched-1 reviewed; externalCalls=0"
     }));
@@ -77,7 +95,27 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Provider filter");
     expect(html).toContain("Review status");
     expect(html).toContain("Link status");
+    expect(html).toContain("Queue status");
+    expect(html).toContain("Unmatched status");
+    expect(html).toContain("Event type");
+    expect(html).toContain("Received from");
+    expect(html).toContain("Received to");
+    expect(html).toContain("Page size");
+    expect(html).toContain("Sort order");
+    expect(html).toContain("receivedAt oldest first");
+    expect(html).toContain("Previous");
+    expect(html).toContain("Next");
+    expect(html).toContain("Select all visible");
+    expect(html).toContain("Clear selection");
+    expect(html).toContain("Bulk Mark reviewed");
+    expect(html).toContain("Bulk Skip");
     expect(html).toContain("visible unmatched count=1");
+    expect(html).toContain("total unmatched count=12");
+    expect(html).toContain("page size=5");
+    expect(html).toContain("page offset=5");
+    expect(html).toContain("applied sort=receivedAt asc");
+    expect(html).toContain("selected count=0");
+    expect(html).toContain("filtered open count=4");
     expect(html).toContain("visible open count=1");
     expect(html).toContain("LINE unmatched inbound");
     expect(html).toContain("safe-review-required-no-conversation-match");
@@ -104,6 +142,42 @@ describe("ProviderReadinessPanel", () => {
     expect(html).not.toContain("raw-line-token");
     expect(html).not.toContain("raw-line-token");
     expect(html).not.toMatch(/channel secret|webhook secret value|providerRaw|rawPayload|payloadJson|Bearer|sk-|authorization|cookie/i);
+  });
+
+  it("renders multi-select and disabled empty bulk actions safely", () => {
+    const html = renderToString(React.createElement(ProviderReadinessPanel, {
+      readiness: providerReadiness(),
+      loading: false,
+      error: "",
+      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
+      selectedUnmatchedIds: [],
+      onUnmatchedSelectionChange: async () => undefined,
+      onBulkReviewUnmatchedInbound: async () => undefined
+    }));
+
+    expect(html).toContain("Select all visible");
+    expect(html).toContain("selected count=0");
+    expect(html).toContain("Bulk Mark reviewed");
+    expect(html).toContain("Bulk Skip");
+    expect(html).toContain("disabled");
+    expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|replyToken|raw sender|raw room/i);
+  });
+
+  it("renders safe per-item bulk results", () => {
+    const html = renderToString(React.createElement(ProviderReadinessPanel, {
+      readiness: providerReadiness(),
+      loading: false,
+      error: "",
+      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
+      selectedUnmatchedIds: ["provider-webhook-unmatched-1"],
+      unmatchedBulkResult: providerWebhookBulkReviewResult()
+    }));
+
+    expect(html).toContain("provider-webhook-unmatched-1: updated");
+    expect(html).toContain("reviewStatus=reviewed");
+    expect(html).toContain("unmatchedStatus=reviewed");
+    expect(html).toContain("externalCalls=0");
+    expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|replyToken|raw sender|raw room/i);
   });
 
   it("renders an API error state without fake provider rows", () => {
@@ -312,5 +386,31 @@ function providerWebhookCandidateConversation(): ProviderWebhookCandidateConvers
     matchReason: "platform, channel account, and room digest match",
     matchConfidence: 0.98,
     externalCalls: 0
+  };
+}
+
+function providerWebhookBulkReviewResult() {
+  return {
+    reviewStatus: "reviewed" as const,
+    results: [
+      {
+        id: "provider-webhook-unmatched-1",
+        ok: true,
+        resultStatus: "updated" as const,
+        reviewStatus: "reviewed" as const,
+        unmatchedStatus: "reviewed" as const,
+        error: null,
+        externalCalls: 0 as const
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
+    externalCalls: 0 as const
   };
 }

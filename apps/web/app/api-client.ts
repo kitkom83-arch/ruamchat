@@ -16,9 +16,12 @@ import {
   apiHealthSchema,
   providerWebhookEventSchema,
   providerWebhookCandidateConversationSchema,
+  providerWebhookUnmatchedInboundBulkReviewRequestSchema,
+  providerWebhookUnmatchedInboundBulkReviewResponseSchema,
   providerWebhookUnmatchedInboundFiltersSchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundItemSchema,
+  providerWebhookUnmatchedInboundPageSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
   coreConversationCardSchema,
@@ -162,9 +165,12 @@ import {
   type ProviderReadiness,
   type ProviderWebhookCandidateConversation,
   type ProviderWebhookEvent,
+  type ProviderWebhookUnmatchedInboundBulkReviewRequest,
+  type ProviderWebhookUnmatchedInboundBulkReviewResponse,
   type ProviderWebhookUnmatchedInboundFilters,
   type ProviderWebhookUnmatchedInboundLinkRequest,
   type ProviderWebhookUnmatchedInboundItem,
+  type ProviderWebhookUnmatchedInboundPage,
   type ProviderWebhookUnmatchedInboundReviewRequest,
   type ProviderWebhookSandboxEventRequest,
   type RoomAiPolicy,
@@ -262,14 +268,21 @@ export async function getProviderWebhookEvents(): Promise<ProviderWebhookEvent[]
   return request("/provider-webhooks/events", providerWebhookEventSchema.array());
 }
 
-export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundItem[]> {
+export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundPage> {
   const parsed = providerWebhookUnmatchedInboundFiltersSchema.parse(filters);
+  const pageFilters: ProviderWebhookUnmatchedInboundFilters = {
+    ...parsed,
+    limit: parsed.limit ?? 10,
+    offset: parsed.offset ?? 0,
+    sortBy: parsed.sortBy ?? "receivedAt",
+    sortOrder: parsed.sortOrder ?? "desc"
+  };
   const params = new URLSearchParams();
-  Object.entries(parsed).forEach(([key, value]) => {
+  Object.entries(pageFilters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
   });
   const search = params.toString();
-  return request(`/provider-webhooks/unmatched-inbound${search ? `?${search}` : ""}`, providerWebhookUnmatchedInboundItemSchema.array());
+  return request(`/provider-webhooks/unmatched-inbound${search ? `?${search}` : ""}`, providerWebhookUnmatchedInboundPageSchema);
 }
 
 export async function getProviderWebhookUnmatchedInboundCandidates(unmatchedInboundId: string): Promise<ProviderWebhookCandidateConversation[]> {
@@ -290,6 +303,16 @@ export async function reviewProviderWebhookUnmatchedInbound(
 ): Promise<ProviderWebhookUnmatchedInboundItem> {
   const body = providerWebhookUnmatchedInboundReviewRequestSchema.parse(payload);
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/review`, providerWebhookUnmatchedInboundItemSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function bulkReviewProviderWebhookUnmatchedInbound(
+  payload: ProviderWebhookUnmatchedInboundBulkReviewRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkReviewResponse> {
+  const body = providerWebhookUnmatchedInboundBulkReviewRequestSchema.parse(payload);
+  return request("/provider-webhooks/unmatched-inbound/bulk-review", providerWebhookUnmatchedInboundBulkReviewResponseSchema, {
     method: "PATCH",
     body: JSON.stringify(body)
   });
