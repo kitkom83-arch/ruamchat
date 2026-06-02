@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -12,6 +12,7 @@ describe("ProviderReadinessPanel", () => {
       error: "",
       webhookEvents: [providerWebhookEvent()],
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
+      candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
       unmatchedActionStatus: "Unmatched inbound provider-webhook-unmatched-1 reviewed; externalCalls=0"
     }));
 
@@ -39,6 +40,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("inboundPersistenceSkippedNoMatchCount=1");
     expect(html).toContain("unmatched inbound review=enabled");
     expect(html).toContain("review actions=enabled");
+    expect(html).toContain("candidate lookup=enabled");
     expect(html).toContain("open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
     expect(html).toContain("unmatched replay blocked count=1");
@@ -72,11 +74,21 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("unmatchedReason=blocked-replay");
     expect(html).toContain("unmatchedId=provider-webhook-unmatched-1");
     expect(html).toContain("Unmatched inbound review");
+    expect(html).toContain("Provider filter");
+    expect(html).toContain("Review status");
+    expect(html).toContain("Link status");
+    expect(html).toContain("visible unmatched count=1");
+    expect(html).toContain("visible open count=1");
     expect(html).toContain("LINE unmatched inbound");
     expect(html).toContain("safe-review-required-no-conversation-match");
     expect(html).toContain("reviewStatus=pending");
     expect(html).toContain("Mark reviewed");
     expect(html).toContain("Skip");
+    expect(html).toContain("Load candidates");
+    expect(html).toContain("candidate count=1");
+    expect(html).toContain("conversationId=conversation-safe-internal");
+    expect(html).toContain("roomIdDigest=sha256:saferoomdigest");
+    expect(html).toContain("matchReason=platform, channel account, and room digest match");
     expect(html).toContain("Link only");
     expect(html).toContain("Link + persist safe message");
     expect(html).toContain("reviewed; externalCalls=0");
@@ -160,6 +172,7 @@ function providerReadiness(): ProviderReadiness {
     inboundPersistenceSkippedNoMatchCount: 1,
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
+    webhookCandidateLookupEnabled: true,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
     unmatchedInboundReplayBlockedCount: 1,
@@ -283,6 +296,21 @@ function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundI
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCandidateConversation(): ProviderWebhookCandidateConversation {
+  return {
+    conversationId: "conversation-safe-internal",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    roomIdDigest: "sha256:saferoomdigest",
+    safeRoomLabel: "line conversation digest match",
+    latestMessagePreview: "Safe candidate preview",
+    latestMessageAt: "2026-05-31T00:00:00.000Z",
+    matchReason: "platform, channel account, and room digest match",
+    matchConfidence: 0.98,
     externalCalls: 0
   };
 }

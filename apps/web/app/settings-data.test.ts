@@ -3,6 +3,7 @@ import {
   findCannedReplyInList,
   getCannedRepliesForMode,
   loadSettingsChannelsData,
+  loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -27,6 +28,7 @@ const api = vi.hoisted(() => ({
   getProviderReadiness: vi.fn(),
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookUnmatchedInbound: vi.fn(),
+  getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
   createProviderWebhookSandboxEvent: vi.fn(),
   reviewProviderWebhookUnmatchedInbound: vi.fn(),
   linkProviderWebhookUnmatchedInboundConversation: vi.fn()
@@ -40,6 +42,7 @@ vi.mock("./api-client", () => ({
   getProviderReadiness: api.getProviderReadiness,
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
+  getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
   createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent,
   reviewProviderWebhookUnmatchedInbound: api.reviewProviderWebhookUnmatchedInbound,
   linkProviderWebhookUnmatchedInboundConversation: api.linkProviderWebhookUnmatchedInboundConversation
@@ -53,6 +56,7 @@ beforeEach(() => {
   api.getProviderReadiness.mockReset();
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookUnmatchedInbound.mockReset();
+  api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
   api.reviewProviderWebhookUnmatchedInbound.mockReset();
   api.linkProviderWebhookUnmatchedInboundConversation.mockReset();
@@ -190,6 +194,32 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify(data.items)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
   });
 
+  it("loads unmatched inbound filters and safe candidates from API mode", async () => {
+    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]);
+    api.getProviderWebhookUnmatchedInboundCandidates.mockResolvedValueOnce([providerWebhookCandidateResponse("conversation-safe-internal")]);
+
+    const unmatched = await loadSettingsProviderWebhookUnmatchedInboundData("api", {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none"
+    });
+    const candidates = await loadSettingsProviderWebhookCandidateData("api", "provider-webhook-unmatched-api");
+
+    expect(api.getProviderWebhookUnmatchedInbound).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none"
+    }));
+    expect(api.getProviderWebhookUnmatchedInboundCandidates).toHaveBeenCalledWith("provider-webhook-unmatched-api");
+    expect(unmatched.items[0]?.id).toBe("provider-webhook-unmatched-api");
+    expect(candidates.candidates[0]).toMatchObject({
+      conversationId: "conversation-safe-internal",
+      roomIdDigest: "sha256:saferoomdigest",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(candidates)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender/i);
+  });
+
   it("creates provider webhook sandbox events through API mode without local fallback", async () => {
     api.createProviderWebhookSandboxEvent.mockResolvedValueOnce(providerWebhookEventResponse("provider-webhook-event-created", "telegram"));
 
@@ -251,6 +281,11 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): unmatched unavailable"));
 
     await expect(loadSettingsProviderWebhookUnmatchedInboundData("api")).rejects.toThrow("unmatched unavailable");
+
+    api.getProviderWebhookUnmatchedInboundCandidates.mockRejectedValueOnce(new Error("API request failed (503): candidates unavailable"));
+
+    await expect(loadSettingsProviderWebhookCandidateData("api", "provider-webhook-unmatched-api"))
+      .rejects.toThrow("candidates unavailable");
 
     api.createProviderWebhookSandboxEvent.mockRejectedValueOnce(new Error("API request failed (503): sandbox intake unavailable"));
 
@@ -502,6 +537,7 @@ function providerReadinessResponse() {
     inboundPersistenceSkippedNoMatchCount: 0,
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
+    webhookCandidateLookupEnabled: true,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 1,
     unmatchedInboundReplayBlockedCount: 0,
@@ -625,6 +661,21 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCandidateResponse(conversationId: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
+  return {
+    conversationId,
+    platform: provider,
+    channelAccountId: `sandbox:${provider}`,
+    roomIdDigest: "sha256:saferoomdigest",
+    safeRoomLabel: `${provider} conversation digest match`,
+    latestMessagePreview: "Safe candidate preview",
+    latestMessageAt: "2026-05-31T00:00:00.000Z",
+    matchReason: "platform, channel account, and room digest match",
+    matchConfidence: 0.98,
     externalCalls: 0
   };
 }

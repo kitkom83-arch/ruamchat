@@ -5,6 +5,7 @@ import {
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
   type ProviderWebhookUnmatchedInboundReviewRequest,
+  type ProviderWebhookUnmatchedInboundFilters,
   type ProviderSandboxProvider,
   type ProviderWebhookEvent,
   type ProviderWebhookMessageType,
@@ -34,12 +35,35 @@ export class ProviderWebhookEventsService {
     return events.filter((event) => event.tenantId === tenantId);
   }
 
-  listUnmatchedInbound(tenantId: string, status?: ProviderWebhookUnmatchedInboundStatusFilter) {
-    return unmatchedInboundItems.filter((item) => {
+  listUnmatchedInbound(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}) {
+    const normalizedFilters = typeof filters === "string" ? { status: filters } : filters;
+    const filtered = unmatchedInboundItems.filter((item) => {
       if (item.tenantId !== tenantId) return false;
-      if (!status) return true;
-      if (status === "open") return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
-      return item.unmatchedStatus === status;
+      if (!matchesLegacyStatusFilter(item, normalizedFilters.status)) return false;
+      if (normalizedFilters.provider && item.provider !== normalizedFilters.provider) return false;
+      if (normalizedFilters.reviewStatus && item.reviewStatus !== normalizedFilters.reviewStatus) return false;
+      if (normalizedFilters.linkStatus && item.linkStatus !== normalizedFilters.linkStatus) return false;
+      if (normalizedFilters.unmatchedStatus && item.unmatchedStatus !== normalizedFilters.unmatchedStatus) return false;
+      if (normalizedFilters.eventType && item.eventType !== normalizedFilters.eventType) return false;
+      if (normalizedFilters.receivedFrom && item.receivedAt < new Date(normalizedFilters.receivedFrom).toISOString()) return false;
+      if (normalizedFilters.receivedTo && item.receivedAt > new Date(normalizedFilters.receivedTo).toISOString()) return false;
+      return true;
+    });
+    return normalizedFilters.limit ? filtered.slice(0, normalizedFilters.limit) : filtered;
+  }
+
+  async listUnmatchedInboundCandidates(tenantId: string, id: string) {
+    const item = findUnmatchedInboundItem(tenantId, id);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    if (!isSafeLinkableUnmatchedItem(item) || !item.channelAccountId || !item.roomKeyDigest) {
+      return [];
+    }
+    return this.conversations.findSafeProviderWebhookCandidateConversations({
+      tenantId,
+      platform: item.provider,
+      channelAccountId: item.channelAccountId,
+      roomKeyDigest: item.roomKeyDigest,
+      limit: 5
     });
   }
 
@@ -657,6 +681,7 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     inboundPersistenceSkippedNoMatchCount: events.filter((event) => event.inboundPersistenceStatus === "skipped-no-match").length,
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
+    webhookCandidateLookupEnabled: true,
     unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
     unmatchedInboundQueuedCount: unmatchedInboundItems.length,
     unmatchedInboundReplayBlockedCount: events.filter((event) => event.unmatchedStatus === "duplicate-skipped" || event.unmatchedReason === "blocked-replay").length,
@@ -700,6 +725,12 @@ function findEventForUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
 
 function isOpenUnmatchedStatus(status: ProviderWebhookUnmatchedInboundStatus) {
   return status === "open" || status === "review-needed";
+}
+
+function matchesLegacyStatusFilter(item: ProviderWebhookUnmatchedInboundItem, status: ProviderWebhookUnmatchedInboundStatusFilter | undefined) {
+  if (!status) return true;
+  if (status === "open") return isOpenUnmatchedStatus(item.unmatchedStatus);
+  return item.unmatchedStatus === status;
 }
 
 function isSafeLinkableUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {

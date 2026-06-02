@@ -2,7 +2,9 @@ import type {
   CannedReply,
   DataMode,
   ProviderReadiness,
+  ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookUnmatchedInboundFilters,
   ProviderWebhookUnmatchedInboundLinkRequest,
   ProviderWebhookUnmatchedInboundItem,
   ProviderWebhookUnmatchedInboundReviewRequest,
@@ -17,6 +19,7 @@ import {
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
+  getProviderWebhookUnmatchedInboundCandidates,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
   getSettingsCannedReplies,
@@ -53,6 +56,11 @@ export type SettingsProviderWebhookEventsData = {
 export type SettingsProviderWebhookUnmatchedInboundData = {
   mode: DataMode;
   items: ProviderWebhookUnmatchedInboundItem[];
+};
+
+export type SettingsProviderWebhookCandidateData = {
+  mode: DataMode;
+  candidates: ProviderWebhookCandidateConversation[];
 };
 
 export const mockSettingsChannels: SettingsChannelAccount[] = [
@@ -104,17 +112,31 @@ export async function loadSettingsProviderWebhookEventsData(mode: DataMode): Pro
   };
 }
 
-export async function loadSettingsProviderWebhookUnmatchedInboundData(mode: DataMode): Promise<SettingsProviderWebhookUnmatchedInboundData> {
+export async function loadSettingsProviderWebhookUnmatchedInboundData(mode: DataMode, filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<SettingsProviderWebhookUnmatchedInboundData> {
   if (mode === "api") {
     return {
       mode,
-      items: await getProviderWebhookUnmatchedInbound()
+      items: await getProviderWebhookUnmatchedInbound(filters)
     };
   }
 
   return {
     mode,
-    items: mockProviderWebhookUnmatchedInbound
+    items: filterMockUnmatchedInbound(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookCandidateData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookCandidateData> {
+  if (mode === "api") {
+    return {
+      mode,
+      candidates: await getProviderWebhookUnmatchedInboundCandidates(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    candidates: mockProviderWebhookCandidatesByUnmatchedId[unmatchedInboundId] ?? []
   };
 }
 
@@ -311,6 +333,21 @@ function channel(
   };
 }
 
+function filterMockUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters) {
+  return mockProviderWebhookUnmatchedInbound.filter((item) => {
+    if (filters.status === "open" && item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed") return false;
+    if (filters.status && filters.status !== "open" && item.unmatchedStatus !== filters.status) return false;
+    if (filters.provider && item.provider !== filters.provider) return false;
+    if (filters.reviewStatus && item.reviewStatus !== filters.reviewStatus) return false;
+    if (filters.linkStatus && item.linkStatus !== filters.linkStatus) return false;
+    if (filters.unmatchedStatus && item.unmatchedStatus !== filters.unmatchedStatus) return false;
+    if (filters.eventType && item.eventType !== filters.eventType) return false;
+    if (filters.receivedFrom && item.receivedAt < new Date(filters.receivedFrom).toISOString()) return false;
+    if (filters.receivedTo && item.receivedAt > new Date(filters.receivedTo).toISOString()) return false;
+    return true;
+  }).slice(0, filters.limit ?? mockProviderWebhookUnmatchedInbound.length);
+}
+
 export const mockProviderReadiness: ProviderReadiness = {
   mode: "disabled",
   outboundEnabledByEnv: false,
@@ -344,6 +381,7 @@ export const mockProviderReadiness: ProviderReadiness = {
   inboundPersistenceSkippedNoMatchCount: 0,
   webhookUnmatchedInboundReviewEnabled: true,
   webhookUnmatchedReviewActionsEnabled: true,
+  webhookCandidateLookupEnabled: true,
   unmatchedInboundOpenCount: 1,
   unmatchedInboundQueuedCount: 1,
   unmatchedInboundReplayBlockedCount: 0,
@@ -455,6 +493,23 @@ export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundI
     externalCalls: 0
   }
 ];
+
+export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {
+  "provider-webhook-unmatched-local-1": [
+    {
+      conversationId: "conversation-local-safe-1",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomIdDigest: "sha256:localroomdigest",
+      safeRoomLabel: "line conversation digest match",
+      latestMessagePreview: "Local safe candidate preview",
+      latestMessageAt: now,
+      matchReason: "platform, channel account, and room digest match",
+      matchConfidence: 0.98,
+      externalCalls: 0
+    }
+  ]
+};
 
 const mockWebhookDedupSeenAt = new Map<string, string>([["sha256:localdedupsample", now]]);
 

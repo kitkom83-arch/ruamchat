@@ -18,6 +18,7 @@ import {
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
+  getProviderWebhookUnmatchedInboundCandidates,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
   getKnowledgeBases,
@@ -193,6 +194,32 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "unmatched unavailable" }, 503));
 
     await expect(getProviderWebhookUnmatchedInbound()).rejects.toThrow("API request failed (503): unmatched unavailable");
+  });
+
+  it("sends safe unmatched filters and x-tenant-id for candidate lookup", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")]))
+      .mockResolvedValueOnce(jsonResponse([providerWebhookCandidateResponse("conversation-safe-internal")]));
+
+    const unmatched = await getProviderWebhookUnmatchedInbound({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      limit: 10
+    });
+    const candidates = await getProviderWebhookUnmatchedInboundCandidates("provider-webhook-unmatched-1");
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound?provider=line&reviewStatus=pending&linkStatus=none&limit=10", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/candidates", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(unmatched[0]?.id).toBe("provider-webhook-unmatched-1");
+    expect(candidates[0]).toMatchObject({
+      conversationId: "conversation-safe-internal",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      externalCalls: 0
+    });
+    expect(JSON.stringify(candidates)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender/i);
   });
 
   it("validates conversations and keeps room filters explicit", async () => {
@@ -1034,6 +1061,7 @@ function providerReadinessResponse() {
       inboundPersistenceSkippedNoMatchCount: 0,
       webhookUnmatchedInboundReviewEnabled: true,
       webhookUnmatchedReviewActionsEnabled: true,
+      webhookCandidateLookupEnabled: true,
       unmatchedInboundOpenCount: 1,
       unmatchedInboundQueuedCount: 1,
       unmatchedInboundReplayBlockedCount: 0,
@@ -1166,6 +1194,21 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCandidateResponse(conversationId: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
+  return {
+    conversationId,
+    platform: provider,
+    channelAccountId: `sandbox:${provider}`,
+    roomIdDigest: "sha256:saferoomdigest",
+    safeRoomLabel: `${provider} conversation digest match`,
+    latestMessagePreview: "Safe candidate preview",
+    latestMessageAt: "2026-05-31T00:00:00.000Z",
+    matchReason: "platform, channel account, and room digest match",
+    matchConfidence: 0.98,
     externalCalls: 0
   };
 }

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -14,11 +14,17 @@ export class ProviderWebhooksController {
   @Get("unmatched-inbound")
   listUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
-    @Query("status") status: string | undefined
+    @Query() query: unknown
   ) {
-    const parsedStatus = providerWebhookUnmatchedInboundStatusFilterSchema.safeParse(status);
-    if (!parsedStatus.success) throw new BadRequestException("Invalid unmatched inbound status filter");
-    return this.events.listUnmatchedInbound(requireTenantId(tenant), parsedStatus.data);
+    return this.events.listUnmatchedInbound(requireTenantId(tenant), parseUnmatchedInboundFilters(query));
+  }
+
+  @Get("unmatched-inbound/:id/candidates")
+  listUnmatchedInboundCandidates(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.listUnmatchedInboundCandidates(requireTenantId(tenant), id);
   }
 
   @Patch("unmatched-inbound/:id/review")
@@ -55,4 +61,25 @@ function requireTenantId(tenant: string | undefined) {
   const tenantId = tenant?.trim();
   if (!tenantId) throw new BadRequestException("x-tenant-id is required");
   return tenantId;
+}
+
+function parseUnmatchedInboundFilters(query: unknown) {
+  if (typeof query === "string" || query === undefined) {
+    const parsedStatus = providerWebhookUnmatchedInboundStatusFilterSchema.safeParse(query);
+    if (!parsedStatus.success) throw new BadRequestException("Invalid unmatched inbound status filter");
+    return parsedStatus.data ? { status: parsedStatus.data } : {};
+  }
+
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    throw new BadRequestException("Invalid unmatched inbound filters");
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookUnmatchedInboundFiltersSchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound filters");
+  return parsed.data;
 }

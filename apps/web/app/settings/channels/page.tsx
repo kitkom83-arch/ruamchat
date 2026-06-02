@@ -2,12 +2,13 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundItem, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   createSettingsProviderWebhookSandboxEvent,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
+  loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -21,10 +22,14 @@ export default function ChannelSettingsPage() {
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
   const [unmatchedInboundItems, setUnmatchedInboundItems] = useState<ProviderWebhookUnmatchedInboundItem[]>([]);
+  const [unmatchedFilters, setUnmatchedFilters] = useState<ProviderWebhookUnmatchedInboundFilters>({});
+  const [candidateItemsById, setCandidateItemsById] = useState<Record<string, ProviderWebhookCandidateConversation[]>>({});
+  const [candidateErrorById, setCandidateErrorById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [providerLoading, setProviderLoading] = useState(true);
   const [webhookEventsLoading, setWebhookEventsLoading] = useState(true);
   const [unmatchedInboundLoading, setUnmatchedInboundLoading] = useState(true);
+  const [candidateLoadingId, setCandidateLoadingId] = useState("");
   const [webhookEventSaving, setWebhookEventSaving] = useState(false);
   const [error, setError] = useState("");
   const [providerError, setProviderError] = useState("");
@@ -84,7 +89,7 @@ export default function ChannelSettingsPage() {
     setUnmatchedInboundError("");
     const [eventsResult, unmatchedResult] = await Promise.allSettled([
       loadSettingsProviderWebhookEventsData(dataMode),
-      loadSettingsProviderWebhookUnmatchedInboundData(dataMode)
+      loadSettingsProviderWebhookUnmatchedInboundData(dataMode, unmatchedFilters)
     ]);
     if (eventsResult.status === "fulfilled") {
       setWebhookEvents(eventsResult.value.events);
@@ -100,11 +105,28 @@ export default function ChannelSettingsPage() {
     }
     setWebhookEventsLoading(false);
     setUnmatchedInboundLoading(false);
-  }, []);
+  }, [unmatchedFilters]);
 
   useEffect(() => {
     void refreshWebhookEvents();
   }, [refreshWebhookEvents]);
+
+  async function loadCandidates(unmatchedInboundId: string) {
+    setCandidateLoadingId(unmatchedInboundId);
+    setCandidateErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    try {
+      const result = await loadSettingsProviderWebhookCandidateData(dataMode, unmatchedInboundId);
+      setCandidateItemsById((current) => ({ ...current, [unmatchedInboundId]: result.candidates }));
+    } catch (reason) {
+      setCandidateItemsById((current) => ({ ...current, [unmatchedInboundId]: [] }));
+      setCandidateErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Candidate lookup API error: ${reason instanceof Error ? reason.message : "Unable to load candidates"}`
+      }));
+    } finally {
+      setCandidateLoadingId("");
+    }
+  }
 
   const groupedChannels = useMemo(() => {
     const groups = new Map<string, SettingsChannelAccount[]>();
@@ -149,6 +171,7 @@ export default function ChannelSettingsPage() {
       const result = await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.reviewStatus}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -166,6 +189,7 @@ export default function ChannelSettingsPage() {
       const result = await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.linkStatus}; messagePersisted=${String(result.messagePersisted)}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -196,14 +220,20 @@ export default function ChannelSettingsPage() {
         webhookEventsLoading={webhookEventsLoading}
         webhookEventsError={webhookEventsError}
         unmatchedInboundItems={unmatchedInboundItems}
+        unmatchedFilters={unmatchedFilters}
         unmatchedInboundLoading={unmatchedInboundLoading}
         unmatchedInboundError={unmatchedInboundError}
         unmatchedActionSavingId={unmatchedActionSavingId}
         unmatchedActionStatus={unmatchedActionStatus}
+        candidateItemsById={candidateItemsById}
+        candidateErrorById={candidateErrorById}
+        candidateLoadingId={candidateLoadingId}
         webhookEventSaving={webhookEventSaving}
+        onUnmatchedFiltersChange={setUnmatchedFilters}
         onCreateSandboxEvent={createSandboxEvent}
         onReviewUnmatchedInbound={reviewUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
+        onLoadCandidates={loadCandidates}
       />
 
       <section className="channelGrid" aria-label="Channel webhook settings">

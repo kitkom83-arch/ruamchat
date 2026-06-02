@@ -2029,8 +2029,26 @@ export type ProviderWebhookUnmatchedReviewActionStatus = z.infer<typeof provider
 export const providerWebhookUnmatchedLinkStatusSchema = z.enum(["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"]);
 export type ProviderWebhookUnmatchedLinkStatus = z.infer<typeof providerWebhookUnmatchedLinkStatusSchema>;
 
+export const providerWebhookEventTypeSchema = z.enum(["message.created", "webhook.verified", "webhook.failed"]);
+export type ProviderWebhookEventType = z.infer<typeof providerWebhookEventTypeSchema>;
+
 export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open", "reviewed", "blocked", "skipped", "linked"]).optional();
 export type ProviderWebhookUnmatchedInboundStatusFilter = z.infer<typeof providerWebhookUnmatchedInboundStatusFilterSchema>;
+
+const providerWebhookReceivedAtFilterSchema = z.string().trim().min(1).refine((value) => !Number.isNaN(new Date(value).getTime()), "Invalid date filter");
+
+export const providerWebhookUnmatchedInboundFiltersSchema = z.object({
+  provider: providerSandboxProviderSchema.optional(),
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema.optional(),
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema.optional(),
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.optional(),
+  status: providerWebhookUnmatchedInboundStatusFilterSchema,
+  eventType: providerWebhookEventTypeSchema.optional(),
+  receivedFrom: providerWebhookReceivedAtFilterSchema.optional(),
+  receivedTo: providerWebhookReceivedAtFilterSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundFilters = z.infer<typeof providerWebhookUnmatchedInboundFiltersSchema>;
 
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
@@ -2080,6 +2098,7 @@ export const providerReadinessSchema = z.object({
   inboundPersistenceSkippedNoMatchCount: z.number().int().nonnegative(),
   webhookUnmatchedInboundReviewEnabled: z.boolean(),
   webhookUnmatchedReviewActionsEnabled: z.boolean(),
+  webhookCandidateLookupEnabled: z.boolean(),
   unmatchedInboundOpenCount: z.number().int().nonnegative(),
   unmatchedInboundQueuedCount: z.number().int().nonnegative(),
   unmatchedInboundReplayBlockedCount: z.number().int().nonnegative(),
@@ -2094,9 +2113,6 @@ export const providerReadinessSchema = z.object({
   providers: z.array(providerReadinessProviderSchema)
 }).strict();
 export type ProviderReadiness = z.infer<typeof providerReadinessSchema>;
-
-export const providerWebhookEventTypeSchema = z.enum(["message.created", "webhook.verified", "webhook.failed"]);
-export type ProviderWebhookEventType = z.infer<typeof providerWebhookEventTypeSchema>;
 
 export const providerWebhookEventModeSchema = z.enum(["sandbox", "dry_run"]);
 export type ProviderWebhookEventMode = z.infer<typeof providerWebhookEventModeSchema>;
@@ -2186,6 +2202,20 @@ export const providerWebhookUnmatchedInboundLinkRequestSchema = z.object({
   actionMode: z.enum(["link-only", "link-and-persist-safe-message"])
 }).strict();
 export type ProviderWebhookUnmatchedInboundLinkRequest = z.infer<typeof providerWebhookUnmatchedInboundLinkRequestSchema>;
+
+export const providerWebhookCandidateConversationSchema = z.object({
+  conversationId: z.string().min(1),
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1),
+  roomIdDigest: z.string().min(1),
+  safeRoomLabel: z.string().min(1),
+  latestMessagePreview: z.string().min(1).nullable(),
+  latestMessageAt: z.string().datetime().nullable(),
+  matchReason: z.string().min(1),
+  matchConfidence: z.number().min(0).max(1),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookCandidateConversation = z.infer<typeof providerWebhookCandidateConversationSchema>;
 
 export const providerWebhookUnmatchedInboundItemSchema = z.object({
   id: z.string().min(1),
