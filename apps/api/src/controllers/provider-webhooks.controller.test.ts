@@ -76,6 +76,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       "inboundAuditStatus",
       "inboundPersistenceMode",
       "inboundPersistenceStatus",
+      "linkedConversationId",
+      "linkedMessageId",
       "mediaSummary",
       "messagePersisted",
       "messageType",
@@ -107,7 +109,10 @@ describe("ProviderWebhooksController sandbox events", () => {
       "tenantId",
       "unmatchedInboundId",
       "unmatchedInboundQueued",
+      "unmatchedLinkStatus",
       "unmatchedReason",
+      "unmatchedResolvedAt",
+      "unmatchedReviewActionStatus",
       "unmatchedStatus"
     ].sort());
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
@@ -545,6 +550,172 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(controller.listUnmatchedInbound(otherTenantId, "open").map((item) => item.textPreview)).toEqual(["Safe tenant two"]);
   });
 
+  it("requires tenant ids for unmatched review actions", async () => {
+    const { controller } = buildController();
+
+    expect(() => controller.reviewUnmatchedInbound(undefined, undefined, "provider-webhook-unmatched-missing", { status: "reviewed" }))
+      .toThrow(BadRequestException);
+    expect(() => controller.linkUnmatchedInboundToConversation("", undefined, "provider-webhook-unmatched-missing", {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    })).toThrow(BadRequestException);
+  });
+
+  it("marks unmatched inbound items reviewed and skipped safely", async () => {
+    const { controller, audit } = buildController(noMatchConversations());
+    const reviewedItem = await createUnmatched(controller, "raw-review-room-60", "event-review-60", "Safe review Sprint 60");
+    const skippedItem = await createUnmatched(controller, "raw-skip-room-60", "event-skip-60", "Safe skip Sprint 60");
+
+    const reviewed = await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, {
+      status: "reviewed",
+      reason: "safe manual review"
+    });
+    const skipped = await controller.reviewUnmatchedInbound(tenantId, "user-api", skippedItem.id, { status: "skipped" });
+    const serialized = JSON.stringify({ reviewed, skipped, events: controller.listEvents(tenantId) });
+
+    expect(reviewed).toMatchObject({
+      id: reviewedItem.id,
+      tenantId,
+      unmatchedStatus: "reviewed",
+      reviewStatus: "reviewed",
+      reviewedBy: "user-api",
+      reviewReason: "safe manual review",
+      externalCalls: 0
+    });
+    expect(skipped).toMatchObject({
+      id: skippedItem.id,
+      unmatchedStatus: "skipped",
+      reviewStatus: "skipped",
+      externalCalls: 0
+    });
+    expect(reviewed.reviewedAt).toEqual(expect.any(String));
+    expect(reviewed.unmatchedResolvedAt).toEqual(expect.any(String));
+    expect(controller.listUnmatchedInbound(tenantId, "reviewed")).toHaveLength(1);
+    expect(controller.listUnmatchedInbound(tenantId, "skipped")).toHaveLength(1);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_reviewed",
+      metadata: expect.objectContaining({
+        unmatchedInboundId: reviewedItem.id,
+        status: "reviewed",
+        externalCalls: 0
+      })
+    }));
+    expect(serialized).not.toMatch(/raw-review-room-60|raw-skip-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
+  it("keeps unmatched review actions tenant scoped", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-tenant-scope-room-60", "event-tenant-scope-60", "Safe tenant scoped review");
+
+    await expect(controller.reviewUnmatchedInbound("00000000-0000-4000-8000-000000000099", "user-api", item.id, { status: "reviewed" }))
+      .rejects.toThrow("Unmatched inbound item not found");
+  });
+
+  it("rejects unsafe conversation links and records safe rejected status", async () => {
+    const { controller, audit } = buildController({
+      ...noMatchConversations(),
+      getSafeConversationLinkContext: vi.fn(async () => ({
+        id: "conversation-platform-mismatch",
+        tenantId,
+        platform: "telegram",
+        channelAccountId: "sandbox:line",
+        roomId: "room-safe",
+        roomKeyDigest: "sha256:mismatch",
+        externalCalls: 0
+      }))
+    });
+    const item = await createUnmatched(controller, "raw-link-reject-room-60", "event-link-reject-60", "Safe rejected link");
+
+    await expect(controller.linkUnmatchedInboundToConversation(tenantId, "user-api", item.id, {
+      conversationId: "conversation-platform-mismatch",
+      actionMode: "link-only"
+    })).rejects.toThrow("platform mismatch");
+
+    expect(controller.listUnmatchedInbound(tenantId, undefined)[0]).toMatchObject({
+      id: item.id,
+      unmatchedStatus: "review-needed",
+      linkStatus: "rejected",
+      externalCalls: 0
+    });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_link_rejected",
+      metadata: expect.objectContaining({
+        conversationId: "conversation-platform-mismatch",
+        status: "rejected",
+        externalCalls: 0
+      })
+    }));
+  });
+
+  it("links unmatched inbound to an existing conversation without persisting a message", async () => {
+    const { controller, conversations } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-link-room-60", "event-link-only-60", "Safe link only");
+    conversations.getSafeConversationLinkContext = vi.fn(async () => ({
+      id: "conversation-safe-internal",
+      tenantId,
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomId: "room-safe",
+      roomKeyDigest: item.roomKeyDigest,
+      externalCalls: 0
+    }));
+    conversations.persistLinkedSandboxWebhookInboundMessage = vi.fn();
+
+    const linked = await controller.linkUnmatchedInboundToConversation(tenantId, "user-api", item.id, {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    });
+
+    expect(linked).toMatchObject({
+      unmatchedStatus: "linked",
+      reviewStatus: "linked",
+      linkStatus: "linked",
+      linkedConversationId: "conversation-safe-internal",
+      linkedMessageId: null,
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(conversations.persistLinkedSandboxWebhookInboundMessage).not.toHaveBeenCalled();
+  });
+
+  it("persists one safe inbound message for link-and-persist and no-ops duplicates", async () => {
+    const { controller, conversations } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-link-persist-room-60", "event-link-persist-60", "Safe link persist");
+    conversations.getSafeConversationLinkContext = vi.fn(async () => ({
+      id: "conversation-safe-internal",
+      tenantId,
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomId: "room-safe",
+      roomKeyDigest: item.roomKeyDigest,
+      externalCalls: 0
+    }));
+    conversations.persistLinkedSandboxWebhookInboundMessage = vi.fn(async () => ({
+      conversation: { id: "conversation-safe-internal" },
+      message: { id: "message-safe-linked" },
+      duplicate: false
+    }));
+
+    const linked = await controller.linkUnmatchedInboundToConversation(tenantId, "user-api", item.id, {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-and-persist-safe-message"
+    });
+    const duplicate = await controller.linkUnmatchedInboundToConversation(tenantId, "user-api", item.id, {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-and-persist-safe-message"
+    });
+
+    expect(conversations.persistLinkedSandboxWebhookInboundMessage).toHaveBeenCalledTimes(1);
+    expect(linked).toMatchObject({
+      linkStatus: "linked-message-persisted",
+      linkedMessageId: "message-safe-linked",
+      messagePersisted: true,
+      externalCalls: 0
+    });
+    expect(duplicate.id).toBe(linked.id);
+    expect(JSON.stringify({ linked, duplicate })).not.toMatch(/raw-link-persist-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
   it("rejects live provider outbound mode", async () => {
     process.env.PROVIDER_OUTBOUND_MODE = "real";
     const { controller } = buildController();
@@ -554,7 +725,7 @@ describe("ProviderWebhooksController sandbox events", () => {
   });
 });
 
-function buildController(conversations = {
+function buildController(conversations: Record<string, unknown> = {
   persistSandboxWebhookInboundMessage: vi.fn()
 }) {
   const audit = {
@@ -563,9 +734,40 @@ function buildController(conversations = {
   const service = new ProviderWebhookEventsService(audit as never, conversations as never);
   return {
     audit,
+    conversations: conversations as Record<string, ReturnType<typeof vi.fn>>,
     service,
     controller: new ProviderWebhooksController(service)
   };
+}
+
+function noMatchConversations() {
+  return {
+    persistSandboxWebhookInboundMessage: vi.fn(async () => ({
+      status: "not-found",
+      conversation: null,
+      message: null,
+      duplicate: false
+    })),
+    getSafeConversationLinkContext: vi.fn(),
+    persistLinkedSandboxWebhookInboundMessage: vi.fn()
+  };
+}
+
+async function createUnmatched(controller: ProviderWebhooksController, roomId: string, eventId: string, text: string) {
+  const payload = lineMessagePayload(roomId, `raw-sender-${eventId}`, text);
+  Object.assign(payload, { [`safeMarker${eventId.replace(/[^a-z0-9]/gi, "")}`]: true });
+  const event = await controller.createSandboxEvent(tenantId, undefined, {
+    provider: "line",
+    eventType: "message.created",
+    mode: "sandbox",
+    inboundPersistenceMode: "sandbox-persist",
+    eventId,
+    signature: signPayload(payload),
+    payload
+  });
+  const item = controller.listUnmatchedInbound(tenantId, undefined).find((candidate) => candidate.id === event.unmatchedInboundId);
+  if (!item) throw new Error("Expected unmatched item to be queued");
+  return item;
 }
 
 function lineMessagePayload(roomId: string, userId: string, text: string) {

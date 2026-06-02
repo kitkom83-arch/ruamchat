@@ -201,6 +201,16 @@ function safeEventShape(value) {
     "unmatchedInboundId",
     "unmatchedStatus",
     "unmatchedReason",
+    "unmatchedReviewActionStatus",
+    "unmatchedLinkStatus",
+    "linkedConversationId",
+    "linkedMessageId",
+    "unmatchedResolvedAt",
+    "reviewStatus",
+    "reviewedAt",
+    "reviewedBy",
+    "reviewReason",
+    "linkStatus",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))

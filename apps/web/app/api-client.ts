@@ -15,7 +15,9 @@ import {
   aiSuggestionFeedbackSchema,
   apiHealthSchema,
   providerWebhookEventSchema,
+  providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundItemSchema,
+  providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
   coreConversationCardSchema,
   coreConversationTabSchema,
@@ -157,7 +159,9 @@ import {
   type Platform,
   type ProviderReadiness,
   type ProviderWebhookEvent,
+  type ProviderWebhookUnmatchedInboundLinkRequest,
   type ProviderWebhookUnmatchedInboundItem,
+  type ProviderWebhookUnmatchedInboundReviewRequest,
   type ProviderWebhookSandboxEventRequest,
   type RoomAiPolicy,
   type RoomAiPolicyPatch,
@@ -261,6 +265,28 @@ export async function getProviderWebhookUnmatchedInbound(): Promise<ProviderWebh
 export async function createProviderWebhookSandboxEvent(payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {
   const body = providerWebhookSandboxEventRequestSchema.parse(payload);
   return request("/provider-webhooks/sandbox-events", providerWebhookEventSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function reviewProviderWebhookUnmatchedInbound(
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundReviewRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  const body = providerWebhookUnmatchedInboundReviewRequestSchema.parse(payload);
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/review`, providerWebhookUnmatchedInboundItemSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function linkProviderWebhookUnmatchedInboundConversation(
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundLinkRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  const body = providerWebhookUnmatchedInboundLinkRequestSchema.parse(payload);
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/link-conversation`, providerWebhookUnmatchedInboundItemSchema, {
     method: "POST",
     body: JSON.stringify(body)
   });

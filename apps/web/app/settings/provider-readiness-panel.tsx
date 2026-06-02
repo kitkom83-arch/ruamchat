@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { RadioTower, Send, ShieldCheck } from "lucide-react";
+import { Check, Link2, RadioTower, Send, ShieldCheck, SkipForward } from "lucide-react";
 import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
@@ -12,8 +12,11 @@ type ProviderReadinessPanelProps = {
   unmatchedInboundItems?: ProviderWebhookUnmatchedInboundItem[];
   unmatchedInboundLoading?: boolean;
   unmatchedInboundError?: string;
+  unmatchedActionSavingId?: string;
   webhookEventSaving?: boolean;
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
+  onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
+  onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
 };
 
 const providers = ["line", "telegram", "facebook", "instagram"] as const;
@@ -30,8 +33,11 @@ export function ProviderReadinessPanel({
   unmatchedInboundItems = [],
   unmatchedInboundLoading = false,
   unmatchedInboundError = "",
+  unmatchedActionSavingId = "",
   webhookEventSaving = false,
-  onCreateSandboxEvent
+  onCreateSandboxEvent,
+  onReviewUnmatchedInbound,
+  onLinkUnmatchedInbound
 }: ProviderReadinessPanelProps) {
   const [provider, setProvider] = useState<ProviderOption>("line");
   const [eventType, setEventType] = useState<ProviderWebhookEventType>("message.created");
@@ -39,6 +45,7 @@ export function ProviderReadinessPanel({
   const [deliveryId, setDeliveryId] = useState("");
   const [signature, setSignature] = useState("");
   const [inboundPersistenceMode, setInboundPersistenceMode] = useState<ProviderWebhookInboundPersistenceMode>("dry-run");
+  const [linkConversationIds, setLinkConversationIds] = useState<Record<string, string>>({});
   const lastEvent = webhookEvents[0] ?? null;
   const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
 
@@ -95,10 +102,16 @@ export function ProviderReadinessPanel({
         e("span", null, `inboundPersistenceReplayBlockedCount=${readiness.inboundPersistenceReplayBlockedCount}`),
         e("span", null, `inboundPersistenceSkippedNoMatchCount=${readiness.inboundPersistenceSkippedNoMatchCount}`),
         e("span", null, `unmatched inbound review=${readiness.webhookUnmatchedInboundReviewEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `review actions=${readiness.webhookUnmatchedReviewActionsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
         e("span", null, `unmatched replay blocked count=${readiness.unmatchedInboundReplayBlockedCount}`),
+        e("span", null, `reviewed unmatched count=${readiness.unmatchedInboundReviewedCount}`),
+        e("span", null, `skipped unmatched count=${readiness.unmatchedInboundSkippedCount}`),
+        e("span", null, `linked unmatched count=${readiness.unmatchedInboundLinkedCount}`),
         e("span", null, `latest unmatched status=${readiness.latestUnmatchedInboundStatus ?? "none"}`),
+        e("span", null, `latest review action status=${readiness.latestUnmatchedReviewActionStatus ?? "none"}`),
+        e("span", null, `latest link status=${readiness.latestUnmatchedLinkStatus ?? "none"}`),
         e("span", null, `replayDetectedCount=${replayDetectedCount}`)
       ) : null
     ),
@@ -196,8 +209,13 @@ export function ProviderReadinessPanel({
             e("span", null, `messageId=${event.persistedMessageId ?? "none"}`),
             e("span", null, `unmatchedQueued=${String(event.unmatchedInboundQueued)}`),
             e("span", null, `unmatchedStatus=${event.unmatchedStatus ?? "none"}`),
+            e("span", null, `reviewActionStatus=${event.unmatchedReviewActionStatus}`),
+            e("span", null, `linkStatus=${event.unmatchedLinkStatus}`),
             e("span", null, `unmatchedReason=${event.unmatchedReason ?? "none"}`),
             e("span", null, `unmatchedId=${event.unmatchedInboundId ?? "none"}`),
+            e("span", null, `linkedConversationId=${event.linkedConversationId ?? "none"}`),
+            e("span", null, `linkedMessageId=${event.linkedMessageId ?? "none"}`),
+            e("span", null, `unmatchedResolvedAt=${event.unmatchedResolvedAt ? formatDate(event.unmatchedResolvedAt) : "none"}`),
             e("span", null, `externalCalls=${event.externalCalls}`),
             e("span", null, formatDate(event.receivedAt))
           ),
@@ -230,10 +248,63 @@ export function ProviderReadinessPanel({
             e("span", null, `routing=${item.routingStatus}`),
             e("span", null, `lookup=${item.conversationLookupStatus}`),
             e("span", null, `reason=${item.unmatchedReason}`),
+            e("span", null, `reviewStatus=${item.reviewStatus}`),
+            e("span", null, `linkStatus=${item.linkStatus}`),
+            e("span", null, `messagePersisted=${String(item.messagePersisted)}`),
+            e("span", null, `linkedConversationId=${item.linkedConversationId ?? "none"}`),
+            e("span", null, `linkedMessageId=${item.linkedMessageId ?? "none"}`),
+            e("span", null, `reviewedAt=${item.reviewedAt ? formatDate(item.reviewedAt) : "none"}`),
+            e("span", null, `unmatchedResolvedAt=${item.unmatchedResolvedAt ? formatDate(item.unmatchedResolvedAt) : "none"}`),
             e("span", null, `externalCalls=${item.externalCalls}`),
             e("span", null, formatDate(item.receivedAt))
           ),
           item.textPreview ? e("p", null, item.textPreview) : null,
+          isOpenUnmatchedItem(item) ? e("div", { className: "webhookEventActions" },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || !onReviewUnmatchedInbound,
+              onClick: () => void onReviewUnmatchedInbound?.(item.id, "reviewed")
+            },
+              e(Check, { size: 15 }),
+              unmatchedActionSavingId === item.id ? "Saving..." : "Mark reviewed"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || !onReviewUnmatchedInbound,
+              onClick: () => void onReviewUnmatchedInbound?.(item.id, "skipped")
+            },
+              e(SkipForward, { size: 15 }),
+              unmatchedActionSavingId === item.id ? "Saving..." : "Skip"
+            ),
+            e("label", { className: "settingsInlineField" },
+              e("span", null, "Conversation ID"),
+              e("input", {
+                value: linkConversationIds[item.id] ?? "",
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => setLinkConversationIds((current) => ({ ...current, [item.id]: event.target.value })),
+                placeholder: "existing safe conversation id"
+              })
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
+              onClick: () => void onLinkUnmatchedInbound?.(item.id, (linkConversationIds[item.id] ?? "").trim(), "link-only")
+            },
+              e(Link2, { size: 15 }),
+              "Link only"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
+              onClick: () => void onLinkUnmatchedInbound?.(item.id, (linkConversationIds[item.id] ?? "").trim(), "link-and-persist-safe-message")
+            },
+              e(Send, { size: 15 }),
+              "Link + persist safe message"
+            )
+          ) : null,
           e("small", null, `payloadDigest=${item.payloadDigest} / providerEventDigest=${item.providerEventDigest ?? "none"} / deliveryDigest=${item.deliveryDigest ?? "none"} / senderKeyDigest=${item.senderKeyDigest ?? "none"} / roomKeyDigest=${item.roomKeyDigest ?? "none"} / textLength=${item.textLength ?? "none"}`)
         ))
       ) : !unmatchedInboundLoading && !unmatchedInboundError ? e("div", { className: "providerEmptyState" }, "No unmatched inbound review items.") : null
@@ -283,6 +354,10 @@ function formatStatus(status: ProviderReadinessProvider["credentialStatus"]) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("th-TH");
+}
+
+function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
 }
 
 const e = React.createElement;

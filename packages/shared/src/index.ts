@@ -2015,11 +2015,21 @@ export const providerWebhookUnmatchedInboundStatusSchema = z.enum([
   "reviewed",
   "blocked",
   "skipped",
+  "linked",
   "duplicate-skipped"
 ]);
 export type ProviderWebhookUnmatchedInboundStatus = z.infer<typeof providerWebhookUnmatchedInboundStatusSchema>;
 
-export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open", "reviewed", "blocked", "skipped"]).optional();
+export const providerWebhookUnmatchedReviewStatusSchema = z.enum(["pending", "reviewed", "skipped", "linked"]);
+export type ProviderWebhookUnmatchedReviewStatus = z.infer<typeof providerWebhookUnmatchedReviewStatusSchema>;
+
+export const providerWebhookUnmatchedReviewActionStatusSchema = z.enum(["none", "reviewed", "skipped"]);
+export type ProviderWebhookUnmatchedReviewActionStatus = z.infer<typeof providerWebhookUnmatchedReviewActionStatusSchema>;
+
+export const providerWebhookUnmatchedLinkStatusSchema = z.enum(["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"]);
+export type ProviderWebhookUnmatchedLinkStatus = z.infer<typeof providerWebhookUnmatchedLinkStatusSchema>;
+
+export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open", "reviewed", "blocked", "skipped", "linked"]).optional();
 export type ProviderWebhookUnmatchedInboundStatusFilter = z.infer<typeof providerWebhookUnmatchedInboundStatusFilterSchema>;
 
 export const providerAllowlistSummarySchema = z.object({
@@ -2069,10 +2079,16 @@ export const providerReadinessSchema = z.object({
   inboundPersistenceReplayBlockedCount: z.number().int().nonnegative(),
   inboundPersistenceSkippedNoMatchCount: z.number().int().nonnegative(),
   webhookUnmatchedInboundReviewEnabled: z.boolean(),
+  webhookUnmatchedReviewActionsEnabled: z.boolean(),
   unmatchedInboundOpenCount: z.number().int().nonnegative(),
   unmatchedInboundQueuedCount: z.number().int().nonnegative(),
   unmatchedInboundReplayBlockedCount: z.number().int().nonnegative(),
+  unmatchedInboundReviewedCount: z.number().int().nonnegative(),
+  unmatchedInboundSkippedCount: z.number().int().nonnegative(),
+  unmatchedInboundLinkedCount: z.number().int().nonnegative(),
   latestUnmatchedInboundStatus: providerWebhookUnmatchedInboundStatusSchema.nullable(),
+  latestUnmatchedReviewActionStatus: providerWebhookUnmatchedReviewActionStatusSchema.nullable(),
+  latestUnmatchedLinkStatus: providerWebhookUnmatchedLinkStatusSchema.nullable(),
   lastSandboxEventAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0),
   providers: z.array(providerReadinessProviderSchema)
@@ -2149,10 +2165,27 @@ export const providerWebhookEventSchema = z.object({
   unmatchedInboundId: z.string().min(1).nullable(),
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.nullable(),
   unmatchedReason: z.string().min(1).nullable(),
+  unmatchedReviewActionStatus: providerWebhookUnmatchedReviewActionStatusSchema,
+  unmatchedLinkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  linkedConversationId: z.string().min(1).nullable(),
+  linkedMessageId: z.string().min(1).nullable(),
+  unmatchedResolvedAt: z.string().datetime().nullable(),
   inboundAuditStatus: providerWebhookInboundAuditStatusSchema,
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookEvent = z.infer<typeof providerWebhookEventSchema>;
+
+export const providerWebhookUnmatchedInboundReviewRequestSchema = z.object({
+  status: z.enum(["reviewed", "skipped"]),
+  reason: z.string().trim().max(160).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundReviewRequest = z.infer<typeof providerWebhookUnmatchedInboundReviewRequestSchema>;
+
+export const providerWebhookUnmatchedInboundLinkRequestSchema = z.object({
+  conversationId: z.string().trim().min(1),
+  actionMode: z.enum(["link-only", "link-and-persist-safe-message"])
+}).strict();
+export type ProviderWebhookUnmatchedInboundLinkRequest = z.infer<typeof providerWebhookUnmatchedInboundLinkRequestSchema>;
 
 export const providerWebhookUnmatchedInboundItemSchema = z.object({
   id: z.string().min(1),
@@ -2168,6 +2201,15 @@ export const providerWebhookUnmatchedInboundItemSchema = z.object({
   conversationLookupStatus: z.literal("not-found"),
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
   unmatchedReason: z.string().min(1),
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  reviewedAt: z.string().datetime().nullable(),
+  reviewedBy: z.string().min(1).nullable(),
+  reviewReason: z.string().min(1).nullable(),
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  linkedConversationId: z.string().min(1).nullable(),
+  linkedMessageId: z.string().min(1).nullable(),
+  unmatchedResolvedAt: z.string().datetime().nullable(),
+  messagePersisted: z.boolean(),
   payloadDigest: z.string().min(1),
   providerEventDigest: z.string().min(1).nullable(),
   deliveryDigest: z.string().min(1).nullable(),

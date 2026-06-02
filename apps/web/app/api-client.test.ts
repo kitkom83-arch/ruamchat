@@ -18,6 +18,8 @@ import {
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
+  linkProviderWebhookUnmatchedInboundConversation,
+  reviewProviderWebhookUnmatchedInbound,
   getKnowledgeBases,
   getKnowledgeChunks,
   getKnowledgeDocuments,
@@ -122,7 +124,9 @@ describe("frontend API client", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([providerWebhookEventResponse("provider-webhook-event-1")]))
       .mockResolvedValueOnce(jsonResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")]))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookEventResponse("provider-webhook-event-2", "telegram")));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookEventResponse("provider-webhook-event-2", "telegram")))
+      .mockResolvedValueOnce(jsonResponse({ ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"), unmatchedStatus: "reviewed", reviewStatus: "reviewed" }))
+      .mockResolvedValueOnce(jsonResponse({ ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"), unmatchedStatus: "linked", reviewStatus: "linked", linkStatus: "linked", linkedConversationId: "conversation-safe-internal" }));
 
     const events = await getProviderWebhookEvents();
     const unmatched = await getProviderWebhookUnmatchedInbound();
@@ -139,10 +143,17 @@ describe("frontend API client", () => {
         token: "sensitive-sample-a"
       }
     });
+    const reviewed = await reviewProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", { status: "reviewed" });
+    const linked = await linkProviderWebhookUnmatchedInboundConversation("provider-webhook-unmatched-1", {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/events", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/sandbox-events", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/review", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/link-conversation", expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
       provider: "telegram",
       channel: "telegram",
@@ -161,8 +172,10 @@ describe("frontend API client", () => {
       externalCalls: 0
     });
     expect(created.provider).toBe("telegram");
-    expect(JSON.stringify({ events, unmatched, created })).not.toContain("sensitive-sample-a");
-    expect(JSON.stringify({ events, unmatched, created })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken/i);
+    expect(reviewed.reviewStatus).toBe("reviewed");
+    expect(linked.linkStatus).toBe("linked");
+    expect(JSON.stringify({ events, unmatched, created, reviewed, linked })).not.toContain("sensitive-sample-a");
+    expect(JSON.stringify({ events, unmatched, created, reviewed, linked })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken/i);
   });
 
   it("surfaces provider webhook event API errors without local fallback", async () => {
@@ -1015,10 +1028,16 @@ function providerReadinessResponse() {
       inboundPersistenceReplayBlockedCount: 0,
       inboundPersistenceSkippedNoMatchCount: 0,
       webhookUnmatchedInboundReviewEnabled: true,
+      webhookUnmatchedReviewActionsEnabled: true,
       unmatchedInboundOpenCount: 1,
       unmatchedInboundQueuedCount: 1,
       unmatchedInboundReplayBlockedCount: 0,
+      unmatchedInboundReviewedCount: 0,
+      unmatchedInboundSkippedCount: 0,
+      unmatchedInboundLinkedCount: 0,
       latestUnmatchedInboundStatus: "review-needed",
+      latestUnmatchedReviewActionStatus: null,
+      latestUnmatchedLinkStatus: null,
       lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
       externalCalls: 0,
       providers: [
@@ -1100,6 +1119,11 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     unmatchedInboundId: "provider-webhook-unmatched-1",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    unmatchedReviewActionStatus: "none",
+    unmatchedLinkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   };
@@ -1120,6 +1144,15 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     conversationLookupStatus: "not-found",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    reviewStatus: "pending",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewReason: null,
+    linkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
+    messagePersisted: false,
     payloadDigest: "sha256:safeeventdigest",
     providerEventDigest: "sha256:safededupdigest",
     deliveryDigest: "sha256:safededupdigest",

@@ -6,10 +6,12 @@ import type { ProviderReadiness, ProviderWebhookEvent, ProviderWebhookSandboxEve
 import { dataMode } from "../../data-mode";
 import {
   createSettingsProviderWebhookSandboxEvent,
+  linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
-  loadSettingsProviderWebhookUnmatchedInboundData
+  loadSettingsProviderWebhookUnmatchedInboundData,
+  reviewSettingsProviderWebhookUnmatchedInbound
 } from "../../settings-data";
 import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
@@ -28,6 +30,7 @@ export default function ChannelSettingsPage() {
   const [providerError, setProviderError] = useState("");
   const [webhookEventsError, setWebhookEventsError] = useState("");
   const [unmatchedInboundError, setUnmatchedInboundError] = useState("");
+  const [unmatchedActionSavingId, setUnmatchedActionSavingId] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -133,6 +136,36 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function reviewUnmatchedInbound(unmatchedInboundId: string, status: "reviewed" | "skipped") {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    try {
+      await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
+      await refreshWebhookEvents();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to update unmatched inbound review"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
+  async function linkUnmatchedInbound(unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    try {
+      await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
+      await refreshWebhookEvents();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to link unmatched inbound review"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
   return (
     <main className="settingsPage">
       <header className="settingsHeader">
@@ -156,8 +189,11 @@ export default function ChannelSettingsPage() {
         unmatchedInboundItems={unmatchedInboundItems}
         unmatchedInboundLoading={unmatchedInboundLoading}
         unmatchedInboundError={unmatchedInboundError}
+        unmatchedActionSavingId={unmatchedActionSavingId}
         webhookEventSaving={webhookEventSaving}
         onCreateSandboxEvent={createSandboxEvent}
+        onReviewUnmatchedInbound={reviewUnmatchedInbound}
+        onLinkUnmatchedInbound={linkUnmatchedInbound}
       />
 
       <section className="channelGrid" aria-label="Channel webhook settings">

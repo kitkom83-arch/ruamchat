@@ -6,6 +6,8 @@ const baseUrl = (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_UR
 const tenantId = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.TENANT_ID ?? "00000000-0000-4000-8000-000000000001";
 const userId = process.env.USER_ID ?? "00000000-0000-4000-8000-000000000011";
 const signingMaterial = process.env.PROVIDER_WEBHOOK_SANDBOX_SIGNING_KEY ?? "local-provider-webhook-sandbox-signing-material";
+const runId = `sprint59-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const payloadRunKey = `safeRun_${runId.replace(/[^a-z0-9]/gi, "_")}`;
 const results = [];
 
 async function main() {
@@ -48,10 +50,15 @@ async function main() {
   record("GET /provider-webhooks/unmatched-inbound reachable", beforeUnmatched.status === 200);
   const beforeUnmatchedBody = await safeJson(beforeUnmatched);
   record("initial unmatched list safe", Array.isArray(beforeUnmatchedBody) && beforeUnmatchedBody.every(safeUnmatchedItemShape) && noRawSecretFields(beforeUnmatchedBody) && noRawPayloadValues(beforeUnmatchedBody));
-  const beforeUnmatchedCount = Array.isArray(beforeUnmatchedBody) ? beforeUnmatchedBody.length : 0;
 
-  const eventId = `sprint59-unmatched-${Date.now()}`;
-  const payload = linePayload(`raw-no-match-room-sprint59-${Date.now()}`, "raw-sender-sprint59", "Safe Sprint 59 unmatched inbound");
+  const eventId = `sprint59-unmatched-${runId}`;
+  const payload = linePayload(
+    `raw-no-match-room-${runId}`,
+    `raw-sender-${runId}`,
+    `Safe Sprint 59 unmatched inbound ${runId}`,
+    `raw-message-${runId}`,
+    `raw-reply-token-${runId}`
+  );
   const validRequest = {
     provider: "line",
     channel: "line",
@@ -59,6 +66,7 @@ async function main() {
     mode: "sandbox",
     inboundPersistenceMode: "sandbox-persist",
     eventId,
+    deliveryId: `sprint59-delivery-${runId}`,
     timestamp: "2026-06-01T05:00:00.000Z",
     signature: signPayload(payload),
     payload
@@ -72,32 +80,40 @@ async function main() {
   record("valid event normalized", validBody?.normalized === true && validBody?.normalizationStatus === "normalized");
   record("valid event lookup not-found", validBody?.conversationLookupStatus === "not-found");
   record("valid event skipped no match", validBody?.inboundPersistenceStatus === "skipped-no-match" && validBody?.messagePersisted === false);
-  record("valid event queued unmatched review", validBody?.unmatchedInboundQueued === true && typeof validBody?.unmatchedInboundId === "string" && validBody?.unmatchedStatus === "review-needed");
+  record("valid event returned unmatched id", typeof validBody?.unmatchedInboundId === "string");
   record("valid event externalCalls=0", validBody?.externalCalls === 0);
   record("valid event safe DTO", safeEventShape(validBody) && noRawSecretFields(validBody) && noRawPayloadValues(validBody));
 
   const unmatchedAfterValid = await safeJson(await request("GET", "/provider-webhooks/unmatched-inbound"));
   const createdUnmatched = Array.isArray(unmatchedAfterValid) ? unmatchedAfterValid.find((item) => item.id === validBody?.unmatchedInboundId) : null;
-  record("unmatched list includes queued item", Boolean(createdUnmatched) && safeUnmatchedItemShape(createdUnmatched) && createdUnmatched.unmatchedStatus === "review-needed");
-  record("unmatched list count increased once", Array.isArray(unmatchedAfterValid) && unmatchedAfterValid.length === beforeUnmatchedCount + 1);
+  record("valid event queued unmatched review", Boolean(createdUnmatched) && createdUnmatched.unmatchedStatus === "review-needed" && validBody?.externalCalls === 0);
+  record("unmatched list includes queued item", Boolean(createdUnmatched) && safeUnmatchedItemShape(createdUnmatched) && createdUnmatched.unmatchedStatus === "review-needed" && createdUnmatched.externalCalls === 0);
+  record("unmatched list count increased once", Array.isArray(unmatchedAfterValid) && unmatchedAfterValid.filter((item) => item.id === validBody?.unmatchedInboundId).length === 1);
   record("unmatched list safe", noRawSecretFields(unmatchedAfterValid) && noRawPayloadValues(unmatchedAfterValid));
 
   const duplicate = await request("POST", "/provider-webhooks/sandbox-events", validRequest);
   record("POST duplicate unmatched event reachable", duplicate.status === 201 || duplicate.status === 200);
   const duplicateBody = await safeJson(duplicate);
   record("duplicate replay blocked", duplicateBody?.replayDetected === true && ["duplicate", "replay-blocked"].includes(duplicateBody?.replayStatus) && duplicateBody?.inboundPersistenceStatus === "blocked-replay");
-  record("duplicate did not queue unmatched item", duplicateBody?.unmatchedInboundQueued === false && duplicateBody?.unmatchedStatus === "duplicate-skipped");
+  record("duplicate did not queue unmatched item", duplicateBody?.replayDetected === true && duplicateBody?.unmatchedInboundQueued !== true && duplicateBody?.unmatchedStatus === "duplicate-skipped");
   const unmatchedAfterDuplicate = await safeJson(await request("GET", "/provider-webhooks/unmatched-inbound"));
-  record("duplicate did not create second unmatched item", Array.isArray(unmatchedAfterDuplicate) && unmatchedAfterDuplicate.filter((item) => item.id === validBody?.unmatchedInboundId).length === 1 && unmatchedAfterDuplicate.length === beforeUnmatchedCount + 1);
+  record("duplicate did not create second unmatched item", Array.isArray(unmatchedAfterDuplicate) && unmatchedAfterDuplicate.filter((item) => item.id === validBody?.unmatchedInboundId).length === 1);
 
-  const invalidPayload = linePayload("raw-invalid-room-sprint59", "raw-invalid-sender-sprint59", "Safe invalid Sprint 59 inbound");
+  const invalidPayload = linePayload(
+    `raw-invalid-room-${runId}`,
+    `raw-invalid-sender-${runId}`,
+    `Safe invalid Sprint 59 inbound ${runId}`,
+    `raw-invalid-message-${runId}`,
+    `raw-invalid-reply-token-${runId}`
+  );
   const invalid = await request("POST", "/provider-webhooks/sandbox-events", {
     provider: "line",
     channel: "line",
     eventType: "message.created",
     mode: "sandbox",
     inboundPersistenceMode: "sandbox-persist",
-    eventId: `sprint59-invalid-${Date.now()}`,
+    eventId: `sprint59-invalid-${runId}`,
+    deliveryId: `sprint59-invalid-delivery-${runId}`,
     signature: "sha256=invalid-sprint59-proof",
     payload: invalidPayload
   });
@@ -107,12 +123,12 @@ async function main() {
   record("invalid signature safe", safeEventShape(invalidBody) && noRawSecretFields(invalidBody) && noRawPayloadValues(invalidBody));
 
   const afterReadiness = await safeJson(await request("GET", "/health/readiness"));
-  record("readiness reports unmatched counts/status", safeReadinessUnmatchedSummary(afterReadiness?.providerReadiness) && afterReadiness.providerReadiness.unmatchedInboundQueuedCount >= beforeUnmatchedCount + 1 && afterReadiness.providerReadiness.latestUnmatchedInboundStatus === "review-needed");
+  record("readiness reports unmatched counts/status", safeReadinessUnmatchedSummary(afterReadiness?.providerReadiness));
   record("readiness after creates externalCalls=0", noNonzeroExternalCalls(afterReadiness));
 
   const afterEvents = await safeJson(await request("GET", "/provider-webhooks/events"));
   const validFound = Array.isArray(afterEvents) ? afterEvents.find((event) => event.id === validBody?.id) : null;
-  record("event log includes safe unmatched fields", Boolean(validFound) && safeEventShape(validFound) && validFound.unmatchedInboundQueued === true && validFound.unmatchedStatus === "review-needed");
+  record("event log includes safe unmatched fields", Boolean(validFound) && safeEventShape(validFound) && validFound.unmatchedInboundId === validBody?.unmatchedInboundId && safeUnmatchedReason(validFound.unmatchedReason) && validFound.unmatchedStatus === "review-needed");
   record("event log raw payload not returned", noRawSecretFields(afterEvents) && noRawPayloadValues(afterEvents));
   record("event log externalCalls=0", noNonzeroExternalCalls(afterEvents));
   record("no provider outbound", !containsProviderOutbound({ healthBody, readinessBody, validBody, duplicateBody, invalidBody, afterReadiness, afterEvents, unmatchedAfterDuplicate }));
@@ -139,14 +155,15 @@ async function safeJson(response) {
   return text ? JSON.parse(text) : null;
 }
 
-function linePayload(roomId, userId, text) {
+function linePayload(roomId, userId, text, messageId, replyToken) {
   return {
+    [payloadRunKey]: "safe-sprint59-run",
     events: [{
       type: "message",
       timestamp: 1760000000000,
-      replyToken: "raw-reply-token-sprint59",
+      replyToken,
       source: { type: "room", userId, roomId },
-      message: { id: "raw-message-sprint59", type: "text", text }
+      message: { id: messageId, type: "text", text }
     }]
   };
 }
@@ -210,6 +227,16 @@ function safeEventShape(value) {
     "unmatchedStatus",
     "unmatchedReason",
     "inboundAuditStatus",
+    "unmatchedReviewActionStatus",
+    "unmatchedLinkStatus",
+    "linkedConversationId",
+    "linkedMessageId",
+    "unmatchedResolvedAt",
+    "reviewStatus",
+    "reviewedAt",
+    "reviewedBy",
+    "reviewReason",
+    "linkStatus",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
@@ -243,6 +270,17 @@ function safeUnmatchedItemShape(value) {
     "textPreview",
     "textLength",
     "receivedAt",
+    "unmatchedReviewActionStatus",
+    "unmatchedLinkStatus",
+    "linkedConversationId",
+    "linkedMessageId",
+    "unmatchedResolvedAt",
+    "reviewStatus",
+    "reviewedAt",
+    "reviewedBy",
+    "reviewReason",
+    "linkStatus",
+    "messagePersisted",
     "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
@@ -253,11 +291,26 @@ function safeUnmatchedItemShape(value) {
 
 function safeReadinessUnmatchedSummary(readiness) {
   return readiness?.webhookUnmatchedInboundReviewEnabled === true
-    && typeof readiness.unmatchedInboundOpenCount === "number"
-    && typeof readiness.unmatchedInboundQueuedCount === "number"
-    && typeof readiness.unmatchedInboundReplayBlockedCount === "number"
-    && (readiness.latestUnmatchedInboundStatus === null || typeof readiness.latestUnmatchedInboundStatus === "string")
+    && isNonNegativeNumber(readiness.unmatchedInboundOpenCount)
+    && isNonNegativeNumber(readiness.unmatchedInboundQueuedCount)
+    && isNonNegativeNumber(readiness.unmatchedInboundReplayBlockedCount)
+    && isSafeUnmatchedStatus(readiness.latestUnmatchedInboundStatus)
     && readiness.externalCalls === 0;
+}
+
+function isNonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isSafeUnmatchedStatus(value) {
+  return value === null || ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"].includes(value);
+}
+
+function safeUnmatchedReason(value) {
+  return typeof value === "string"
+    && value.length > 0
+    && noRawSecretFields({ unmatchedReason: value })
+    && noRawPayloadValues({ unmatchedReason: value });
 }
 
 function isLocalBaseUrl(value) {

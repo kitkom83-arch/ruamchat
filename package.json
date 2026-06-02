@@ -66,6 +66,7 @@
     "smoke:sprint57": "node scripts/smoke-sprint57-provider-webhook-normalization-dryrun.mjs",
     "smoke:sprint58": "node scripts/smoke-sprint58-provider-webhook-inbound-persistence.mjs",
     "smoke:sprint59": "node scripts/smoke-sprint59-provider-webhook-unmatched-inbound-review.mjs",
+    "smoke:sprint60": "node scripts/smoke-sprint60-provider-webhook-unmatched-review-actions.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

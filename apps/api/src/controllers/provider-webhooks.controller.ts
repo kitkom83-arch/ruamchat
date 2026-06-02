@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Inject, Post, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import { providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
@@ -19,6 +19,26 @@ export class ProviderWebhooksController {
     const parsedStatus = providerWebhookUnmatchedInboundStatusFilterSchema.safeParse(status);
     if (!parsedStatus.success) throw new BadRequestException("Invalid unmatched inbound status filter");
     return this.events.listUnmatchedInbound(requireTenantId(tenant), parsedStatus.data);
+  }
+
+  @Patch("unmatched-inbound/:id/review")
+  reviewUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.reviewUnmatchedInbound(requireTenantId(tenant), id, body, userId);
+  }
+
+  @Post("unmatched-inbound/:id/link-conversation")
+  linkUnmatchedInboundToConversation(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.linkUnmatchedInboundToConversation(requireTenantId(tenant), id, body, userId);
   }
 
   @Post("sandbox-events")
