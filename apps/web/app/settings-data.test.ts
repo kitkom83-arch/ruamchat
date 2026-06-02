@@ -6,9 +6,11 @@ import {
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
+  linkSettingsProviderWebhookUnmatchedInboundConversation,
   createSettingsProviderWebhookSandboxEvent,
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
+  reviewSettingsProviderWebhookUnmatchedInbound,
   mockProviderReadiness,
   mockProviderWebhookEvents,
   resolveCannedReplyComposerDraft,
@@ -24,7 +26,9 @@ const api = vi.hoisted(() => ({
   getProviderReadiness: vi.fn(),
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookUnmatchedInbound: vi.fn(),
-  createProviderWebhookSandboxEvent: vi.fn()
+  createProviderWebhookSandboxEvent: vi.fn(),
+  reviewProviderWebhookUnmatchedInbound: vi.fn(),
+  linkProviderWebhookUnmatchedInboundConversation: vi.fn()
 }));
 
 vi.mock("./api-client", () => ({
@@ -35,7 +39,9 @@ vi.mock("./api-client", () => ({
   getProviderReadiness: api.getProviderReadiness,
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
-  createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent
+  createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent,
+  reviewProviderWebhookUnmatchedInbound: api.reviewProviderWebhookUnmatchedInbound,
+  linkProviderWebhookUnmatchedInboundConversation: api.linkProviderWebhookUnmatchedInboundConversation
 }));
 
 beforeEach(() => {
@@ -47,6 +53,8 @@ beforeEach(() => {
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookUnmatchedInbound.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
+  api.reviewProviderWebhookUnmatchedInbound.mockReset();
+  api.linkProviderWebhookUnmatchedInboundConversation.mockReset();
 });
 
 describe("settings API-mode data loaders", () => {
@@ -201,6 +209,39 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify(event)).not.toContain("sensitive-sample-a");
   });
 
+  it("runs unmatched review and link actions through API mode without local fallback", async () => {
+    api.reviewProviderWebhookUnmatchedInbound.mockResolvedValueOnce({
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api"),
+      unmatchedStatus: "reviewed",
+      reviewStatus: "reviewed"
+    });
+    api.linkProviderWebhookUnmatchedInboundConversation.mockResolvedValueOnce({
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api"),
+      unmatchedStatus: "linked",
+      reviewStatus: "linked",
+      linkStatus: "linked",
+      linkedConversationId: "conversation-safe-internal"
+    });
+
+    const reviewed = await reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", {
+      status: "reviewed",
+      reason: "safe review"
+    });
+    const linked = await linkSettingsProviderWebhookUnmatchedInboundConversation("api", "provider-webhook-unmatched-api", {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    });
+
+    expect(api.reviewProviderWebhookUnmatchedInbound).toHaveBeenCalledWith("provider-webhook-unmatched-api", expect.objectContaining({ status: "reviewed" }));
+    expect(api.linkProviderWebhookUnmatchedInboundConversation).toHaveBeenCalledWith("provider-webhook-unmatched-api", expect.objectContaining({
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    }));
+    expect(reviewed.reviewStatus).toBe("reviewed");
+    expect(linked.linkStatus).toBe("linked");
+    expect(JSON.stringify({ reviewed, linked })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
+  });
+
   it("does not fallback to mock provider webhook events when API mode fails", async () => {
     api.getProviderWebhookEvents.mockRejectedValueOnce(new Error("API request failed (503): webhook events unavailable"));
 
@@ -218,6 +259,18 @@ describe("settings API-mode data loaders", () => {
       mode: "dry_run",
       payload: { safe: true }
     })).rejects.toThrow("sandbox intake unavailable");
+
+    api.reviewProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): review unavailable"));
+
+    await expect(reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", { status: "reviewed" }))
+      .rejects.toThrow("review unavailable");
+
+    api.linkProviderWebhookUnmatchedInboundConversation.mockRejectedValueOnce(new Error("API request failed (503): link unavailable"));
+
+    await expect(linkSettingsProviderWebhookUnmatchedInboundConversation("api", "provider-webhook-unmatched-api", {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    })).rejects.toThrow("link unavailable");
   });
 
   it("does not fallback to mock team when API mode fails", async () => {
@@ -430,10 +483,16 @@ function providerReadinessResponse() {
     inboundPersistenceReplayBlockedCount: 0,
     inboundPersistenceSkippedNoMatchCount: 0,
     webhookUnmatchedInboundReviewEnabled: true,
+    webhookUnmatchedReviewActionsEnabled: true,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 1,
     unmatchedInboundReplayBlockedCount: 0,
+    unmatchedInboundReviewedCount: 0,
+    unmatchedInboundSkippedCount: 0,
+    unmatchedInboundLinkedCount: 0,
     latestUnmatchedInboundStatus: "review-needed",
+    latestUnmatchedReviewActionStatus: null,
+    latestUnmatchedLinkStatus: null,
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -506,6 +565,11 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
     unmatchedInboundId: "provider-webhook-unmatched-api",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    unmatchedReviewActionStatus: "none",
+    unmatchedLinkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   };
@@ -526,6 +590,15 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     conversationLookupStatus: "not-found",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    reviewStatus: "pending",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewReason: null,
+    linkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
+    messagePersisted: false,
     payloadDigest: "sha256:safeeventdigest",
     providerEventDigest: "sha256:safededupdigest",
     deliveryDigest: "sha256:safededupdigest",

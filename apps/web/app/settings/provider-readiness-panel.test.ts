@@ -37,10 +37,16 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("inboundPersistenceReplayBlockedCount=1");
     expect(html).toContain("inboundPersistenceSkippedNoMatchCount=1");
     expect(html).toContain("unmatched inbound review=enabled");
+    expect(html).toContain("review actions=enabled");
     expect(html).toContain("open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
     expect(html).toContain("unmatched replay blocked count=1");
+    expect(html).toContain("reviewed unmatched count=1");
+    expect(html).toContain("skipped unmatched count=1");
+    expect(html).toContain("linked unmatched count=1");
     expect(html).toContain("latest unmatched status=review-needed");
+    expect(html).toContain("latest review action status=reviewed");
+    expect(html).toContain("latest link status=linked");
     expect(html).toContain("replayDetectedCount=1");
     expect(html).toContain("LINE");
     expect(html).toContain("Telegram");
@@ -60,11 +66,17 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("messageId=none");
     expect(html).toContain("unmatchedQueued=false");
     expect(html).toContain("unmatchedStatus=duplicate-skipped");
+    expect(html).toContain("reviewActionStatus=none");
+    expect(html).toContain("linkStatus=none");
     expect(html).toContain("unmatchedReason=blocked-replay");
     expect(html).toContain("unmatchedId=provider-webhook-unmatched-1");
     expect(html).toContain("Unmatched inbound review");
     expect(html).toContain("LINE unmatched inbound");
     expect(html).toContain("safe-review-required-no-conversation-match");
+    expect(html).toContain("reviewStatus=pending");
+    expect(html).toContain("Mark reviewed");
+    expect(html).toContain("Skip");
+    expect(html).toContain("Link only");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("signatureVerified=true");
@@ -144,10 +156,16 @@ function providerReadiness(): ProviderReadiness {
     inboundPersistenceReplayBlockedCount: 1,
     inboundPersistenceSkippedNoMatchCount: 1,
     webhookUnmatchedInboundReviewEnabled: true,
+    webhookUnmatchedReviewActionsEnabled: true,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
     unmatchedInboundReplayBlockedCount: 1,
+    unmatchedInboundReviewedCount: 1,
+    unmatchedInboundSkippedCount: 1,
+    unmatchedInboundLinkedCount: 1,
     latestUnmatchedInboundStatus: "review-needed",
+    latestUnmatchedReviewActionStatus: "reviewed",
+    latestUnmatchedLinkStatus: "linked",
     lastSandboxEventAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0,
     providers: [
@@ -220,6 +238,11 @@ function providerWebhookEvent(): ProviderWebhookEvent {
     unmatchedInboundId: "provider-webhook-unmatched-1",
     unmatchedStatus: "duplicate-skipped",
     unmatchedReason: "blocked-replay",
+    unmatchedReviewActionStatus: "none",
+    unmatchedLinkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   };
@@ -240,6 +263,15 @@ function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundI
     conversationLookupStatus: "not-found",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    reviewStatus: "pending",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewReason: null,
+    linkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
+    messagePersisted: false,
     payloadDigest: "sha256:safeeventdigest",
     providerEventDigest: "sha256:safededupdigest",
     deliveryDigest: "sha256:safededupdigest",

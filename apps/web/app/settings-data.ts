@@ -3,7 +3,9 @@ import type {
   DataMode,
   ProviderReadiness,
   ProviderWebhookEvent,
+  ProviderWebhookUnmatchedInboundLinkRequest,
   ProviderWebhookUnmatchedInboundItem,
+  ProviderWebhookUnmatchedInboundReviewRequest,
   ProviderWebhookSandboxEventRequest,
   SettingsCannedReply,
   SettingsChannelAccount,
@@ -15,6 +17,8 @@ import {
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
+  linkProviderWebhookUnmatchedInboundConversation,
+  reviewProviderWebhookUnmatchedInbound,
   getSettingsCannedReplies,
   getSettingsChannels,
   getSettingsSlaPolicies,
@@ -122,6 +126,60 @@ export async function createSettingsProviderWebhookSandboxEvent(mode: DataMode, 
   const event = createMockProviderWebhookEvent(payload);
   mockProviderWebhookEvents = [event, ...mockProviderWebhookEvents].slice(0, 25);
   return event;
+}
+
+export async function reviewSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundReviewRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return reviewProviderWebhookUnmatchedInbound(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  const nowIso = new Date().toISOString();
+  item.unmatchedStatus = payload.status;
+  item.reviewStatus = payload.status;
+  item.reviewedAt = nowIso;
+  item.reviewedBy = "system";
+  item.reviewReason = safeMockReason(payload.reason);
+  item.unmatchedResolvedAt = nowIso;
+  item.externalCalls = 0;
+  mockProviderReadiness.latestUnmatchedReviewActionStatus = payload.status;
+  mockProviderReadiness.latestUnmatchedInboundStatus = payload.status;
+  mockProviderReadiness.unmatchedInboundOpenCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.unmatchedStatus === "open" || candidate.unmatchedStatus === "review-needed").length;
+  mockProviderReadiness.unmatchedInboundReviewedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "reviewed").length;
+  mockProviderReadiness.unmatchedInboundSkippedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "skipped").length;
+  return item;
+}
+
+export async function linkSettingsProviderWebhookUnmatchedInboundConversation(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundLinkRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return linkProviderWebhookUnmatchedInboundConversation(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  const nowIso = new Date().toISOString();
+  item.unmatchedStatus = "linked";
+  item.reviewStatus = "linked";
+  item.linkStatus = payload.actionMode === "link-and-persist-safe-message" ? "linked-message-persisted" : "linked";
+  item.linkedConversationId = payload.conversationId;
+  item.linkedMessageId = payload.actionMode === "link-and-persist-safe-message" ? "message-local-linked" : null;
+  item.messagePersisted = payload.actionMode === "link-and-persist-safe-message";
+  item.unmatchedResolvedAt = nowIso;
+  item.externalCalls = 0;
+  mockProviderReadiness.latestUnmatchedLinkStatus = item.linkStatus;
+  mockProviderReadiness.latestUnmatchedInboundStatus = "linked";
+  mockProviderReadiness.unmatchedInboundOpenCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.unmatchedStatus === "open" || candidate.unmatchedStatus === "review-needed").length;
+  mockProviderReadiness.unmatchedInboundLinkedCount = mockProviderWebhookUnmatchedInbound.filter((candidate) => candidate.reviewStatus === "linked").length;
+  return item;
 }
 
 export async function loadSettingsTeamData(mode: DataMode): Promise<SettingsTeamData> {
@@ -285,10 +343,16 @@ export const mockProviderReadiness: ProviderReadiness = {
   inboundPersistenceReplayBlockedCount: 0,
   inboundPersistenceSkippedNoMatchCount: 0,
   webhookUnmatchedInboundReviewEnabled: true,
+  webhookUnmatchedReviewActionsEnabled: true,
   unmatchedInboundOpenCount: 1,
   unmatchedInboundQueuedCount: 1,
   unmatchedInboundReplayBlockedCount: 0,
+  unmatchedInboundReviewedCount: 0,
+  unmatchedInboundSkippedCount: 0,
+  unmatchedInboundLinkedCount: 0,
   latestUnmatchedInboundStatus: "review-needed",
+  latestUnmatchedReviewActionStatus: null,
+  latestUnmatchedLinkStatus: null,
   lastSandboxEventAt: now,
   externalCalls: 0,
   providers: [
@@ -346,6 +410,11 @@ export let mockProviderWebhookEvents: ProviderWebhookEvent[] = [
     unmatchedInboundId: "provider-webhook-unmatched-local-1",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    unmatchedReviewActionStatus: "none",
+    unmatchedLinkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   }
@@ -366,6 +435,15 @@ export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundI
     conversationLookupStatus: "not-found",
     unmatchedStatus: "review-needed",
     unmatchedReason: "safe-review-required-no-conversation-match",
+    reviewStatus: "pending",
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewReason: null,
+    linkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
+    messagePersisted: false,
     payloadDigest: "sha256:localdryrunsample",
     providerEventDigest: "sha256:localdedupsample",
     deliveryDigest: "sha256:localdedupsample",
@@ -461,6 +539,11 @@ function createMockProviderWebhookEvent(payload: ProviderWebhookSandboxEventRequ
     unmatchedInboundId: unmatchedInboundQueued ? `provider-webhook-unmatched-local-${safeId()}` : previousEventSeenAt ? "provider-webhook-unmatched-local-1" : null,
     unmatchedStatus,
     unmatchedReason: previousEventSeenAt ? "blocked-replay" : signatureStatus !== "verified" ? "blocked-signature" : unmatchedInboundQueued ? "safe-review-required-no-conversation-match" : null,
+    unmatchedReviewActionStatus: "none",
+    unmatchedLinkStatus: "none",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    unmatchedResolvedAt: null,
     inboundAuditStatus: "recorded",
     externalCalls: 0
   };
@@ -477,4 +560,10 @@ function safeDigest(value: string) {
     hash = Math.imul(hash, 16777619);
   }
   return Math.abs(hash).toString(16).padStart(8, "0").slice(0, 16);
+}
+
+function safeMockReason(value: string | undefined) {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed || /token|secret|authorization|cookie|replyToken|Bearer\s+/i.test(trimmed)) return null;
+  return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
 }

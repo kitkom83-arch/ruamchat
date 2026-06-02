@@ -604,6 +604,137 @@ export class ConversationService {
     return result;
   }
 
+  async getSafeConversationLinkContext(tenantId: string, conversationId: string) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id: conversationId, tenantId },
+      include: {
+        room: {
+          select: {
+            id: true,
+            platform: true,
+            channelAccountId: true
+          }
+        }
+      }
+    });
+    if (!conversation) throw new NotFoundException("Conversation not found");
+    return {
+      id: conversation.id,
+      tenantId: conversation.tenantId,
+      platform: conversation.room.platform,
+      channelAccountId: conversation.room.channelAccountId,
+      roomId: conversation.room.id,
+      roomKeyDigest: conversation.externalConversationId ? safeProviderWebhookRoomKeyDigest(conversation.externalConversationId) : null,
+      externalCalls: 0 as const
+    };
+  }
+
+  async persistLinkedSandboxWebhookInboundMessage(input: {
+    tenantId: string;
+    conversationId: string;
+    platform: Platform;
+    channelAccountId: string;
+    roomKeyDigest: string;
+    text: string | null;
+    messageType: PrismaMessageType;
+    providerEventDigest: string;
+    payloadDigest: string;
+    deliveryDigest: string | null;
+    timestamp: string | null;
+  }) {
+    const safeCreatedAt = parseSafeDate(input.timestamp);
+    const result = await this.prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.findFirst({
+        where: {
+          id: input.conversationId,
+          tenantId: input.tenantId,
+          status: { notIn: ["closed", "spam"] },
+          room: {
+            is: {
+              platform: input.platform,
+              channelAccountId: input.channelAccountId
+            }
+          }
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              platform: true,
+              channelAccountId: true
+            }
+          }
+        }
+      });
+
+      if (!conversation) throw new NotFoundException("Conversation not found");
+      if (!conversation.externalConversationId || safeProviderWebhookRoomKeyDigest(conversation.externalConversationId) !== input.roomKeyDigest) {
+        throw new BadRequestException("Safe conversation link rejected: room digest mismatch");
+      }
+
+      const existingMessage = await tx.message.findUnique({
+        where: {
+          channelAccountId_platformMessageId: {
+            channelAccountId: input.channelAccountId,
+            platformMessageId: input.providerEventDigest
+          }
+        }
+      });
+
+      if (existingMessage) {
+        return { conversation, message: existingMessage, duplicate: true };
+      }
+
+      const savedMessage = await tx.message.create({
+        data: {
+          tenantId: input.tenantId,
+          conversationId: conversation.id,
+          channelAccountId: input.channelAccountId,
+          platformMessageId: input.providerEventDigest,
+          senderType: "user",
+          messageType: input.messageType,
+          text: input.text,
+          createdAt: safeCreatedAt,
+          rawPayload: {
+            source: "sandbox-webhook-unmatched-link",
+            payloadDigest: input.payloadDigest,
+            providerEventDigest: input.providerEventDigest,
+            deliveryDigest: input.deliveryDigest,
+            roomKeyDigest: input.roomKeyDigest,
+            externalCalls: 0
+          }
+        }
+      });
+
+      const updatedConversation = await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: safeCreatedAt,
+          unread: true,
+          unreplied: true,
+          aiState: "need_human"
+        },
+        include: {
+          room: {
+            select: {
+              id: true,
+              platform: true,
+              channelAccountId: true
+            }
+          }
+        }
+      });
+
+      return { conversation: updatedConversation, message: savedMessage, duplicate: false };
+    });
+
+    if (!result.duplicate) {
+      this.realtime.conversationUpdated(input.tenantId, { conversationId: result.conversation.id });
+    }
+
+    return result;
+  }
+
   async sendAgentMessage(tenantId: string, conversationId: string, actorUserId: string | undefined, request: SendMessageRequest | AgentMessageRequest) {
     const conversation = await this.ensureConversation(tenantId, conversationId);
     const text = request.text.trim();
@@ -1709,4 +1840,8 @@ function parseSafeDate(value: string | null) {
   if (!value) return new Date();
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+function safeProviderWebhookRoomKeyDigest(value: string) {
+  return `sha256:${crypto.createHash("sha256").update(`room:${value}`).digest("hex").slice(0, 24)}`;
 }
