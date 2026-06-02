@@ -2,9 +2,10 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
+  bulkReviewSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
@@ -16,13 +17,29 @@ import {
 } from "../../settings-data";
 import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
+const defaultUnmatchedFilters: ProviderWebhookUnmatchedInboundFilters = {
+  limit: 10,
+  offset: 0,
+  sortBy: "receivedAt",
+  sortOrder: "desc"
+};
+
 export default function ChannelSettingsPage() {
   const [copied, setCopied] = useState("");
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
   const [unmatchedInboundItems, setUnmatchedInboundItems] = useState<ProviderWebhookUnmatchedInboundItem[]>([]);
-  const [unmatchedFilters, setUnmatchedFilters] = useState<ProviderWebhookUnmatchedInboundFilters>({});
+  const [unmatchedFilters, setUnmatchedFilters] = useState<ProviderWebhookUnmatchedInboundFilters>(defaultUnmatchedFilters);
+  const [unmatchedPagination, setUnmatchedPagination] = useState<ProviderWebhookUnmatchedInboundPage["pagination"] | null>(null);
+  const [unmatchedAppliedSort, setUnmatchedAppliedSort] = useState<ProviderWebhookUnmatchedInboundPage["appliedSort"]>({
+    sortBy: "receivedAt",
+    sortOrder: "desc"
+  });
+  const [unmatchedPageSummary, setUnmatchedPageSummary] = useState<ProviderWebhookUnmatchedInboundPage["summary"] | null>(null);
+  const [selectedUnmatchedIds, setSelectedUnmatchedIds] = useState<string[]>([]);
+  const [unmatchedBulkSavingStatus, setUnmatchedBulkSavingStatus] = useState<"" | "reviewed" | "skipped">("");
+  const [unmatchedBulkResult, setUnmatchedBulkResult] = useState<ProviderWebhookUnmatchedInboundBulkReviewResponse | null>(null);
   const [candidateItemsById, setCandidateItemsById] = useState<Record<string, ProviderWebhookCandidateConversation[]>>({});
   const [candidateErrorById, setCandidateErrorById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -87,6 +104,7 @@ export default function ChannelSettingsPage() {
     setUnmatchedInboundLoading(true);
     setWebhookEventsError("");
     setUnmatchedInboundError("");
+    let refreshedItems: ProviderWebhookUnmatchedInboundItem[] = [];
     const [eventsResult, unmatchedResult] = await Promise.allSettled([
       loadSettingsProviderWebhookEventsData(dataMode),
       loadSettingsProviderWebhookUnmatchedInboundData(dataMode, unmatchedFilters)
@@ -99,12 +117,21 @@ export default function ChannelSettingsPage() {
     }
     if (unmatchedResult.status === "fulfilled") {
       setUnmatchedInboundItems(unmatchedResult.value.items);
+      setUnmatchedPagination(unmatchedResult.value.pagination);
+      setUnmatchedAppliedSort(unmatchedResult.value.appliedSort);
+      setUnmatchedPageSummary(unmatchedResult.value.summary);
+      refreshedItems = unmatchedResult.value.items;
+      const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
+      setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
     } else {
       setUnmatchedInboundItems([]);
+      setUnmatchedPagination(null);
+      setUnmatchedPageSummary(null);
       setUnmatchedInboundError(`Unmatched Inbound API error: ${unmatchedResult.reason instanceof Error ? unmatchedResult.reason.message : "Unable to load unmatched inbound review"}`);
     }
     setWebhookEventsLoading(false);
     setUnmatchedInboundLoading(false);
+    return refreshedItems;
   }, [unmatchedFilters]);
 
   useEffect(() => {
@@ -167,10 +194,12 @@ export default function ChannelSettingsPage() {
     setUnmatchedActionSavingId(unmatchedInboundId);
     setUnmatchedInboundError("");
     setUnmatchedActionStatus("");
+    setUnmatchedBulkResult(null);
     try {
       const result = await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.reviewStatus}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -185,10 +214,12 @@ export default function ChannelSettingsPage() {
     setUnmatchedActionSavingId(unmatchedInboundId);
     setUnmatchedInboundError("");
     setUnmatchedActionStatus("");
+    setUnmatchedBulkResult(null);
     try {
       const result = await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.linkStatus}; messagePersisted=${String(result.messagePersisted)}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -196,6 +227,51 @@ export default function ChannelSettingsPage() {
       setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to link unmatched inbound review"}`);
     } finally {
       setUnmatchedActionSavingId("");
+    }
+  }
+
+  function updateUnmatchedFilters(filters: ProviderWebhookUnmatchedInboundFilters) {
+    setSelectedUnmatchedIds([]);
+    setUnmatchedBulkResult(null);
+    setUnmatchedActionStatus("");
+    setUnmatchedFilters({
+      ...defaultUnmatchedFilters,
+      ...filters,
+      limit: filters.limit ?? unmatchedFilters.limit ?? defaultUnmatchedFilters.limit,
+      offset: filters.offset ?? 0,
+      sortBy: filters.sortBy ?? unmatchedFilters.sortBy ?? defaultUnmatchedFilters.sortBy,
+      sortOrder: filters.sortOrder ?? unmatchedFilters.sortOrder ?? defaultUnmatchedFilters.sortOrder
+    });
+  }
+
+  async function bulkReviewUnmatchedInbound(status: "reviewed" | "skipped") {
+    const ids = selectedUnmatchedIds;
+    setUnmatchedBulkSavingStatus(status);
+    setUnmatchedInboundError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkResult(null);
+    try {
+      const result = await bulkReviewSettingsProviderWebhookUnmatchedInbound(dataMode, {
+        ids,
+        reviewStatus: status,
+        reason: `bulk ${status}`
+      });
+      setUnmatchedBulkResult(result);
+      setUnmatchedActionStatus(`Bulk ${status}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
+      const refreshedItems = await refreshWebhookEvents();
+      const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
+      setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
+      for (const id of ids) {
+        if (candidateItemsById[id] && selectableIds.has(id)) {
+          await loadCandidates(id);
+        }
+      }
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to bulk update unmatched inbound review"}`);
+    } finally {
+      setUnmatchedBulkSavingStatus("");
     }
   }
 
@@ -221,17 +297,25 @@ export default function ChannelSettingsPage() {
         webhookEventsError={webhookEventsError}
         unmatchedInboundItems={unmatchedInboundItems}
         unmatchedFilters={unmatchedFilters}
+        unmatchedPagination={unmatchedPagination}
+        unmatchedAppliedSort={unmatchedAppliedSort}
+        unmatchedPageSummary={unmatchedPageSummary}
+        selectedUnmatchedIds={selectedUnmatchedIds}
         unmatchedInboundLoading={unmatchedInboundLoading}
         unmatchedInboundError={unmatchedInboundError}
         unmatchedActionSavingId={unmatchedActionSavingId}
         unmatchedActionStatus={unmatchedActionStatus}
+        unmatchedBulkSavingStatus={unmatchedBulkSavingStatus}
+        unmatchedBulkResult={unmatchedBulkResult}
         candidateItemsById={candidateItemsById}
         candidateErrorById={candidateErrorById}
         candidateLoadingId={candidateLoadingId}
         webhookEventSaving={webhookEventSaving}
-        onUnmatchedFiltersChange={setUnmatchedFilters}
+        onUnmatchedFiltersChange={updateUnmatchedFilters}
+        onUnmatchedSelectionChange={setSelectedUnmatchedIds}
         onCreateSandboxEvent={createSandboxEvent}
         onReviewUnmatchedInbound={reviewUnmatchedInbound}
+        onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
         onLoadCandidates={loadCandidates}
       />
@@ -314,6 +398,10 @@ function platformLabel(platform: SettingsChannelAccount["platform"]) {
     instagram: "Instagram"
   };
   return labels[platform];
+}
+
+function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
 }
 
 function formatDate(value: string | null | undefined) {

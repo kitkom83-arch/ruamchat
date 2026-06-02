@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Check, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import { Check, CheckSquare, ChevronLeft, ChevronRight, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -11,17 +11,25 @@ type ProviderReadinessPanelProps = {
   webhookEventsError?: string;
   unmatchedInboundItems?: ProviderWebhookUnmatchedInboundItem[];
   unmatchedFilters?: ProviderWebhookUnmatchedInboundFilters;
+  unmatchedPagination?: ProviderWebhookUnmatchedInboundPage["pagination"] | null;
+  unmatchedAppliedSort?: ProviderWebhookUnmatchedInboundPage["appliedSort"] | null;
+  unmatchedPageSummary?: ProviderWebhookUnmatchedInboundPage["summary"] | null;
+  selectedUnmatchedIds?: string[];
   unmatchedInboundLoading?: boolean;
   unmatchedInboundError?: string;
   unmatchedActionSavingId?: string;
   unmatchedActionStatus?: string;
+  unmatchedBulkSavingStatus?: "" | "reviewed" | "skipped";
+  unmatchedBulkResult?: ProviderWebhookUnmatchedInboundBulkReviewResponse | null;
   candidateItemsById?: Record<string, ProviderWebhookCandidateConversation[]>;
   candidateErrorById?: Record<string, string>;
   candidateLoadingId?: string;
   webhookEventSaving?: boolean;
   onUnmatchedFiltersChange?: (filters: ProviderWebhookUnmatchedInboundFilters) => void;
+  onUnmatchedSelectionChange?: (ids: string[]) => void;
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
   onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
+  onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
   onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
 };
@@ -31,6 +39,9 @@ type ProviderOption = (typeof providers)[number];
 const eventTypes: ProviderWebhookEventType[] = ["message.created", "webhook.verified", "webhook.failed"];
 const reviewStatuses = ["pending", "reviewed", "skipped", "linked"] as const;
 const linkStatuses = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
+const unmatchedStatuses = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
+const queueStatuses = ["open", "reviewed", "blocked", "skipped", "linked"] as const;
+const pageSizes = [5, 10, 25, 50] as const;
 
 export function ProviderReadinessPanel({
   readiness,
@@ -41,17 +52,25 @@ export function ProviderReadinessPanel({
   webhookEventsError = "",
   unmatchedInboundItems = [],
   unmatchedFilters = {},
+  unmatchedPagination = null,
+  unmatchedAppliedSort = null,
+  unmatchedPageSummary = null,
+  selectedUnmatchedIds = [],
   unmatchedInboundLoading = false,
   unmatchedInboundError = "",
   unmatchedActionSavingId = "",
   unmatchedActionStatus = "",
+  unmatchedBulkSavingStatus = "",
+  unmatchedBulkResult = null,
   candidateItemsById = {},
   candidateErrorById = {},
   candidateLoadingId = "",
   webhookEventSaving = false,
   onUnmatchedFiltersChange,
+  onUnmatchedSelectionChange,
   onCreateSandboxEvent,
   onReviewUnmatchedInbound,
+  onBulkReviewUnmatchedInbound,
   onLinkUnmatchedInbound,
   onLoadCandidates
 }: ProviderReadinessPanelProps) {
@@ -65,6 +84,21 @@ export function ProviderReadinessPanel({
   const lastEvent = webhookEvents[0] ?? null;
   const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
   const queueSummary = summarizeUnmatchedQueue(unmatchedInboundItems);
+  const selectedUnmatchedSet = new Set(selectedUnmatchedIds);
+  const selectableVisibleItems = unmatchedInboundItems.filter(isOpenUnmatchedItem);
+  const allVisibleSelected = selectableVisibleItems.length > 0 && selectableVisibleItems.every((item) => selectedUnmatchedSet.has(item.id));
+  const pagination = unmatchedPagination ?? {
+    totalCount: unmatchedInboundItems.length,
+    limit: unmatchedFilters.limit ?? (unmatchedInboundItems.length || 10),
+    offset: unmatchedFilters.offset ?? 0,
+    returnedCount: unmatchedInboundItems.length,
+    hasNextPage: false,
+    hasPreviousPage: false
+  };
+  const appliedSort = unmatchedAppliedSort ?? {
+    sortBy: unmatchedFilters.sortBy ?? "receivedAt",
+    sortOrder: unmatchedFilters.sortOrder ?? "desc"
+  };
 
   async function submitSandboxEvent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -85,6 +119,37 @@ export function ProviderReadinessPanel({
       }
     });
     setSignature("");
+  }
+
+  function updateQueueFilters(next: ProviderWebhookUnmatchedInboundFilters) {
+    onUnmatchedFiltersChange?.({
+      ...unmatchedFilters,
+      ...next,
+      offset: next.offset ?? 0
+    });
+  }
+
+  function selectVisibleUnmatchedItems() {
+    onUnmatchedSelectionChange?.(selectableVisibleItems.map((item) => item.id));
+  }
+
+  function clearUnmatchedSelection() {
+    onUnmatchedSelectionChange?.([]);
+  }
+
+  function toggleUnmatchedSelection(id: string, checked: boolean) {
+    if (checked) {
+      onUnmatchedSelectionChange?.(Array.from(new Set([...selectedUnmatchedIds, id])));
+      return;
+    }
+    onUnmatchedSelectionChange?.(selectedUnmatchedIds.filter((itemId) => itemId !== id));
+  }
+
+  function moveUnmatchedPage(direction: "previous" | "next") {
+    const offset = direction === "previous"
+      ? Math.max(0, pagination.offset - pagination.limit)
+      : pagination.offset + pagination.limit;
+    updateQueueFilters({ offset });
   }
 
   return e("section", { className: "providerReadinessPanel", "aria-label": "Provider sandbox and webhook readiness" },
@@ -250,10 +315,16 @@ export function ProviderReadinessPanel({
         ),
         e("div", { className: "providerReadinessSummary", "aria-label": "Unmatched inbound queue summary" },
           e("span", null, `visible unmatched count=${unmatchedInboundItems.length}`),
+          e("span", null, `total unmatched count=${pagination.totalCount}`),
+          e("span", null, `page size=${pagination.limit}`),
+          e("span", null, `page offset=${pagination.offset}`),
+          e("span", null, `applied sort=${appliedSort.sortBy} ${appliedSort.sortOrder}`),
+          e("span", null, `selected count=${selectedUnmatchedIds.length}`),
           e("span", null, `visible open count=${queueSummary.open}`),
           e("span", null, `visible reviewed count=${queueSummary.reviewed}`),
           e("span", null, `visible skipped count=${queueSummary.skipped}`),
-          e("span", null, `visible linked count=${queueSummary.linked}`)
+          e("span", null, `visible linked count=${queueSummary.linked}`),
+          unmatchedPageSummary ? e("span", null, `filtered open count=${unmatchedPageSummary.openCount}`) : null
         )
       ),
       e("div", { className: "webhookEventForm", "aria-label": "Unmatched inbound queue filters" },
@@ -261,7 +332,7 @@ export function ProviderReadinessPanel({
           e("span", null, "Provider filter"),
           e("select", {
             value: unmatchedFilters.provider ?? "all",
-            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, provider: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["provider"] })
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ provider: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["provider"] })
           },
             e("option", { value: "all" }, "All providers"),
             ...providers.map((item) => e("option", { key: item, value: item }, providerLabel(item)))
@@ -271,7 +342,7 @@ export function ProviderReadinessPanel({
           e("span", null, "Review status"),
           e("select", {
             value: unmatchedFilters.reviewStatus ?? "all",
-            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, reviewStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ reviewStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })
           },
             e("option", { value: "all" }, "All review"),
             ...reviewStatuses.map((item) => e("option", { key: item, value: item }, item))
@@ -281,29 +352,163 @@ export function ProviderReadinessPanel({
           e("span", null, "Link status"),
           e("select", {
             value: unmatchedFilters.linkStatus ?? "all",
-            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, linkStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ linkStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })
           },
             e("option", { value: "all" }, "All links"),
             ...linkStatuses.map((item) => e("option", { key: item, value: item }, item))
           )
         ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Queue status"),
+          e("select", {
+            value: unmatchedFilters.status ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ status: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["status"] })
+          },
+            e("option", { value: "all" }, "All queue"),
+            ...queueStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Unmatched status"),
+          e("select", {
+            value: unmatchedFilters.unmatchedStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ unmatchedStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["unmatchedStatus"] })
+          },
+            e("option", { value: "all" }, "All unmatched"),
+            ...unmatchedStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Event type"),
+          e("select", {
+            value: unmatchedFilters.eventType ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ eventType: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookEventType })
+          },
+            e("option", { value: "all" }, "All events"),
+            ...eventTypes.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Received from"),
+          e("input", {
+            type: "datetime-local",
+            value: toDateTimeLocal(unmatchedFilters.receivedAtFrom ?? unmatchedFilters.receivedFrom),
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => updateQueueFilters({ receivedAtFrom: fromDateTimeLocal(event.target.value) })
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Received to"),
+          e("input", {
+            type: "datetime-local",
+            value: toDateTimeLocal(unmatchedFilters.receivedAtTo ?? unmatchedFilters.receivedTo),
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => updateQueueFilters({ receivedAtTo: fromDateTimeLocal(event.target.value) })
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Page size"),
+          e("select", {
+            value: String(pagination.limit),
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ limit: Number(event.target.value), offset: 0 })
+          },
+            ...pageSizes.map((item) => e("option", { key: item, value: item }, String(item)))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Sort order"),
+          e("select", {
+            value: appliedSort.sortOrder,
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ sortBy: "receivedAt", sortOrder: event.target.value as ProviderWebhookUnmatchedInboundFilters["sortOrder"] })
+          },
+            e("option", { value: "desc" }, "receivedAt newest first"),
+            e("option", { value: "asc" }, "receivedAt oldest first")
+          )
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: !pagination.hasPreviousPage || !onUnmatchedFiltersChange,
+          onClick: () => moveUnmatchedPage("previous")
+        },
+          e(ChevronLeft, { size: 15 }),
+          "Previous"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: !pagination.hasNextPage || !onUnmatchedFiltersChange,
+          onClick: () => moveUnmatchedPage("next")
+        },
+          e(ChevronRight, { size: 15 }),
+          "Next"
+        ),
         e("button", {
           className: "webhookEventButton",
           type: "button",
           disabled: !onUnmatchedFiltersChange,
-          onClick: () => onUnmatchedFiltersChange?.({})
+          onClick: () => onUnmatchedFiltersChange?.({ limit: pagination.limit, offset: 0, sortBy: "receivedAt", sortOrder: "desc" })
         },
           e(X, { size: 15 }),
           "Clear filters"
         )
       ),
+      e("div", { className: "webhookEventActions", "aria-label": "Unmatched inbound bulk selection" },
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectableVisibleItems.length === 0 || !onUnmatchedSelectionChange || allVisibleSelected,
+          onClick: selectVisibleUnmatchedItems
+        },
+          e(CheckSquare, { size: 15 }),
+          "Select all visible"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || !onUnmatchedSelectionChange,
+          onClick: clearUnmatchedSelection
+        },
+          e(X, { size: 15 }),
+          "Clear selection"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkSavingStatus) || !onBulkReviewUnmatchedInbound,
+          onClick: () => void onBulkReviewUnmatchedInbound?.("reviewed")
+        },
+          e(Check, { size: 15 }),
+          unmatchedBulkSavingStatus === "reviewed" ? "Bulk saving..." : "Bulk Mark reviewed"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkSavingStatus) || !onBulkReviewUnmatchedInbound,
+          onClick: () => void onBulkReviewUnmatchedInbound?.("skipped")
+        },
+          e(SkipForward, { size: 15 }),
+          unmatchedBulkSavingStatus === "skipped" ? "Bulk saving..." : "Bulk Skip"
+        )
+      ),
       unmatchedInboundError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedInboundError) : null,
       unmatchedActionStatus ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" }, unmatchedActionStatus) : null,
+      unmatchedBulkResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk unmatched review result" },
+        ...unmatchedBulkResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
+          `${result.id}: ${result.resultStatus}; reviewStatus=${result.reviewStatus ?? "none"}; unmatchedStatus=${result.unmatchedStatus ?? "none"}; error=${result.error ?? "none"}; externalCalls=${result.externalCalls}`
+        ))
+      ) : null,
       unmatchedInboundLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound review items...") : null,
       unmatchedInboundItems.length > 0 ? e("div", { className: "webhookEventList" },
-        ...unmatchedInboundItems.slice(0, 5).map((item) => e("article", { key: item.id, className: "webhookEventRow" },
+        ...unmatchedInboundItems.map((item) => e("article", { key: item.id, className: "webhookEventRow" },
           e("div", null,
-            e("strong", null, `${providerLabel(item.provider)} unmatched inbound`),
+            e("label", { className: "webhookSelectRow" },
+              e("input", {
+                type: "checkbox",
+                checked: selectedUnmatchedSet.has(item.id),
+                disabled: !isOpenUnmatchedItem(item) || !onUnmatchedSelectionChange || Boolean(unmatchedBulkSavingStatus),
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) => toggleUnmatchedSelection(item.id, event.target.checked)
+              }),
+              e("strong", null, `${providerLabel(item.provider)} unmatched inbound`)
+            ),
             e("span", null, `${item.eventType} / ${item.unmatchedStatus}`)
           ),
           e("div", null,
@@ -365,7 +570,7 @@ export function ProviderReadinessPanel({
             e("button", {
               className: "webhookEventButton",
               type: "button",
-              disabled: unmatchedActionSavingId === item.id || !onReviewUnmatchedInbound,
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkSavingStatus) || !onReviewUnmatchedInbound,
               onClick: () => void onReviewUnmatchedInbound?.(item.id, "reviewed")
             },
               e(Check, { size: 15 }),
@@ -374,7 +579,7 @@ export function ProviderReadinessPanel({
             e("button", {
               className: "webhookEventButton",
               type: "button",
-              disabled: unmatchedActionSavingId === item.id || !onReviewUnmatchedInbound,
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkSavingStatus) || !onReviewUnmatchedInbound,
               onClick: () => void onReviewUnmatchedInbound?.(item.id, "skipped")
             },
               e(SkipForward, { size: 15 }),
@@ -391,7 +596,7 @@ export function ProviderReadinessPanel({
             e("button", {
               className: "webhookEventButton",
               type: "button",
-              disabled: unmatchedActionSavingId === item.id || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkSavingStatus) || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
               onClick: () => void onLinkUnmatchedInbound?.(item.id, (linkConversationIds[item.id] ?? "").trim(), "link-only")
             },
               e(Link2, { size: 15 }),
@@ -400,7 +605,7 @@ export function ProviderReadinessPanel({
             e("button", {
               className: "webhookEventButton",
               type: "button",
-              disabled: unmatchedActionSavingId === item.id || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkSavingStatus) || !onLinkUnmatchedInbound || !(linkConversationIds[item.id] ?? "").trim(),
               onClick: () => void onLinkUnmatchedInbound?.(item.id, (linkConversationIds[item.id] ?? "").trim(), "link-and-persist-safe-message")
             },
               e(Send, { size: 15 }),
@@ -456,6 +661,19 @@ function formatStatus(status: ProviderReadinessProvider["credentialStatus"]) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("th-TH");
+}
+
+function toDateTimeLocal(value: string | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocal(value: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {

@@ -2036,6 +2036,11 @@ export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open",
 export type ProviderWebhookUnmatchedInboundStatusFilter = z.infer<typeof providerWebhookUnmatchedInboundStatusFilterSchema>;
 
 const providerWebhookReceivedAtFilterSchema = z.string().trim().min(1).refine((value) => !Number.isNaN(new Date(value).getTime()), "Invalid date filter");
+export const providerWebhookUnmatchedInboundSortBySchema = z.enum(["receivedAt"]);
+export type ProviderWebhookUnmatchedInboundSortBy = z.infer<typeof providerWebhookUnmatchedInboundSortBySchema>;
+
+export const providerWebhookUnmatchedInboundSortOrderSchema = z.enum(["asc", "desc"]);
+export type ProviderWebhookUnmatchedInboundSortOrder = z.infer<typeof providerWebhookUnmatchedInboundSortOrderSchema>;
 
 export const providerWebhookUnmatchedInboundFiltersSchema = z.object({
   provider: providerSandboxProviderSchema.optional(),
@@ -2046,7 +2051,12 @@ export const providerWebhookUnmatchedInboundFiltersSchema = z.object({
   eventType: providerWebhookEventTypeSchema.optional(),
   receivedFrom: providerWebhookReceivedAtFilterSchema.optional(),
   receivedTo: providerWebhookReceivedAtFilterSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional()
+  receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
+  receivedAtTo: providerWebhookReceivedAtFilterSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+  offset: z.coerce.number().int().min(0).max(5000).optional(),
+  sortBy: providerWebhookUnmatchedInboundSortBySchema.optional(),
+  sortOrder: providerWebhookUnmatchedInboundSortOrderSchema.optional()
 }).strict();
 export type ProviderWebhookUnmatchedInboundFilters = z.infer<typeof providerWebhookUnmatchedInboundFiltersSchema>;
 
@@ -2251,6 +2261,81 @@ export const providerWebhookUnmatchedInboundItemSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookUnmatchedInboundItem = z.infer<typeof providerWebhookUnmatchedInboundItemSchema>;
+
+export const providerWebhookUnmatchedInboundPaginationSchema = z.object({
+  totalCount: z.number().int().nonnegative(),
+  limit: z.number().int().min(1).max(50),
+  offset: z.number().int().nonnegative(),
+  returnedCount: z.number().int().nonnegative(),
+  hasNextPage: z.boolean(),
+  hasPreviousPage: z.boolean()
+}).strict();
+export type ProviderWebhookUnmatchedInboundPagination = z.infer<typeof providerWebhookUnmatchedInboundPaginationSchema>;
+
+export const providerWebhookUnmatchedInboundSummarySchema = z.object({
+  openCount: z.number().int().nonnegative(),
+  reviewedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  linkedCount: z.number().int().nonnegative()
+}).strict();
+export type ProviderWebhookUnmatchedInboundSummary = z.infer<typeof providerWebhookUnmatchedInboundSummarySchema>;
+
+export const providerWebhookUnmatchedInboundAppliedSortSchema = z.object({
+  sortBy: providerWebhookUnmatchedInboundSortBySchema,
+  sortOrder: providerWebhookUnmatchedInboundSortOrderSchema
+}).strict();
+export type ProviderWebhookUnmatchedInboundAppliedSort = z.infer<typeof providerWebhookUnmatchedInboundAppliedSortSchema>;
+
+export const providerWebhookUnmatchedInboundPageSchema = z.object({
+  items: z.array(providerWebhookUnmatchedInboundItemSchema),
+  pagination: providerWebhookUnmatchedInboundPaginationSchema,
+  appliedFilters: providerWebhookUnmatchedInboundFiltersSchema,
+  appliedSort: providerWebhookUnmatchedInboundAppliedSortSchema,
+  summary: providerWebhookUnmatchedInboundSummarySchema,
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundPage = z.infer<typeof providerWebhookUnmatchedInboundPageSchema>;
+
+export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(50),
+  reviewStatus: z.enum(["reviewed", "skipped"]),
+  reason: z.string().trim().max(160).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkReviewRequest = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewRequestSchema>;
+
+export const providerWebhookUnmatchedInboundBulkReviewResultStatusSchema = z.enum([
+  "updated",
+  "already-applied",
+  "not-found",
+  "conflict"
+]);
+export type ProviderWebhookUnmatchedInboundBulkReviewResultStatus = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewResultStatusSchema>;
+
+export const providerWebhookUnmatchedInboundBulkReviewItemResultSchema = z.object({
+  id: z.string().min(1),
+  ok: z.boolean(),
+  resultStatus: providerWebhookUnmatchedInboundBulkReviewResultStatusSchema,
+  reviewStatus: z.enum(["reviewed", "skipped"]).nullable(),
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.nullable(),
+  error: z.string().min(1).nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkReviewItemResult = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewItemResultSchema>;
+
+export const providerWebhookUnmatchedInboundBulkReviewResponseSchema = z.object({
+  reviewStatus: z.enum(["reviewed", "skipped"]),
+  results: z.array(providerWebhookUnmatchedInboundBulkReviewItemResultSchema),
+  summary: z.object({
+    requestedCount: z.number().int().nonnegative(),
+    dedupedCount: z.number().int().nonnegative(),
+    successCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    updatedCount: z.number().int().nonnegative(),
+    alreadyAppliedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkReviewResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewResponseSchema>;
 
 export const apiReadinessSchema = z.object({
   status: z.literal("ok"),

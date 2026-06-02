@@ -8,6 +8,7 @@ import {
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
+  bulkReviewSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
@@ -31,6 +32,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
   createProviderWebhookSandboxEvent: vi.fn(),
   reviewProviderWebhookUnmatchedInbound: vi.fn(),
+  bulkReviewProviderWebhookUnmatchedInbound: vi.fn(),
   linkProviderWebhookUnmatchedInboundConversation: vi.fn()
 }));
 
@@ -45,6 +47,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
   createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent,
   reviewProviderWebhookUnmatchedInbound: api.reviewProviderWebhookUnmatchedInbound,
+  bulkReviewProviderWebhookUnmatchedInbound: api.bulkReviewProviderWebhookUnmatchedInbound,
   linkProviderWebhookUnmatchedInboundConversation: api.linkProviderWebhookUnmatchedInboundConversation
 }));
 
@@ -59,6 +62,7 @@ beforeEach(() => {
   api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
   api.reviewProviderWebhookUnmatchedInbound.mockReset();
+  api.bulkReviewProviderWebhookUnmatchedInbound.mockReset();
   api.linkProviderWebhookUnmatchedInboundConversation.mockReset();
 });
 
@@ -176,7 +180,7 @@ describe("settings API-mode data loaders", () => {
   });
 
   it("loads unmatched inbound review items from API mode without exposing raw values", async () => {
-    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]);
+    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce(providerWebhookUnmatchedInboundPageResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]));
 
     const data = await loadSettingsProviderWebhookUnmatchedInboundData("api");
 
@@ -195,7 +199,7 @@ describe("settings API-mode data loaders", () => {
   });
 
   it("loads unmatched inbound filters and safe candidates from API mode", async () => {
-    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]);
+    api.getProviderWebhookUnmatchedInbound.mockResolvedValueOnce(providerWebhookUnmatchedInboundPageResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]));
     api.getProviderWebhookUnmatchedInboundCandidates.mockResolvedValueOnce([providerWebhookCandidateResponse("conversation-safe-internal")]);
 
     const unmatched = await loadSettingsProviderWebhookUnmatchedInboundData("api", {
@@ -253,6 +257,7 @@ describe("settings API-mode data loaders", () => {
       linkStatus: "linked",
       linkedConversationId: "conversation-safe-internal"
     });
+    api.bulkReviewProviderWebhookUnmatchedInbound.mockResolvedValueOnce(providerWebhookBulkReviewResponse("reviewed"));
 
     const reviewed = await reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", {
       status: "reviewed",
@@ -262,15 +267,25 @@ describe("settings API-mode data loaders", () => {
       conversationId: "conversation-safe-internal",
       actionMode: "link-only"
     });
+    const bulk = await bulkReviewSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-api"],
+      reviewStatus: "reviewed",
+      reason: "safe bulk review"
+    });
 
     expect(api.reviewProviderWebhookUnmatchedInbound).toHaveBeenCalledWith("provider-webhook-unmatched-api", expect.objectContaining({ status: "reviewed" }));
     expect(api.linkProviderWebhookUnmatchedInboundConversation).toHaveBeenCalledWith("provider-webhook-unmatched-api", expect.objectContaining({
       conversationId: "conversation-safe-internal",
       actionMode: "link-only"
     }));
+    expect(api.bulkReviewProviderWebhookUnmatchedInbound).toHaveBeenCalledWith(expect.objectContaining({
+      ids: ["provider-webhook-unmatched-api"],
+      reviewStatus: "reviewed"
+    }));
     expect(reviewed.reviewStatus).toBe("reviewed");
     expect(linked.linkStatus).toBe("linked");
-    expect(JSON.stringify({ reviewed, linked })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
+    expect(bulk.summary.successCount).toBe(1);
+    expect(JSON.stringify({ reviewed, linked, bulk })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
   });
 
   it("does not fallback to mock provider webhook events when API mode fails", async () => {
@@ -301,6 +316,13 @@ describe("settings API-mode data loaders", () => {
     await expect(reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", { status: "reviewed" }))
       .rejects.toThrow("review unavailable");
 
+    api.bulkReviewProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): bulk unavailable"));
+
+    await expect(bulkReviewSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-api"],
+      reviewStatus: "reviewed"
+    })).rejects.toThrow("bulk unavailable");
+
     api.linkProviderWebhookUnmatchedInboundConversation.mockRejectedValueOnce(new Error("API request failed (503): link unavailable"));
 
     await expect(linkSettingsProviderWebhookUnmatchedInboundConversation("api", "provider-webhook-unmatched-api", {
@@ -315,6 +337,13 @@ describe("settings API-mode data loaders", () => {
 
     await expect(reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-local-1", { status: "reviewed" }))
       .rejects.toThrow("review unavailable");
+
+    api.bulkReviewProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): bulk unavailable"));
+
+    await expect(bulkReviewSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-local-1"],
+      reviewStatus: "reviewed"
+    })).rejects.toThrow("bulk unavailable");
 
     api.linkProviderWebhookUnmatchedInboundConversation.mockRejectedValueOnce(new Error("API request failed (503): link unavailable"));
 
@@ -352,6 +381,36 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
     expect(api.getProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
+  });
+
+  it("keeps mock/local bulk unmatched review available safely", async () => {
+    const beforeItems = mockProviderWebhookUnmatchedInbound.map((item) => ({ ...item }));
+    const beforeReadiness = { ...mockProviderReadiness };
+    try {
+      const result = await bulkReviewSettingsProviderWebhookUnmatchedInbound("mock", {
+        ids: ["provider-webhook-unmatched-local-1", "provider-webhook-unmatched-local-1"],
+        reviewStatus: "reviewed",
+        reason: "safe local bulk"
+      });
+
+      expect(result.summary).toMatchObject({
+        requestedCount: 2,
+        dedupedCount: 1,
+        successCount: 1,
+        errorCount: 0
+      });
+      expect(result.results[0]).toMatchObject({
+        id: "provider-webhook-unmatched-local-1",
+        resultStatus: "updated",
+        reviewStatus: "reviewed",
+        externalCalls: 0
+      });
+      expect(api.bulkReviewProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken/i);
+    } finally {
+      mockProviderWebhookUnmatchedInbound.splice(0, mockProviderWebhookUnmatchedInbound.length, ...beforeItems);
+      Object.assign(mockProviderReadiness, beforeReadiness);
+    }
   });
 
   it("maps inbox canned replies from API responses and keeps API empty states separate from mock data", () => {
@@ -661,6 +720,63 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookUnmatchedInboundPageResponse(items = [providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")]) {
+  return {
+    items,
+    pagination: {
+      totalCount: items.length,
+      limit: 10,
+      offset: 0,
+      returnedCount: items.length,
+      hasNextPage: false,
+      hasPreviousPage: false
+    },
+    appliedFilters: {
+      limit: 10,
+      offset: 0,
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    appliedSort: {
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    summary: {
+      openCount: items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
+      reviewedCount: items.filter((item) => item.reviewStatus === "reviewed").length,
+      skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
+      linkedCount: items.filter((item) => item.reviewStatus === "linked").length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookBulkReviewResponse(reviewStatus: "reviewed" | "skipped") {
+  return {
+    reviewStatus,
+    results: [
+      {
+        id: "provider-webhook-unmatched-api",
+        ok: true,
+        resultStatus: "updated",
+        reviewStatus,
+        unmatchedStatus: reviewStatus,
+        error: null,
+        externalCalls: 0
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
     externalCalls: 0
   };
 }

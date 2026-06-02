@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundStatusFilter } from "@ai-omni/shared";
 import { ProviderWebhookEventsService, resetProviderWebhookEventStoreForTest } from "../services/provider-webhook-events.service.js";
 import { ProviderWebhooksController } from "./provider-webhooks.controller.js";
 
@@ -546,8 +547,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       payload: secondPayload
     });
 
-    expect(controller.listUnmatchedInbound(tenantId, undefined).map((item) => item.textPreview)).toEqual(["Safe tenant one"]);
-    expect(controller.listUnmatchedInbound(otherTenantId, "open").map((item) => item.textPreview)).toEqual(["Safe tenant two"]);
+    expect(listUnmatchedItems(controller, tenantId, undefined).map((item) => item.textPreview)).toEqual(["Safe tenant one"]);
+    expect(listUnmatchedItems(controller, otherTenantId, "open").map((item) => item.textPreview)).toEqual(["Safe tenant two"]);
   });
 
   it("filters unmatched inbound review lists by safe query fields", async () => {
@@ -556,15 +557,15 @@ describe("ProviderWebhooksController sandbox events", () => {
     const pendingItem = await createUnmatched(controller, "raw-filter-pending-room-62", "event-filter-pending-62", "Safe pending filter");
     await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, { status: "reviewed" });
 
-    const pending = controller.listUnmatchedInbound(tenantId, {
+    const pending = listUnmatchedItems(controller, tenantId, {
       provider: "line",
       reviewStatus: "pending",
       linkStatus: "none",
       status: "open",
       eventType: "message.created",
-      limit: "5"
+      limit: 5
     });
-    const reviewed = controller.listUnmatchedInbound(tenantId, {
+    const reviewed = listUnmatchedItems(controller, tenantId, {
       reviewStatus: "reviewed",
       unmatchedStatus: "reviewed"
     });
@@ -573,6 +574,58 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(reviewed.map((item) => item.id)).toEqual([reviewedItem.id]);
     expect(() => controller.listUnmatchedInbound(tenantId, { provider: "webchat" })).toThrow(BadRequestException);
     expect(JSON.stringify({ pending, reviewed })).not.toMatch(/raw-filter|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
+  it("returns tenant-scoped paginated unmatched review metadata safely", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const otherTenantId = "00000000-0000-4000-8000-000000000099";
+    const first = await createUnmatched(controller, "raw-page-room-one-63", "event-page-one-63", "Safe page one");
+    const second = await createUnmatched(controller, "raw-page-room-two-63", "event-page-two-63", "Safe page two");
+    await controller.createSandboxEvent(otherTenantId, undefined, {
+      provider: "line",
+      eventType: "message.created",
+      mode: "sandbox",
+      inboundPersistenceMode: "sandbox-persist",
+      eventId: "event-page-other-63",
+      signature: signPayload(lineMessagePayload("raw-page-room-other-63", "raw-page-sender-other-63", "Safe page other")),
+      payload: lineMessagePayload("raw-page-room-other-63", "raw-page-sender-other-63", "Safe page other")
+    });
+
+    const page = controller.listUnmatchedInbound(tenantId, {
+      limit: "1",
+      offset: "0",
+      sortBy: "receivedAt",
+      sortOrder: "desc",
+      provider: "line",
+      receivedAtFrom: "2026-01-01T00:00:00.000Z"
+    }) as ReturnType<ProviderWebhookEventsService["listUnmatchedInboundPage"]>;
+    const serialized = JSON.stringify(page);
+
+    expect(page).toMatchObject({
+      pagination: {
+        totalCount: 2,
+        limit: 1,
+        offset: 0,
+        returnedCount: 1,
+        hasNextPage: true,
+        hasPreviousPage: false
+      },
+      appliedSort: {
+        sortBy: "receivedAt",
+        sortOrder: "desc"
+      },
+      summary: {
+        openCount: 2,
+        reviewedCount: 0,
+        skippedCount: 0,
+        linkedCount: 0
+      },
+      externalCalls: 0
+    });
+    expect(page.items).toHaveLength(1);
+    expect(page.items.every((item) => item.tenantId === tenantId)).toBe(true);
+    expect([first.id, second.id]).toContain(page.items[0]?.id);
+    expect(serialized).not.toMatch(/raw-page|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
   });
 
   it("requires tenant ids for unmatched review actions", async () => {
@@ -626,6 +679,124 @@ describe("ProviderWebhooksController sandbox events", () => {
       })
     }));
     expect(serialized).not.toMatch(/raw-review-room-60|raw-skip-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
+  it("bulk reviews unmatched items with dedupe and idempotent repeat", async () => {
+    const { controller, audit } = buildController(noMatchConversations());
+    const first = await createUnmatched(controller, "raw-bulk-review-room-one-63", "event-bulk-review-one-63", "Safe bulk review one");
+    const second = await createUnmatched(controller, "raw-bulk-review-room-two-63", "event-bulk-review-two-63", "Safe bulk review two");
+
+    const result = await controller.bulkReviewUnmatchedInbound(tenantId, "user-api", {
+      ids: [first.id, first.id, second.id],
+      reviewStatus: "reviewed",
+      reason: "safe bulk review"
+    });
+    const repeat = await controller.bulkReviewUnmatchedInbound(tenantId, "user-api", {
+      ids: [first.id, second.id],
+      reviewStatus: "reviewed"
+    });
+    const reviewedPage = controller.listUnmatchedInbound(tenantId, {
+      reviewStatus: "reviewed",
+      offset: "0",
+      limit: "10",
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    }) as ReturnType<ProviderWebhookEventsService["listUnmatchedInboundPage"]>;
+    const serialized = JSON.stringify({ result, repeat, reviewedPage });
+
+    expect(result.summary).toMatchObject({
+      requestedCount: 3,
+      dedupedCount: 2,
+      successCount: 2,
+      errorCount: 0,
+      updatedCount: 2,
+      alreadyAppliedCount: 0
+    });
+    expect(result.results.map((item) => item.resultStatus)).toEqual(["updated", "updated"]);
+    expect(repeat.summary).toMatchObject({
+      successCount: 2,
+      errorCount: 0,
+      updatedCount: 0,
+      alreadyAppliedCount: 2
+    });
+    expect(reviewedPage.items.filter((item) => [first.id, second.id].includes(item.id))).toHaveLength(2);
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_bulk_reviewed",
+      metadata: expect.objectContaining({
+        status: "reviewed",
+        externalCalls: 0
+      })
+    }));
+    expect(serialized).not.toMatch(/raw-bulk-review|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw sender|raw room/i);
+  });
+
+  it("bulk skips unmatched items and preserves safe conversation separation fields", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-bulk-skip-room-63", "event-bulk-skip-63", "Safe bulk skip");
+    const before = { provider: item.provider, channelAccountId: item.channelAccountId, roomKeyDigest: item.roomKeyDigest };
+
+    const result = await controller.bulkReviewUnmatchedInbound(tenantId, "user-api", {
+      ids: [item.id],
+      reviewStatus: "skipped"
+    });
+    const refetched = controller.listUnmatchedInbound(tenantId, "skipped")[0];
+
+    expect(result.results[0]).toMatchObject({
+      id: item.id,
+      ok: true,
+      resultStatus: "updated",
+      reviewStatus: "skipped",
+      unmatchedStatus: "skipped",
+      externalCalls: 0
+    });
+    expect(refetched).toMatchObject({
+      id: item.id,
+      provider: before.provider,
+      channelAccountId: before.channelAccountId,
+      roomKeyDigest: before.roomKeyDigest,
+      reviewStatus: "skipped",
+      unmatchedStatus: "skipped",
+      externalCalls: 0
+    });
+  });
+
+  it("validates bulk review tenant ownership and rejects unsafe batch bodies", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const otherTenantId = "00000000-0000-4000-8000-000000000099";
+    await controller.createSandboxEvent(otherTenantId, undefined, {
+      provider: "line",
+      eventType: "message.created",
+      mode: "sandbox",
+      inboundPersistenceMode: "sandbox-persist",
+      eventId: "event-bulk-other-tenant-63",
+      signature: signPayload(lineMessagePayload("raw-bulk-other-room-63", "raw-bulk-other-sender-63", "Safe other tenant")),
+      payload: lineMessagePayload("raw-bulk-other-room-63", "raw-bulk-other-sender-63", "Safe other tenant")
+    });
+    const otherItem = controller.listUnmatchedInbound(otherTenantId, undefined)[0];
+
+    const result = await controller.bulkReviewUnmatchedInbound(tenantId, "user-api", {
+      ids: [otherItem.id],
+      reviewStatus: "reviewed"
+    });
+
+    expect(() => controller.bulkReviewUnmatchedInbound(undefined, "user-api", { ids: [otherItem.id], reviewStatus: "reviewed" }))
+      .toThrow(BadRequestException);
+    await expect(controller.bulkReviewUnmatchedInbound(tenantId, "user-api", { ids: [], reviewStatus: "reviewed" }))
+      .rejects.toThrow("Invalid unmatched inbound bulk review request");
+    await expect(controller.bulkReviewUnmatchedInbound(tenantId, "user-api", { ids: Array.from({ length: 51 }, (_, index) => `safe-${index}`), reviewStatus: "reviewed" }))
+      .rejects.toThrow("Invalid unmatched inbound bulk review request");
+    expect(result.results).toEqual([expect.objectContaining({
+      id: otherItem.id,
+      ok: false,
+      resultStatus: "not-found",
+      externalCalls: 0
+    })]);
+    expect(controller.listUnmatchedInbound(otherTenantId, undefined)[0]).toMatchObject({
+      id: otherItem.id,
+      reviewStatus: "pending",
+      unmatchedStatus: "review-needed"
+    });
+    expect(JSON.stringify(result)).not.toMatch(/raw-bulk-other|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
   });
 
   it("keeps unmatched review actions tenant scoped", async () => {
@@ -831,9 +1002,17 @@ async function createUnmatched(controller: ProviderWebhooksController, roomId: s
     signature: signPayload(payload),
     payload
   });
-  const item = controller.listUnmatchedInbound(tenantId, undefined).find((candidate) => candidate.id === event.unmatchedInboundId);
+  const item = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === event.unmatchedInboundId);
   if (!item) throw new Error("Expected unmatched item to be queued");
   return item;
+}
+
+function listUnmatchedItems(
+  controller: ProviderWebhooksController,
+  tenantIdValue: string,
+  filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter | undefined
+): ProviderWebhookUnmatchedInboundItem[] {
+  return controller.listUnmatchedInbound(tenantIdValue, filters) as ProviderWebhookUnmatchedInboundItem[];
 }
 
 function lineMessagePayload(roomId: string, userId: string, text: string) {
