@@ -13,6 +13,7 @@ import {
   reviewSettingsProviderWebhookUnmatchedInbound,
   mockProviderReadiness,
   mockProviderWebhookEvents,
+  mockProviderWebhookUnmatchedInbound,
   resolveCannedReplyComposerDraft,
   mockSettingsChannels,
   searchCannedReplyList
@@ -271,6 +272,23 @@ describe("settings API-mode data loaders", () => {
       conversationId: "conversation-safe-internal",
       actionMode: "link-only"
     })).rejects.toThrow("link unavailable");
+  });
+
+  it("keeps API-mode review and link failures from mutating local unmatched state", async () => {
+    const before = JSON.stringify(mockProviderWebhookUnmatchedInbound);
+    api.reviewProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): review unavailable"));
+
+    await expect(reviewSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-local-1", { status: "reviewed" }))
+      .rejects.toThrow("review unavailable");
+
+    api.linkProviderWebhookUnmatchedInboundConversation.mockRejectedValueOnce(new Error("API request failed (503): link unavailable"));
+
+    await expect(linkSettingsProviderWebhookUnmatchedInboundConversation("api", "provider-webhook-unmatched-local-1", {
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-and-persist-safe-message"
+    })).rejects.toThrow("link unavailable");
+
+    expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
   });
 
   it("does not fallback to mock team when API mode fails", async () => {

@@ -162,6 +162,11 @@ describe("frontend API client", () => {
       eventId: "safe-event-id-1",
       signature: "sha256=sensitive-sample-b"
     });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ status: "reviewed" });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({
+      conversationId: "conversation-safe-internal",
+      actionMode: "link-only"
+    });
     expectTenantHeaderForAll(fetchMock);
     expect(events[0]?.externalCalls).toBe(0);
     expect(unmatched[0]).toMatchObject({

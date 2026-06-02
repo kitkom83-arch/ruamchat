@@ -31,6 +31,7 @@ export default function ChannelSettingsPage() {
   const [webhookEventsError, setWebhookEventsError] = useState("");
   const [unmatchedInboundError, setUnmatchedInboundError] = useState("");
   const [unmatchedActionSavingId, setUnmatchedActionSavingId] = useState("");
+  const [unmatchedActionStatus, setUnmatchedActionStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -81,22 +82,24 @@ export default function ChannelSettingsPage() {
     setUnmatchedInboundLoading(true);
     setWebhookEventsError("");
     setUnmatchedInboundError("");
-    try {
-      const [data, unmatched] = await Promise.all([
-        loadSettingsProviderWebhookEventsData(dataMode),
-        loadSettingsProviderWebhookUnmatchedInboundData(dataMode)
-      ]);
-      setWebhookEvents(data.events);
-      setUnmatchedInboundItems(unmatched.items);
-    } catch (reason) {
+    const [eventsResult, unmatchedResult] = await Promise.allSettled([
+      loadSettingsProviderWebhookEventsData(dataMode),
+      loadSettingsProviderWebhookUnmatchedInboundData(dataMode)
+    ]);
+    if (eventsResult.status === "fulfilled") {
+      setWebhookEvents(eventsResult.value.events);
+    } else {
       setWebhookEvents([]);
-      setUnmatchedInboundItems([]);
-      setWebhookEventsError(`Webhook Events API error: ${reason instanceof Error ? reason.message : "Unable to load webhook events"}`);
-      setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to load unmatched inbound review"}`);
-    } finally {
-      setWebhookEventsLoading(false);
-      setUnmatchedInboundLoading(false);
+      setWebhookEventsError(`Webhook Events API error: ${eventsResult.reason instanceof Error ? eventsResult.reason.message : "Unable to load webhook events"}`);
     }
+    if (unmatchedResult.status === "fulfilled") {
+      setUnmatchedInboundItems(unmatchedResult.value.items);
+    } else {
+      setUnmatchedInboundItems([]);
+      setUnmatchedInboundError(`Unmatched Inbound API error: ${unmatchedResult.reason instanceof Error ? unmatchedResult.reason.message : "Unable to load unmatched inbound review"}`);
+    }
+    setWebhookEventsLoading(false);
+    setUnmatchedInboundLoading(false);
   }, []);
 
   useEffect(() => {
@@ -129,6 +132,8 @@ export default function ChannelSettingsPage() {
     try {
       await createSettingsProviderWebhookSandboxEvent(dataMode, payload);
       await refreshWebhookEvents();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
       setWebhookEventsError(`Webhook Events API error: ${reason instanceof Error ? reason.message : "Unable to submit webhook event"}`);
     } finally {
@@ -139,8 +144,10 @@ export default function ChannelSettingsPage() {
   async function reviewUnmatchedInbound(unmatchedInboundId: string, status: "reviewed" | "skipped") {
     setUnmatchedActionSavingId(unmatchedInboundId);
     setUnmatchedInboundError("");
+    setUnmatchedActionStatus("");
     try {
-      await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
+      const result = await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
+      setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.reviewStatus}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -154,8 +161,10 @@ export default function ChannelSettingsPage() {
   async function linkUnmatchedInbound(unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") {
     setUnmatchedActionSavingId(unmatchedInboundId);
     setUnmatchedInboundError("");
+    setUnmatchedActionStatus("");
     try {
-      await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
+      const result = await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
+      setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.linkStatus}; messagePersisted=${String(result.messagePersisted)}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -190,6 +199,7 @@ export default function ChannelSettingsPage() {
         unmatchedInboundLoading={unmatchedInboundLoading}
         unmatchedInboundError={unmatchedInboundError}
         unmatchedActionSavingId={unmatchedActionSavingId}
+        unmatchedActionStatus={unmatchedActionStatus}
         webhookEventSaving={webhookEventSaving}
         onCreateSandboxEvent={createSandboxEvent}
         onReviewUnmatchedInbound={reviewUnmatchedInbound}

@@ -11,7 +11,8 @@ describe("ProviderReadinessPanel", () => {
       loading: false,
       error: "",
       webhookEvents: [providerWebhookEvent()],
-      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()]
+      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
+      unmatchedActionStatus: "Unmatched inbound provider-webhook-unmatched-1 reviewed; externalCalls=0"
     }));
 
     expect(html).toContain("Provider sandbox readiness");
@@ -77,6 +78,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Mark reviewed");
     expect(html).toContain("Skip");
     expect(html).toContain("Link only");
+    expect(html).toContain("Link + persist safe message");
+    expect(html).toContain("reviewed; externalCalls=0");
     expect(html).toContain("payloadFieldCount=2");
     expect(html).toContain("payloadDigest=sha256:safeeventdigest");
     expect(html).toContain("signatureVerified=true");
