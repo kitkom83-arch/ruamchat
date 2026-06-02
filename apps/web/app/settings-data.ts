@@ -4,6 +4,10 @@ import type {
   ProviderReadiness,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookReviewAlerts,
+  ProviderWebhookReviewAlertsFilters,
+  ProviderWebhookReviewAlertAgeBucket,
+  ProviderWebhookReviewAlertSeverity,
   ProviderWebhookReviewMetrics,
   ProviderWebhookReviewMetricsFilters,
   ProviderWebhookUnmatchedInboundDiagnostics,
@@ -26,6 +30,7 @@ import type {
 import {
   createProviderWebhookSandboxEvent,
   bulkReviewProviderWebhookUnmatchedInbound,
+  getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
   getProviderReadiness,
   getProviderWebhookEvents,
@@ -80,6 +85,11 @@ export type SettingsProviderWebhookUnmatchedInboundData = {
 export type SettingsProviderWebhookReviewMetricsData = {
   mode: DataMode;
   metrics: ProviderWebhookReviewMetrics;
+};
+
+export type SettingsProviderWebhookReviewAlertsData = {
+  mode: DataMode;
+  alerts: ProviderWebhookReviewAlerts;
 };
 
 export type SettingsProviderWebhookCandidateData = {
@@ -181,6 +191,23 @@ export async function loadSettingsProviderWebhookReviewMetricsData(
   return {
     mode,
     metrics: createMockReviewMetrics(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewAlertsData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewAlertsFilters = {}
+): Promise<SettingsProviderWebhookReviewAlertsData> {
+  if (mode === "api") {
+    return {
+      mode,
+      alerts: await getProviderWebhookReviewAlerts(filters)
+    };
+  }
+
+  return {
+    mode,
+    alerts: createMockReviewAlerts(filters)
   };
 }
 
@@ -603,6 +630,62 @@ function createMockReviewMetrics(filters: ProviderWebhookReviewMetricsFilters): 
   };
 }
 
+function createMockReviewAlerts(filters: ProviderWebhookReviewAlertsFilters): ProviderWebhookReviewAlerts {
+  const generatedAt = new Date().toISOString();
+  const appliedFilters = cleanMockReviewAlertsFilters(filters);
+  const openItems = filterMockUnmatchedInbound(appliedFilters).filter((item) =>
+    item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed"
+  );
+  const alertItems = openItems
+    .map(mockReviewAlertItem)
+    .filter((item) => !appliedFilters.severity || item.severity === appliedFilters.severity)
+    .sort((left, right) => left.receivedAt.localeCompare(right.receivedAt));
+  return {
+    generatedAt,
+    appliedFilters,
+    totalAlerts: alertItems.length,
+    infoCount: alertItems.filter((item) => item.severity === "info").length,
+    warningCount: alertItems.filter((item) => item.severity === "warning").length,
+    criticalCount: alertItems.filter((item) => item.severity === "critical").length,
+    staleOpenCount: alertItems.filter((item) => mockHoursSince(item.receivedAt) >= mockReviewAlertThresholds.staleWarningHours).length,
+    overSlaCount: alertItems.filter((item) => mockHoursSince(item.receivedAt) >= mockReviewAlertThresholds.overSlaHours).length,
+    oldestOpenReceivedAt: alertItems[0]?.receivedAt ?? null,
+    latestAlertGeneratedAt: alertItems.length > 0 ? generatedAt : null,
+    thresholds: mockReviewAlertThresholds,
+    byProvider: countMockBy(alertItems, providersForMetrics, (item) => item.provider),
+    byPlatform: countMockBy(alertItems, providersForMetrics, (item) => item.platform),
+    byEventType: countMockBy(alertItems, eventTypesForMetrics, (item) => item.eventType),
+    byReviewStatus: countMockBy(alertItems, reviewStatusesForMetrics, (item) => item.reviewStatus),
+    byLinkStatus: countMockBy(alertItems, linkStatusesForMetrics, (item) => item.linkStatus),
+    byUnmatchedStatus: countMockBy(alertItems, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
+    bySeverity: countMockBy(alertItems, alertSeveritiesForMetrics, (item) => item.severity),
+    alertItems: alertItems.slice(0, 10),
+    externalCalls: 0
+  };
+}
+
+function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: mockAgeBucket(item.receivedAt),
+    severity: mockReviewAlertSeverity(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+    diagnosticsAvailable: true,
+    historyAvailable: true,
+    externalCalls: 0 as const
+  };
+}
+
 function filterMockEventsForMetrics(filters: ProviderWebhookReviewMetricsFilters) {
   const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
   const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
@@ -635,11 +718,24 @@ function cleanMockReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilt
   ) as ProviderWebhookReviewMetricsFilters;
 }
 
+function cleanMockReviewAlertsFilters(filters: ProviderWebhookReviewAlertsFilters) {
+  return {
+    ...cleanMockReviewMetricsFilters(filters),
+    ...(filters.severity ? { severity: filters.severity } : {})
+  } as ProviderWebhookReviewAlertsFilters;
+}
+
 const providersForMetrics = ["line", "telegram", "facebook", "instagram"] as const;
 const eventTypesForMetrics = ["message.created", "webhook.verified", "webhook.failed"] as const;
 const reviewStatusesForMetrics = ["pending", "reviewed", "skipped", "linked"] as const;
 const linkStatusesForMetrics = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
 const unmatchedStatusesForMetrics = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
+const alertSeveritiesForMetrics = ["info", "warning", "critical"] as const;
+const mockReviewAlertThresholds = {
+  staleWarningHours: 24,
+  staleCriticalHours: 72,
+  overSlaHours: 48
+} as const;
 
 function countMockBy<T, K extends string>(items: T[], keys: readonly K[], getKey: (item: T) => K) {
   return keys.map((key) => ({
@@ -667,6 +763,27 @@ function mockAgeBuckets(items: ProviderWebhookUnmatchedInboundItem[]) {
     oneTo3Days: 0,
     over3Days: 0
   });
+}
+
+function mockAgeBucket(receivedAt: string): ProviderWebhookReviewAlertAgeBucket {
+  const ageHours = mockHoursSince(receivedAt);
+  if (ageHours < 1) return "under1Hour";
+  if (ageHours < 24) return "oneTo24Hours";
+  if (ageHours < 72) return "oneTo3Days";
+  return "over3Days";
+}
+
+function mockReviewAlertSeverity(receivedAt: string): ProviderWebhookReviewAlertSeverity {
+  const ageHours = mockHoursSince(receivedAt);
+  if (ageHours >= mockReviewAlertThresholds.staleCriticalHours) return "critical";
+  if (ageHours >= mockReviewAlertThresholds.staleWarningHours) return "warning";
+  return "info";
+}
+
+function mockHoursSince(receivedAt: string) {
+  const receivedMs = new Date(receivedAt).getTime();
+  if (Number.isNaN(receivedMs)) return 0;
+  return Math.max(0, (Date.now() - receivedMs) / (60 * 60 * 1000));
 }
 
 function createMockUnmatchedDiagnostics(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundDiagnostics {
@@ -914,6 +1031,7 @@ function refreshMockUnmatchedCounts() {
   const summary = summarizeMockUnmatchedInbound(mockProviderWebhookUnmatchedInbound);
   mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
   mockProviderReadiness.unmatchedInboundStaleOpenCount = mockProviderWebhookUnmatchedInbound.filter(isMockStaleOpenUnmatchedItem).length;
+  mockProviderReadiness.reviewAlertCriticalCount = createMockReviewAlerts({}).criticalCount;
   mockProviderReadiness.unmatchedInboundReviewedCount = summary.reviewedCount;
   mockProviderReadiness.unmatchedInboundSkippedCount = summary.skippedCount;
   mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
@@ -958,6 +1076,9 @@ export const mockProviderReadiness: ProviderReadiness = {
   webhookUnmatchedQueueExportMaxLimit: 500,
   webhookReviewMetricsEnabled: true,
   webhookDiagnosticsEnabled: true,
+  webhookReviewAlertsEnabled: true,
+  webhookReviewQueueHealthEnabled: true,
+  reviewAlertCriticalCount: 1,
   unmatchedInboundOpenCount: 1,
   unmatchedInboundStaleOpenCount: 1,
   unmatchedInboundQueuedCount: 1,

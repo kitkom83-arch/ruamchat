@@ -5,6 +5,10 @@ import {
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
+  type ProviderWebhookReviewAlerts,
+  type ProviderWebhookReviewAlertSeverity,
+  type ProviderWebhookReviewAlertsFilters,
+  type ProviderWebhookReviewAlertAgeBucket,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
@@ -32,6 +36,11 @@ import { ConversationService } from "./conversation.service.js";
 
 const maxStoredEvents = 100;
 const unmatchedInboundExportMaxLimit = 500;
+const reviewAlertThresholds = {
+  staleWarningHours: 24,
+  staleCriticalHours: 72,
+  overSlaHours: 48
+} as const;
 const events: ProviderWebhookEvent[] = [];
 const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
 const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntry[] = [];
@@ -128,6 +137,42 @@ export class ProviderWebhookEventsService {
       },
       latestReceivedAt: sortedReceivedAt.at(-1) ?? null,
       oldestOpenReceivedAt: sortedOpenReceivedAt[0] ?? null,
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewAlerts(tenantId: string, filters: ProviderWebhookReviewAlertsFilters = {}): ProviderWebhookReviewAlerts {
+    const generatedAt = new Date().toISOString();
+    const normalizedFilters = cleanReviewAlertsFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const openItems = filteredItems.filter(isOpenUnmatchedStatusItem);
+    const alertItems = openItems
+      .map(reviewAlertItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .sort((left, right) => left.receivedAt.localeCompare(right.receivedAt));
+    const staleOpenCount = alertItems.filter((item) => hoursSince(item.receivedAt) >= reviewAlertThresholds.staleWarningHours).length;
+    const overSlaCount = alertItems.filter((item) => hoursSince(item.receivedAt) >= reviewAlertThresholds.overSlaHours).length;
+
+    return {
+      generatedAt,
+      appliedFilters: normalizedFilters,
+      totalAlerts: alertItems.length,
+      infoCount: alertItems.filter((item) => item.severity === "info").length,
+      warningCount: alertItems.filter((item) => item.severity === "warning").length,
+      criticalCount: alertItems.filter((item) => item.severity === "critical").length,
+      staleOpenCount,
+      overSlaCount,
+      oldestOpenReceivedAt: alertItems[0]?.receivedAt ?? null,
+      latestAlertGeneratedAt: alertItems.length > 0 ? generatedAt : null,
+      thresholds: reviewAlertThresholds,
+      byProvider: countByStable(alertItems, ["line", "telegram", "facebook", "instagram"], (item) => item.provider),
+      byPlatform: countByStable(alertItems, ["line", "telegram", "facebook", "instagram"], (item) => item.platform),
+      byEventType: countByStable(alertItems, ["message.created", "webhook.verified", "webhook.failed"], (item) => item.eventType),
+      byReviewStatus: countByStable(alertItems, ["pending", "reviewed", "skipped", "linked"], (item) => item.reviewStatus),
+      byLinkStatus: countByStable(alertItems, ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"], (item) => item.linkStatus),
+      byUnmatchedStatus: countByStable(alertItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
+      bySeverity: countByStable(alertItems, ["info", "warning", "critical"], (item) => item.severity),
+      alertItems: alertItems.slice(0, 10),
       externalCalls: 0 as const
     };
   }
@@ -997,6 +1042,9 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
   const latest = events[0] ?? null;
   const latestUnmatched = [...unmatchedInboundItems]
     .sort((left, right) => latestItemActivityAt(right).localeCompare(latestItemActivityAt(left)))[0] ?? null;
+  const openAlertItems = unmatchedInboundItems
+    .filter(isOpenUnmatchedStatusItem)
+    .map(reviewAlertItemFromUnmatched);
   return {
     webhookSignatureVerificationConfigured: true,
     webhookSignatureVerificationReady: true,
@@ -1028,6 +1076,9 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     webhookUnmatchedQueueExportMaxLimit: unmatchedInboundExportMaxLimit,
     webhookReviewMetricsEnabled: true,
     webhookDiagnosticsEnabled: true,
+    webhookReviewAlertsEnabled: true,
+    webhookReviewQueueHealthEnabled: true,
+    reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
     unmatchedInboundStaleOpenCount: unmatchedInboundItems.filter(isStaleOpenUnmatchedItem).length,
     unmatchedInboundQueuedCount: unmatchedInboundItems.length,
@@ -1127,6 +1178,12 @@ function cleanReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilters)
   ) as ProviderWebhookReviewMetricsFilters;
 }
 
+function cleanReviewAlertsFilters(filters: ProviderWebhookReviewAlertsFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewAlertsFilters;
+}
+
 function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundItem[]) {
   return {
     openCount: items.filter(isOpenUnmatchedStatusItem).length,
@@ -1162,6 +1219,49 @@ function ageBucketsForOpenItems(items: ProviderWebhookUnmatchedInboundItem[]) {
     oneTo3Days: 0,
     over3Days: 0
   });
+}
+
+function reviewAlertItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem) {
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: ageBucketForReceivedAt(item.receivedAt),
+    severity: reviewAlertSeverityForReceivedAt(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+    diagnosticsAvailable: true,
+    historyAvailable: buildHistoryEntriesForItem(item).length > 0,
+    externalCalls: 0 as const
+  };
+}
+
+function ageBucketForReceivedAt(receivedAt: string): ProviderWebhookReviewAlertAgeBucket {
+  const ageHours = hoursSince(receivedAt);
+  if (ageHours < 1) return "under1Hour";
+  if (ageHours < 24) return "oneTo24Hours";
+  if (ageHours < 72) return "oneTo3Days";
+  return "over3Days";
+}
+
+function reviewAlertSeverityForReceivedAt(receivedAt: string): ProviderWebhookReviewAlertSeverity {
+  const ageHours = hoursSince(receivedAt);
+  if (ageHours >= reviewAlertThresholds.staleCriticalHours) return "critical";
+  if (ageHours >= reviewAlertThresholds.staleWarningHours) return "warning";
+  return "info";
+}
+
+function hoursSince(receivedAt: string) {
+  const receivedMs = new Date(receivedAt).getTime();
+  if (Number.isNaN(receivedMs)) return 0;
+  return Math.max(0, (Date.now() - receivedMs) / (60 * 60 * 1000));
 }
 
 function buildHistoryEntriesForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookUnmatchedInboundHistoryEntry[] {

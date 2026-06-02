@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -13,6 +13,7 @@ import {
   loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderWebhookDiagnosticsData,
   loadSettingsProviderWebhookHistoryData,
+  loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
@@ -47,6 +48,9 @@ export default function ChannelSettingsPage() {
   const [reviewMetrics, setReviewMetrics] = useState<ProviderWebhookReviewMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState("");
+  const [reviewAlerts, setReviewAlerts] = useState<ProviderWebhookReviewAlerts | null>(null);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState("");
   const [activeDiagnosticsId, setActiveDiagnosticsId] = useState("");
   const [activeDiagnostics, setActiveDiagnostics] = useState<ProviderWebhookUnmatchedInboundDiagnostics | null>(null);
   const [diagnosticsLoadingId, setDiagnosticsLoadingId] = useState("");
@@ -166,6 +170,20 @@ export default function ChannelSettingsPage() {
     }
   }, [unmatchedFilters]);
 
+  const refreshReviewAlerts = useCallback(async () => {
+    setAlertsLoading(true);
+    setAlertsError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewAlertsData(dataMode, unmatchedFilters);
+      setReviewAlerts(result.alerts);
+    } catch (reason) {
+      setReviewAlerts(null);
+      setAlertsError(`Review Alerts API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook review alerts"}`);
+    } finally {
+      setAlertsLoading(false);
+    }
+  }, [unmatchedFilters]);
+
   useEffect(() => {
     void refreshWebhookEvents();
   }, [refreshWebhookEvents]);
@@ -173,6 +191,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewMetrics();
   }, [refreshReviewMetrics]);
+
+  useEffect(() => {
+    void refreshReviewAlerts();
+  }, [refreshReviewAlerts]);
 
   async function loadCandidates(unmatchedInboundId: string) {
     setCandidateLoadingId(unmatchedInboundId);
@@ -280,6 +302,7 @@ export default function ChannelSettingsPage() {
       await createSettingsProviderWebhookSandboxEvent(dataMode, payload);
       await refreshWebhookEvents();
       await refreshReviewMetrics();
+      await refreshReviewAlerts();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -299,6 +322,7 @@ export default function ChannelSettingsPage() {
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.reviewStatus}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
       await refreshReviewMetrics();
+      await refreshReviewAlerts();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -322,6 +346,7 @@ export default function ChannelSettingsPage() {
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.linkStatus}; messagePersisted=${String(result.messagePersisted)}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
       await refreshReviewMetrics();
+      await refreshReviewAlerts();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -365,6 +390,7 @@ export default function ChannelSettingsPage() {
       setUnmatchedActionStatus(`Bulk ${status}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
       const refreshedItems = await refreshWebhookEvents();
       await refreshReviewMetrics();
+      await refreshReviewAlerts();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -418,6 +444,9 @@ export default function ChannelSettingsPage() {
         reviewMetrics={reviewMetrics}
         reviewMetricsLoading={metricsLoading}
         reviewMetricsError={metricsError}
+        reviewAlerts={reviewAlerts}
+        reviewAlertsLoading={alertsLoading}
+        reviewAlertsError={alertsError}
         activeDiagnosticsId={activeDiagnosticsId}
         activeDiagnostics={activeDiagnostics}
         diagnosticsLoadingId={diagnosticsLoadingId}
