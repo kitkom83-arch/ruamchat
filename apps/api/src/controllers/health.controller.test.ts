@@ -85,7 +85,10 @@ describe("HealthController", () => {
       expect(result.providerReadiness.persistedInboundMessageCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.inboundPersistenceBlockedCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.webhookUnmatchedInboundReviewEnabled).toBe(true);
+      expect(result.providerReadiness.webhookReviewMetricsEnabled).toBe(true);
+      expect(result.providerReadiness.webhookDiagnosticsEnabled).toBe(true);
       expect(result.providerReadiness.unmatchedInboundOpenCount).toEqual(expect.any(Number));
+      expect(result.providerReadiness.unmatchedInboundStaleOpenCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.unmatchedInboundQueuedCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.unmatchedInboundReplayBlockedCount).toEqual(expect.any(Number));
       expect(serialized).not.toContain("sprint52-line-value");

@@ -898,6 +898,110 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toMatch(/raw-history|raw-sender|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
   });
 
+  it("returns tenant-scoped safe review metrics with filters and no raw provider fields", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const pendingItem = await createUnmatched(controller, "raw-metrics-pending-room-65", "event-metrics-pending-65", "Safe metrics pending");
+    const reviewedItem = await createUnmatched(controller, "raw-metrics-reviewed-room-65", "event-metrics-reviewed-65", "Safe metrics reviewed");
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, { status: "reviewed" });
+
+    const allMetrics = controller.getReviewMetrics(tenantId, {});
+    const pendingMetrics = controller.getReviewMetrics(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created"
+    });
+    const serialized = JSON.stringify({ allMetrics, pendingMetrics });
+
+    expect(() => controller.getReviewMetrics(undefined, {})).toThrow(BadRequestException);
+    expect(allMetrics).toMatchObject({
+      externalCalls: 0,
+      totalEvents: 2,
+      totalUnmatched: 2,
+      reviewedCount: 1,
+      openUnmatched: 1
+    });
+    expect(pendingMetrics).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created"
+      },
+      totalUnmatched: 1,
+      openUnmatched: 1,
+      reviewedCount: 0,
+      skippedCount: 0,
+      linkedCount: 0,
+      externalCalls: 0
+    });
+    expect(pendingMetrics.byProvider.find((item) => item.key === "line")?.count).toBe(1);
+    expect(pendingMetrics.byReviewStatus.find((item) => item.key === "pending")?.count).toBe(1);
+    expect(pendingMetrics.byLinkStatus.find((item) => item.key === "none")?.count).toBe(1);
+    expect(pendingMetrics.byUnmatchedStatus.find((item) => item.key === "review-needed")?.count).toBe(1);
+    expect(pendingMetrics.byEventType.find((item) => item.key === "message.created")?.count).toBe(1);
+    expect(pendingMetrics.latestReceivedAt).toEqual(pendingItem.receivedAt);
+    expect(pendingMetrics.funnel.unmatchedQueued).toBe(1);
+    expect(serialized).not.toContain("raw-metrics");
+    expect(serialized).not.toContain(reviewedItem.senderKeyDigest?.replace("sha256:", "") ?? "not-present-65");
+    expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
+  it("keeps review metrics tenant scoped", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const otherTenantId = "00000000-0000-4000-8000-000000000099";
+    await createUnmatched(controller, "raw-metrics-tenant-room-65", "event-metrics-tenant-65", "Safe other tenant metrics");
+
+    const otherMetrics = controller.getReviewMetrics(otherTenantId, {});
+    const currentMetrics = controller.getReviewMetrics(tenantId, {});
+
+    expect(currentMetrics.totalUnmatched).toBe(1);
+    expect(otherMetrics.totalUnmatched).toBe(0);
+    expect(otherMetrics.externalCalls).toBe(0);
+    expect(JSON.stringify(otherMetrics)).not.toMatch(/raw-metrics-tenant|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
+  it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");
+
+    const diagnostics = controller.getUnmatchedInboundDiagnostics(tenantId, item.id);
+    const serialized = JSON.stringify(diagnostics);
+
+    expect(diagnostics).toMatchObject({
+      unmatchedId: item.id,
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: expect.stringContaining("room digest"),
+      roomKeyDigest: item.roomKeyDigest,
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      normalizedEventType: "message",
+      persistenceOutcome: "skipped-no-match",
+      candidateLookupAvailable: true,
+      historyAvailable: true,
+      exportAvailable: true,
+      externalCalls: 0
+    });
+    expect(diagnostics.safeWarnings).toMatchObject({
+      signatureRejected: false,
+      replayDuplicate: false,
+      missingConversationMatch: true
+    });
+    expect(() => controller.getUnmatchedInboundDiagnostics("00000000-0000-4000-8000-000000000099", item.id))
+      .toThrow("Unmatched inbound item not found");
+    expect(() => controller.getUnmatchedInboundDiagnostics(undefined, item.id)).toThrow(BadRequestException);
+    expect(serialized).not.toContain("raw-diagnostics-room-65");
+    expect(serialized).not.toContain("raw-sender-event-diagnostics-65");
+    expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("exports the safe unmatched inbound queue with filters, sort, page, and capped limits", async () => {
     const { controller } = buildController(noMatchConversations());
     const first = await createUnmatched(controller, "raw-export-room-one-64", "event-export-one-64", "Safe export one");

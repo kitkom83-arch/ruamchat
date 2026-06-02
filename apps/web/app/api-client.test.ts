@@ -18,8 +18,10 @@ import {
   getConversationAuditLogs,
   getProviderReadiness,
   getProviderWebhookEvents,
+  getProviderWebhookReviewMetrics,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
@@ -316,6 +318,54 @@ describe("frontend API client", () => {
     expect(JSON.stringify({ history, exported })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender/i);
   });
 
+  it("sends x-tenant-id and safe filters for review metrics and item diagnostics", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewMetricsResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-1")));
+
+    const metrics = await getProviderWebhookReviewMetrics({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      limit: 10,
+      offset: 0,
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    } as Parameters<typeof getProviderWebhookReviewMetrics>[0]);
+    const diagnostics = await getProviderWebhookUnmatchedInboundDiagnostics("provider-webhook-unmatched-1");
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-metrics?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/diagnostics", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(metrics).toMatchObject({
+      totalEvents: 1,
+      openUnmatched: 1,
+      externalCalls: 0
+    });
+    expect(metrics.appliedFilters).toMatchObject({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created"
+    });
+    expect(diagnostics).toMatchObject({
+      unmatchedId: "provider-webhook-unmatched-1",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      candidateLookupAvailable: true,
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ metrics, diagnostics })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("surfaces unmatched history and export API errors without local fallback", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "history unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundHistory("provider-webhook-unmatched-1"))
@@ -325,6 +375,17 @@ describe("frontend API client", () => {
     await expect(getProviderWebhookUnmatchedInboundExport({ format: "json" }))
       .rejects.toThrow("API request failed (503): export unavailable");
   });
+
+  it("surfaces review metrics and diagnostics API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "metrics unavailable" }, 503));
+    await expect(getProviderWebhookReviewMetrics({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): metrics unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "diagnostics unavailable" }, 503));
+    await expect(getProviderWebhookUnmatchedInboundDiagnostics("provider-webhook-unmatched-1"))
+      .rejects.toThrow("API request failed (503): diagnostics unavailable");
+  });
+
 
   it("validates conversations and keeps room filters explicit", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse([
@@ -1169,7 +1230,10 @@ function providerReadinessResponse() {
       webhookUnmatchedHistoryEnabled: true,
       webhookUnmatchedQueueExportEnabled: true,
       webhookUnmatchedQueueExportMaxLimit: 500,
+      webhookReviewMetricsEnabled: true,
+      webhookDiagnosticsEnabled: true,
       unmatchedInboundOpenCount: 1,
+      unmatchedInboundStaleOpenCount: 0,
       unmatchedInboundQueuedCount: 1,
       unmatchedInboundReplayBlockedCount: 0,
       unmatchedInboundReviewedCount: 0,
@@ -1433,6 +1497,111 @@ function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundR
     requestedLimit: 25,
     exportMaxLimit: 500,
     exportedCount: rows.length,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewMetricsResponse() {
+  return {
+    generatedAt: "2026-05-31T00:05:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z"
+    },
+    totalEvents: 1,
+    totalUnmatched: 1,
+    openUnmatched: 1,
+    reviewedCount: 0,
+    skippedCount: 0,
+    linkedCount: 0,
+    persistedInboundCount: 0,
+    signatureRejectedCount: 0,
+    replayRejectedCount: 0,
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    ageBuckets: {
+      under1Hour: 1,
+      oneTo24Hours: 0,
+      oneTo3Days: 0,
+      over3Days: 0
+    },
+    funnel: {
+      inboundReceived: 1,
+      persisted: 0,
+      unmatchedQueued: 1,
+      reviewed: 0,
+      skipped: 0,
+      linked: 0,
+      exportedHistoryAvailable: 1
+    },
+    latestReceivedAt: "2026-05-31T00:00:00.000Z",
+    oldestOpenReceivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
+  return {
+    unmatchedId: unmatchedInboundId,
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    routingOutcome: "dry-run-only/not-found",
+    normalizedEventType: "message",
+    persistenceOutcome: "skipped-no-match",
+    candidateLookupAvailable: true,
+    historyAvailable: true,
+    exportAvailable: true,
+    lastActionAt: "2026-05-31T00:00:00.000Z",
+    safeWarnings: {
+      signatureRejected: false,
+      replayDuplicate: false,
+      missingConversationMatch: true,
+      staleOpenItem: false
+    },
     externalCalls: 0
   };
 }

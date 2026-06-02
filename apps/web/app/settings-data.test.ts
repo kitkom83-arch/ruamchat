@@ -4,7 +4,9 @@ import {
   getCannedRepliesForMode,
   loadSettingsChannelsData,
   loadSettingsProviderWebhookCandidateData,
+  loadSettingsProviderWebhookDiagnosticsData,
   loadSettingsProviderWebhookHistoryData,
+  loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -30,8 +32,10 @@ const api = vi.hoisted(() => ({
   getSettingsTeam: vi.fn(),
   getProviderReadiness: vi.fn(),
   getProviderWebhookEvents: vi.fn(),
+  getProviderWebhookReviewMetrics: vi.fn(),
   getProviderWebhookUnmatchedInbound: vi.fn(),
   getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
+  getProviderWebhookUnmatchedInboundDiagnostics: vi.fn(),
   getProviderWebhookUnmatchedInboundHistory: vi.fn(),
   getProviderWebhookUnmatchedInboundExport: vi.fn(),
   createProviderWebhookSandboxEvent: vi.fn(),
@@ -47,8 +51,10 @@ vi.mock("./api-client", () => ({
   getSettingsTeam: api.getSettingsTeam,
   getProviderReadiness: api.getProviderReadiness,
   getProviderWebhookEvents: api.getProviderWebhookEvents,
+  getProviderWebhookReviewMetrics: api.getProviderWebhookReviewMetrics,
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundDiagnostics: api.getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundHistory: api.getProviderWebhookUnmatchedInboundHistory,
   getProviderWebhookUnmatchedInboundExport: api.getProviderWebhookUnmatchedInboundExport,
   createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent,
@@ -64,8 +70,10 @@ beforeEach(() => {
   api.getSettingsTeam.mockReset();
   api.getProviderReadiness.mockReset();
   api.getProviderWebhookEvents.mockReset();
+  api.getProviderWebhookReviewMetrics.mockReset();
   api.getProviderWebhookUnmatchedInbound.mockReset();
   api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
+  api.getProviderWebhookUnmatchedInboundDiagnostics.mockReset();
   api.getProviderWebhookUnmatchedInboundHistory.mockReset();
   api.getProviderWebhookUnmatchedInboundExport.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
@@ -269,6 +277,42 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify({ history, exported })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender/i);
   });
 
+  it("loads review metrics and diagnostics from API mode without exposing raw values", async () => {
+    api.getProviderWebhookReviewMetrics.mockResolvedValueOnce(providerWebhookReviewMetricsResponse());
+    api.getProviderWebhookUnmatchedInboundDiagnostics.mockResolvedValueOnce(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-api"));
+
+    const metrics = await loadSettingsProviderWebhookReviewMetricsData("api", {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created"
+    });
+    const diagnostics = await loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-api");
+
+    expect(api.getProviderWebhookReviewMetrics).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created"
+    }));
+    expect(api.getProviderWebhookUnmatchedInboundDiagnostics).toHaveBeenCalledWith("provider-webhook-unmatched-api");
+    expect(metrics.mode).toBe("api");
+    expect(metrics.metrics).toMatchObject({
+      totalUnmatched: 1,
+      openUnmatched: 1,
+      externalCalls: 0
+    });
+    expect(diagnostics.mode).toBe("api");
+    expect(diagnostics.diagnostics).toMatchObject({
+      unmatchedId: "provider-webhook-unmatched-api",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomKeyDigest: "sha256:saferoomdigest",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ metrics, diagnostics })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("surfaces API-mode history and export failures without mutating mock state", async () => {
     const before = JSON.stringify(mockProviderWebhookUnmatchedInbound);
     api.getProviderWebhookUnmatchedInboundHistory.mockRejectedValueOnce(new Error("API request failed (503): history unavailable"));
@@ -280,6 +324,21 @@ describe("settings API-mode data loaders", () => {
 
     await expect(exportSettingsProviderWebhookUnmatchedInboundData("api", { format: "json" }))
       .rejects.toThrow("export unavailable");
+
+    expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
+  });
+
+  it("surfaces API-mode metrics and diagnostics failures without mutating mock state", async () => {
+    const before = JSON.stringify(mockProviderWebhookUnmatchedInbound);
+    api.getProviderWebhookReviewMetrics.mockRejectedValueOnce(new Error("API request failed (503): metrics unavailable"));
+
+    await expect(loadSettingsProviderWebhookReviewMetricsData("api", { provider: "line" }))
+      .rejects.toThrow("metrics unavailable");
+
+    api.getProviderWebhookUnmatchedInboundDiagnostics.mockRejectedValueOnce(new Error("API request failed (503): diagnostics unavailable"));
+
+    await expect(loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-local-1"))
+      .rejects.toThrow("diagnostics unavailable");
 
     expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
   });
@@ -437,11 +496,21 @@ describe("settings API-mode data loaders", () => {
     const channels = await loadSettingsChannelsData("mock");
     const team = await loadSettingsTeamData("mock");
     const readiness = await loadSettingsProviderReadinessData("mock");
+    const metrics = await loadSettingsProviderWebhookReviewMetricsData("mock", {
+      provider: "line",
+      limit: 10,
+      offset: 0,
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    } as Parameters<typeof loadSettingsProviderWebhookReviewMetricsData>[1]);
 
     expect(channels.channels).toEqual(mockSettingsChannels);
     expect(readiness.providerReadiness).toEqual(mockProviderReadiness);
     expect((await loadSettingsProviderWebhookEventsData("mock")).events).toEqual(mockProviderWebhookEvents);
     expect((await loadSettingsProviderWebhookUnmatchedInboundData("mock")).items[0]?.unmatchedStatus).toBe("review-needed");
+    expect(metrics.metrics.externalCalls).toBe(0);
+    expect(metrics.metrics.appliedFilters).toEqual({ provider: "line" });
+    expect((await loadSettingsProviderWebhookDiagnosticsData("mock", "provider-webhook-unmatched-local-1")).diagnostics.safeRoomLabel).toContain("room digest");
     expect(team.members.map((member) => member.id)).toEqual(["agent-may", "agent-ton", "agent-beam", "agent-nok"]);
     expect(team.slaPolicies.map((policy) => policy.priorityScope)).toEqual(["low", "medium", "high", "urgent"]);
     expect(team.cannedReplies.map((reply) => reply.shortcut)).toEqual(["/hello", "/price", "/followup", "/human"]);
@@ -450,6 +519,8 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsSlaPolicies).not.toHaveBeenCalled();
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookReviewMetrics).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookUnmatchedInboundDiagnostics).not.toHaveBeenCalled();
     expect(api.getProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
   });
 
@@ -670,7 +741,10 @@ function providerReadinessResponse() {
     webhookUnmatchedHistoryEnabled: true,
     webhookUnmatchedQueueExportEnabled: true,
     webhookUnmatchedQueueExportMaxLimit: 500,
+    webhookReviewMetricsEnabled: true,
+    webhookDiagnosticsEnabled: true,
     unmatchedInboundOpenCount: 1,
+    unmatchedInboundStaleOpenCount: 0,
     unmatchedInboundQueuedCount: 1,
     unmatchedInboundReplayBlockedCount: 0,
     unmatchedInboundReviewedCount: 0,
@@ -949,6 +1023,108 @@ function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundR
     requestedLimit: 25,
     exportMaxLimit: 500,
     exportedCount: rows.length,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewMetricsResponse() {
+  return {
+    generatedAt: "2026-05-31T00:05:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created"
+    },
+    totalEvents: 1,
+    totalUnmatched: 1,
+    openUnmatched: 1,
+    reviewedCount: 0,
+    skippedCount: 0,
+    linkedCount: 0,
+    persistedInboundCount: 0,
+    signatureRejectedCount: 0,
+    replayRejectedCount: 0,
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    ageBuckets: {
+      under1Hour: 1,
+      oneTo24Hours: 0,
+      oneTo3Days: 0,
+      over3Days: 0
+    },
+    funnel: {
+      inboundReceived: 1,
+      persisted: 0,
+      unmatchedQueued: 1,
+      reviewed: 0,
+      skipped: 0,
+      linked: 0,
+      exportedHistoryAvailable: 1
+    },
+    latestReceivedAt: "2026-05-31T00:00:00.000Z",
+    oldestOpenReceivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
+  return {
+    unmatchedId: unmatchedInboundId,
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    routingOutcome: "dry-run-only/not-found",
+    normalizedEventType: "message",
+    persistenceOutcome: "skipped-no-match",
+    candidateLookupAvailable: true,
+    historyAvailable: true,
+    exportAvailable: true,
+    lastActionAt: "2026-05-31T00:00:00.000Z",
+    safeWarnings: {
+      signatureRejected: false,
+      replayDuplicate: false,
+      missingConversationMatch: true,
+      staleOpenItem: false
+    },
     externalCalls: 0
   };
 }

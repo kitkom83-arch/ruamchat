@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -21,6 +21,13 @@ type ProviderReadinessPanelProps = {
   unmatchedActionStatus?: string;
   unmatchedBulkSavingStatus?: "" | "reviewed" | "skipped";
   unmatchedBulkResult?: ProviderWebhookUnmatchedInboundBulkReviewResponse | null;
+  reviewMetrics?: ProviderWebhookReviewMetrics | null;
+  reviewMetricsLoading?: boolean;
+  reviewMetricsError?: string;
+  activeDiagnosticsId?: string;
+  activeDiagnostics?: ProviderWebhookUnmatchedInboundDiagnostics | null;
+  diagnosticsLoadingId?: string;
+  diagnosticsErrorById?: Record<string, string>;
   activeHistoryId?: string;
   activeHistory?: ProviderWebhookUnmatchedInboundHistory | null;
   historyLoadingId?: string;
@@ -39,6 +46,7 @@ type ProviderReadinessPanelProps = {
   onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
   onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
+  onLoadDiagnostics?: (unmatchedInboundId: string) => Promise<void>;
   onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
   onExportUnmatchedInbound?: (format: ProviderWebhookUnmatchedInboundExportFormat) => Promise<void>;
 };
@@ -71,6 +79,13 @@ export function ProviderReadinessPanel({
   unmatchedActionStatus = "",
   unmatchedBulkSavingStatus = "",
   unmatchedBulkResult = null,
+  reviewMetrics = null,
+  reviewMetricsLoading = false,
+  reviewMetricsError = "",
+  activeDiagnosticsId = "",
+  activeDiagnostics = null,
+  diagnosticsLoadingId = "",
+  diagnosticsErrorById = {},
   activeHistoryId = "",
   activeHistory = null,
   historyLoadingId = "",
@@ -89,6 +104,7 @@ export function ProviderReadinessPanel({
   onBulkReviewUnmatchedInbound,
   onLinkUnmatchedInbound,
   onLoadCandidates,
+  onLoadDiagnostics,
   onLoadHistory,
   onExportUnmatchedInbound
 }: ProviderReadinessPanelProps) {
@@ -170,6 +186,32 @@ export function ProviderReadinessPanel({
     updateQueueFilters({ offset });
   }
 
+  function metricFilterButton(label: string, value: number, filters: ProviderWebhookUnmatchedInboundFilters) {
+    return e("button", {
+      key: label,
+      className: "webhookMetricButton",
+      type: "button",
+      disabled: !onUnmatchedFiltersChange,
+      onClick: () => updateQueueFilters(filters)
+    },
+      e("span", null, label),
+      e("strong", null, String(value))
+    );
+  }
+
+  function metricCountGroup(
+    title: string,
+    items: ProviderWebhookReviewMetrics["byProvider"],
+    toFilters: (key: string) => ProviderWebhookUnmatchedInboundFilters
+  ) {
+    return e("div", { className: "webhookMetricGroup" },
+      e("strong", null, title),
+      e("div", null,
+        ...items.map((item) => metricFilterButton(item.label, item.count, toFilters(item.key)))
+      )
+    );
+  }
+
   return e("section", { className: "providerReadinessPanel", "aria-label": "Provider sandbox and webhook readiness" },
     e("div", { className: "providerReadinessHeader" },
       e("div", { className: "channelPanelTop" },
@@ -207,7 +249,10 @@ export function ProviderReadinessPanel({
         e("span", null, `history audit=${readiness.webhookUnmatchedHistoryEnabled ? "enabled" : "disabled"}`),
         e("span", null, `queue export=${readiness.webhookUnmatchedQueueExportEnabled ? "enabled" : "disabled"}`),
         e("span", null, `export max limit=${readiness.webhookUnmatchedQueueExportMaxLimit}`),
+        e("span", null, `review metrics=${readiness.webhookReviewMetricsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `diagnostics=${readiness.webhookDiagnosticsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
+        e("span", null, `stale open unmatched count=${readiness.unmatchedInboundStaleOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
         e("span", null, `unmatched replay blocked count=${readiness.unmatchedInboundReplayBlockedCount}`),
         e("span", null, `reviewed unmatched count=${readiness.unmatchedInboundReviewedCount}`),
@@ -225,6 +270,65 @@ export function ProviderReadinessPanel({
     readiness ? e("div", { className: "providerReadinessGrid" },
       ...readiness.providers.map((provider) => e(ProviderReadinessCard, { key: provider.name, provider }))
     ) : null,
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review metrics" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(BarChart3, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Review metrics"),
+            e("p", null, "Aggregate provider webhook review counts with safe drilldown filters.")
+          )
+        ),
+        reviewMetrics ? e("div", { className: "webhookLastEvent", "aria-label": "Review metrics status" },
+          e("span", null, "metrics generated"),
+          e("strong", null, formatDate(reviewMetrics.generatedAt)),
+          e("span", null, `externalCalls=${reviewMetrics.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewMetrics.appliedFilters)}`)
+        ) : null
+      ),
+      reviewMetricsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewMetricsError) : null,
+      reviewMetricsLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook review metrics...") : null,
+      reviewMetrics ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total events", reviewMetrics.totalEvents, {}),
+        metricFilterButton("total unmatched", reviewMetrics.totalUnmatched, {}),
+        metricFilterButton("open unmatched", reviewMetrics.openUnmatched, { status: "open" }),
+        metricFilterButton("reviewed", reviewMetrics.reviewedCount, { reviewStatus: "reviewed" }),
+        metricFilterButton("skipped", reviewMetrics.skippedCount, { reviewStatus: "skipped" }),
+        metricFilterButton("linked", reviewMetrics.linkedCount, { reviewStatus: "linked" }),
+        metricFilterButton("persisted inbound", reviewMetrics.persistedInboundCount, {}),
+        metricFilterButton("signature rejected", reviewMetrics.signatureRejectedCount, { eventType: "webhook.failed" })
+      ) : !reviewMetricsLoading && !reviewMetricsError ? e("div", { className: "providerEmptyState" }, "No review metrics returned.") : null,
+      reviewMetrics ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By provider", reviewMetrics.byProvider, (key) => ({ provider: key as ProviderWebhookUnmatchedInboundFilters["provider"] })),
+        metricCountGroup("By event type", reviewMetrics.byEventType, (key) => ({ eventType: key as ProviderWebhookEventType })),
+        metricCountGroup("By review status", reviewMetrics.byReviewStatus, (key) => ({ reviewStatus: key as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })),
+        metricCountGroup("By link status", reviewMetrics.byLinkStatus, (key) => ({ linkStatus: key as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })),
+        metricCountGroup("By unmatched status", reviewMetrics.byUnmatchedStatus, (key) => ({ unmatchedStatus: key as ProviderWebhookUnmatchedInboundFilters["unmatchedStatus"] }))
+      ) : null,
+      reviewMetrics ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "Open age buckets"),
+          e("div", null,
+            e("span", null, `under1Hour=${reviewMetrics.ageBuckets.under1Hour}`),
+            e("span", null, `oneTo24Hours=${reviewMetrics.ageBuckets.oneTo24Hours}`),
+            e("span", null, `oneTo3Days=${reviewMetrics.ageBuckets.oneTo3Days}`),
+            e("span", null, `over3Days=${reviewMetrics.ageBuckets.over3Days}`)
+          )
+        ),
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "Safe review funnel"),
+          e("div", null,
+            e("span", null, `inbound received=${reviewMetrics.funnel.inboundReceived}`),
+            e("span", null, `persisted=${reviewMetrics.funnel.persisted}`),
+            e("span", null, `unmatched queued=${reviewMetrics.funnel.unmatchedQueued}`),
+            e("span", null, `reviewed=${reviewMetrics.funnel.reviewed}`),
+            e("span", null, `skipped=${reviewMetrics.funnel.skipped}`),
+            e("span", null, `linked=${reviewMetrics.funnel.linked}`),
+            e("span", null, `exported/history available=${reviewMetrics.funnel.exportedHistoryAvailable}`)
+          )
+        )
+      ) : null
+    ),
     e("div", { className: "webhookEventSurface", "aria-label": "Webhook sandbox event log" },
       e("div", { className: "webhookEventHeader" },
         e("div", null,
@@ -578,14 +682,63 @@ export function ProviderReadinessPanel({
             e("button", {
               className: "webhookEventButton",
               type: "button",
+              disabled: diagnosticsLoadingId === item.id || !onLoadDiagnostics,
+              onClick: () => void onLoadDiagnostics?.(item.id)
+            },
+              e(Activity, { size: 15 }),
+              diagnosticsLoadingId === item.id ? "Loading diagnostics..." : "View diagnostics"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
               disabled: historyLoadingId === item.id || !onLoadHistory,
               onClick: () => void onLoadHistory?.(item.id)
             },
               e(FileClock, { size: 15 }),
               historyLoadingId === item.id ? "Loading history..." : "View history"
             ),
+            activeDiagnosticsId === item.id && activeDiagnostics ? e("span", null, `diagnostics warnings=${warningLabels(activeDiagnostics).length}`) : null,
             activeHistoryId === item.id && activeHistory ? e("span", null, `history entries=${activeHistory.entries.length}`) : null
           ),
+          activeDiagnosticsId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe diagnostics for ${item.id}` },
+            diagnosticsErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, diagnosticsErrorById[item.id]) : null,
+            diagnosticsLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading safe diagnostics...") : null,
+            activeDiagnostics && activeDiagnostics.unmatchedId === item.id ? e("div", { className: "webhookDiagnosticsGrid" },
+              e("div", null,
+                e("strong", null, "Routing"),
+                e("span", null, `platform=${activeDiagnostics.platform}`),
+                e("span", null, `channelAccountId=${activeDiagnostics.channelAccountId ?? "none"}`),
+                e("span", null, `safeRoomLabel=${activeDiagnostics.safeRoomLabel}`),
+                e("span", null, `roomKeyDigest=${activeDiagnostics.roomKeyDigest ?? "none"}`),
+                e("span", null, `routingOutcome=${activeDiagnostics.routingOutcome}`),
+                e("span", null, `normalizedEventType=${activeDiagnostics.normalizedEventType}`)
+              ),
+              e("div", null,
+                e("strong", null, "Review state"),
+                e("span", null, `eventType=${activeDiagnostics.eventType}`),
+                e("span", null, `reviewStatus=${activeDiagnostics.reviewStatus}`),
+                e("span", null, `linkStatus=${activeDiagnostics.linkStatus}`),
+                e("span", null, `unmatchedStatus=${activeDiagnostics.unmatchedStatus}`),
+                e("span", null, `persistenceOutcome=${activeDiagnostics.persistenceOutcome}`),
+                e("span", null, `lastActionAt=${activeDiagnostics.lastActionAt ? formatDate(activeDiagnostics.lastActionAt) : "none"}`)
+              ),
+              e("div", null,
+                e("strong", null, "Safe capabilities"),
+                e("span", null, `candidateLookupAvailable=${String(activeDiagnostics.candidateLookupAvailable)}`),
+                e("span", null, `historyAvailable=${String(activeDiagnostics.historyAvailable)}`),
+                e("span", null, `exportAvailable=${String(activeDiagnostics.exportAvailable)}`),
+                e("span", null, `externalCalls=${activeDiagnostics.externalCalls}`)
+              ),
+              e("div", null,
+                e("strong", null, "Warnings"),
+                ...warningLabels(activeDiagnostics).map((warning) => e("span", { key: warning, className: "webhookWarningPill" },
+                  e(AlertTriangle, { size: 13 }),
+                  warning
+                )),
+                warningLabels(activeDiagnostics).length === 0 ? e("span", null, "none") : null
+              )
+            ) : !diagnosticsLoadingId && !diagnosticsErrorById[item.id] ? e("div", { className: "providerEmptyState" }, "No safe diagnostics returned for this unmatched item.") : null
+          ) : null,
           activeHistoryId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe history for ${item.id}` },
             historyErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, historyErrorById[item.id]) : null,
             historyLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound history...") : null,
@@ -739,6 +892,20 @@ function formatStatus(status: ProviderReadinessProvider["credentialStatus"]) {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("th-TH");
+}
+
+function formatAppliedFilters(filters: ProviderWebhookReviewMetrics["appliedFilters"]) {
+  const entries = Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  return entries.length > 0 ? entries.map(([key, value]) => `${key}=${String(value)}`).join(";") : "none";
+}
+
+function warningLabels(diagnostics: ProviderWebhookUnmatchedInboundDiagnostics) {
+  const warnings: string[] = [];
+  if (diagnostics.safeWarnings.signatureRejected) warnings.push("signatureRejected");
+  if (diagnostics.safeWarnings.replayDuplicate) warnings.push("replayDuplicate");
+  if (diagnostics.safeWarnings.missingConversationMatch) warnings.push("missingConversationMatch");
+  if (diagnostics.safeWarnings.staleOpenItem) warnings.push("staleOpenItem");
+  return warnings;
 }
 
 function toDateTimeLocal(value: string | undefined) {

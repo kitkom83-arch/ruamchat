@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -11,7 +11,9 @@ import {
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
   loadSettingsProviderWebhookCandidateData,
+  loadSettingsProviderWebhookDiagnosticsData,
   loadSettingsProviderWebhookHistoryData,
+  loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -42,6 +44,13 @@ export default function ChannelSettingsPage() {
   const [selectedUnmatchedIds, setSelectedUnmatchedIds] = useState<string[]>([]);
   const [unmatchedBulkSavingStatus, setUnmatchedBulkSavingStatus] = useState<"" | "reviewed" | "skipped">("");
   const [unmatchedBulkResult, setUnmatchedBulkResult] = useState<ProviderWebhookUnmatchedInboundBulkReviewResponse | null>(null);
+  const [reviewMetrics, setReviewMetrics] = useState<ProviderWebhookReviewMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState("");
+  const [activeDiagnosticsId, setActiveDiagnosticsId] = useState("");
+  const [activeDiagnostics, setActiveDiagnostics] = useState<ProviderWebhookUnmatchedInboundDiagnostics | null>(null);
+  const [diagnosticsLoadingId, setDiagnosticsLoadingId] = useState("");
+  const [diagnosticsErrorById, setDiagnosticsErrorById] = useState<Record<string, string>>({});
   const [activeHistoryId, setActiveHistoryId] = useState("");
   const [activeHistory, setActiveHistory] = useState<ProviderWebhookUnmatchedInboundHistory | null>(null);
   const [historyLoadingId, setHistoryLoadingId] = useState("");
@@ -143,9 +152,27 @@ export default function ChannelSettingsPage() {
     return refreshedItems;
   }, [unmatchedFilters]);
 
+  const refreshReviewMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    setMetricsError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewMetricsData(dataMode, unmatchedFilters);
+      setReviewMetrics(result.metrics);
+    } catch (reason) {
+      setReviewMetrics(null);
+      setMetricsError(`Review Metrics API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook review metrics"}`);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, [unmatchedFilters]);
+
   useEffect(() => {
     void refreshWebhookEvents();
   }, [refreshWebhookEvents]);
+
+  useEffect(() => {
+    void refreshReviewMetrics();
+  }, [refreshReviewMetrics]);
 
   async function loadCandidates(unmatchedInboundId: string) {
     setCandidateLoadingId(unmatchedInboundId);
@@ -182,8 +209,30 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadDiagnostics(unmatchedInboundId: string) {
+    setActiveDiagnosticsId(unmatchedInboundId);
+    setDiagnosticsLoadingId(unmatchedInboundId);
+    setDiagnosticsErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    try {
+      const result = await loadSettingsProviderWebhookDiagnosticsData(dataMode, unmatchedInboundId);
+      setActiveDiagnostics(result.diagnostics);
+    } catch (reason) {
+      setActiveDiagnostics(null);
+      setDiagnosticsErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Diagnostics API error: ${reason instanceof Error ? reason.message : "Unable to load safe diagnostics"}`
+      }));
+    } finally {
+      setDiagnosticsLoadingId("");
+    }
+  }
+
   async function refreshActiveHistory() {
     if (activeHistoryId) await loadHistory(activeHistoryId);
+  }
+
+  async function refreshActiveDiagnostics() {
+    if (activeDiagnosticsId) await loadDiagnostics(activeDiagnosticsId);
   }
 
   async function exportUnmatchedQueue(format: ProviderWebhookUnmatchedInboundExportFormat) {
@@ -230,6 +279,7 @@ export default function ChannelSettingsPage() {
     try {
       await createSettingsProviderWebhookSandboxEvent(dataMode, payload);
       await refreshWebhookEvents();
+      await refreshReviewMetrics();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -248,9 +298,11 @@ export default function ChannelSettingsPage() {
       const result = await reviewSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, { status });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.reviewStatus}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      await refreshReviewMetrics();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
+      await refreshActiveDiagnostics();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -269,9 +321,11 @@ export default function ChannelSettingsPage() {
       const result = await linkSettingsProviderWebhookUnmatchedInboundConversation(dataMode, unmatchedInboundId, { conversationId, actionMode });
       setUnmatchedActionStatus(`Unmatched inbound ${result.id} ${result.linkStatus}; messagePersisted=${String(result.messagePersisted)}; externalCalls=${result.externalCalls}`);
       await refreshWebhookEvents();
+      await refreshReviewMetrics();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
+      await refreshActiveDiagnostics();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -310,6 +364,7 @@ export default function ChannelSettingsPage() {
       setUnmatchedBulkResult(result);
       setUnmatchedActionStatus(`Bulk ${status}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
       const refreshedItems = await refreshWebhookEvents();
+      await refreshReviewMetrics();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -318,6 +373,7 @@ export default function ChannelSettingsPage() {
         }
       }
       await refreshActiveHistory();
+      await refreshActiveDiagnostics();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -359,6 +415,13 @@ export default function ChannelSettingsPage() {
         unmatchedActionStatus={unmatchedActionStatus}
         unmatchedBulkSavingStatus={unmatchedBulkSavingStatus}
         unmatchedBulkResult={unmatchedBulkResult}
+        reviewMetrics={reviewMetrics}
+        reviewMetricsLoading={metricsLoading}
+        reviewMetricsError={metricsError}
+        activeDiagnosticsId={activeDiagnosticsId}
+        activeDiagnostics={activeDiagnostics}
+        diagnosticsLoadingId={diagnosticsLoadingId}
+        diagnosticsErrorById={diagnosticsErrorById}
         activeHistoryId={activeHistoryId}
         activeHistory={activeHistory}
         historyLoadingId={historyLoadingId}
@@ -377,6 +440,7 @@ export default function ChannelSettingsPage() {
         onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
         onLoadCandidates={loadCandidates}
+        onLoadDiagnostics={loadDiagnostics}
         onLoadHistory={loadHistory}
         onExportUnmatchedInbound={exportUnmatchedQueue}
       />
