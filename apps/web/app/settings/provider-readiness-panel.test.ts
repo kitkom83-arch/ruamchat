@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -34,10 +34,13 @@ describe("ProviderReadinessPanel", () => {
       reviewMetrics: providerWebhookReviewMetrics(),
       reviewAlerts: providerWebhookReviewAlerts(),
       reviewTriage: providerWebhookReviewTriage(),
+      reviewSavedViews: [providerWebhookReviewSavedView()],
+      reviewSavedViewActionStatus: "Saved view Safe queue view; externalCalls=0",
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       activeDiagnostics: providerWebhookDiagnostics(),
       activeHistoryId: "provider-webhook-unmatched-1",
       activeHistory: providerWebhookHistory(),
+      operatorNotesById: { "provider-webhook-unmatched-1": [providerWebhookOperatorNote()] },
       unmatchedExportResult: providerWebhookExport(),
       unmatchedActionStatus: "Unmatched inbound provider-webhook-unmatched-1 reviewed; externalCalls=0"
     }));
@@ -76,6 +79,10 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("queue health=enabled");
     expect(html).toContain("review triage=enabled");
     expect(html).toContain("triage guidance=enabled");
+    expect(html).toContain("saved views=enabled");
+    expect(html).toContain("operator notes=enabled");
+    expect(html).toContain("saved view count=1");
+    expect(html).toContain("operator note count=1");
     expect(html).toContain("critical alert count=1");
     expect(html).toContain("critical triage count=1");
     expect(html).toContain("open triage count=1");
@@ -219,6 +226,20 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("conversationKeyDigest=none");
     expect(html).toContain("roomIdDigest=none");
     expect(html).toContain("inboundAuditStatus=recorded");
+    expect(html).toContain("Saved review views");
+    expect(html).toContain("Save current filters");
+    expect(html).toContain("Safe queue view");
+    expect(html).toContain("filters=provider=line;reviewStatus=pending;linkStatus=none;unmatchedStatus=review-needed;eventType=message.created;severity=info;triageLane=safe_link_candidate_available;pageSize=10");
+    expect(html).toContain("sort=receivedAt desc");
+    expect(html).toContain("Apply saved view");
+    expect(html).toContain("Archive");
+    expect(html).toContain("Saved view Safe queue view; externalCalls=0");
+    expect(html).toContain("Operator notes");
+    expect(html).toContain("Load operator notes");
+    expect(html).toContain("Add note");
+    expect(html).toContain("note count=1");
+    expect(html).toContain("note /");
+    expect(html).toContain("Checked safely with local context only.");
     expect(html).toContain("configured");
     expect(html).not.toContain("U-raw-provider-test");
     expect(html).not.toContain("raw-line-token");
@@ -291,6 +312,9 @@ describe("ProviderReadinessPanel", () => {
       reviewTriage: null,
       reviewTriageLoading: false,
       reviewTriageError: "Triage Guidance API error: Failed to fetch",
+      reviewSavedViews: [],
+      reviewSavedViewsLoading: false,
+      reviewSavedViewsError: "Saved Views API error: Failed to fetch",
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
       unmatchedInboundLoading: false,
       unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
@@ -298,6 +322,8 @@ describe("ProviderReadinessPanel", () => {
       diagnosticsErrorById: { "provider-webhook-unmatched-1": "Diagnostics API error: Failed to fetch" },
       activeHistoryId: "provider-webhook-unmatched-1",
       historyErrorById: { "provider-webhook-unmatched-1": "History API error: Failed to fetch" },
+      operatorNotesById: { "provider-webhook-unmatched-1": [] },
+      operatorNotesErrorById: { "provider-webhook-unmatched-1": "Operator Notes API error: Failed to fetch" },
       unmatchedExportError: "Unmatched Export API error: Failed to fetch"
     }));
 
@@ -305,9 +331,11 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Review Metrics API error: Failed to fetch");
     expect(html).toContain("Review Alerts API error: Failed to fetch");
     expect(html).toContain("Triage Guidance API error: Failed to fetch");
+    expect(html).toContain("Saved Views API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).toContain("Diagnostics API error: Failed to fetch");
     expect(html).toContain("History API error: Failed to fetch");
+    expect(html).toContain("Operator Notes API error: Failed to fetch");
     expect(html).toContain("Unmatched Export API error: Failed to fetch");
     expect(html).not.toContain("payloadFieldCount=");
     expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|Bearer|sk-/i);
@@ -358,6 +386,10 @@ function providerReadiness(): ProviderReadiness {
     webhookReviewQueueHealthEnabled: true,
     reviewTriageEnabled: true,
     triageGuidanceEnabled: true,
+    reviewSavedViewsEnabled: true,
+    operatorNotesEnabled: true,
+    savedViewCount: 1,
+    operatorNoteCount: 1,
     reviewAlertCriticalCount: 1,
     criticalTriageCount: 1,
     openTriageCount: 1,
@@ -753,6 +785,62 @@ function providerWebhookReviewTriage(): ProviderWebhookReviewTriage {
       exportAvailable: true,
       externalCalls: 0
     }],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewSavedView(): ProviderWebhookReviewSavedView {
+  return {
+    id: "provider-webhook-review-view-1",
+    name: "Safe queue view",
+    description: "safe filter preset",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    ownerId: "operator-safe",
+    createdBy: "operator:operator-saf",
+    filters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "info",
+      triageLane: "safe_link_candidate_available",
+      pageSize: 10
+    },
+    sort: {
+      sortBy: "receivedAt",
+      sortDirection: "desc"
+    },
+    pinned: true,
+    isDefault: true,
+    archived: false,
+    createdAt: "2026-05-31T00:00:00.000Z",
+    updatedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookOperatorNote(): ProviderWebhookOperatorNote {
+  return {
+    id: "provider-webhook-operator-note-1",
+    unmatchedId: "provider-webhook-unmatched-1",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    authorId: "operator-safe",
+    authorLabel: "operator:operator-saf",
+    note: "Checked safely with local context only.",
+    context: {
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed"
+    },
+    createdAt: "2026-05-31T00:00:00.000Z",
+    updatedAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0
   };
 }

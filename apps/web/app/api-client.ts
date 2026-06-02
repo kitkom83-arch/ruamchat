@@ -14,12 +14,16 @@ import {
   aiSuggestionFeedbackRequestSchema,
   aiSuggestionFeedbackSchema,
   apiHealthSchema,
+  createProviderWebhookOperatorNoteRequestSchema,
+  createProviderWebhookReviewSavedViewRequestSchema,
   providerWebhookEventSchema,
   providerWebhookCandidateConversationSchema,
+  providerWebhookOperatorNoteSchema,
   providerWebhookReviewAlertsFiltersSchema,
   providerWebhookReviewAlertsSchema,
   providerWebhookReviewMetricsFiltersSchema,
   providerWebhookReviewMetricsSchema,
+  providerWebhookReviewSavedViewSchema,
   providerWebhookReviewTriageFiltersSchema,
   providerWebhookReviewTriageSchema,
   providerWebhookUnmatchedInboundDiagnosticsSchema,
@@ -34,6 +38,7 @@ import {
   providerWebhookUnmatchedInboundPageSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
+  updateProviderWebhookReviewSavedViewRequestSchema,
   coreConversationCardSchema,
   coreConversationTabSchema,
   coreMessageSchema,
@@ -173,12 +178,17 @@ import {
   type LinkContactIdentityRequest,
   type Platform,
   type ProviderReadiness,
+  type CreateProviderWebhookOperatorNoteRequest,
+  type CreateProviderWebhookReviewSavedViewRequest,
+  type UpdateProviderWebhookReviewSavedViewRequest,
   type ProviderWebhookCandidateConversation,
   type ProviderWebhookEvent,
+  type ProviderWebhookOperatorNote,
   type ProviderWebhookReviewAlerts,
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
+  type ProviderWebhookReviewSavedView,
   type ProviderWebhookReviewTriage,
   type ProviderWebhookReviewTriageFilters,
   type ProviderWebhookUnmatchedInboundDiagnostics,
@@ -360,6 +370,35 @@ export async function getProviderWebhookReviewTriage(filters: ProviderWebhookRev
   return request(`/provider-webhooks/review-triage${search ? `?${search}` : ""}`, providerWebhookReviewTriageSchema);
 }
 
+export async function getProviderWebhookReviewSavedViews(): Promise<ProviderWebhookReviewSavedView[]> {
+  return request("/provider-webhooks/review-saved-views", providerWebhookReviewSavedViewSchema.array());
+}
+
+export async function createProviderWebhookReviewSavedView(payload: CreateProviderWebhookReviewSavedViewRequest): Promise<ProviderWebhookReviewSavedView> {
+  const body = createProviderWebhookReviewSavedViewRequestSchema.parse(payload);
+  return request("/provider-webhooks/review-saved-views", providerWebhookReviewSavedViewSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function updateProviderWebhookReviewSavedView(
+  savedViewId: string,
+  payload: UpdateProviderWebhookReviewSavedViewRequest
+): Promise<ProviderWebhookReviewSavedView> {
+  const body = updateProviderWebhookReviewSavedViewRequestSchema.parse(payload);
+  return request(`/provider-webhooks/review-saved-views/${encodeURIComponent(savedViewId)}`, providerWebhookReviewSavedViewSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function archiveProviderWebhookReviewSavedView(savedViewId: string): Promise<ProviderWebhookReviewSavedView> {
+  return request(`/provider-webhooks/review-saved-views/${encodeURIComponent(savedViewId)}/archive`, providerWebhookReviewSavedViewSchema, {
+    method: "PATCH"
+  });
+}
+
 export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundPage> {
   const parsed = providerWebhookUnmatchedInboundFiltersSchema.parse(filters);
   const pageFilters: ProviderWebhookUnmatchedInboundFilters = {
@@ -387,6 +426,21 @@ export async function getProviderWebhookUnmatchedInboundHistory(unmatchedInbound
 
 export async function getProviderWebhookUnmatchedInboundDiagnostics(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundDiagnostics> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/diagnostics`, providerWebhookUnmatchedInboundDiagnosticsSchema);
+}
+
+export async function getProviderWebhookOperatorNotes(unmatchedInboundId: string): Promise<ProviderWebhookOperatorNote[]> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/operator-notes`, providerWebhookOperatorNoteSchema.array());
+}
+
+export async function createProviderWebhookOperatorNote(
+  unmatchedInboundId: string,
+  payload: CreateProviderWebhookOperatorNoteRequest
+): Promise<ProviderWebhookOperatorNote> {
+  const body = createProviderWebhookOperatorNoteRequestSchema.parse(payload);
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/operator-notes`, providerWebhookOperatorNoteSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
 }
 
 export async function getProviderWebhookUnmatchedInboundExport(filters: ProviderWebhookUnmatchedInboundExportQuery = {}): Promise<ProviderWebhookUnmatchedInboundExport> {

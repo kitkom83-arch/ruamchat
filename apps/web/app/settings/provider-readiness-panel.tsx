@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, ListChecks, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, ListChecks, NotebookPen, Pin, RadioTower, Search, Send, ShieldCheck, SkipForward, Star, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -30,6 +30,11 @@ type ProviderReadinessPanelProps = {
   reviewTriage?: ProviderWebhookReviewTriage | null;
   reviewTriageLoading?: boolean;
   reviewTriageError?: string;
+  reviewSavedViews?: ProviderWebhookReviewSavedView[];
+  reviewSavedViewsLoading?: boolean;
+  reviewSavedViewsError?: string;
+  reviewSavedViewSaving?: boolean;
+  reviewSavedViewActionStatus?: string;
   activeDiagnosticsId?: string;
   activeDiagnostics?: ProviderWebhookUnmatchedInboundDiagnostics | null;
   diagnosticsLoadingId?: string;
@@ -38,6 +43,10 @@ type ProviderReadinessPanelProps = {
   activeHistory?: ProviderWebhookUnmatchedInboundHistory | null;
   historyLoadingId?: string;
   historyErrorById?: Record<string, string>;
+  operatorNotesById?: Record<string, ProviderWebhookOperatorNote[]>;
+  operatorNotesLoadingId?: string;
+  operatorNotesErrorById?: Record<string, string>;
+  operatorNoteSavingId?: string;
   unmatchedExportResult?: ProviderWebhookUnmatchedInboundExport | null;
   unmatchedExportLoadingFormat?: "" | ProviderWebhookUnmatchedInboundExportFormat;
   unmatchedExportError?: string;
@@ -51,9 +60,14 @@ type ProviderReadinessPanelProps = {
   onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
   onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
+  onCreateSavedView?: (name: string, description: string, pinned: boolean, isDefault: boolean) => Promise<void>;
+  onApplySavedView?: (savedView: ProviderWebhookReviewSavedView) => void;
+  onArchiveSavedView?: (savedViewId: string) => Promise<void>;
   onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
   onLoadDiagnostics?: (unmatchedInboundId: string) => Promise<void>;
   onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
+  onLoadOperatorNotes?: (unmatchedInboundId: string) => Promise<void>;
+  onCreateOperatorNote?: (unmatchedInboundId: string, note: string) => Promise<void>;
   onExportUnmatchedInbound?: (format: ProviderWebhookUnmatchedInboundExportFormat) => Promise<void>;
 };
 
@@ -94,6 +108,11 @@ export function ProviderReadinessPanel({
   reviewTriage = null,
   reviewTriageLoading = false,
   reviewTriageError = "",
+  reviewSavedViews = [],
+  reviewSavedViewsLoading = false,
+  reviewSavedViewsError = "",
+  reviewSavedViewSaving = false,
+  reviewSavedViewActionStatus = "",
   activeDiagnosticsId = "",
   activeDiagnostics = null,
   diagnosticsLoadingId = "",
@@ -102,6 +121,10 @@ export function ProviderReadinessPanel({
   activeHistory = null,
   historyLoadingId = "",
   historyErrorById = {},
+  operatorNotesById = {},
+  operatorNotesLoadingId = "",
+  operatorNotesErrorById = {},
+  operatorNoteSavingId = "",
   unmatchedExportResult = null,
   unmatchedExportLoadingFormat = "",
   unmatchedExportError = "",
@@ -115,9 +138,14 @@ export function ProviderReadinessPanel({
   onReviewUnmatchedInbound,
   onBulkReviewUnmatchedInbound,
   onLinkUnmatchedInbound,
+  onCreateSavedView,
+  onApplySavedView,
+  onArchiveSavedView,
   onLoadCandidates,
   onLoadDiagnostics,
   onLoadHistory,
+  onLoadOperatorNotes,
+  onCreateOperatorNote,
   onExportUnmatchedInbound
 }: ProviderReadinessPanelProps) {
   const [provider, setProvider] = useState<ProviderOption>("line");
@@ -127,6 +155,11 @@ export function ProviderReadinessPanel({
   const [signature, setSignature] = useState("");
   const [inboundPersistenceMode, setInboundPersistenceMode] = useState<ProviderWebhookInboundPersistenceMode>("dry-run");
   const [linkConversationIds, setLinkConversationIds] = useState<Record<string, string>>({});
+  const [savedViewName, setSavedViewName] = useState("Current review queue");
+  const [savedViewDescription, setSavedViewDescription] = useState("");
+  const [savedViewPinned, setSavedViewPinned] = useState(false);
+  const [savedViewDefault, setSavedViewDefault] = useState(false);
+  const [operatorNoteDrafts, setOperatorNoteDrafts] = useState<Record<string, string>>({});
   const lastEvent = webhookEvents[0] ?? null;
   const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
   const queueSummary = summarizeUnmatchedQueue(unmatchedInboundItems);
@@ -173,6 +206,20 @@ export function ProviderReadinessPanel({
       ...next,
       offset: next.offset ?? 0
     });
+  }
+
+  async function submitSavedView(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = savedViewName.trim();
+    if (!name || !onCreateSavedView) return;
+    await onCreateSavedView(name, savedViewDescription, savedViewPinned, savedViewDefault);
+  }
+
+  async function submitOperatorNote(unmatchedInboundId: string) {
+    const note = (operatorNoteDrafts[unmatchedInboundId] ?? "").trim();
+    if (!note || !onCreateOperatorNote) return;
+    await onCreateOperatorNote(unmatchedInboundId, note);
+    setOperatorNoteDrafts((current) => ({ ...current, [unmatchedInboundId]: "" }));
   }
 
   function selectVisibleUnmatchedItems() {
@@ -322,6 +369,10 @@ export function ProviderReadinessPanel({
         e("span", null, `queue health=${readiness.webhookReviewQueueHealthEnabled ? "enabled" : "disabled"}`),
         e("span", null, `review triage=${readiness.reviewTriageEnabled ? "enabled" : "disabled"}`),
         e("span", null, `triage guidance=${readiness.triageGuidanceEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `saved views=${readiness.reviewSavedViewsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `operator notes=${readiness.operatorNotesEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `saved view count=${readiness.savedViewCount}`),
+        e("span", null, `operator note count=${readiness.operatorNoteCount}`),
         e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
         e("span", null, `critical triage count=${readiness.criticalTriageCount}`),
         e("span", null, `open triage count=${readiness.openTriageCount}`),
@@ -697,6 +748,102 @@ export function ProviderReadinessPanel({
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
     ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review saved views" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(Star, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Saved review views"),
+            e("p", null, "Safe filter presets only. Applying a view updates filters without review, skip, link, or message persistence.")
+          )
+        ),
+        e("div", { className: "webhookLastEvent", "aria-label": "Saved views status" },
+          e("span", null, `saved view count=${reviewSavedViews.length}`),
+          e("span", null, `externalCalls=${reviewSavedViews.every((view) => view.externalCalls === 0) ? 0 : "check"}`)
+        )
+      ),
+      reviewSavedViewsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewSavedViewsError) : null,
+      reviewSavedViewsLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading saved review views...") : null,
+      reviewSavedViewActionStatus ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" }, reviewSavedViewActionStatus) : null,
+      e("form", { className: "webhookEventForm", onSubmit: submitSavedView },
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "View name"),
+          e("input", {
+            value: savedViewName,
+            maxLength: 80,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSavedViewName(event.target.value),
+            placeholder: "Current review queue"
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Description"),
+          e("input", {
+            value: savedViewDescription,
+            maxLength: 240,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSavedViewDescription(event.target.value),
+            placeholder: "optional safe label"
+          })
+        ),
+        e("label", { className: "webhookSelectRow" },
+          e("input", {
+            type: "checkbox",
+            checked: savedViewPinned,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSavedViewPinned(event.target.checked)
+          }),
+          e("span", null, "Pin")
+        ),
+        e("label", { className: "webhookSelectRow" },
+          e("input", {
+            type: "checkbox",
+            checked: savedViewDefault,
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => setSavedViewDefault(event.target.checked)
+          }),
+          e("span", null, "Default")
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "submit",
+          disabled: reviewSavedViewSaving || !savedViewName.trim() || !onCreateSavedView
+        },
+          e(Star, { size: 15 }),
+          reviewSavedViewSaving ? "Saving view..." : "Save current filters"
+        )
+      ),
+      reviewSavedViews.length > 0 ? e("div", { className: "webhookEventList compact" },
+        ...reviewSavedViews.map((view) => e("article", { key: view.id, className: "webhookHistoryRow" },
+          e("strong", null, view.name),
+          view.description ? e("span", null, `description=${view.description}`) : null,
+          e("span", null, `filters=${formatSavedViewFilters(view)}`),
+          e("span", null, `sort=${view.sort.sortBy} ${view.sort.sortDirection}`),
+          e("span", null, `pinned=${String(view.pinned)}`),
+          e("span", null, `default=${String(view.isDefault)}`),
+          e("span", null, `archived=${String(view.archived)}`),
+          e("span", null, `createdBy=${view.createdBy ?? "system"}`),
+          e("span", null, `updatedAt=${formatDate(view.updatedAt)}`),
+          e("span", null, `externalCalls=${view.externalCalls}`),
+          e("div", { className: "webhookEventActions" },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: !onApplySavedView,
+              onClick: () => onApplySavedView?.(view)
+            },
+              e(Pin, { size: 15 }),
+              "Apply saved view"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: reviewSavedViewSaving || !onArchiveSavedView,
+              onClick: () => void onArchiveSavedView?.(view.id)
+            },
+              e(X, { size: 15 }),
+              "Archive"
+            )
+          )
+        ))
+      ) : !reviewSavedViewsLoading && !reviewSavedViewsError ? e("div", { className: "providerEmptyState" }, "No saved review views yet.") : null
+    ),
     e("div", { className: "webhookEventSurface", "aria-label": "Unmatched inbound review queue" },
       e("div", { className: "webhookEventHeader" },
         e("div", null,
@@ -1027,6 +1174,57 @@ export function ProviderReadinessPanel({
               ))
             ) : !historyLoadingId && !historyErrorById[item.id] ? e("div", { className: "providerEmptyState" }, "No safe history entries for this unmatched item.") : null
           ) : null,
+          e("div", { className: "webhookHistorySurface", "aria-label": `Operator notes for ${item.id}` },
+            e("div", { className: "webhookEventActions" },
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: operatorNotesLoadingId === item.id || !onLoadOperatorNotes,
+                onClick: () => void onLoadOperatorNotes?.(item.id)
+              },
+                e(NotebookPen, { size: 15 }),
+                operatorNotesLoadingId === item.id ? "Loading notes..." : "Load operator notes"
+              ),
+              (operatorNotesById[item.id] ?? []).length > 0 ? e("span", null, `note count=${operatorNotesById[item.id].length}`) : null
+            ),
+            operatorNotesErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, operatorNotesErrorById[item.id]) : null,
+            operatorNotesLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading operator notes...") : null,
+            e("div", { className: "webhookEventForm" },
+              e("label", { className: "settingsInlineField wide" },
+                e("span", null, "Operator note"),
+                e("input", {
+                  value: operatorNoteDrafts[item.id] ?? "",
+                  maxLength: 1000,
+                  onChange: (event: React.ChangeEvent<HTMLInputElement>) => setOperatorNoteDrafts((current) => ({ ...current, [item.id]: event.target.value })),
+                  placeholder: "Add safe note"
+                })
+              ),
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: operatorNoteSavingId === item.id || !(operatorNoteDrafts[item.id] ?? "").trim() || !onCreateOperatorNote,
+                onClick: () => void submitOperatorNote(item.id)
+              },
+                e(NotebookPen, { size: 15 }),
+                operatorNoteSavingId === item.id ? "Saving note..." : "Add note"
+              )
+            ),
+            (operatorNotesById[item.id] ?? []).length > 0 ? e("div", { className: "webhookEventList compact" },
+              ...operatorNotesById[item.id].map((note) => e("div", { key: note.id, className: "webhookHistoryRow" },
+                e("strong", null, `note / ${formatDate(note.createdAt)}`),
+                e("span", null, `author=${note.authorLabel ?? note.authorId ?? "system"}`),
+                e("span", null, `platform=${note.context.platform}`),
+                e("span", null, `channelAccountId=${note.context.channelAccountId ?? "none"}`),
+                e("span", null, `safeRoomLabel=${note.context.safeRoomLabel}`),
+                e("span", null, `eventType=${note.context.eventType}`),
+                e("span", null, `reviewStatus=${note.context.reviewStatus}`),
+                e("span", null, `linkStatus=${note.context.linkStatus}`),
+                e("span", null, `unmatchedStatus=${note.context.unmatchedStatus}`),
+                e("p", null, note.note),
+                e("span", null, `externalCalls=${note.externalCalls}`)
+              ))
+            ) : operatorNotesById[item.id] && !operatorNotesErrorById[item.id] && operatorNotesLoadingId !== item.id ? e("div", { className: "providerEmptyState" }, "No operator notes for this unmatched item.") : null
+          ),
           isOpenUnmatchedItem(item) ? e("div", { className: "webhookCandidateSurface" },
             e("div", { className: "webhookEventActions" },
               e("button", {
@@ -1161,6 +1359,25 @@ function formatDate(value: string) {
 
 function formatAppliedFilters(filters: ProviderWebhookReviewMetrics["appliedFilters"]) {
   const entries = Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  return entries.length > 0 ? entries.map(([key, value]) => `${key}=${String(value)}`).join(";") : "none";
+}
+
+function formatSavedViewFilters(view: ProviderWebhookReviewSavedView) {
+  const allowedKeys: (keyof ProviderWebhookReviewSavedView["filters"])[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "eventType",
+    "severity",
+    "triageLane",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "pageSize"
+  ];
+  const entries = allowedKeys
+    .map((key) => [key, view.filters[key]] as const)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "");
   return entries.length > 0 ? entries.map(([key, value]) => `${key}=${String(value)}`).join(";") : "none";
 }
 

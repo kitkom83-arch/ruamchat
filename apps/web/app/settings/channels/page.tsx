@@ -2,14 +2,18 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
+  archiveSettingsProviderWebhookSavedView,
   createSettingsProviderWebhookSandboxEvent,
+  createSettingsProviderWebhookOperatorNote,
+  createSettingsProviderWebhookSavedView,
   exportSettingsProviderWebhookUnmatchedInboundData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
+  loadSettingsProviderWebhookOperatorNotesData,
   loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderWebhookDiagnosticsData,
   loadSettingsProviderWebhookHistoryData,
@@ -18,6 +22,7 @@ import {
   loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
+  loadSettingsProviderWebhookSavedViewsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
   reviewSettingsProviderWebhookUnmatchedInbound
 } from "../../settings-data";
@@ -53,8 +58,14 @@ export default function ChannelSettingsPage() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState("");
   const [reviewTriage, setReviewTriage] = useState<ProviderWebhookReviewTriage | null>(null);
+  const [triageSavedViewFilters, setTriageSavedViewFilters] = useState<Pick<ProviderWebhookReviewTriageFilters, "severity" | "triageLane">>({});
   const [triageLoading, setTriageLoading] = useState(true);
   const [triageError, setTriageError] = useState("");
+  const [reviewSavedViews, setReviewSavedViews] = useState<ProviderWebhookReviewSavedView[]>([]);
+  const [savedViewsLoading, setSavedViewsLoading] = useState(true);
+  const [savedViewsError, setSavedViewsError] = useState("");
+  const [savedViewSaving, setSavedViewSaving] = useState(false);
+  const [savedViewActionStatus, setSavedViewActionStatus] = useState("");
   const [activeDiagnosticsId, setActiveDiagnosticsId] = useState("");
   const [activeDiagnostics, setActiveDiagnostics] = useState<ProviderWebhookUnmatchedInboundDiagnostics | null>(null);
   const [diagnosticsLoadingId, setDiagnosticsLoadingId] = useState("");
@@ -63,6 +74,10 @@ export default function ChannelSettingsPage() {
   const [activeHistory, setActiveHistory] = useState<ProviderWebhookUnmatchedInboundHistory | null>(null);
   const [historyLoadingId, setHistoryLoadingId] = useState("");
   const [historyErrorById, setHistoryErrorById] = useState<Record<string, string>>({});
+  const [operatorNotesById, setOperatorNotesById] = useState<Record<string, ProviderWebhookOperatorNote[]>>({});
+  const [operatorNotesLoadingId, setOperatorNotesLoadingId] = useState("");
+  const [operatorNotesErrorById, setOperatorNotesErrorById] = useState<Record<string, string>>({});
+  const [operatorNoteSavingId, setOperatorNoteSavingId] = useState("");
   const [unmatchedExportResult, setUnmatchedExportResult] = useState<ProviderWebhookUnmatchedInboundExport | null>(null);
   const [unmatchedExportLoadingFormat, setUnmatchedExportLoadingFormat] = useState<"" | ProviderWebhookUnmatchedInboundExportFormat>("");
   const [unmatchedExportError, setUnmatchedExportError] = useState("");
@@ -192,7 +207,10 @@ export default function ChannelSettingsPage() {
     setTriageLoading(true);
     setTriageError("");
     try {
-      const result = await loadSettingsProviderWebhookReviewTriageData(dataMode, unmatchedFilters);
+      const result = await loadSettingsProviderWebhookReviewTriageData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
       setReviewTriage(result.triage);
     } catch (reason) {
       setReviewTriage(null);
@@ -200,7 +218,21 @@ export default function ChannelSettingsPage() {
     } finally {
       setTriageLoading(false);
     }
-  }, [unmatchedFilters]);
+  }, [unmatchedFilters, triageSavedViewFilters]);
+
+  const refreshSavedViews = useCallback(async () => {
+    setSavedViewsLoading(true);
+    setSavedViewsError("");
+    try {
+      const result = await loadSettingsProviderWebhookSavedViewsData(dataMode);
+      setReviewSavedViews(result.savedViews);
+    } catch (reason) {
+      setReviewSavedViews([]);
+      setSavedViewsError(`Saved Views API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook review saved views"}`);
+    } finally {
+      setSavedViewsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void refreshWebhookEvents();
@@ -217,6 +249,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewTriage();
   }, [refreshReviewTriage]);
+
+  useEffect(() => {
+    void refreshSavedViews();
+  }, [refreshSavedViews]);
 
   async function loadCandidates(unmatchedInboundId: string) {
     setCandidateLoadingId(unmatchedInboundId);
@@ -271,12 +307,111 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadOperatorNotes(unmatchedInboundId: string) {
+    setOperatorNotesLoadingId(unmatchedInboundId);
+    setOperatorNotesErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    try {
+      const result = await loadSettingsProviderWebhookOperatorNotesData(dataMode, unmatchedInboundId);
+      setOperatorNotesById((current) => ({ ...current, [unmatchedInboundId]: result.notes }));
+    } catch (reason) {
+      setOperatorNotesById((current) => ({ ...current, [unmatchedInboundId]: [] }));
+      setOperatorNotesErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Operator Notes API error: ${reason instanceof Error ? reason.message : "Unable to load operator notes"}`
+      }));
+    } finally {
+      setOperatorNotesLoadingId("");
+    }
+  }
+
   async function refreshActiveHistory() {
     if (activeHistoryId) await loadHistory(activeHistoryId);
   }
 
   async function refreshActiveDiagnostics() {
     if (activeDiagnosticsId) await loadDiagnostics(activeDiagnosticsId);
+  }
+
+  async function refreshActiveOperatorNotes() {
+    const activeOperatorNoteIds = Object.keys(operatorNotesById);
+    for (const id of activeOperatorNoteIds) {
+      await loadOperatorNotes(id);
+    }
+  }
+
+  async function createSavedView(name: string, description: string, pinned: boolean, isDefault: boolean) {
+    setSavedViewSaving(true);
+    setSavedViewsError("");
+    setSavedViewActionStatus("");
+    try {
+      const savedView = await createSettingsProviderWebhookSavedView(dataMode, {
+        name,
+        description: description.trim() || undefined,
+        filters: savedFiltersFromQueueFilters(unmatchedFilters),
+        sort: {
+          sortBy: unmatchedFilters.sortBy ?? "receivedAt",
+          sortDirection: unmatchedFilters.sortOrder ?? "desc"
+        },
+        pinned,
+        isDefault
+      });
+      setSavedViewActionStatus(`Saved view ${savedView.name}; externalCalls=${savedView.externalCalls}`);
+      await refreshSavedViews();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setSavedViewsError(`Saved Views API error: ${reason instanceof Error ? reason.message : "Unable to create saved view"}`);
+    } finally {
+      setSavedViewSaving(false);
+    }
+  }
+
+  function applySavedView(savedView: ProviderWebhookReviewSavedView) {
+    updateUnmatchedFilters(queueFiltersFromSavedView(savedView));
+    setTriageSavedViewFilters({
+      severity: savedView.filters.severity,
+      triageLane: savedView.filters.triageLane
+    });
+    setSavedViewActionStatus(`Applied saved view ${savedView.name}; externalCalls=${savedView.externalCalls}`);
+  }
+
+  async function archiveSavedView(savedViewId: string) {
+    setSavedViewSaving(true);
+    setSavedViewsError("");
+    setSavedViewActionStatus("");
+    try {
+      const savedView = await archiveSettingsProviderWebhookSavedView(dataMode, savedViewId);
+      setSavedViewActionStatus(`Archived saved view ${savedView.name}; externalCalls=${savedView.externalCalls}`);
+      await refreshSavedViews();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setSavedViewsError(`Saved Views API error: ${reason instanceof Error ? reason.message : "Unable to archive saved view"}`);
+    } finally {
+      setSavedViewSaving(false);
+    }
+  }
+
+  async function createOperatorNote(unmatchedInboundId: string, note: string) {
+    setOperatorNoteSavingId(unmatchedInboundId);
+    setOperatorNotesErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    setUnmatchedActionStatus("");
+    try {
+      const created = await createSettingsProviderWebhookOperatorNote(dataMode, unmatchedInboundId, { note });
+      setUnmatchedActionStatus(`Operator note saved for ${created.unmatchedId}; externalCalls=${created.externalCalls}`);
+      await loadOperatorNotes(unmatchedInboundId);
+      await refreshActiveHistory();
+      await refreshActiveDiagnostics();
+      const readiness = await loadSettingsProviderReadinessData(dataMode);
+      setProviderReadiness(readiness.providerReadiness);
+    } catch (reason) {
+      setOperatorNotesErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Operator Notes API error: ${reason instanceof Error ? reason.message : "Unable to create operator note"}`
+      }));
+    } finally {
+      setOperatorNoteSavingId("");
+    }
   }
 
   async function exportUnmatchedQueue(format: ProviderWebhookUnmatchedInboundExportFormat) {
@@ -351,6 +486,7 @@ export default function ChannelSettingsPage() {
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -376,6 +512,7 @@ export default function ChannelSettingsPage() {
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -389,6 +526,7 @@ export default function ChannelSettingsPage() {
     setSelectedUnmatchedIds([]);
     setUnmatchedBulkResult(null);
     setUnmatchedActionStatus("");
+    setTriageSavedViewFilters({});
     setUnmatchedFilters({
       ...defaultUnmatchedFilters,
       ...filters,
@@ -426,6 +564,7 @@ export default function ChannelSettingsPage() {
       }
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -476,6 +615,11 @@ export default function ChannelSettingsPage() {
         reviewTriage={reviewTriage}
         reviewTriageLoading={triageLoading}
         reviewTriageError={triageError}
+        reviewSavedViews={reviewSavedViews}
+        reviewSavedViewsLoading={savedViewsLoading}
+        reviewSavedViewsError={savedViewsError}
+        reviewSavedViewSaving={savedViewSaving}
+        reviewSavedViewActionStatus={savedViewActionStatus}
         activeDiagnosticsId={activeDiagnosticsId}
         activeDiagnostics={activeDiagnostics}
         diagnosticsLoadingId={diagnosticsLoadingId}
@@ -484,6 +628,10 @@ export default function ChannelSettingsPage() {
         activeHistory={activeHistory}
         historyLoadingId={historyLoadingId}
         historyErrorById={historyErrorById}
+        operatorNotesById={operatorNotesById}
+        operatorNotesLoadingId={operatorNotesLoadingId}
+        operatorNotesErrorById={operatorNotesErrorById}
+        operatorNoteSavingId={operatorNoteSavingId}
         unmatchedExportResult={unmatchedExportResult}
         unmatchedExportLoadingFormat={unmatchedExportLoadingFormat}
         unmatchedExportError={unmatchedExportError}
@@ -497,9 +645,14 @@ export default function ChannelSettingsPage() {
         onReviewUnmatchedInbound={reviewUnmatchedInbound}
         onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
+        onCreateSavedView={createSavedView}
+        onApplySavedView={applySavedView}
+        onArchiveSavedView={archiveSavedView}
         onLoadCandidates={loadCandidates}
         onLoadDiagnostics={loadDiagnostics}
         onLoadHistory={loadHistory}
+        onLoadOperatorNotes={loadOperatorNotes}
+        onCreateOperatorNote={createOperatorNote}
         onExportUnmatchedInbound={exportUnmatchedQueue}
       />
 
@@ -585,6 +738,36 @@ function platformLabel(platform: SettingsChannelAccount["platform"]) {
 
 function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
   return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
+}
+
+function savedFiltersFromQueueFilters(filters: ProviderWebhookUnmatchedInboundFilters): ProviderWebhookReviewSavedView["filters"] {
+  return {
+    ...(filters.provider ? { provider: filters.provider } : {}),
+    ...(filters.reviewStatus ? { reviewStatus: filters.reviewStatus } : {}),
+    ...(filters.linkStatus ? { linkStatus: filters.linkStatus } : {}),
+    ...(filters.unmatchedStatus ? { unmatchedStatus: filters.unmatchedStatus } : {}),
+    ...(filters.eventType ? { eventType: filters.eventType } : {}),
+    ...(filters.receivedAtFrom ? { receivedAtFrom: filters.receivedAtFrom } : {}),
+    ...(filters.receivedAtTo ? { receivedAtTo: filters.receivedAtTo } : {}),
+    ...(filters.limit ? { pageSize: filters.limit } : {})
+  };
+}
+
+function queueFiltersFromSavedView(savedView: ProviderWebhookReviewSavedView): ProviderWebhookUnmatchedInboundFilters {
+  return {
+    ...defaultUnmatchedFilters,
+    ...(savedView.filters.provider ? { provider: savedView.filters.provider } : {}),
+    ...(savedView.filters.reviewStatus ? { reviewStatus: savedView.filters.reviewStatus } : {}),
+    ...(savedView.filters.linkStatus ? { linkStatus: savedView.filters.linkStatus } : {}),
+    ...(savedView.filters.unmatchedStatus ? { unmatchedStatus: savedView.filters.unmatchedStatus } : {}),
+    ...(savedView.filters.eventType ? { eventType: savedView.filters.eventType } : {}),
+    ...(savedView.filters.receivedAtFrom ? { receivedAtFrom: savedView.filters.receivedAtFrom } : {}),
+    ...(savedView.filters.receivedAtTo ? { receivedAtTo: savedView.filters.receivedAtTo } : {}),
+    limit: savedView.filters.pageSize ?? defaultUnmatchedFilters.limit,
+    offset: 0,
+    sortBy: savedView.sort.sortBy,
+    sortOrder: savedView.sort.sortDirection
+  };
 }
 
 function formatDate(value: string | null | undefined) {

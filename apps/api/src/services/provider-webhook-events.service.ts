@@ -1,10 +1,18 @@
 import crypto from "node:crypto";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
+  createProviderWebhookOperatorNoteRequestSchema,
+  createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookReviewSavedViewFiltersSchema,
+  updateProviderWebhookReviewSavedViewRequestSchema,
+  type ProviderWebhookOperatorNote,
   providerWebhookUnmatchedInboundBulkReviewRequestSchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
+  type ProviderWebhookReviewSavedView,
+  type ProviderWebhookReviewSavedViewFilters,
+  type ProviderWebhookReviewSavedViewSort,
   type ProviderWebhookReviewAlerts,
   type ProviderWebhookReviewAlertSeverity,
   type ProviderWebhookReviewAlertsFilters,
@@ -104,6 +112,8 @@ const triageLaneDetails: Record<ProviderWebhookReviewTriageLane, {
 const events: ProviderWebhookEvent[] = [];
 const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
 const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntry[] = [];
+const reviewSavedViews: ProviderWebhookReviewSavedView[] = [];
+const operatorNotes: ProviderWebhookOperatorNote[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 @Injectable()
@@ -277,6 +287,122 @@ export class ProviderWebhookEventsService {
       topItems: triageItems.slice(0, 10),
       externalCalls: 0 as const
     };
+  }
+
+  listReviewSavedViews(tenantId: string): ProviderWebhookReviewSavedView[] {
+    return reviewSavedViews
+      .filter((view) => view.tenantId === tenantId && !view.archived)
+      .sort((left, right) => {
+        if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+        if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1;
+        return right.updatedAt.localeCompare(left.updatedAt);
+      });
+  }
+
+  createReviewSavedView(tenantId: string, body: unknown, actorUserId?: string): ProviderWebhookReviewSavedView {
+    const parsed = createProviderWebhookReviewSavedViewRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook review saved view request");
+    rejectUnsafeSavedViewInput(parsed.data);
+
+    const now = new Date().toISOString();
+    const view: ProviderWebhookReviewSavedView = {
+      id: `provider-webhook-review-view-${crypto.randomUUID()}`,
+      name: parsed.data.name,
+      description: safeOptionalDescription(parsed.data.description),
+      tenantId,
+      ownerId: safeActorId(actorUserId),
+      createdBy: safeActorLabel(actorUserId),
+      filters: cleanSavedViewFilters(parsed.data.filters),
+      sort: normalizeSavedViewSort(parsed.data.sort),
+      pinned: parsed.data.pinned,
+      isDefault: parsed.data.isDefault,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+      externalCalls: 0 as const
+    };
+    if (view.isDefault) clearDefaultSavedViews(tenantId);
+    reviewSavedViews.unshift(view);
+    return view;
+  }
+
+  updateReviewSavedView(tenantId: string, id: string, body: unknown, actorUserId?: string): ProviderWebhookReviewSavedView {
+    void actorUserId;
+    const parsed = updateProviderWebhookReviewSavedViewRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook review saved view update request");
+    rejectUnsafeSavedViewInput(parsed.data);
+
+    const view = findReviewSavedView(tenantId, id);
+    if (!view) throw new NotFoundException("Provider webhook review saved view not found");
+    if (view.archived) throw new ConflictException("Provider webhook review saved view is archived");
+
+    if (parsed.data.name !== undefined) view.name = parsed.data.name;
+    if (parsed.data.description !== undefined) view.description = safeOptionalDescription(parsed.data.description ?? undefined);
+    if (parsed.data.filters !== undefined) view.filters = cleanSavedViewFilters(parsed.data.filters);
+    if (parsed.data.sort !== undefined) view.sort = normalizeSavedViewSort(parsed.data.sort);
+    if (parsed.data.pinned !== undefined) view.pinned = parsed.data.pinned;
+    if (parsed.data.isDefault !== undefined) {
+      if (parsed.data.isDefault) clearDefaultSavedViews(tenantId, view.id);
+      view.isDefault = parsed.data.isDefault;
+    }
+    view.updatedAt = new Date().toISOString();
+    view.externalCalls = 0;
+    return view;
+  }
+
+  archiveReviewSavedView(tenantId: string, id: string, actorUserId?: string): ProviderWebhookReviewSavedView {
+    void actorUserId;
+    const view = findReviewSavedView(tenantId, id);
+    if (!view) throw new NotFoundException("Provider webhook review saved view not found");
+    view.archived = true;
+    view.isDefault = false;
+    view.updatedAt = new Date().toISOString();
+    view.externalCalls = 0;
+    return view;
+  }
+
+  listOperatorNotes(tenantId: string, unmatchedId: string): ProviderWebhookOperatorNote[] {
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    return operatorNotes
+      .filter((note) => note.tenantId === tenantId && note.unmatchedId === unmatchedId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  async createOperatorNote(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string): Promise<ProviderWebhookOperatorNote> {
+    const parsed = createProviderWebhookOperatorNoteRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook operator note request");
+    if (hasUnsafeSecretPattern(parsed.data.note)) throw new BadRequestException("Operator note contains unsafe provider or credential content");
+
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    const now = new Date().toISOString();
+    const note: ProviderWebhookOperatorNote = {
+      id: `provider-webhook-operator-note-${crypto.randomUUID()}`,
+      unmatchedId: item.id,
+      tenantId,
+      authorId: safeActorId(actorUserId),
+      authorLabel: safeActorLabel(actorUserId),
+      note: parsed.data.note,
+      context: operatorNoteContext(item),
+      createdAt: now,
+      updatedAt: now,
+      externalCalls: 0 as const
+    };
+    operatorNotes.push(note);
+    addUnmatchedHistoryEntry(item, {
+      action: "operator_note_created",
+      actionStatus: "created",
+      statusBefore: item.unmatchedStatus,
+      statusAfter: item.unmatchedStatus,
+      actor: note.authorId,
+      reason: "operator note",
+      message: note.note,
+      actionAt: now,
+      receivedAt: item.receivedAt
+    });
+    await this.recordOperatorNoteAudit(tenantId, actorUserId, item, note);
+    return note;
   }
 
   async listUnmatchedInboundCandidates(tenantId: string, id: string) {
@@ -1131,12 +1257,44 @@ export class ProviderWebhookEventsService {
       // Review/link mutations remain safe even if optional audit persistence is unavailable.
     }
   }
+
+  private async recordOperatorNoteAudit(
+    tenantId: string,
+    actorUserId: string | undefined,
+    item: ProviderWebhookUnmatchedInboundItem,
+    note: ProviderWebhookOperatorNote
+  ) {
+    try {
+      await this.audit.record({
+        tenantId,
+        actorUserId,
+        action: "provider_webhook.unmatched_inbound_operator_note_created",
+        entityType: "provider_webhook_operator_note",
+        entityId: note.id,
+        metadata: {
+          tenantId,
+          unmatchedInboundId: item.id,
+          provider: item.provider,
+          channelAccountId: item.channelAccountId,
+          payloadDigest: item.payloadDigest,
+          senderKeyDigest: item.senderKeyDigest,
+          roomKeyDigest: item.roomKeyDigest,
+          noteLength: note.note.length,
+          externalCalls: 0
+        }
+      });
+    } catch {
+      // Operator notes remain safe even when optional audit persistence is unavailable.
+    }
+  }
 }
 
 export function resetProviderWebhookEventStoreForTest() {
   events.splice(0);
   unmatchedInboundItems.splice(0);
   unmatchedInboundHistoryEntries.splice(0);
+  reviewSavedViews.splice(0);
+  operatorNotes.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -1183,6 +1341,10 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     webhookReviewQueueHealthEnabled: true,
     reviewTriageEnabled: true,
     triageGuidanceEnabled: true,
+    reviewSavedViewsEnabled: true,
+    operatorNotesEnabled: true,
+    savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
+    operatorNoteCount: operatorNotes.length,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
     openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
@@ -1226,6 +1388,65 @@ function findUnmatchedInboundItem(tenantId: string, id: string) {
 
 function findEventForUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
   return events.find((event) => event.tenantId === item.tenantId && event.unmatchedInboundId === item.id) ?? null;
+}
+
+function findReviewSavedView(tenantId: string, id: string) {
+  return reviewSavedViews.find((view) => view.tenantId === tenantId && view.id === id) ?? null;
+}
+
+function clearDefaultSavedViews(tenantId: string, exceptId?: string) {
+  for (const view of reviewSavedViews) {
+    if (view.tenantId === tenantId && view.id !== exceptId) {
+      view.isDefault = false;
+    }
+  }
+}
+
+function cleanSavedViewFilters(filters: ProviderWebhookReviewSavedViewFilters): ProviderWebhookReviewSavedViewFilters {
+  return providerWebhookReviewSavedViewFiltersSchema.parse(Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ));
+}
+
+function normalizeSavedViewSort(sort?: ProviderWebhookReviewSavedViewSort): ProviderWebhookReviewSavedViewSort {
+  return {
+    sortBy: sort?.sortBy ?? "receivedAt",
+    sortDirection: sort?.sortDirection ?? "desc"
+  };
+}
+
+function safeOptionalDescription(description: string | undefined) {
+  const trimmed = description?.replace(/\s+/g, " ").trim();
+  return trimmed ? trimmed : null;
+}
+
+function rejectUnsafeSavedViewInput(input: unknown) {
+  if (containsUnsafeProviderText(input)) {
+    throw new BadRequestException("Saved review view contains unsafe provider or credential content");
+  }
+}
+
+function containsUnsafeProviderText(value: unknown): boolean {
+  if (typeof value === "string") return hasUnsafeSecretPattern(value);
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(containsUnsafeProviderText);
+  return Object.entries(value as Record<string, unknown>).some(([key, child]) =>
+    hasUnsafeSecretPattern(key) || containsUnsafeProviderText(child)
+  );
+}
+
+function operatorNoteContext(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookOperatorNote["context"] {
+  return {
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus
+  };
 }
 
 function isOpenUnmatchedStatus(status: ProviderWebhookUnmatchedInboundStatus) {
@@ -1660,14 +1881,21 @@ function rowsToCsv(rows: ProviderWebhookUnmatchedInboundExportRow[]) {
   ];
   const csvRows = [
     columns.join(","),
-    ...rows.map((row) => columns.map((column) => csvCell(row[column])).join(","))
+    ...rows.map((row) => columns.map((column) => csvCell(row[column], column)).join(","))
   ];
   return csvRows.join("\n");
 }
 
-function csvCell(value: ProviderWebhookUnmatchedInboundExportRow[keyof ProviderWebhookUnmatchedInboundExportRow]) {
+function csvCell(value: ProviderWebhookUnmatchedInboundExportRow[keyof ProviderWebhookUnmatchedInboundExportRow], column: keyof ProviderWebhookUnmatchedInboundExportRow) {
   if (value === null || value === undefined) return "";
-  return `"${String(value).replace(/"/g, "\"\"")}"`;
+  const safeValue = column === "roomKeyDigest" ? csvSafeDigest(String(value)) : String(value);
+  return `"${safeValue.replace(/"/g, "\"\"")}"`;
+}
+
+function csvSafeDigest(value: string) {
+  if (!value.startsWith("sha256:")) return value;
+  const digest = value.slice("sha256:".length);
+  return `sha256:${digest.match(/.{1,8}/g)?.join("-") ?? digest}`;
 }
 
 function bulkReviewResult(
@@ -1709,6 +1937,11 @@ function isSafeLinkableUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) 
 function safeActorId(actorUserId: string | undefined) {
   const trimmed = actorUserId?.trim();
   return trimmed && !isUnsafeText(trimmed) ? trimmed : "system";
+}
+
+function safeActorLabel(actorUserId: string | undefined) {
+  const actor = safeActorId(actorUserId);
+  return actor === "system" ? "system" : `operator:${actor.slice(0, 12)}`;
 }
 
 function safeReviewReason(reason: ProviderWebhookUnmatchedInboundReviewRequest["reason"]) {
@@ -2219,6 +2452,10 @@ function safeTextPreview(value: string | null) {
 
 function isUnsafeText(value: string) {
   return /token|secret|authorization|cookie|replyToken|Bearer\s+|sk-[a-z0-9_-]{8,}|EA[A-Za-z0-9]{20,}/i.test(value);
+}
+
+function hasUnsafeSecretPattern(value: string) {
+  return /raw\s*(provider\s*)?(payload|webhook payload|signature|sender|room|sender id|room id)|replyToken|authorization|cookie|bearer\s+|token\s*[:=]|secret\s*[:=]|signature\s*[:=]|provider credential|access token|webhook secret|sk-[a-z0-9_-]{8,}|EA[A-Za-z0-9]{20,}/i.test(value);
 }
 
 function safeKeyDigest(kind: string, value: string | null) {

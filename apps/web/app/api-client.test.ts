@@ -9,7 +9,10 @@ import {
   createKnowledgeBase,
   createKnowledgeChunk,
   createKnowledgeDocument,
+  createProviderWebhookOperatorNote,
+  createProviderWebhookReviewSavedView,
   createProviderWebhookSandboxEvent,
+  archiveProviderWebhookReviewSavedView,
   bulkReviewProviderWebhookUnmatchedInbound,
   deleteKnowledgeBase,
   createWebchatMessage,
@@ -20,7 +23,9 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewTriage,
+  getProviderWebhookOperatorNotes,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundDiagnostics,
@@ -28,6 +33,7 @@ import {
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
+  updateProviderWebhookReviewSavedView,
   getKnowledgeBases,
   getKnowledgeChunks,
   getKnowledgeDocuments,
@@ -468,6 +474,99 @@ describe("frontend API client", () => {
     expect(JSON.stringify(triage)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("sends x-tenant-id and safe bodies for review saved views and operator notes", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([providerWebhookReviewSavedViewResponse("provider-webhook-review-view-1")]))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewSavedViewResponse("provider-webhook-review-view-2")))
+      .mockResolvedValueOnce(jsonResponse({ ...providerWebhookReviewSavedViewResponse("provider-webhook-review-view-2"), name: "Updated safe view" }))
+      .mockResolvedValueOnce(jsonResponse({ ...providerWebhookReviewSavedViewResponse("provider-webhook-review-view-2"), archived: true, isDefault: false }))
+      .mockResolvedValueOnce(jsonResponse([providerWebhookOperatorNoteResponse("provider-webhook-operator-note-1")]))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookOperatorNoteResponse("provider-webhook-operator-note-2")));
+
+    const savedViews = await getProviderWebhookReviewSavedViews();
+    const createdView = await createProviderWebhookReviewSavedView({
+      name: "Safe queue view",
+      description: "safe filter preset",
+      filters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created",
+        severity: "info",
+        triageLane: "safe_link_candidate_available",
+        receivedAtFrom: "2026-05-31T00:00:00.000Z",
+        pageSize: 10
+      },
+      sort: {
+        sortBy: "receivedAt",
+        sortDirection: "desc"
+      },
+      pinned: true,
+      isDefault: true
+    });
+    const updatedView = await updateProviderWebhookReviewSavedView("provider-webhook-review-view-2", {
+      name: "Updated safe view",
+      filters: {
+        provider: "line",
+        pageSize: 25
+      },
+      sort: {
+        sortBy: "receivedAt",
+        sortDirection: "asc"
+      }
+    });
+    const archivedView = await archiveProviderWebhookReviewSavedView("provider-webhook-review-view-2");
+    const notes = await getProviderWebhookOperatorNotes("provider-webhook-unmatched-1");
+    const createdNote = await createProviderWebhookOperatorNote("provider-webhook-unmatched-1", {
+      note: "Checked safely with local context only."
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-saved-views", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-saved-views", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-saved-views/provider-webhook-review-view-2", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-saved-views/provider-webhook-review-view-2/archive", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/operator-notes", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/operator-notes", expect.objectContaining({ method: "POST" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      name: "Safe queue view",
+      description: "safe filter preset",
+      filters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created",
+        severity: "info",
+        triageLane: "safe_link_candidate_available",
+        receivedAtFrom: "2026-05-31T00:00:00.000Z",
+        pageSize: 10
+      },
+      sort: {
+        sortBy: "receivedAt",
+        sortDirection: "desc"
+      },
+      pinned: true,
+      isDefault: true
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
+      name: "Updated safe view",
+      filters: { provider: "line", pageSize: 25 },
+      sort: { sortBy: "receivedAt", sortDirection: "asc" }
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({
+      note: "Checked safely with local context only."
+    });
+    expect(savedViews[0]?.externalCalls).toBe(0);
+    expect(createdView.filters).toMatchObject({ provider: "line", pageSize: 10 });
+    expect(updatedView.name).toBe("Updated safe view");
+    expect(archivedView.archived).toBe(true);
+    expect(notes[0]).toMatchObject({ unmatchedId: "provider-webhook-unmatched-1", externalCalls: 0 });
+    expect(createdNote.note).toBe("Checked safely with local context only.");
+    expect(JSON.stringify({ savedViews, createdView, updatedView, archivedView, notes, createdNote })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("surfaces unmatched history and export API errors without local fallback", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "history unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundHistory("provider-webhook-unmatched-1"))
@@ -494,6 +593,14 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "diagnostics unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundDiagnostics("provider-webhook-unmatched-1"))
       .rejects.toThrow("API request failed (503): diagnostics unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "saved views unavailable" }, 503));
+    await expect(getProviderWebhookReviewSavedViews())
+      .rejects.toThrow("API request failed (503): saved views unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "operator notes unavailable" }, 503));
+    await expect(getProviderWebhookOperatorNotes("provider-webhook-unmatched-1"))
+      .rejects.toThrow("API request failed (503): operator notes unavailable");
   });
 
 
@@ -1346,6 +1453,10 @@ function providerReadinessResponse() {
       webhookReviewQueueHealthEnabled: true,
       reviewTriageEnabled: true,
       triageGuidanceEnabled: true,
+      reviewSavedViewsEnabled: true,
+      operatorNotesEnabled: true,
+      savedViewCount: 1,
+      operatorNoteCount: 1,
       reviewAlertCriticalCount: 1,
       criticalTriageCount: 1,
       openTriageCount: 1,
@@ -1528,6 +1639,63 @@ function providerWebhookCandidateResponse(conversationId: string, provider: "lin
     latestMessageAt: "2026-05-31T00:00:00.000Z",
     matchReason: "platform, channel account, and room digest match",
     matchConfidence: 0.98,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewSavedViewResponse(id: string) {
+  return {
+    id,
+    name: "Safe queue view",
+    description: "safe filter preset",
+    tenantId: defaultTenantId,
+    ownerId: "operator-safe",
+    createdBy: "operator:operator-saf",
+    filters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "info",
+      triageLane: "safe_link_candidate_available",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      pageSize: 10
+    },
+    sort: {
+      sortBy: "receivedAt",
+      sortDirection: "desc"
+    },
+    pinned: true,
+    isDefault: true,
+    archived: false,
+    createdAt: "2026-05-31T00:00:00.000Z",
+    updatedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookOperatorNoteResponse(id: string) {
+  return {
+    id,
+    unmatchedId: "provider-webhook-unmatched-1",
+    tenantId: defaultTenantId,
+    authorId: "operator-safe",
+    authorLabel: "operator:operator-saf",
+    note: "Checked safely with local context only.",
+    context: {
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed"
+    },
+    createdAt: "2026-05-31T00:00:00.000Z",
+    updatedAt: "2026-05-31T00:00:00.000Z",
     externalCalls: 0
   };
 }
