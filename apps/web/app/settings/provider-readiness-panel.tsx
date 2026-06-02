@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Check, Link2, RadioTower, Send, ShieldCheck, SkipForward } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import { Check, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -10,19 +10,27 @@ type ProviderReadinessPanelProps = {
   webhookEventsLoading?: boolean;
   webhookEventsError?: string;
   unmatchedInboundItems?: ProviderWebhookUnmatchedInboundItem[];
+  unmatchedFilters?: ProviderWebhookUnmatchedInboundFilters;
   unmatchedInboundLoading?: boolean;
   unmatchedInboundError?: string;
   unmatchedActionSavingId?: string;
   unmatchedActionStatus?: string;
+  candidateItemsById?: Record<string, ProviderWebhookCandidateConversation[]>;
+  candidateErrorById?: Record<string, string>;
+  candidateLoadingId?: string;
   webhookEventSaving?: boolean;
+  onUnmatchedFiltersChange?: (filters: ProviderWebhookUnmatchedInboundFilters) => void;
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
   onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
+  onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
 };
 
 const providers = ["line", "telegram", "facebook", "instagram"] as const;
 type ProviderOption = (typeof providers)[number];
 const eventTypes: ProviderWebhookEventType[] = ["message.created", "webhook.verified", "webhook.failed"];
+const reviewStatuses = ["pending", "reviewed", "skipped", "linked"] as const;
+const linkStatuses = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
 
 export function ProviderReadinessPanel({
   readiness,
@@ -32,14 +40,20 @@ export function ProviderReadinessPanel({
   webhookEventsLoading = false,
   webhookEventsError = "",
   unmatchedInboundItems = [],
+  unmatchedFilters = {},
   unmatchedInboundLoading = false,
   unmatchedInboundError = "",
   unmatchedActionSavingId = "",
   unmatchedActionStatus = "",
+  candidateItemsById = {},
+  candidateErrorById = {},
+  candidateLoadingId = "",
   webhookEventSaving = false,
+  onUnmatchedFiltersChange,
   onCreateSandboxEvent,
   onReviewUnmatchedInbound,
-  onLinkUnmatchedInbound
+  onLinkUnmatchedInbound,
+  onLoadCandidates
 }: ProviderReadinessPanelProps) {
   const [provider, setProvider] = useState<ProviderOption>("line");
   const [eventType, setEventType] = useState<ProviderWebhookEventType>("message.created");
@@ -50,6 +64,7 @@ export function ProviderReadinessPanel({
   const [linkConversationIds, setLinkConversationIds] = useState<Record<string, string>>({});
   const lastEvent = webhookEvents[0] ?? null;
   const replayDetectedCount = readiness?.replayDetectedCount ?? webhookEvents.filter((event) => event.replayDetected).length;
+  const queueSummary = summarizeUnmatchedQueue(unmatchedInboundItems);
 
   async function submitSandboxEvent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -105,6 +120,7 @@ export function ProviderReadinessPanel({
         e("span", null, `inboundPersistenceSkippedNoMatchCount=${readiness.inboundPersistenceSkippedNoMatchCount}`),
         e("span", null, `unmatched inbound review=${readiness.webhookUnmatchedInboundReviewEnabled ? "enabled" : "disabled"}`),
         e("span", null, `review actions=${readiness.webhookUnmatchedReviewActionsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `candidate lookup=${readiness.webhookCandidateLookupEnabled ? "enabled" : "disabled"}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
         e("span", null, `unmatched replay blocked count=${readiness.unmatchedInboundReplayBlockedCount}`),
@@ -231,6 +247,54 @@ export function ProviderReadinessPanel({
         e("div", null,
           e("h3", null, "Unmatched inbound review"),
           e("p", null, "Sandbox no-match queue with safe digests only.")
+        ),
+        e("div", { className: "providerReadinessSummary", "aria-label": "Unmatched inbound queue summary" },
+          e("span", null, `visible unmatched count=${unmatchedInboundItems.length}`),
+          e("span", null, `visible open count=${queueSummary.open}`),
+          e("span", null, `visible reviewed count=${queueSummary.reviewed}`),
+          e("span", null, `visible skipped count=${queueSummary.skipped}`),
+          e("span", null, `visible linked count=${queueSummary.linked}`)
+        )
+      ),
+      e("div", { className: "webhookEventForm", "aria-label": "Unmatched inbound queue filters" },
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Provider filter"),
+          e("select", {
+            value: unmatchedFilters.provider ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, provider: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["provider"] })
+          },
+            e("option", { value: "all" }, "All providers"),
+            ...providers.map((item) => e("option", { key: item, value: item }, providerLabel(item)))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Review status"),
+          e("select", {
+            value: unmatchedFilters.reviewStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, reviewStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })
+          },
+            e("option", { value: "all" }, "All review"),
+            ...reviewStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Link status"),
+          e("select", {
+            value: unmatchedFilters.linkStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => onUnmatchedFiltersChange?.({ ...unmatchedFilters, linkStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })
+          },
+            e("option", { value: "all" }, "All links"),
+            ...linkStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: !onUnmatchedFiltersChange,
+          onClick: () => onUnmatchedFiltersChange?.({})
+        },
+          e(X, { size: 15 }),
+          "Clear filters"
         )
       ),
       unmatchedInboundError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedInboundError) : null,
@@ -262,6 +326,41 @@ export function ProviderReadinessPanel({
             e("span", null, formatDate(item.receivedAt))
           ),
           item.textPreview ? e("p", null, item.textPreview) : null,
+          isOpenUnmatchedItem(item) ? e("div", { className: "webhookCandidateSurface" },
+            e("div", { className: "webhookEventActions" },
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: candidateLoadingId === item.id || !onLoadCandidates,
+                onClick: () => void onLoadCandidates?.(item.id)
+              },
+                e(Search, { size: 15 }),
+                candidateLoadingId === item.id ? "Loading candidates..." : "Load candidates"
+              ),
+              (candidateItemsById[item.id] ?? []).length > 0 ? e("span", null, `candidate count=${candidateItemsById[item.id].length}`) : null
+            ),
+            candidateErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, candidateErrorById[item.id]) : null,
+            (candidateItemsById[item.id] ?? []).length > 0 ? e("div", { className: "webhookEventList compact" },
+              ...candidateItemsById[item.id].map((candidate) => e("label", { key: candidate.conversationId, className: "webhookCandidateRow" },
+                e("input", {
+                  type: "radio",
+                  name: `candidate-${item.id}`,
+                  checked: (linkConversationIds[item.id] ?? "") === candidate.conversationId,
+                  onChange: () => setLinkConversationIds((current) => ({ ...current, [item.id]: candidate.conversationId }))
+                }),
+                e("span", null, `conversationId=${candidate.conversationId}`),
+                e("span", null, `platform=${candidate.platform}`),
+                e("span", null, `channelAccountId=${candidate.channelAccountId}`),
+                e("span", null, `roomIdDigest=${candidate.roomIdDigest}`),
+                e("span", null, `safeRoomLabel=${candidate.safeRoomLabel}`),
+                e("span", null, `matchConfidence=${candidate.matchConfidence}`),
+                e("span", null, `matchReason=${candidate.matchReason}`),
+                e("span", null, `latestMessageAt=${candidate.latestMessageAt ? formatDate(candidate.latestMessageAt) : "none"}`),
+                candidate.latestMessagePreview ? e("p", null, candidate.latestMessagePreview) : null,
+                e("span", null, `externalCalls=${candidate.externalCalls}`)
+              ))
+            ) : candidateItemsById[item.id] && !candidateErrorById[item.id] && candidateLoadingId !== item.id ? e("div", { className: "providerEmptyState" }, "No safe candidate conversations found.") : null
+          ) : null,
           isOpenUnmatchedItem(item) ? e("div", { className: "webhookEventActions" },
             e("button", {
               className: "webhookEventButton",
@@ -361,6 +460,15 @@ function formatDate(value: string) {
 
 function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
   return item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed";
+}
+
+function summarizeUnmatchedQueue(items: ProviderWebhookUnmatchedInboundItem[]) {
+  return {
+    open: items.filter(isOpenUnmatchedItem).length,
+    reviewed: items.filter((item) => item.reviewStatus === "reviewed").length,
+    skipped: items.filter((item) => item.reviewStatus === "skipped").length,
+    linked: items.filter((item) => item.reviewStatus === "linked").length
+  };
 }
 
 const e = React.createElement;

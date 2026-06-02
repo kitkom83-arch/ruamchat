@@ -550,6 +550,31 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(controller.listUnmatchedInbound(otherTenantId, "open").map((item) => item.textPreview)).toEqual(["Safe tenant two"]);
   });
 
+  it("filters unmatched inbound review lists by safe query fields", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const reviewedItem = await createUnmatched(controller, "raw-filter-reviewed-room-62", "event-filter-reviewed-62", "Safe reviewed filter");
+    const pendingItem = await createUnmatched(controller, "raw-filter-pending-room-62", "event-filter-pending-62", "Safe pending filter");
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, { status: "reviewed" });
+
+    const pending = controller.listUnmatchedInbound(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      status: "open",
+      eventType: "message.created",
+      limit: "5"
+    });
+    const reviewed = controller.listUnmatchedInbound(tenantId, {
+      reviewStatus: "reviewed",
+      unmatchedStatus: "reviewed"
+    });
+
+    expect(pending.map((item) => item.id)).toEqual([pendingItem.id]);
+    expect(reviewed.map((item) => item.id)).toEqual([reviewedItem.id]);
+    expect(() => controller.listUnmatchedInbound(tenantId, { provider: "webchat" })).toThrow(BadRequestException);
+    expect(JSON.stringify({ pending, reviewed })).not.toMatch(/raw-filter|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+  });
+
   it("requires tenant ids for unmatched review actions", async () => {
     const { controller } = buildController();
 
@@ -608,6 +633,46 @@ describe("ProviderWebhooksController sandbox events", () => {
     const item = await createUnmatched(controller, "raw-tenant-scope-room-60", "event-tenant-scope-60", "Safe tenant scoped review");
 
     await expect(controller.reviewUnmatchedInbound("00000000-0000-4000-8000-000000000099", "user-api", item.id, { status: "reviewed" }))
+      .rejects.toThrow("Unmatched inbound item not found");
+  });
+
+  it("returns safe candidate conversations for tenant-owned unmatched items only", async () => {
+    const conversations = {
+      ...noMatchConversations(),
+      findSafeProviderWebhookCandidateConversations: vi.fn(async () => ([{
+        conversationId: "conversation-safe-internal",
+        platform: "line",
+        channelAccountId: "sandbox:line",
+        roomIdDigest: "sha256:saferoomdigest",
+        safeRoomLabel: "line conversation digest match",
+        latestMessagePreview: "Safe candidate preview",
+        latestMessageAt: "2026-05-31T00:00:00.000Z",
+        matchReason: "platform, channel account, and room digest match",
+        matchConfidence: 0.98,
+        externalCalls: 0
+      }]))
+    };
+    const { controller } = buildController(conversations);
+    const item = await createUnmatched(controller, "raw-candidate-room-62", "event-candidate-62", "Safe candidate lookup");
+
+    const candidates = await controller.listUnmatchedInboundCandidates(tenantId, item.id);
+
+    expect(conversations.findSafeProviderWebhookCandidateConversations).toHaveBeenCalledWith({
+      tenantId,
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomKeyDigest: item.roomKeyDigest,
+      limit: 5
+    });
+    expect(candidates).toEqual([expect.objectContaining({
+      conversationId: "conversation-safe-internal",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      roomIdDigest: "sha256:saferoomdigest",
+      externalCalls: 0
+    })]);
+    expect(JSON.stringify(candidates)).not.toMatch(/raw-candidate|raw-sender|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+    await expect(controller.listUnmatchedInboundCandidates("00000000-0000-4000-8000-000000000099", item.id))
       .rejects.toThrow("Unmatched inbound item not found");
   });
 
@@ -749,6 +814,7 @@ function noMatchConversations() {
       duplicate: false
     })),
     getSafeConversationLinkContext: vi.fn(),
+    findSafeProviderWebhookCandidateConversations: vi.fn(async () => []),
     persistLinkedSandboxWebhookInboundMessage: vi.fn()
   };
 }

@@ -2769,6 +2769,31 @@ dd {
   font-weight: 800;
 }
 
+.webhookCandidateSurface {
+  display: grid;
+  gap: 8px;
+}
+
+.webhookCandidateRow {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(120px, 1fr));
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.webhookCandidateRow span,
+.webhookCandidateRow p {
+  overflow-wrap: anywhere;
+}
+
+.webhookCandidateRow p {
+  grid-column: 2 / -1;
+}
+
 .channelPlatformGroup {
   display: grid;
   gap: 10px;

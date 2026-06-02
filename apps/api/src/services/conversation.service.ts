@@ -8,6 +8,8 @@ import {
   CreateTaskRequest,
   FollowUpConversationRequest,
   NormalizedInboundMessage,
+  ProviderSandboxProvider,
+  ProviderWebhookCandidateConversation,
   RoomAiPolicyPatch,
   SendMessageRequest,
   UpdateConversationPriorityRequest,
@@ -627,6 +629,68 @@ export class ConversationService {
       roomKeyDigest: conversation.externalConversationId ? safeProviderWebhookRoomKeyDigest(conversation.externalConversationId) : null,
       externalCalls: 0 as const
     };
+  }
+
+  async findSafeProviderWebhookCandidateConversations(input: {
+    tenantId: string;
+    platform: ProviderSandboxProvider;
+    channelAccountId: string;
+    roomKeyDigest: string;
+    limit?: number;
+  }): Promise<ProviderWebhookCandidateConversation[]> {
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        tenantId: input.tenantId,
+        status: { notIn: ["closed", "spam"] },
+        room: {
+          is: {
+            platform: input.platform,
+            channelAccountId: input.channelAccountId
+          }
+        }
+      },
+      include: {
+        room: {
+          select: {
+            platform: true,
+            channelAccountId: true
+          }
+        },
+        messages: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            text: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+      take: Math.min(Math.max(input.limit ?? 5, 1), 25)
+    });
+
+    return conversations
+      .map((conversation) => {
+        const roomIdDigest = conversation.externalConversationId ? safeProviderWebhookRoomKeyDigest(conversation.externalConversationId) : null;
+        return { conversation, roomIdDigest };
+      })
+      .filter((item) => item.roomIdDigest === input.roomKeyDigest)
+      .slice(0, Math.min(Math.max(input.limit ?? 5, 1), 10))
+      .map(({ conversation, roomIdDigest }) => {
+        const latestMessage = conversation.messages[0] ?? null;
+        return {
+          conversationId: conversation.id,
+          platform: input.platform,
+          channelAccountId: conversation.room.channelAccountId,
+          roomIdDigest: roomIdDigest!,
+          safeRoomLabel: `${input.platform} conversation digest match`,
+          latestMessagePreview: safeProviderWebhookMessagePreview(latestMessage?.text ?? null),
+          latestMessageAt: latestMessage?.createdAt.toISOString() ?? null,
+          matchReason: "platform, channel account, and room digest match",
+          matchConfidence: 0.98,
+          externalCalls: 0 as const
+        };
+      });
   }
 
   async persistLinkedSandboxWebhookInboundMessage(input: {
@@ -1844,4 +1908,11 @@ function parseSafeDate(value: string | null) {
 
 function safeProviderWebhookRoomKeyDigest(value: string) {
   return `sha256:${crypto.createHash("sha256").update(`room:${value}`).digest("hex").slice(0, 24)}`;
+}
+
+function safeProviderWebhookMessagePreview(value: string | null) {
+  if (!value || looksRawSecret(value)) return null;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+  return compact.length > 80 ? `${compact.slice(0, 77)}...` : compact;
 }

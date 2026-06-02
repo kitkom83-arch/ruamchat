@@ -88,6 +88,7 @@ export function buildReadinessSnapshot(env: EnvLike = process.env) {
       inboundPersistenceSkippedNoMatchCount: webhookGuardrails.inboundPersistenceSkippedNoMatchCount,
       webhookUnmatchedInboundReviewEnabled: webhookGuardrails.webhookUnmatchedInboundReviewEnabled,
       webhookUnmatchedReviewActionsEnabled: webhookGuardrails.webhookUnmatchedReviewActionsEnabled,
+      webhookCandidateLookupEnabled: webhookGuardrails.webhookCandidateLookupEnabled,
       unmatchedInboundOpenCount: webhookGuardrails.unmatchedInboundOpenCount,
       unmatchedInboundQueuedCount: webhookGuardrails.unmatchedInboundQueuedCount,
       unmatchedInboundReplayBlockedCount: webhookGuardrails.unmatchedInboundReplayBlockedCount,

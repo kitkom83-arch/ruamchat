@@ -15,6 +15,8 @@ import {
   aiSuggestionFeedbackSchema,
   apiHealthSchema,
   providerWebhookEventSchema,
+  providerWebhookCandidateConversationSchema,
+  providerWebhookUnmatchedInboundFiltersSchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundItemSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
@@ -158,7 +160,9 @@ import {
   type LinkContactIdentityRequest,
   type Platform,
   type ProviderReadiness,
+  type ProviderWebhookCandidateConversation,
   type ProviderWebhookEvent,
+  type ProviderWebhookUnmatchedInboundFilters,
   type ProviderWebhookUnmatchedInboundLinkRequest,
   type ProviderWebhookUnmatchedInboundItem,
   type ProviderWebhookUnmatchedInboundReviewRequest,
@@ -258,8 +262,18 @@ export async function getProviderWebhookEvents(): Promise<ProviderWebhookEvent[]
   return request("/provider-webhooks/events", providerWebhookEventSchema.array());
 }
 
-export async function getProviderWebhookUnmatchedInbound(): Promise<ProviderWebhookUnmatchedInboundItem[]> {
-  return request("/provider-webhooks/unmatched-inbound", providerWebhookUnmatchedInboundItemSchema.array());
+export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundItem[]> {
+  const parsed = providerWebhookUnmatchedInboundFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  Object.entries(parsed).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  });
+  const search = params.toString();
+  return request(`/provider-webhooks/unmatched-inbound${search ? `?${search}` : ""}`, providerWebhookUnmatchedInboundItemSchema.array());
+}
+
+export async function getProviderWebhookUnmatchedInboundCandidates(unmatchedInboundId: string): Promise<ProviderWebhookCandidateConversation[]> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/candidates`, providerWebhookCandidateConversationSchema.array());
 }
 
 export async function createProviderWebhookSandboxEvent(payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {
