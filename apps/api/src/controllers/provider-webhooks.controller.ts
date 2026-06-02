@@ -35,6 +35,39 @@ export class ProviderWebhooksController {
     return this.events.getReviewTriage(requireTenantId(tenant), parseReviewTriageFilters(query));
   }
 
+  @Get("review-saved-views")
+  listReviewSavedViews(@Headers("x-tenant-id") tenant: string | undefined) {
+    return this.events.listReviewSavedViews(requireTenantId(tenant));
+  }
+
+  @Post("review-saved-views")
+  createReviewSavedView(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.createReviewSavedView(requireTenantId(tenant), body, userId);
+  }
+
+  @Patch("review-saved-views/:id")
+  updateReviewSavedView(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.updateReviewSavedView(requireTenantId(tenant), id, body, userId);
+  }
+
+  @Patch("review-saved-views/:id/archive")
+  archiveReviewSavedView(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.archiveReviewSavedView(requireTenantId(tenant), id, userId);
+  }
+
   @Get("unmatched-inbound")
   listUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
@@ -53,6 +86,24 @@ export class ProviderWebhooksController {
   ) {
     const filters = parseUnmatchedInboundExportQuery(query);
     return this.events.exportUnmatchedInboundQueue(requireTenantId(tenant), filters);
+  }
+
+  @Get("unmatched-inbound/:id/operator-notes")
+  listOperatorNotes(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.listOperatorNotes(requireTenantId(tenant), id);
+  }
+
+  @Post("unmatched-inbound/:id/operator-notes")
+  createOperatorNote(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.createOperatorNote(requireTenantId(tenant), id, body, userId);
   }
 
   @Get("unmatched-inbound/:id/diagnostics")

@@ -1338,6 +1338,158 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(JSON.stringify({ linked, duplicate, history })).not.toMatch(/raw-link-persist-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
   });
 
+  it("creates, refetches, updates, and archives safe review saved views without hard delete", () => {
+    const { controller } = buildController();
+
+    expect(() => controller.listReviewSavedViews(undefined)).toThrow(BadRequestException);
+    const created = controller.createReviewSavedView(tenantId, "operator-safe", {
+      name: "LINE pending queue",
+      description: "Safe filter preset",
+      filters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created",
+        severity: "info",
+        triageLane: "safe_link_candidate_available",
+        receivedAtFrom: "2026-05-31T00:00:00.000Z",
+        pageSize: 10
+      },
+      sort: {
+        sortBy: "receivedAt",
+        sortDirection: "desc"
+      },
+      pinned: true,
+      isDefault: true
+    });
+    const refetched = controller.listReviewSavedViews(tenantId);
+    const createdSnapshot = JSON.parse(JSON.stringify(created));
+    const refetchedSnapshot = JSON.parse(JSON.stringify(refetched));
+    const updated = controller.updateReviewSavedView(tenantId, "operator-safe", created.id, {
+      name: "LINE pending queue updated",
+      filters: {
+        provider: "line",
+        reviewStatus: "pending",
+        pageSize: 25
+      },
+      sort: {
+        sortBy: "receivedAt",
+        sortDirection: "asc"
+      },
+      pinned: false
+    });
+    const archived = controller.archiveReviewSavedView(tenantId, "operator-safe", created.id);
+    const activeAfterArchive = controller.listReviewSavedViews(tenantId);
+    const serialized = JSON.stringify({ createdSnapshot, refetchedSnapshot, updated, archived, activeAfterArchive });
+
+    expect(createdSnapshot).toMatchObject({
+      tenantId,
+      ownerId: "operator-safe",
+      createdBy: "operator:operator-saf",
+      pinned: true,
+      isDefault: true,
+      archived: false,
+      externalCalls: 0
+    });
+    expect(refetchedSnapshot.map((view: { id: string }) => view.id)).toContain(created.id);
+    expect(updated).toMatchObject({
+      name: "LINE pending queue updated",
+      filters: { provider: "line", reviewStatus: "pending", pageSize: 25 },
+      sort: { sortBy: "receivedAt", sortDirection: "asc" },
+      pinned: false,
+      externalCalls: 0
+    });
+    expect(archived).toMatchObject({
+      id: created.id,
+      archived: true,
+      isDefault: false,
+      externalCalls: 0
+    });
+    expect(activeAfterArchive.map((view) => view.id)).not.toContain(created.id);
+    expect(serialized).not.toMatch(/rawPayload|providerRaw|payloadJson|replyToken|authorization|cookie|token[:=]|secret[:=]|raw sender|raw room/i);
+  });
+
+  it("rejects unsafe or unknown saved view filters", () => {
+    const { controller } = buildController();
+
+    expect(() => controller.createReviewSavedView(tenantId, undefined, {
+      name: "Unsafe raw payload",
+      filters: { provider: "line" }
+    })).toThrow("unsafe provider");
+    expect(() => controller.createReviewSavedView(tenantId, undefined, {
+      name: "Unknown filters",
+      filters: {
+        provider: "line",
+        rawPayload: "must-not-store"
+      }
+    })).toThrow("Invalid provider webhook review saved view request");
+    expect(() => controller.createReviewSavedView(tenantId, undefined, {
+      name: "Secret value",
+      description: "secret=must-not-store",
+      filters: { provider: "line" }
+    })).toThrow("unsafe provider");
+  });
+
+  it("creates tenant-scoped operator notes with safe history and no raw provider leakage", async () => {
+    const { controller, audit } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-note-room-68", "event-note-68", "Safe note target");
+
+    expect(() => controller.listOperatorNotes(undefined, item.id)).toThrow(BadRequestException);
+    expect(() => controller.listOperatorNotes("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
+    const before = controller.listOperatorNotes(tenantId, item.id);
+    const note = await controller.createOperatorNote(tenantId, "operator-safe", item.id, {
+      note: "Checked safely with local context only."
+    });
+    const after = controller.listOperatorNotes(tenantId, item.id);
+    const history = controller.listUnmatchedInboundHistory(tenantId, item.id);
+    const serialized = JSON.stringify({ note, after, history });
+
+    expect(before).toHaveLength(0);
+    expect(note).toMatchObject({
+      unmatchedId: item.id,
+      tenantId,
+      authorId: "operator-safe",
+      authorLabel: "operator:operator-saf",
+      note: "Checked safely with local context only.",
+      context: {
+        provider: "line",
+        platform: "line",
+        channelAccountId: "sandbox:line",
+        eventType: "message.created",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed"
+      },
+      externalCalls: 0
+    });
+    expect(after.map((entry) => entry.id)).toContain(note.id);
+    expect(history.entries.map((entry) => entry.action)).toContain("operator_note_created");
+    expect(history.entries.find((entry) => entry.action === "operator_note_created")).toMatchObject({
+      message: "Checked safely with local context only.",
+      externalCalls: 0
+    });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_operator_note_created",
+      entityType: "provider_webhook_operator_note"
+    }));
+    expect(serialized).not.toMatch(/raw-note-room-68|raw-sender-event-note-68|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
+  });
+
+  it("rejects empty, too long, unsafe, and cross-tenant operator notes", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-note-reject-room-68", "event-note-reject-68", "Safe note reject target");
+
+    await expect(controller.createOperatorNote(tenantId, undefined, item.id, { note: "   " }))
+      .rejects.toThrow("Invalid provider webhook operator note request");
+    await expect(controller.createOperatorNote(tenantId, undefined, item.id, { note: "a".repeat(1001) }))
+      .rejects.toThrow("Invalid provider webhook operator note request");
+    await expect(controller.createOperatorNote(tenantId, undefined, item.id, { note: "raw sender id raw-line-user-1" }))
+      .rejects.toThrow("unsafe provider");
+    await expect(controller.createOperatorNote("other-tenant", undefined, item.id, { note: "Safe note" }))
+      .rejects.toThrow("Unmatched inbound item not found");
+  });
+
   it("rejects live provider outbound mode", async () => {
     process.env.PROVIDER_OUTBOUND_MODE = "real";
     const { controller } = buildController();

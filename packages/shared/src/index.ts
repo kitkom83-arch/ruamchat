@@ -2117,6 +2117,96 @@ export const providerWebhookReviewTriageFiltersSchema = providerWebhookReviewAle
   .strip();
 export type ProviderWebhookReviewTriageFilters = z.infer<typeof providerWebhookReviewTriageFiltersSchema>;
 
+export const providerWebhookReviewSavedViewFiltersSchema = z.object({
+  provider: providerSandboxProviderSchema.optional(),
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema.optional(),
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema.optional(),
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.optional(),
+  eventType: providerWebhookEventTypeSchema.optional(),
+  severity: providerWebhookReviewAlertSeveritySchema.optional(),
+  triageLane: providerWebhookReviewTriageLaneSchema.optional(),
+  receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
+  receivedAtTo: providerWebhookReceivedAtFilterSchema.optional(),
+  pageSize: z.coerce.number().int().min(1).max(50).optional()
+}).strict();
+export type ProviderWebhookReviewSavedViewFilters = z.infer<typeof providerWebhookReviewSavedViewFiltersSchema>;
+
+export const providerWebhookReviewSavedViewSortSchema = z.object({
+  sortBy: providerWebhookUnmatchedInboundSortBySchema.default("receivedAt"),
+  sortDirection: providerWebhookUnmatchedInboundSortOrderSchema.default("desc")
+}).strict();
+export type ProviderWebhookReviewSavedViewSort = z.infer<typeof providerWebhookReviewSavedViewSortSchema>;
+
+export const createProviderWebhookReviewSavedViewRequestSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(240).optional(),
+  filters: providerWebhookReviewSavedViewFiltersSchema.default({}),
+  sort: providerWebhookReviewSavedViewSortSchema.default({ sortBy: "receivedAt", sortDirection: "desc" }),
+  pinned: z.boolean().default(false),
+  isDefault: z.boolean().default(false)
+}).strict();
+export type CreateProviderWebhookReviewSavedViewRequest = z.input<typeof createProviderWebhookReviewSavedViewRequestSchema>;
+
+export const updateProviderWebhookReviewSavedViewRequestSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().trim().max(240).nullable().optional(),
+  filters: providerWebhookReviewSavedViewFiltersSchema.optional(),
+  sort: providerWebhookReviewSavedViewSortSchema.optional(),
+  pinned: z.boolean().optional(),
+  isDefault: z.boolean().optional()
+}).strict();
+export type UpdateProviderWebhookReviewSavedViewRequest = z.input<typeof updateProviderWebhookReviewSavedViewRequestSchema>;
+
+export const providerWebhookReviewSavedViewSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1).nullable(),
+  tenantId: z.string().min(1),
+  ownerId: z.string().min(1).nullable(),
+  createdBy: z.string().min(1).nullable(),
+  filters: providerWebhookReviewSavedViewFiltersSchema,
+  sort: providerWebhookReviewSavedViewSortSchema,
+  pinned: z.boolean(),
+  isDefault: z.boolean(),
+  archived: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewSavedView = z.infer<typeof providerWebhookReviewSavedViewSchema>;
+
+export const createProviderWebhookOperatorNoteRequestSchema = z.object({
+  note: z.string().trim().min(1).max(1000)
+}).strict();
+export type CreateProviderWebhookOperatorNoteRequest = z.input<typeof createProviderWebhookOperatorNoteRequestSchema>;
+
+export const providerWebhookOperatorNoteContextSchema = z.object({
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema
+}).strict();
+export type ProviderWebhookOperatorNoteContext = z.infer<typeof providerWebhookOperatorNoteContextSchema>;
+
+export const providerWebhookOperatorNoteSchema = z.object({
+  id: z.string().min(1),
+  unmatchedId: z.string().min(1),
+  tenantId: z.string().min(1),
+  authorId: z.string().min(1).nullable(),
+  authorLabel: z.string().min(1).nullable(),
+  note: z.string().min(1).max(1000),
+  context: providerWebhookOperatorNoteContextSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookOperatorNote = z.infer<typeof providerWebhookOperatorNoteSchema>;
+
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
   entryCount: z.number().int().nonnegative()
@@ -2175,6 +2265,10 @@ export const providerReadinessSchema = z.object({
   webhookReviewQueueHealthEnabled: z.boolean(),
   reviewTriageEnabled: z.boolean(),
   triageGuidanceEnabled: z.boolean(),
+  reviewSavedViewsEnabled: z.boolean(),
+  operatorNotesEnabled: z.boolean(),
+  savedViewCount: z.number().int().nonnegative(),
+  operatorNoteCount: z.number().int().nonnegative(),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
   criticalTriageCount: z.number().int().nonnegative(),
   openTriageCount: z.number().int().nonnegative(),
@@ -2579,7 +2673,8 @@ export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
   "linked_message_persisted",
   "bulk_reviewed",
   "bulk_skipped",
-  "link_rejected"
+  "link_rejected",
+  "operator_note_created"
 ]);
 export type ProviderWebhookUnmatchedInboundHistoryAction = z.infer<typeof providerWebhookUnmatchedInboundHistoryActionSchema>;
 

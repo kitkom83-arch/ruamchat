@@ -1,9 +1,12 @@
 import type {
   CannedReply,
+  CreateProviderWebhookOperatorNoteRequest,
+  CreateProviderWebhookReviewSavedViewRequest,
   DataMode,
   ProviderReadiness,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookOperatorNote,
   ProviderWebhookReviewAlerts,
   ProviderWebhookReviewAlertsFilters,
   ProviderWebhookReviewAlertAgeBucket,
@@ -13,6 +16,8 @@ import type {
   ProviderWebhookReviewTriage,
   ProviderWebhookReviewTriageFilters,
   ProviderWebhookReviewTriageLane,
+  ProviderWebhookReviewSavedView,
+  UpdateProviderWebhookReviewSavedViewRequest,
   ProviderWebhookTriageRecommendedAction,
   ProviderWebhookUnmatchedInboundDiagnostics,
   ProviderWebhookUnmatchedInboundExport,
@@ -32,10 +37,15 @@ import type {
   SettingsTeamMember
 } from "@ai-omni/shared";
 import {
+  archiveProviderWebhookReviewSavedView,
+  createProviderWebhookOperatorNote,
+  createProviderWebhookReviewSavedView,
   createProviderWebhookSandboxEvent,
   bulkReviewProviderWebhookUnmatchedInbound,
+  getProviderWebhookOperatorNotes,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewTriage,
   getProviderReadiness,
   getProviderWebhookEvents,
@@ -46,6 +56,7 @@ import {
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
+  updateProviderWebhookReviewSavedView,
   getSettingsCannedReplies,
   getSettingsChannels,
   getSettingsSlaPolicies,
@@ -100,6 +111,16 @@ export type SettingsProviderWebhookReviewAlertsData = {
 export type SettingsProviderWebhookReviewTriageData = {
   mode: DataMode;
   triage: ProviderWebhookReviewTriage;
+};
+
+export type SettingsProviderWebhookSavedViewsData = {
+  mode: DataMode;
+  savedViews: ProviderWebhookReviewSavedView[];
+};
+
+export type SettingsProviderWebhookOperatorNotesData = {
+  mode: DataMode;
+  notes: ProviderWebhookOperatorNote[];
 };
 
 export type SettingsProviderWebhookCandidateData = {
@@ -236,6 +257,165 @@ export async function loadSettingsProviderWebhookReviewTriageData(
     mode,
     triage: createMockReviewTriage(filters)
   };
+}
+
+export async function loadSettingsProviderWebhookSavedViewsData(mode: DataMode): Promise<SettingsProviderWebhookSavedViewsData> {
+  if (mode === "api") {
+    return {
+      mode,
+      savedViews: await getProviderWebhookReviewSavedViews()
+    };
+  }
+
+  return {
+    mode,
+    savedViews: mockProviderWebhookReviewSavedViews.filter((view) => !view.archived)
+  };
+}
+
+export async function createSettingsProviderWebhookSavedView(
+  mode: DataMode,
+  payload: CreateProviderWebhookReviewSavedViewRequest
+): Promise<ProviderWebhookReviewSavedView> {
+  if (mode === "api") {
+    return createProviderWebhookReviewSavedView(payload);
+  }
+
+  const nowIso = new Date().toISOString();
+  const savedView: ProviderWebhookReviewSavedView = {
+    id: `provider-webhook-review-view-local-${mockProviderWebhookReviewSavedViews.length + 1}`,
+    name: safeMockText(payload.name) ?? "Saved review view",
+    description: safeMockText(payload.description ?? null),
+    tenantId: "mock-tenant",
+    ownerId: "system",
+    createdBy: "system",
+    filters: cleanMockSavedViewFilters(payload.filters ?? {}),
+    sort: {
+      sortBy: payload.sort?.sortBy ?? "receivedAt",
+      sortDirection: payload.sort?.sortDirection ?? "desc"
+    },
+    pinned: payload.pinned ?? false,
+    isDefault: payload.isDefault ?? false,
+    archived: false,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    externalCalls: 0
+  };
+  if (savedView.isDefault) {
+    mockProviderWebhookReviewSavedViews.forEach((view) => {
+      view.isDefault = false;
+    });
+  }
+  mockProviderWebhookReviewSavedViews.unshift(savedView);
+  refreshMockUnmatchedCounts();
+  return savedView;
+}
+
+export async function updateSettingsProviderWebhookSavedView(
+  mode: DataMode,
+  savedViewId: string,
+  payload: UpdateProviderWebhookReviewSavedViewRequest
+): Promise<ProviderWebhookReviewSavedView> {
+  if (mode === "api") {
+    return updateProviderWebhookReviewSavedView(savedViewId, payload);
+  }
+
+  const savedView = mockProviderWebhookReviewSavedViews.find((view) => view.id === savedViewId);
+  if (!savedView) throw new Error("Provider webhook review saved view not found");
+  if (savedView.archived) throw new Error("Provider webhook review saved view is archived");
+  if (payload.name !== undefined) savedView.name = safeMockText(payload.name) ?? savedView.name;
+  if (payload.description !== undefined) savedView.description = safeMockText(payload.description ?? null);
+  if (payload.filters !== undefined) savedView.filters = cleanMockSavedViewFilters(payload.filters);
+  if (payload.sort !== undefined) {
+    savedView.sort = {
+      sortBy: payload.sort.sortBy ?? "receivedAt",
+      sortDirection: payload.sort.sortDirection ?? "desc"
+    };
+  }
+  if (payload.pinned !== undefined) savedView.pinned = payload.pinned;
+  if (payload.isDefault !== undefined) {
+    if (payload.isDefault) {
+      mockProviderWebhookReviewSavedViews.forEach((view) => {
+        if (view.id !== savedViewId) view.isDefault = false;
+      });
+    }
+    savedView.isDefault = payload.isDefault;
+  }
+  savedView.updatedAt = new Date().toISOString();
+  savedView.externalCalls = 0;
+  return savedView;
+}
+
+export async function archiveSettingsProviderWebhookSavedView(mode: DataMode, savedViewId: string): Promise<ProviderWebhookReviewSavedView> {
+  if (mode === "api") {
+    return archiveProviderWebhookReviewSavedView(savedViewId);
+  }
+
+  const savedView = mockProviderWebhookReviewSavedViews.find((view) => view.id === savedViewId);
+  if (!savedView) throw new Error("Provider webhook review saved view not found");
+  savedView.archived = true;
+  savedView.isDefault = false;
+  savedView.updatedAt = new Date().toISOString();
+  savedView.externalCalls = 0;
+  refreshMockUnmatchedCounts();
+  return savedView;
+}
+
+export async function loadSettingsProviderWebhookOperatorNotesData(
+  mode: DataMode,
+  unmatchedInboundId: string
+): Promise<SettingsProviderWebhookOperatorNotesData> {
+  if (mode === "api") {
+    return {
+      mode,
+      notes: await getProviderWebhookOperatorNotes(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    notes: mockProviderWebhookOperatorNotes.filter((note) => note.unmatchedId === unmatchedInboundId)
+  };
+}
+
+export async function createSettingsProviderWebhookOperatorNote(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: CreateProviderWebhookOperatorNoteRequest
+): Promise<ProviderWebhookOperatorNote> {
+  if (mode === "api") {
+    return createProviderWebhookOperatorNote(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  const noteText = safeMockText(payload.note);
+  if (!noteText) throw new Error("Invalid provider webhook operator note request");
+  const nowIso = new Date().toISOString();
+  const note: ProviderWebhookOperatorNote = {
+    id: `provider-webhook-operator-note-local-${mockProviderWebhookOperatorNotes.length + 1}`,
+    unmatchedId: item.id,
+    tenantId: "mock-tenant",
+    authorId: "system",
+    authorLabel: "system",
+    note: noteText,
+    context: {
+      provider: item.provider,
+      platform: item.provider,
+      channelAccountId: item.channelAccountId,
+      safeRoomLabel: mockSafeRoomLabel(item),
+      roomKeyDigest: item.roomKeyDigest,
+      eventType: item.eventType,
+      reviewStatus: item.reviewStatus,
+      linkStatus: item.linkStatus,
+      unmatchedStatus: item.unmatchedStatus
+    },
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    externalCalls: 0
+  };
+  mockProviderWebhookOperatorNotes.push(note);
+  return note;
 }
 
 export async function loadSettingsProviderWebhookCandidateData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookCandidateData> {
@@ -827,6 +1007,26 @@ function cleanMockReviewTriageFilters(filters: ProviderWebhookReviewTriageFilter
   } as ProviderWebhookReviewTriageFilters;
 }
 
+function cleanMockSavedViewFilters(filters: CreateProviderWebhookReviewSavedViewRequest["filters"] = {}): ProviderWebhookReviewSavedView["filters"] {
+  const allowedKeys = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "eventType",
+    "severity",
+    "triageLane",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "pageSize"
+  ] as const;
+  return Object.fromEntries(
+    allowedKeys
+      .map((key) => [key, filters[key]] as const)
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewSavedView["filters"];
+}
+
 function mockTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
   const { severity: _severity, triageLane: _triageLane, ...baseFilters } = filters;
   return baseFilters;
@@ -1251,6 +1451,8 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.unmatchedInboundReviewedCount = summary.reviewedCount;
   mockProviderReadiness.unmatchedInboundSkippedCount = summary.skippedCount;
   mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
+  mockProviderReadiness.savedViewCount = mockProviderWebhookReviewSavedViews.filter((view) => !view.archived).length;
+  mockProviderReadiness.operatorNoteCount = mockProviderWebhookOperatorNotes.length;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -1296,6 +1498,10 @@ export const mockProviderReadiness: ProviderReadiness = {
   webhookReviewQueueHealthEnabled: true,
   reviewTriageEnabled: true,
   triageGuidanceEnabled: true,
+  reviewSavedViewsEnabled: true,
+  operatorNotesEnabled: true,
+  savedViewCount: 1,
+  operatorNoteCount: 0,
   reviewAlertCriticalCount: 1,
   criticalTriageCount: 1,
   openTriageCount: 1,
@@ -1411,6 +1617,38 @@ export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundI
     externalCalls: 0
   }
 ];
+
+export let mockProviderWebhookReviewSavedViews: ProviderWebhookReviewSavedView[] = [
+  {
+    id: "provider-webhook-review-view-local-1",
+    name: "LINE pending manual review",
+    description: "Pinned safe local review view",
+    tenantId: "mock-tenant",
+    ownerId: "system",
+    createdBy: "system",
+    filters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      triageLane: "safe_link_candidate_available",
+      pageSize: 10
+    },
+    sort: {
+      sortBy: "receivedAt",
+      sortDirection: "desc"
+    },
+    pinned: true,
+    isDefault: true,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+    externalCalls: 0
+  }
+];
+
+export let mockProviderWebhookOperatorNotes: ProviderWebhookOperatorNote[] = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {
   "provider-webhook-unmatched-local-1": [
