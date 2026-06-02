@@ -73,6 +73,7 @@
     "smoke:sprint64": "node scripts/smoke-sprint64-provider-webhook-review-audit-export.mjs",
     "smoke:sprint65": "node scripts/smoke-sprint65-provider-webhook-review-metrics-diagnostics.mjs",
     "smoke:sprint66": "node scripts/smoke-sprint66-provider-webhook-review-queue-sla-alerts.mjs",
+    "smoke:sprint67": "node scripts/smoke-sprint67-provider-webhook-review-triage-guidance.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

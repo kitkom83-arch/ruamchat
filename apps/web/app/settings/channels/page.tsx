@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -15,6 +15,7 @@ import {
   loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewMetricsData,
+  loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -51,6 +52,9 @@ export default function ChannelSettingsPage() {
   const [reviewAlerts, setReviewAlerts] = useState<ProviderWebhookReviewAlerts | null>(null);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState("");
+  const [reviewTriage, setReviewTriage] = useState<ProviderWebhookReviewTriage | null>(null);
+  const [triageLoading, setTriageLoading] = useState(true);
+  const [triageError, setTriageError] = useState("");
   const [activeDiagnosticsId, setActiveDiagnosticsId] = useState("");
   const [activeDiagnostics, setActiveDiagnostics] = useState<ProviderWebhookUnmatchedInboundDiagnostics | null>(null);
   const [diagnosticsLoadingId, setDiagnosticsLoadingId] = useState("");
@@ -184,6 +188,20 @@ export default function ChannelSettingsPage() {
     }
   }, [unmatchedFilters]);
 
+  const refreshReviewTriage = useCallback(async () => {
+    setTriageLoading(true);
+    setTriageError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewTriageData(dataMode, unmatchedFilters);
+      setReviewTriage(result.triage);
+    } catch (reason) {
+      setReviewTriage(null);
+      setTriageError(`Triage Guidance API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook triage guidance"}`);
+    } finally {
+      setTriageLoading(false);
+    }
+  }, [unmatchedFilters]);
+
   useEffect(() => {
     void refreshWebhookEvents();
   }, [refreshWebhookEvents]);
@@ -195,6 +213,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewAlerts();
   }, [refreshReviewAlerts]);
+
+  useEffect(() => {
+    void refreshReviewTriage();
+  }, [refreshReviewTriage]);
 
   async function loadCandidates(unmatchedInboundId: string) {
     setCandidateLoadingId(unmatchedInboundId);
@@ -303,6 +325,7 @@ export default function ChannelSettingsPage() {
       await refreshWebhookEvents();
       await refreshReviewMetrics();
       await refreshReviewAlerts();
+      await refreshReviewTriage();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -323,6 +346,7 @@ export default function ChannelSettingsPage() {
       await refreshWebhookEvents();
       await refreshReviewMetrics();
       await refreshReviewAlerts();
+      await refreshReviewTriage();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -347,6 +371,7 @@ export default function ChannelSettingsPage() {
       await refreshWebhookEvents();
       await refreshReviewMetrics();
       await refreshReviewAlerts();
+      await refreshReviewTriage();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -391,6 +416,7 @@ export default function ChannelSettingsPage() {
       const refreshedItems = await refreshWebhookEvents();
       await refreshReviewMetrics();
       await refreshReviewAlerts();
+      await refreshReviewTriage();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -447,6 +473,9 @@ export default function ChannelSettingsPage() {
         reviewAlerts={reviewAlerts}
         reviewAlertsLoading={alertsLoading}
         reviewAlertsError={alertsError}
+        reviewTriage={reviewTriage}
+        reviewTriageLoading={triageLoading}
+        reviewTriageError={triageError}
         activeDiagnosticsId={activeDiagnosticsId}
         activeDiagnostics={activeDiagnostics}
         diagnosticsLoadingId={diagnosticsLoadingId}

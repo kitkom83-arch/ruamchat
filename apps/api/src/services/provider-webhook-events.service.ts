@@ -11,6 +11,10 @@ import {
   type ProviderWebhookReviewAlertAgeBucket,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
+  type ProviderWebhookReviewTriage,
+  type ProviderWebhookReviewTriageFilters,
+  type ProviderWebhookReviewTriageLane,
+  type ProviderWebhookTriageRecommendedAction,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
   type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
@@ -41,6 +45,62 @@ const reviewAlertThresholds = {
   staleCriticalHours: 72,
   overSlaHours: 48
 } as const;
+const triageLanes: ProviderWebhookReviewTriageLane[] = [
+  "critical_stale_open",
+  "warning_stale_open",
+  "candidate_lookup_recommended",
+  "safe_link_candidate_available",
+  "needs_manual_review",
+  "recently_reviewed",
+  "skipped_ignored",
+  "failed_routing_missing_match"
+];
+const triageLaneDetails: Record<ProviderWebhookReviewTriageLane, {
+  label: string;
+  description: string;
+  safeDrilldownFilters: ProviderWebhookReviewMetricsFilters;
+}> = {
+  critical_stale_open: {
+    label: "Critical stale open",
+    description: "Open unmatched inbound items past the critical review threshold.",
+    safeDrilldownFilters: { status: "open" }
+  },
+  warning_stale_open: {
+    label: "Warning stale open",
+    description: "Open unmatched inbound items past the warning review threshold.",
+    safeDrilldownFilters: { status: "open" }
+  },
+  candidate_lookup_recommended: {
+    label: "Candidate lookup recommended",
+    description: "Open items where a safe candidate lookup should be run next.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+  },
+  safe_link_candidate_available: {
+    label: "Safe link candidate available",
+    description: "Open normalized items with safe platform, channel account, and room digest context.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+  },
+  needs_manual_review: {
+    label: "Needs manual review",
+    description: "Open items that need an operator decision before any safe action.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending" }
+  },
+  recently_reviewed: {
+    label: "Recently reviewed",
+    description: "Items already reviewed or safely linked, shown for history follow-up.",
+    safeDrilldownFilters: { reviewStatus: "reviewed" }
+  },
+  skipped_ignored: {
+    label: "Skipped / ignored",
+    description: "Skipped, duplicate, or blocked items that should only be reviewed through history.",
+    safeDrilldownFilters: { status: "skipped" }
+  },
+  failed_routing_missing_match: {
+    label: "Failed routing / missing conversation match",
+    description: "Items with blocked routing or missing safe conversation match context.",
+    safeDrilldownFilters: { status: "open" }
+  }
+};
 const events: ProviderWebhookEvent[] = [];
 const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
 const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntry[] = [];
@@ -173,6 +233,48 @@ export class ProviderWebhookEventsService {
       byUnmatchedStatus: countByStable(alertItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
       bySeverity: countByStable(alertItems, ["info", "warning", "critical"], (item) => item.severity),
       alertItems: alertItems.slice(0, 10),
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewTriage(tenantId: string, filters: ProviderWebhookReviewTriageFilters = {}): ProviderWebhookReviewTriage {
+    const normalizedFilters = cleanReviewTriageFilters(filters);
+    const baseItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters));
+    const triageItems = baseItems
+      .map(reviewTriageItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
+      .sort((left, right) => {
+        const severityCompared = triageSeverityRank(right.severity) - triageSeverityRank(left.severity);
+        if (severityCompared !== 0) return severityCompared;
+        return left.receivedAt.localeCompare(right.receivedAt);
+      });
+    const openItems = triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      totalItems: triageItems.length,
+      totalOpenItems: openItems.length,
+      totalTriageLanes: triageLanes.length,
+      thresholds: reviewAlertThresholds,
+      lanes: triageLanes.map((laneKey) => ({
+        laneKey,
+        label: triageLaneDetails[laneKey].label,
+        severity: triageLaneSeverity(laneKey),
+        count: triageItems.filter((item) => item.triageLane === laneKey).length,
+        description: triageLaneDetails[laneKey].description,
+        recommendedNextActions: triageActionsForLane(laneKey),
+        safeDrilldownFilters: triageLaneDetails[laneKey].safeDrilldownFilters
+      })),
+      byProvider: countByStable(triageItems, ["line", "telegram", "facebook", "instagram"], (item) => item.provider),
+      byPlatform: countByStable(triageItems, ["line", "telegram", "facebook", "instagram"], (item) => item.platform),
+      byEventType: countByStable(triageItems, ["message.created", "webhook.verified", "webhook.failed"], (item) => item.eventType),
+      byReviewStatus: countByStable(triageItems, ["pending", "reviewed", "skipped", "linked"], (item) => item.reviewStatus),
+      byLinkStatus: countByStable(triageItems, ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"], (item) => item.linkStatus),
+      byUnmatchedStatus: countByStable(triageItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
+      byLane: countByStable(triageItems, triageLanes, (item) => item.triageLane),
+      topItems: triageItems.slice(0, 10),
       externalCalls: 0 as const
     };
   }
@@ -1045,6 +1147,7 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
   const openAlertItems = unmatchedInboundItems
     .filter(isOpenUnmatchedStatusItem)
     .map(reviewAlertItemFromUnmatched);
+  const triageItems = unmatchedInboundItems.map(reviewTriageItemFromUnmatched);
   return {
     webhookSignatureVerificationConfigured: true,
     webhookSignatureVerificationReady: true,
@@ -1078,7 +1181,11 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     webhookDiagnosticsEnabled: true,
     webhookReviewAlertsEnabled: true,
     webhookReviewQueueHealthEnabled: true,
+    reviewTriageEnabled: true,
+    triageGuidanceEnabled: true,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
+    criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
+    openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
     unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
     unmatchedInboundStaleOpenCount: unmatchedInboundItems.filter(isStaleOpenUnmatchedItem).length,
     unmatchedInboundQueuedCount: unmatchedInboundItems.length,
@@ -1184,6 +1291,17 @@ function cleanReviewAlertsFilters(filters: ProviderWebhookReviewAlertsFilters) {
   ) as ProviderWebhookReviewAlertsFilters;
 }
 
+function cleanReviewTriageFilters(filters: ProviderWebhookReviewTriageFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewTriageFilters;
+}
+
+function reviewTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
+  const { severity: _severity, triageLane: _triageLane, ...baseFilters } = filters;
+  return baseFilters;
+}
+
 function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundItem[]) {
   return {
     openCount: items.filter(isOpenUnmatchedStatusItem).length,
@@ -1256,6 +1374,84 @@ function reviewAlertSeverityForReceivedAt(receivedAt: string): ProviderWebhookRe
   if (ageHours >= reviewAlertThresholds.staleCriticalHours) return "critical";
   if (ageHours >= reviewAlertThresholds.staleWarningHours) return "warning";
   return "info";
+}
+
+function reviewTriageItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem) {
+  const lane = triageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: ageBucketForReceivedAt(item.receivedAt),
+    triageLane: lane,
+    severity: triageSeverityForItem(item, lane),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+    recommendedNextActions: triageActionsForLane(lane),
+    diagnosticsAvailable: true,
+    historyAvailable: buildHistoryEntriesForItem(item).length > 0,
+    candidatesAvailable: isSafeLinkableUnmatchedItem(item),
+    exportAvailable: true,
+    externalCalls: 0 as const
+  };
+}
+
+function triageLaneForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewTriageLane {
+  if (item.reviewStatus === "skipped" || item.unmatchedStatus === "skipped" || item.unmatchedStatus === "duplicate-skipped" || item.unmatchedStatus === "blocked") {
+    return "skipped_ignored";
+  }
+  if (item.reviewStatus === "reviewed" || item.reviewStatus === "linked" || item.unmatchedStatus === "reviewed" || item.unmatchedStatus === "linked") {
+    return "recently_reviewed";
+  }
+  if (isOpenUnmatchedStatusItem(item)) {
+    const ageHours = hoursSince(item.receivedAt);
+    if (ageHours >= reviewAlertThresholds.staleCriticalHours) return "critical_stale_open";
+    if (ageHours >= reviewAlertThresholds.staleWarningHours) return "warning_stale_open";
+    if (isSafeLinkableUnmatchedItem(item)) return "safe_link_candidate_available";
+    if (item.conversationLookupStatus === "not-found") return "candidate_lookup_recommended";
+    if (item.routingStatus === "blocked-signature" || item.routingStatus === "blocked-replay" || item.routingStatus === "unsupported") {
+      return "failed_routing_missing_match";
+    }
+    return "needs_manual_review";
+  }
+  return "failed_routing_missing_match";
+}
+
+function triageSeverityForItem(item: ProviderWebhookUnmatchedInboundItem, lane: ProviderWebhookReviewTriageLane): ProviderWebhookReviewAlertSeverity {
+  if (lane === "critical_stale_open") return "critical";
+  if (lane === "warning_stale_open") return "warning";
+  if (lane === "failed_routing_missing_match" && item.routingStatus !== "dry-run-only") return "warning";
+  return "info";
+}
+
+function triageLaneSeverity(lane: ProviderWebhookReviewTriageLane): ProviderWebhookReviewAlertSeverity {
+  if (lane === "critical_stale_open") return "critical";
+  if (lane === "warning_stale_open" || lane === "failed_routing_missing_match") return "warning";
+  return "info";
+}
+
+function triageActionsForLane(lane: ProviderWebhookReviewTriageLane): ProviderWebhookTriageRecommendedAction[] {
+  if (lane === "critical_stale_open") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"];
+  if (lane === "warning_stale_open") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "RUN_CANDIDATE_LOOKUP"];
+  if (lane === "safe_link_candidate_available") return ["RUN_CANDIDATE_LOOKUP", "LINK_ONLY", "LINK_AND_PERSIST_SAFE_MESSAGE"];
+  if (lane === "candidate_lookup_recommended") return ["RUN_CANDIDATE_LOOKUP", "OPEN_DIAGNOSTICS", "VIEW_HISTORY"];
+  if (lane === "needs_manual_review") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "MARK_REVIEWED", "SKIP"];
+  if (lane === "recently_reviewed") return ["VIEW_HISTORY", "OPEN_DIAGNOSTICS"];
+  if (lane === "skipped_ignored") return ["VIEW_HISTORY", "APPLY_FILTER"];
+  return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "SKIP"];
+}
+
+function triageSeverityRank(severity: ProviderWebhookReviewAlertSeverity) {
+  if (severity === "critical") return 3;
+  if (severity === "warning") return 2;
+  return 1;
 }
 
 function hoursSince(receivedAt: string) {

@@ -20,6 +20,7 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewTriage,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundDiagnostics,
@@ -413,6 +414,60 @@ describe("frontend API client", () => {
     expect(JSON.stringify(alerts)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("sends x-tenant-id and safe filters for review triage guidance", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewTriageResponse()));
+
+    const triage = await getProviderWebhookReviewTriage({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-triage?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=critical&triageLane=critical_stale_open", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(triage).toMatchObject({
+      totalItems: 1,
+      totalOpenItems: 1,
+      totalTriageLanes: 8,
+      externalCalls: 0
+    });
+    expect(triage.appliedFilters).toMatchObject({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    });
+    expect(triage.lanes[0]).toMatchObject({
+      laneKey: "critical_stale_open",
+      recommendedNextActions: expect.arrayContaining(["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"]),
+      safeDrilldownFilters: { status: "open" }
+    });
+    expect(triage.topItems[0]).toMatchObject({
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      triageLane: "critical_stale_open",
+      candidatesAvailable: true,
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      exportAvailable: true,
+      externalCalls: 0
+    });
+    expect(JSON.stringify(triage)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("surfaces unmatched history and export API errors without local fallback", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "history unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundHistory("provider-webhook-unmatched-1"))
@@ -431,6 +486,10 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "alerts unavailable" }, 503));
     await expect(getProviderWebhookReviewAlerts({ provider: "line" }))
       .rejects.toThrow("API request failed (503): alerts unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "triage unavailable" }, 503));
+    await expect(getProviderWebhookReviewTriage({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): triage unavailable");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "diagnostics unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundDiagnostics("provider-webhook-unmatched-1"))
@@ -1285,7 +1344,11 @@ function providerReadinessResponse() {
       webhookDiagnosticsEnabled: true,
       webhookReviewAlertsEnabled: true,
       webhookReviewQueueHealthEnabled: true,
+      reviewTriageEnabled: true,
+      triageGuidanceEnabled: true,
       reviewAlertCriticalCount: 1,
+      criticalTriageCount: 1,
+      openTriageCount: 1,
       unmatchedInboundOpenCount: 1,
       unmatchedInboundStaleOpenCount: 0,
       unmatchedInboundQueuedCount: 1,
@@ -1717,6 +1780,124 @@ function providerWebhookReviewAlertsResponse() {
       routingOutcome: "dry-run-only/not-found",
       diagnosticsAvailable: true,
       historyAvailable: true,
+      externalCalls: 0
+    }],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewTriageResponse() {
+  return {
+    generatedAt: "2026-05-31T00:07:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    totalTriageLanes: 8,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    lanes: [
+      {
+        laneKey: "critical_stale_open",
+        label: "Critical stale open",
+        severity: "critical",
+        count: 1,
+        description: "Open unmatched inbound items past the critical review threshold.",
+        recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+        safeDrilldownFilters: { status: "open" }
+      },
+      {
+        laneKey: "safe_link_candidate_available",
+        label: "Safe link candidate available",
+        severity: "info",
+        count: 0,
+        description: "Open normalized items with safe platform, channel account, and room digest context.",
+        recommendedNextActions: ["RUN_CANDIDATE_LOOKUP", "LINK_ONLY", "LINK_AND_PERSIST_SAFE_MESSAGE"],
+        safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+      }
+    ],
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byPlatform: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    byLane: [
+      { key: "critical_stale_open", label: "critical_stale_open", count: 1 },
+      { key: "warning_stale_open", label: "warning_stale_open", count: 0 },
+      { key: "candidate_lookup_recommended", label: "candidate_lookup_recommended", count: 0 },
+      { key: "safe_link_candidate_available", label: "safe_link_candidate_available", count: 0 },
+      { key: "needs_manual_review", label: "needs_manual_review", count: 0 },
+      { key: "recently_reviewed", label: "recently_reviewed", count: 0 },
+      { key: "skipped_ignored", label: "skipped_ignored", count: 0 },
+      { key: "failed_routing_missing_match", label: "failed_routing_missing_match", count: 0 }
+    ],
+    topItems: [{
+      unmatchedId: "provider-webhook-unmatched-1",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      receivedAt: "2026-05-31T00:00:00.000Z",
+      ageBucket: "over3Days",
+      triageLane: "critical_stale_open",
+      severity: "critical",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      candidatesAvailable: true,
+      exportAvailable: true,
       externalCalls: 0
     }],
     externalCalls: 0
