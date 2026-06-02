@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -31,6 +31,9 @@ describe("ProviderReadinessPanel", () => {
         linkedCount: 1
       },
       candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
+      activeHistoryId: "provider-webhook-unmatched-1",
+      activeHistory: providerWebhookHistory(),
+      unmatchedExportResult: providerWebhookExport(),
       unmatchedActionStatus: "Unmatched inbound provider-webhook-unmatched-1 reviewed; externalCalls=0"
     }));
 
@@ -59,6 +62,9 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("unmatched inbound review=enabled");
     expect(html).toContain("review actions=enabled");
     expect(html).toContain("candidate lookup=enabled");
+    expect(html).toContain("history audit=enabled");
+    expect(html).toContain("queue export=enabled");
+    expect(html).toContain("export max limit=500");
     expect(html).toContain("open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
     expect(html).toContain("unmatched replay blocked count=1");
@@ -109,6 +115,9 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Clear selection");
     expect(html).toContain("Bulk Mark reviewed");
     expect(html).toContain("Bulk Skip");
+    expect(html).toContain("Export current filtered queue");
+    expect(html).toContain("Export CSV");
+    expect(html).toContain("Export json: exportedCount=1; exportMaxLimit=500; externalCalls=0");
     expect(html).toContain("visible unmatched count=1");
     expect(html).toContain("total unmatched count=12");
     expect(html).toContain("page size=5");
@@ -123,6 +132,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Mark reviewed");
     expect(html).toContain("Skip");
     expect(html).toContain("Load candidates");
+    expect(html).toContain("View history");
+    expect(html).toContain("history entries=3");
+    expect(html).toContain("inbound_received / received");
+    expect(html).toContain("normalized_routed / normalized/dry-run-only");
+    expect(html).toContain("unmatched_queued / review-needed");
+    expect(html).toContain("safeRoomLabel=line room digest saferoomdige");
+    expect(html).toContain("roomKeyDigest=sha256:saferoomdigest");
     expect(html).toContain("candidate count=1");
     expect(html).toContain("conversationId=conversation-safe-internal");
     expect(html).toContain("roomIdDigest=sha256:saferoomdigest");
@@ -200,13 +216,18 @@ describe("ProviderReadinessPanel", () => {
       webhookEvents: [],
       webhookEventsLoading: false,
       webhookEventsError: "Webhook Events API error: Failed to fetch",
-      unmatchedInboundItems: [],
+      unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
       unmatchedInboundLoading: false,
-      unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch"
+      unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
+      activeHistoryId: "provider-webhook-unmatched-1",
+      historyErrorById: { "provider-webhook-unmatched-1": "History API error: Failed to fetch" },
+      unmatchedExportError: "Unmatched Export API error: Failed to fetch"
     }));
 
     expect(html).toContain("Webhook Events API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
+    expect(html).toContain("History API error: Failed to fetch");
+    expect(html).toContain("Unmatched Export API error: Failed to fetch");
     expect(html).not.toContain("payloadFieldCount=");
     expect(html).not.toMatch(/rawPayload|providerRaw|payloadJson|Bearer|sk-/i);
   });
@@ -247,6 +268,9 @@ function providerReadiness(): ProviderReadiness {
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
     webhookCandidateLookupEnabled: true,
+    webhookUnmatchedHistoryEnabled: true,
+    webhookUnmatchedQueueExportEnabled: true,
+    webhookUnmatchedQueueExportMaxLimit: 500,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
     unmatchedInboundReplayBlockedCount: 1,
@@ -370,6 +394,92 @@ function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundI
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistory(): ProviderWebhookUnmatchedInboundHistory {
+  return {
+    unmatchedInboundId: "provider-webhook-unmatched-1",
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    entries: [
+      providerWebhookHistoryEntry("inbound_received", "received", null, "received"),
+      providerWebhookHistoryEntry("normalized_routed", "normalized/dry-run-only", "received", "dry-run-only"),
+      providerWebhookHistoryEntry("unmatched_queued", "review-needed", "dry-run-only", "review-needed")
+    ],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistoryEntry(
+  action: ProviderWebhookUnmatchedInboundHistory["entries"][number]["action"],
+  actionStatus: string,
+  statusBefore: string | null,
+  statusAfter: string | null
+): ProviderWebhookUnmatchedInboundHistory["entries"][number] {
+  return {
+    id: `provider-webhook-history-${action}`,
+    unmatchedInboundId: "provider-webhook-unmatched-1",
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    action,
+    actionStatus,
+    statusBefore,
+    statusAfter,
+    actor: "system",
+    reason: "safe-review-required-no-conversation-match",
+    message: "Safe history entry",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    actionAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookExport(): ProviderWebhookUnmatchedInboundExport {
+  return {
+    format: "json",
+    rows: [{
+      id: "provider-webhook-unmatched-1",
+      provider: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      receivedAt: "2026-05-31T00:00:00.000Z",
+      reviewedAt: null,
+      linkedConversationId: null,
+      candidateCount: 1,
+      safeMessagePreview: "Safe sandbox preview",
+      safeReason: "safe-review-required-no-conversation-match",
+      safeResultSummary: "pending",
+      externalCalls: 0
+    }],
+    csv: null,
+    appliedFilters: {
+      format: "json",
+      limit: 10,
+      offset: 0,
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    appliedSort: {
+      sortBy: "receivedAt",
+      sortOrder: "desc"
+    },
+    requestedLimit: 10,
+    exportMaxLimit: 500,
+    exportedCount: 1,
     externalCalls: 0
   };
 }

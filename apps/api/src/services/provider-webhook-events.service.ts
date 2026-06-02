@@ -6,8 +6,14 @@ import {
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
+  type ProviderWebhookUnmatchedInboundExport,
+  type ProviderWebhookUnmatchedInboundExportQuery,
+  type ProviderWebhookUnmatchedInboundExportRow,
   type ProviderWebhookUnmatchedInboundReviewRequest,
   type ProviderWebhookUnmatchedInboundFilters,
+  type ProviderWebhookUnmatchedInboundHistory,
+  type ProviderWebhookUnmatchedInboundHistoryAction,
+  type ProviderWebhookUnmatchedInboundHistoryEntry,
   type ProviderSandboxProvider,
   type ProviderWebhookEvent,
   type ProviderWebhookMessageType,
@@ -22,8 +28,10 @@ import { AuditService } from "./audit.service.js";
 import { ConversationService } from "./conversation.service.js";
 
 const maxStoredEvents = 100;
+const unmatchedInboundExportMaxLimit = 500;
 const events: ProviderWebhookEvent[] = [];
 const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
+const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntry[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 @Injectable()
@@ -95,6 +103,58 @@ export class ProviderWebhookEventsService {
     });
   }
 
+  listUnmatchedInboundHistory(tenantId: string, id: string): ProviderWebhookUnmatchedInboundHistory {
+    const item = findUnmatchedInboundItem(tenantId, id);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    const entries = buildHistoryEntriesForItem(item);
+    return {
+      unmatchedInboundId: item.id,
+      provider: item.provider,
+      channelAccountId: item.channelAccountId,
+      safeRoomLabel: safeRoomLabel(item),
+      roomKeyDigest: item.roomKeyDigest,
+      entries,
+      externalCalls: 0 as const
+    };
+  }
+
+  exportUnmatchedInboundQueue(tenantId: string, query: ProviderWebhookUnmatchedInboundExportQuery = {}): ProviderWebhookUnmatchedInboundExport {
+    const normalizedFilters = normalizeUnmatchedInboundExportFilters(query);
+    const requestedLimit = normalizedFilters.limit ?? unmatchedInboundExportMaxLimit;
+    const limit = Math.min(requestedLimit, unmatchedInboundExportMaxLimit);
+    const offset = normalizedFilters.offset ?? 0;
+    const appliedSort = {
+      sortBy: normalizedFilters.sortBy ?? "receivedAt" as const,
+      sortOrder: normalizedFilters.sortOrder ?? "desc" as const
+    };
+    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const sorted = [...filtered].sort((left, right) => {
+      const compared = left.receivedAt.localeCompare(right.receivedAt);
+      return appliedSort.sortOrder === "asc" ? compared : -compared;
+    });
+    const rows = sorted.slice(offset, offset + limit).map(exportRowFromItem);
+    const format = normalizedFilters.format ?? "json";
+    const appliedFilters = cleanUnmatchedInboundFilters({
+      ...normalizedFilters,
+      limit,
+      offset,
+      sortBy: appliedSort.sortBy,
+      sortOrder: appliedSort.sortOrder
+    }) as ProviderWebhookUnmatchedInboundExportQuery;
+    if (format) appliedFilters.format = format;
+    return {
+      format,
+      rows,
+      csv: format === "csv" ? rowsToCsv(rows) : null,
+      appliedFilters,
+      appliedSort,
+      requestedLimit,
+      exportMaxLimit: unmatchedInboundExportMaxLimit,
+      exportedCount: rows.length,
+      externalCalls: 0 as const
+    };
+  }
+
   async reviewUnmatchedInbound(tenantId: string, id: string, body: unknown, actorUserId?: string) {
     const parsed = providerWebhookUnmatchedInboundReviewRequestSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound review request");
@@ -110,6 +170,7 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Unmatched inbound item is already resolved");
     }
 
+    const statusBefore = item.unmatchedStatus;
     const now = new Date().toISOString();
     item.unmatchedStatus = input.status;
     item.reviewStatus = input.status;
@@ -135,6 +196,16 @@ export class ProviderWebhookEventsService {
       status: input.status,
       conversationId: null,
       messageId: null
+    });
+    addUnmatchedHistoryEntry(item, {
+      action: input.status === "reviewed" ? "reviewed" : "skipped",
+      actionStatus: input.status,
+      statusBefore,
+      statusAfter: item.unmatchedStatus,
+      actor: safeActorId(actorUserId),
+      reason: item.reviewReason,
+      message: input.status === "reviewed" ? "Unmatched inbound item marked reviewed" : "Unmatched inbound item skipped",
+      actionAt: now
     });
     return item;
   }
@@ -164,6 +235,7 @@ export class ProviderWebhookEventsService {
         continue;
       }
 
+      const statusBefore = item.unmatchedStatus;
       const now = new Date().toISOString();
       item.unmatchedStatus = input.reviewStatus;
       item.reviewStatus = input.reviewStatus;
@@ -189,6 +261,16 @@ export class ProviderWebhookEventsService {
         status: input.reviewStatus,
         conversationId: null,
         messageId: null
+      });
+      addUnmatchedHistoryEntry(item, {
+        action: input.reviewStatus === "reviewed" ? "bulk_reviewed" : "bulk_skipped",
+        actionStatus: input.reviewStatus,
+        statusBefore,
+        statusAfter: item.unmatchedStatus,
+        actor: safeActorId(actorUserId),
+        reason: item.reviewReason,
+        message: input.reviewStatus === "reviewed" ? "Bulk marked reviewed" : "Bulk skipped",
+        actionAt: now
       });
       results.push(bulkReviewResult(item.id, true, "updated", item.reviewStatus, item.unmatchedStatus, null));
     }
@@ -222,6 +304,7 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Unmatched inbound item is already resolved");
     }
 
+    const statusBefore = item.unmatchedStatus;
     await this.recordUnmatchedActionAudit({
       tenantId,
       actorUserId,
@@ -315,6 +398,32 @@ export class ProviderWebhookEventsService {
       conversationId: input.conversationId,
       messageId: item.linkedMessageId
     });
+    addUnmatchedHistoryEntry(item, {
+      action: "linked_to_conversation",
+      actionStatus: linkStatus,
+      statusBefore,
+      statusAfter: item.unmatchedStatus,
+      actor: safeActorId(actorUserId),
+      reason: input.actionMode,
+      message: "Linked to safe conversation",
+      linkedConversationId: input.conversationId,
+      linkedMessageId: item.linkedMessageId,
+      actionAt: now
+    });
+    if (input.actionMode === "link-and-persist-safe-message") {
+      addUnmatchedHistoryEntry(item, {
+        action: "linked_message_persisted",
+        actionStatus: linkStatus,
+        statusBefore: "linked",
+        statusAfter: linkStatus,
+        actor: safeActorId(actorUserId),
+        reason: messagePersisted ? "safe message persisted" : "safe message duplicate noop",
+        message: messagePersisted ? "Linked and persisted safe inbound message" : "Linked with duplicate safe message no-op",
+        linkedConversationId: input.conversationId,
+        linkedMessageId: item.linkedMessageId,
+        actionAt: now
+      });
+    }
     return item;
   }
 
@@ -393,6 +502,7 @@ export class ProviderWebhookEventsService {
     events.unshift(event);
     events.splice(maxStoredEvents);
     event.inboundAuditStatus = await this.recordAudit(event, actorUserId);
+    this.recordInitialUnmatchedHistory(event, actorUserId);
     return event;
   }
 
@@ -484,6 +594,48 @@ export class ProviderWebhookEventsService {
       unmatchedStatus: item.unmatchedStatus,
       unmatchedReason: item.unmatchedReason
     };
+  }
+
+  private recordInitialUnmatchedHistory(event: ProviderWebhookEvent, actorUserId?: string) {
+    if (!event.unmatchedInboundId) return;
+    const item = findUnmatchedInboundItem(event.tenantId, event.unmatchedInboundId);
+    if (!item) return;
+    if (unmatchedInboundHistoryEntries.some((entry) => entry.unmatchedInboundId === item.id && entry.action === "inbound_received")) {
+      return;
+    }
+    addUnmatchedHistoryEntry(item, {
+      action: "inbound_received",
+      actionStatus: event.status,
+      statusBefore: null,
+      statusAfter: event.status,
+      actor: safeActorId(actorUserId),
+      reason: event.payloadSummary,
+      message: "Inbound sandbox event received",
+      actionAt: event.receivedAt,
+      receivedAt: event.receivedAt
+    });
+    addUnmatchedHistoryEntry(item, {
+      action: "normalized_routed",
+      actionStatus: `${event.normalizationStatus}/${event.routingStatus}`,
+      statusBefore: event.status,
+      statusAfter: event.routingStatus,
+      actor: safeActorId(actorUserId),
+      reason: `lookup=${event.conversationLookupStatus}`,
+      message: "Normalized and routed with safe provider context",
+      actionAt: event.receivedAt,
+      receivedAt: event.receivedAt
+    });
+    addUnmatchedHistoryEntry(item, {
+      action: "unmatched_queued",
+      actionStatus: item.unmatchedStatus,
+      statusBefore: event.routingStatus,
+      statusAfter: item.unmatchedStatus,
+      actor: safeActorId(actorUserId),
+      reason: item.unmatchedReason,
+      message: "Queued for safe unmatched inbound review",
+      actionAt: event.receivedAt,
+      receivedAt: event.receivedAt
+    });
   }
 
   private async persistSandboxInbound(
@@ -685,6 +837,7 @@ export class ProviderWebhookEventsService {
     message: string,
     status: "bad-request" | "not-found" | "conflict" = "bad-request"
   ): Promise<never> {
+    const statusBefore = item.linkStatus;
     item.linkStatus = "rejected";
     item.externalCalls = 0;
     const event = findEventForUnmatchedItem(item);
@@ -700,6 +853,18 @@ export class ProviderWebhookEventsService {
       status: "rejected",
       conversationId,
       messageId: null
+    });
+    addUnmatchedHistoryEntry(item, {
+      action: "link_rejected",
+      actionStatus: "rejected",
+      statusBefore,
+      statusAfter: item.linkStatus,
+      actor: safeActorId(actorUserId),
+      reason: safeReviewReason(message),
+      message: "Safe conversation link rejected",
+      linkedConversationId: conversationId,
+      linkedMessageId: null,
+      actionAt: new Date().toISOString()
     });
     if (status === "not-found") throw new NotFoundException(message);
     if (status === "conflict") throw new ConflictException(message);
@@ -746,6 +911,7 @@ export class ProviderWebhookEventsService {
 export function resetProviderWebhookEventStoreForTest() {
   events.splice(0);
   unmatchedInboundItems.splice(0);
+  unmatchedInboundHistoryEntries.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -779,6 +945,9 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
     webhookCandidateLookupEnabled: true,
+    webhookUnmatchedHistoryEnabled: true,
+    webhookUnmatchedQueueExportEnabled: true,
+    webhookUnmatchedQueueExportMaxLimit: unmatchedInboundExportMaxLimit,
     unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
     unmatchedInboundQueuedCount: unmatchedInboundItems.length,
     unmatchedInboundReplayBlockedCount: events.filter((event) => event.unmatchedStatus === "duplicate-skipped" || event.unmatchedReason === "blocked-replay").length,
@@ -867,8 +1036,214 @@ function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundIt
   };
 }
 
+function buildHistoryEntriesForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookUnmatchedInboundHistoryEntry[] {
+  const stored = unmatchedInboundHistoryEntries.filter((entry) => entry.unmatchedInboundId === item.id);
+  const entries = [...stored];
+  const event = findEventForUnmatchedItem(item);
+  if (event && !entries.some((entry) => entry.action === "inbound_received")) {
+    entries.push(historyEntry(item, {
+      action: "inbound_received",
+      actionStatus: event.status,
+      statusBefore: null,
+      statusAfter: event.status,
+      actor: null,
+      reason: event.payloadSummary,
+      message: "Inbound sandbox event received",
+      actionAt: event.receivedAt,
+      receivedAt: event.receivedAt
+    }));
+  }
+  if (event && !entries.some((entry) => entry.action === "normalized_routed")) {
+    entries.push(historyEntry(item, {
+      action: "normalized_routed",
+      actionStatus: `${event.normalizationStatus}/${event.routingStatus}`,
+      statusBefore: event.status,
+      statusAfter: event.routingStatus,
+      actor: null,
+      reason: `lookup=${event.conversationLookupStatus}`,
+      message: "Normalized and routed with safe provider context",
+      actionAt: event.receivedAt,
+      receivedAt: event.receivedAt
+    }));
+  }
+  if (!entries.some((entry) => entry.action === "unmatched_queued")) {
+    entries.push(historyEntry(item, {
+      action: "unmatched_queued",
+      actionStatus: item.unmatchedStatus,
+      statusBefore: event?.routingStatus ?? null,
+      statusAfter: item.unmatchedStatus,
+      actor: null,
+      reason: item.unmatchedReason,
+      message: "Queued for safe unmatched inbound review",
+      actionAt: item.receivedAt,
+      receivedAt: item.receivedAt
+    }));
+  }
+  if ((item.reviewStatus === "reviewed" || item.reviewStatus === "skipped") && !entries.some((entry) =>
+    entry.action === item.reviewStatus || entry.action === `bulk_${item.reviewStatus}`)) {
+    entries.push(historyEntry(item, {
+      action: item.reviewStatus,
+      actionStatus: item.reviewStatus,
+      statusBefore: "review-needed",
+      statusAfter: item.unmatchedStatus,
+      actor: item.reviewedBy,
+      reason: item.reviewReason,
+      message: item.reviewStatus === "reviewed" ? "Unmatched inbound item marked reviewed" : "Unmatched inbound item skipped",
+      actionAt: item.reviewedAt ?? item.unmatchedResolvedAt ?? item.receivedAt,
+      receivedAt: item.receivedAt
+    }));
+  }
+  if (item.reviewStatus === "linked" && !entries.some((entry) => entry.action === "linked_to_conversation")) {
+    entries.push(historyEntry(item, {
+      action: "linked_to_conversation",
+      actionStatus: item.linkStatus,
+      statusBefore: "review-needed",
+      statusAfter: item.unmatchedStatus,
+      actor: null,
+      reason: item.linkStatus,
+      message: "Linked to safe conversation",
+      linkedConversationId: item.linkedConversationId,
+      linkedMessageId: item.linkedMessageId,
+      actionAt: item.unmatchedResolvedAt ?? item.receivedAt,
+      receivedAt: item.receivedAt
+    }));
+  }
+  return entries.sort((left, right) => left.actionAt.localeCompare(right.actionAt));
+}
+
+function addUnmatchedHistoryEntry(
+  item: ProviderWebhookUnmatchedInboundItem,
+  input: {
+    action: ProviderWebhookUnmatchedInboundHistoryAction;
+    actionStatus: string;
+    statusBefore: string | null;
+    statusAfter: string | null;
+    actor: string | null;
+    reason: string | null;
+    message: string | null;
+    linkedConversationId?: string | null;
+    linkedMessageId?: string | null;
+    receivedAt?: string | null;
+    actionAt: string;
+  }
+) {
+  unmatchedInboundHistoryEntries.push(historyEntry(item, input));
+  if (unmatchedInboundHistoryEntries.length > maxStoredEvents * 10) {
+    unmatchedInboundHistoryEntries.splice(0, unmatchedInboundHistoryEntries.length - maxStoredEvents * 10);
+  }
+}
+
+function historyEntry(
+  item: ProviderWebhookUnmatchedInboundItem,
+  input: {
+    action: ProviderWebhookUnmatchedInboundHistoryAction;
+    actionStatus: string;
+    statusBefore: string | null;
+    statusAfter: string | null;
+    actor: string | null;
+    reason: string | null;
+    message: string | null;
+    linkedConversationId?: string | null;
+    linkedMessageId?: string | null;
+    receivedAt?: string | null;
+    actionAt: string;
+  }
+): ProviderWebhookUnmatchedInboundHistoryEntry {
+  return {
+    id: `provider-webhook-history-${crypto.randomUUID()}`,
+    unmatchedInboundId: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    action: input.action,
+    actionStatus: safeHistoryText(input.actionStatus) ?? "recorded",
+    statusBefore: safeHistoryText(input.statusBefore),
+    statusAfter: safeHistoryText(input.statusAfter),
+    actor: safeHistoryText(input.actor),
+    reason: safeHistoryText(input.reason),
+    message: safeHistoryText(input.message),
+    linkedConversationId: safeHistoryText(input.linkedConversationId ?? null),
+    linkedMessageId: safeHistoryText(input.linkedMessageId ?? null),
+    receivedAt: input.receivedAt ?? item.receivedAt,
+    actionAt: input.actionAt,
+    externalCalls: 0 as const
+  };
+}
+
 function isOpenUnmatchedStatusItem(item: ProviderWebhookUnmatchedInboundItem) {
   return isOpenUnmatchedStatus(item.unmatchedStatus);
+}
+
+function normalizeUnmatchedInboundExportFilters(filters: ProviderWebhookUnmatchedInboundExportQuery): ProviderWebhookUnmatchedInboundExportQuery {
+  return {
+    ...filters,
+    limit: filters.limit ?? unmatchedInboundExportMaxLimit,
+    sortBy: filters.sortBy ?? "receivedAt",
+    sortOrder: filters.sortOrder ?? "desc",
+    format: filters.format ?? "json"
+  };
+}
+
+function exportRowFromItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookUnmatchedInboundExportRow {
+  return {
+    id: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    receivedAt: item.receivedAt,
+    reviewedAt: item.reviewedAt,
+    linkedConversationId: item.linkedConversationId,
+    candidateCount: null,
+    safeMessagePreview: safeHistoryText(item.textPreview),
+    safeReason: safeHistoryText(item.reviewReason ?? item.unmatchedReason),
+    safeResultSummary: safeHistoryText(exportResultSummary(item)),
+    externalCalls: 0 as const
+  };
+}
+
+function exportResultSummary(item: ProviderWebhookUnmatchedInboundItem) {
+  if (item.reviewStatus === "linked") return `linked:${item.linkStatus}`;
+  if (item.reviewStatus === "reviewed" || item.reviewStatus === "skipped") return item.reviewStatus;
+  return item.unmatchedStatus;
+}
+
+function rowsToCsv(rows: ProviderWebhookUnmatchedInboundExportRow[]) {
+  const columns: (keyof ProviderWebhookUnmatchedInboundExportRow)[] = [
+    "id",
+    "provider",
+    "channelAccountId",
+    "safeRoomLabel",
+    "roomKeyDigest",
+    "eventType",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "receivedAt",
+    "reviewedAt",
+    "linkedConversationId",
+    "candidateCount",
+    "safeMessagePreview",
+    "safeReason",
+    "safeResultSummary",
+    "externalCalls"
+  ];
+  const csvRows = [
+    columns.join(","),
+    ...rows.map((row) => columns.map((column) => csvCell(row[column])).join(","))
+  ];
+  return csvRows.join("\n");
+}
+
+function csvCell(value: ProviderWebhookUnmatchedInboundExportRow[keyof ProviderWebhookUnmatchedInboundExportRow]) {
+  if (value === null || value === undefined) return "";
+  return `"${String(value).replace(/"/g, "\"\"")}"`;
 }
 
 function bulkReviewResult(
@@ -916,6 +1291,17 @@ function safeReviewReason(reason: ProviderWebhookUnmatchedInboundReviewRequest["
   const trimmed = reason?.replace(/\s+/g, " ").trim();
   if (!trimmed || isUnsafeText(trimmed)) return null;
   return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+}
+
+function safeHistoryText(value: string | null | undefined) {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed || isUnsafeText(trimmed)) return null;
+  return trimmed.length > 160 ? `${trimmed.slice(0, 157)}...` : trimmed;
+}
+
+function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
+  const digest = item.roomKeyDigest?.replace(/^sha256:/, "").slice(0, 12) ?? "none";
+  return `${item.provider} room digest ${digest}`;
 }
 
 function latestItemActivityAt(item: ProviderWebhookUnmatchedInboundItem) {

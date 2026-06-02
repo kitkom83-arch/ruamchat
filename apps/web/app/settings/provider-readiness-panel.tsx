@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Check, CheckSquare, ChevronLeft, ChevronRight, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -21,6 +21,13 @@ type ProviderReadinessPanelProps = {
   unmatchedActionStatus?: string;
   unmatchedBulkSavingStatus?: "" | "reviewed" | "skipped";
   unmatchedBulkResult?: ProviderWebhookUnmatchedInboundBulkReviewResponse | null;
+  activeHistoryId?: string;
+  activeHistory?: ProviderWebhookUnmatchedInboundHistory | null;
+  historyLoadingId?: string;
+  historyErrorById?: Record<string, string>;
+  unmatchedExportResult?: ProviderWebhookUnmatchedInboundExport | null;
+  unmatchedExportLoadingFormat?: "" | ProviderWebhookUnmatchedInboundExportFormat;
+  unmatchedExportError?: string;
   candidateItemsById?: Record<string, ProviderWebhookCandidateConversation[]>;
   candidateErrorById?: Record<string, string>;
   candidateLoadingId?: string;
@@ -32,6 +39,8 @@ type ProviderReadinessPanelProps = {
   onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
   onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
+  onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
+  onExportUnmatchedInbound?: (format: ProviderWebhookUnmatchedInboundExportFormat) => Promise<void>;
 };
 
 const providers = ["line", "telegram", "facebook", "instagram"] as const;
@@ -62,6 +71,13 @@ export function ProviderReadinessPanel({
   unmatchedActionStatus = "",
   unmatchedBulkSavingStatus = "",
   unmatchedBulkResult = null,
+  activeHistoryId = "",
+  activeHistory = null,
+  historyLoadingId = "",
+  historyErrorById = {},
+  unmatchedExportResult = null,
+  unmatchedExportLoadingFormat = "",
+  unmatchedExportError = "",
   candidateItemsById = {},
   candidateErrorById = {},
   candidateLoadingId = "",
@@ -72,7 +88,9 @@ export function ProviderReadinessPanel({
   onReviewUnmatchedInbound,
   onBulkReviewUnmatchedInbound,
   onLinkUnmatchedInbound,
-  onLoadCandidates
+  onLoadCandidates,
+  onLoadHistory,
+  onExportUnmatchedInbound
 }: ProviderReadinessPanelProps) {
   const [provider, setProvider] = useState<ProviderOption>("line");
   const [eventType, setEventType] = useState<ProviderWebhookEventType>("message.created");
@@ -186,6 +204,9 @@ export function ProviderReadinessPanel({
         e("span", null, `unmatched inbound review=${readiness.webhookUnmatchedInboundReviewEnabled ? "enabled" : "disabled"}`),
         e("span", null, `review actions=${readiness.webhookUnmatchedReviewActionsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `candidate lookup=${readiness.webhookCandidateLookupEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `history audit=${readiness.webhookUnmatchedHistoryEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `queue export=${readiness.webhookUnmatchedQueueExportEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `export max limit=${readiness.webhookUnmatchedQueueExportMaxLimit}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
         e("span", null, `unmatched replay blocked count=${readiness.unmatchedInboundReplayBlockedCount}`),
@@ -487,9 +508,31 @@ export function ProviderReadinessPanel({
         },
           e(SkipForward, { size: 15 }),
           unmatchedBulkSavingStatus === "skipped" ? "Bulk saving..." : "Bulk Skip"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: Boolean(unmatchedExportLoadingFormat) || !onExportUnmatchedInbound,
+          onClick: () => void onExportUnmatchedInbound?.("json")
+        },
+          e(Download, { size: 15 }),
+          unmatchedExportLoadingFormat === "json" ? "Exporting JSON..." : "Export current filtered queue"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: Boolean(unmatchedExportLoadingFormat) || !onExportUnmatchedInbound,
+          onClick: () => void onExportUnmatchedInbound?.("csv")
+        },
+          e(Download, { size: 15 }),
+          unmatchedExportLoadingFormat === "csv" ? "Exporting CSV..." : "Export CSV"
         )
       ),
       unmatchedInboundError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedInboundError) : null,
+      unmatchedExportError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedExportError) : null,
+      unmatchedExportResult ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
+        `Export ${unmatchedExportResult.format}: exportedCount=${unmatchedExportResult.exportedCount}; exportMaxLimit=${unmatchedExportResult.exportMaxLimit}; externalCalls=${unmatchedExportResult.externalCalls}`
+      ) : null,
       unmatchedActionStatus ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" }, unmatchedActionStatus) : null,
       unmatchedBulkResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk unmatched review result" },
         ...unmatchedBulkResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
@@ -531,6 +574,41 @@ export function ProviderReadinessPanel({
             e("span", null, formatDate(item.receivedAt))
           ),
           item.textPreview ? e("p", null, item.textPreview) : null,
+          e("div", { className: "webhookEventActions" },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: historyLoadingId === item.id || !onLoadHistory,
+              onClick: () => void onLoadHistory?.(item.id)
+            },
+              e(FileClock, { size: 15 }),
+              historyLoadingId === item.id ? "Loading history..." : "View history"
+            ),
+            activeHistoryId === item.id && activeHistory ? e("span", null, `history entries=${activeHistory.entries.length}`) : null
+          ),
+          activeHistoryId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe history for ${item.id}` },
+            historyErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, historyErrorById[item.id]) : null,
+            historyLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound history...") : null,
+            activeHistory && activeHistory.unmatchedInboundId === item.id && activeHistory.entries.length > 0 ? e("div", { className: "webhookEventList compact" },
+              ...activeHistory.entries.map((entry) => e("div", { key: entry.id, className: "webhookHistoryRow" },
+                e("strong", null, `${entry.action} / ${entry.actionStatus}`),
+                e("span", null, `time=${formatDate(entry.actionAt)}`),
+                e("span", null, `actor=${entry.actor ?? "system"}`),
+                e("span", null, `platform=${entry.provider}`),
+                e("span", null, `channelAccountId=${entry.channelAccountId ?? "none"}`),
+                e("span", null, `safeRoomLabel=${entry.safeRoomLabel}`),
+                e("span", null, `roomKeyDigest=${entry.roomKeyDigest ?? "none"}`),
+                e("span", null, `statusBefore=${entry.statusBefore ?? "none"}`),
+                e("span", null, `statusAfter=${entry.statusAfter ?? "none"}`),
+                e("span", null, `linkedConversationId=${entry.linkedConversationId ?? "none"}`),
+                e("span", null, `linkedMessageId=${entry.linkedMessageId ?? "none"}`),
+                e("span", null, `receivedAt=${entry.receivedAt ? formatDate(entry.receivedAt) : "none"}`),
+                entry.reason ? e("p", null, `reason=${entry.reason}`) : null,
+                entry.message ? e("p", null, entry.message) : null,
+                e("span", null, `externalCalls=${entry.externalCalls}`)
+              ))
+            ) : !historyLoadingId && !historyErrorById[item.id] ? e("div", { className: "providerEmptyState" }, "No safe history entries for this unmatched item.") : null
+          ) : null,
           isOpenUnmatchedItem(item) ? e("div", { className: "webhookCandidateSurface" },
             e("div", { className: "webhookEventActions" },
               e("button", {

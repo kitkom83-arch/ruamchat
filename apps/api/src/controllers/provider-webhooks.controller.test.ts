@@ -847,6 +847,118 @@ describe("ProviderWebhooksController sandbox events", () => {
       .rejects.toThrow("Unmatched inbound item not found");
   });
 
+  it("returns tenant-scoped safe unmatched inbound history without raw provider fields", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const reviewedItem = await createUnmatched(controller, "raw-history-room-64", "event-history-64", "Safe history review");
+    const bulkItem = await createUnmatched(controller, "raw-history-bulk-room-64", "event-history-bulk-64", "Safe history bulk");
+
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, {
+      status: "reviewed",
+      reason: "safe history review"
+    });
+    await controller.bulkReviewUnmatchedInbound(tenantId, "user-api", {
+      ids: [bulkItem.id],
+      reviewStatus: "skipped",
+      reason: "safe history bulk skip"
+    });
+
+    const reviewedHistory = controller.listUnmatchedInboundHistory(tenantId, reviewedItem.id);
+    const bulkHistory = controller.listUnmatchedInboundHistory(tenantId, bulkItem.id);
+    const serialized = JSON.stringify({ reviewedHistory, bulkHistory });
+
+    expect(reviewedHistory).toMatchObject({
+      unmatchedInboundId: reviewedItem.id,
+      provider: "line",
+      channelAccountId: "sandbox:line",
+      roomKeyDigest: reviewedItem.roomKeyDigest,
+      externalCalls: 0
+    });
+    expect(reviewedHistory.safeRoomLabel).toContain("room digest");
+    expect(reviewedHistory.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining([
+      "inbound_received",
+      "normalized_routed",
+      "unmatched_queued",
+      "reviewed"
+    ]));
+    expect(reviewedHistory.entries.find((entry) => entry.action === "reviewed")).toMatchObject({
+      actor: "user-api",
+      reason: "safe history review",
+      statusAfter: "reviewed",
+      externalCalls: 0
+    });
+    expect(bulkHistory.entries.map((entry) => entry.action)).toContain("bulk_skipped");
+    expect(bulkHistory.entries.find((entry) => entry.action === "bulk_skipped")).toMatchObject({
+      actor: "user-api",
+      statusAfter: "skipped",
+      externalCalls: 0
+    });
+    expect(() => controller.listUnmatchedInboundHistory("00000000-0000-4000-8000-000000000099", reviewedItem.id))
+      .toThrow("Unmatched inbound item not found");
+    expect(() => controller.listUnmatchedInboundHistory(undefined, reviewedItem.id)).toThrow(BadRequestException);
+    expect(serialized).not.toMatch(/raw-history|raw-sender|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
+  });
+
+  it("exports the safe unmatched inbound queue with filters, sort, page, and capped limits", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const first = await createUnmatched(controller, "raw-export-room-one-64", "event-export-one-64", "Safe export one");
+    const second = await createUnmatched(controller, "raw-export-room-two-64", "event-export-two-64", "Safe export two");
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", second.id, {
+      status: "reviewed",
+      reason: "safe export reviewed"
+    });
+
+    const exported = controller.exportUnmatchedInbound(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      eventType: "message.created",
+      sortBy: "receivedAt",
+      sortOrder: "desc",
+      offset: "0",
+      limit: "999",
+      format: "csv"
+    });
+    const serialized = JSON.stringify(exported);
+
+    expect(exported).toMatchObject({
+      format: "csv",
+      appliedSort: {
+        sortBy: "receivedAt",
+        sortOrder: "desc"
+      },
+      requestedLimit: 999,
+      exportMaxLimit: 500,
+      exportedCount: 1,
+      externalCalls: 0
+    });
+    expect(exported.appliedFilters).toMatchObject({
+      provider: "line",
+      reviewStatus: "pending",
+      eventType: "message.created",
+      limit: 500,
+      offset: 0,
+      format: "csv"
+    });
+    expect(exported.rows).toEqual([expect.objectContaining({
+      id: first.id,
+      provider: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: expect.stringContaining("room digest"),
+      roomKeyDigest: first.roomKeyDigest,
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      safeMessagePreview: "Safe export one",
+      safeReason: "safe-review-required-no-conversation-match",
+      externalCalls: 0
+    })]);
+    expect(exported.rows.some((row) => row.id === second.id)).toBe(false);
+    expect(exported.csv).toContain("safeRoomLabel");
+    expect(() => controller.exportUnmatchedInbound(tenantId, { format: "xml" })).toThrow(BadRequestException);
+    expect(() => controller.exportUnmatchedInbound(undefined, { format: "json" })).toThrow(BadRequestException);
+    expect(serialized).not.toMatch(/raw-export|raw-sender|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
+  });
+
   it("rejects unsafe conversation links and records safe rejected status", async () => {
     const { controller, audit } = buildController({
       ...noMatchConversations(),
@@ -940,6 +1052,7 @@ describe("ProviderWebhooksController sandbox events", () => {
       conversationId: "conversation-safe-internal",
       actionMode: "link-and-persist-safe-message"
     });
+    const history = controller.listUnmatchedInboundHistory(tenantId, item.id);
 
     expect(conversations.persistLinkedSandboxWebhookInboundMessage).toHaveBeenCalledTimes(1);
     expect(linked).toMatchObject({
@@ -949,7 +1062,16 @@ describe("ProviderWebhooksController sandbox events", () => {
       externalCalls: 0
     });
     expect(duplicate.id).toBe(linked.id);
-    expect(JSON.stringify({ linked, duplicate })).not.toMatch(/raw-link-persist-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
+    expect(history.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining([
+      "linked_to_conversation",
+      "linked_message_persisted"
+    ]));
+    expect(history.entries.find((entry) => entry.action === "linked_message_persisted")).toMatchObject({
+      linkedConversationId: "conversation-safe-internal",
+      linkedMessageId: "message-safe-linked",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ linked, duplicate, history })).not.toMatch(/raw-link-persist-room-60|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender/i);
   });
 
   it("rejects live provider outbound mode", async () => {

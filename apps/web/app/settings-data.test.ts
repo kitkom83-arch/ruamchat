@@ -4,9 +4,11 @@ import {
   getCannedRepliesForMode,
   loadSettingsChannelsData,
   loadSettingsProviderWebhookCandidateData,
+  loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
+  exportSettingsProviderWebhookUnmatchedInboundData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
@@ -30,6 +32,8 @@ const api = vi.hoisted(() => ({
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookUnmatchedInbound: vi.fn(),
   getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
+  getProviderWebhookUnmatchedInboundHistory: vi.fn(),
+  getProviderWebhookUnmatchedInboundExport: vi.fn(),
   createProviderWebhookSandboxEvent: vi.fn(),
   reviewProviderWebhookUnmatchedInbound: vi.fn(),
   bulkReviewProviderWebhookUnmatchedInbound: vi.fn(),
@@ -45,6 +49,8 @@ vi.mock("./api-client", () => ({
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundHistory: api.getProviderWebhookUnmatchedInboundHistory,
+  getProviderWebhookUnmatchedInboundExport: api.getProviderWebhookUnmatchedInboundExport,
   createProviderWebhookSandboxEvent: api.createProviderWebhookSandboxEvent,
   reviewProviderWebhookUnmatchedInbound: api.reviewProviderWebhookUnmatchedInbound,
   bulkReviewProviderWebhookUnmatchedInbound: api.bulkReviewProviderWebhookUnmatchedInbound,
@@ -60,6 +66,8 @@ beforeEach(() => {
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookUnmatchedInbound.mockReset();
   api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
+  api.getProviderWebhookUnmatchedInboundHistory.mockReset();
+  api.getProviderWebhookUnmatchedInboundExport.mockReset();
   api.createProviderWebhookSandboxEvent.mockReset();
   api.reviewProviderWebhookUnmatchedInbound.mockReset();
   api.bulkReviewProviderWebhookUnmatchedInbound.mockReset();
@@ -224,6 +232,58 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify(candidates)).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender/i);
   });
 
+  it("loads unmatched history and export from API mode without exposing raw values", async () => {
+    api.getProviderWebhookUnmatchedInboundHistory.mockResolvedValueOnce(providerWebhookHistoryResponse("provider-webhook-unmatched-api"));
+    api.getProviderWebhookUnmatchedInboundExport.mockResolvedValueOnce(providerWebhookExportResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")], "csv"));
+
+    const history = await loadSettingsProviderWebhookHistoryData("api", "provider-webhook-unmatched-api");
+    const exported = await exportSettingsProviderWebhookUnmatchedInboundData("api", {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      format: "csv",
+      limit: 25,
+      offset: 10,
+      sortBy: "receivedAt",
+      sortOrder: "asc"
+    });
+
+    expect(api.getProviderWebhookUnmatchedInboundHistory).toHaveBeenCalledWith("provider-webhook-unmatched-api");
+    expect(api.getProviderWebhookUnmatchedInboundExport).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      format: "csv",
+      limit: 25,
+      offset: 10
+    }));
+    expect(history.mode).toBe("api");
+    expect(history.history.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining(["inbound_received", "unmatched_queued"]));
+    expect(exported.mode).toBe("api");
+    expect(exported.exportResult).toMatchObject({
+      format: "csv",
+      exportedCount: 1,
+      exportMaxLimit: 500,
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ history, exported })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender/i);
+  });
+
+  it("surfaces API-mode history and export failures without mutating mock state", async () => {
+    const before = JSON.stringify(mockProviderWebhookUnmatchedInbound);
+    api.getProviderWebhookUnmatchedInboundHistory.mockRejectedValueOnce(new Error("API request failed (503): history unavailable"));
+
+    await expect(loadSettingsProviderWebhookHistoryData("api", "provider-webhook-unmatched-local-1"))
+      .rejects.toThrow("history unavailable");
+
+    api.getProviderWebhookUnmatchedInboundExport.mockRejectedValueOnce(new Error("API request failed (503): export unavailable"));
+
+    await expect(exportSettingsProviderWebhookUnmatchedInboundData("api", { format: "json" }))
+      .rejects.toThrow("export unavailable");
+
+    expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
+  });
+
   it("creates provider webhook sandbox events through API mode without local fallback", async () => {
     api.createProviderWebhookSandboxEvent.mockResolvedValueOnce(providerWebhookEventResponse("provider-webhook-event-created", "telegram"));
 
@@ -301,6 +361,16 @@ describe("settings API-mode data loaders", () => {
 
     await expect(loadSettingsProviderWebhookCandidateData("api", "provider-webhook-unmatched-api"))
       .rejects.toThrow("candidates unavailable");
+
+    api.getProviderWebhookUnmatchedInboundHistory.mockRejectedValueOnce(new Error("API request failed (503): history unavailable"));
+
+    await expect(loadSettingsProviderWebhookHistoryData("api", "provider-webhook-unmatched-api"))
+      .rejects.toThrow("history unavailable");
+
+    api.getProviderWebhookUnmatchedInboundExport.mockRejectedValueOnce(new Error("API request failed (503): export unavailable"));
+
+    await expect(exportSettingsProviderWebhookUnmatchedInboundData("api", { format: "json" }))
+      .rejects.toThrow("export unavailable");
 
     api.createProviderWebhookSandboxEvent.mockRejectedValueOnce(new Error("API request failed (503): sandbox intake unavailable"));
 
@@ -597,6 +667,9 @@ function providerReadinessResponse() {
     webhookUnmatchedInboundReviewEnabled: true,
     webhookUnmatchedReviewActionsEnabled: true,
     webhookCandidateLookupEnabled: true,
+    webhookUnmatchedHistoryEnabled: true,
+    webhookUnmatchedQueueExportEnabled: true,
+    webhookUnmatchedQueueExportMaxLimit: 500,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundQueuedCount: 1,
     unmatchedInboundReplayBlockedCount: 0,
@@ -792,6 +865,90 @@ function providerWebhookCandidateResponse(conversationId: string, provider: "lin
     latestMessageAt: "2026-05-31T00:00:00.000Z",
     matchReason: "platform, channel account, and room digest match",
     matchConfidence: 0.98,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistoryResponse(unmatchedInboundId: string) {
+  return {
+    unmatchedInboundId,
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    entries: [
+      providerWebhookHistoryEntryResponse(unmatchedInboundId, "inbound_received", "received"),
+      providerWebhookHistoryEntryResponse(unmatchedInboundId, "unmatched_queued", "review-needed")
+    ],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistoryEntryResponse(unmatchedInboundId: string, action: "inbound_received" | "unmatched_queued", actionStatus: string) {
+  return {
+    id: `${unmatchedInboundId}-${action}`,
+    unmatchedInboundId,
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    action,
+    actionStatus,
+    statusBefore: action === "inbound_received" ? null : "dry-run-only",
+    statusAfter: actionStatus,
+    actor: "system",
+    reason: "safe-review-required-no-conversation-match",
+    message: "Safe history entry",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    actionAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api")], format: "json" | "csv" = "json") {
+  const rows = items.map((item) => ({
+    id: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: `${item.provider} room digest saferoomdige`,
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    receivedAt: item.receivedAt,
+    reviewedAt: item.reviewedAt,
+    linkedConversationId: item.linkedConversationId,
+    candidateCount: null,
+    safeMessagePreview: item.textPreview,
+    safeReason: item.unmatchedReason,
+    safeResultSummary: item.reviewStatus,
+    externalCalls: 0
+  }));
+  return {
+    format,
+    rows,
+    csv: format === "csv" ? "id,provider\nprovider-webhook-unmatched-api,line" : null,
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      offset: 10,
+      sortBy: "receivedAt",
+      sortOrder: "asc",
+      format,
+      limit: 25
+    },
+    appliedSort: {
+      sortBy: "receivedAt",
+      sortOrder: "asc"
+    },
+    requestedLimit: 25,
+    exportMaxLimit: 500,
+    exportedCount: rows.length,
     externalCalls: 0
   };
 }

@@ -4,9 +4,12 @@ import type {
   ProviderReadiness,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookUnmatchedInboundExport,
+  ProviderWebhookUnmatchedInboundExportQuery,
   ProviderWebhookUnmatchedInboundBulkReviewRequest,
   ProviderWebhookUnmatchedInboundBulkReviewResponse,
   ProviderWebhookUnmatchedInboundFilters,
+  ProviderWebhookUnmatchedInboundHistory,
   ProviderWebhookUnmatchedInboundLinkRequest,
   ProviderWebhookUnmatchedInboundItem,
   ProviderWebhookUnmatchedInboundPage,
@@ -24,6 +27,8 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundExport,
+  getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
   getSettingsCannedReplies,
@@ -70,6 +75,16 @@ export type SettingsProviderWebhookUnmatchedInboundData = {
 export type SettingsProviderWebhookCandidateData = {
   mode: DataMode;
   candidates: ProviderWebhookCandidateConversation[];
+};
+
+export type SettingsProviderWebhookHistoryData = {
+  mode: DataMode;
+  history: ProviderWebhookUnmatchedInboundHistory;
+};
+
+export type SettingsProviderWebhookExportData = {
+  mode: DataMode;
+  exportResult: ProviderWebhookUnmatchedInboundExport;
 };
 
 export const mockSettingsChannels: SettingsChannelAccount[] = [
@@ -148,6 +163,37 @@ export async function loadSettingsProviderWebhookCandidateData(mode: DataMode, u
   return {
     mode,
     candidates: mockProviderWebhookCandidatesByUnmatchedId[unmatchedInboundId] ?? []
+  };
+}
+
+export async function loadSettingsProviderWebhookHistoryData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookHistoryData> {
+  if (mode === "api") {
+    return {
+      mode,
+      history: await getProviderWebhookUnmatchedInboundHistory(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    history: createMockUnmatchedHistory(unmatchedInboundId)
+  };
+}
+
+export async function exportSettingsProviderWebhookUnmatchedInboundData(
+  mode: DataMode,
+  filters: ProviderWebhookUnmatchedInboundExportQuery = {}
+): Promise<SettingsProviderWebhookExportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      exportResult: await getProviderWebhookUnmatchedInboundExport(filters)
+    };
+  }
+
+  return {
+    mode,
+    exportResult: createMockUnmatchedExport(filters)
   };
 }
 
@@ -471,6 +517,198 @@ function summarizeMockUnmatchedInbound(items: ProviderWebhookUnmatchedInboundIte
   };
 }
 
+function createMockUnmatchedHistory(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundHistory {
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  const safeRoomLabel = mockSafeRoomLabel(item);
+  const base = {
+    unmatchedInboundId: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel,
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    externalCalls: 0 as const
+  };
+  const entries: ProviderWebhookUnmatchedInboundHistory["entries"] = [
+    {
+      id: `${item.id}-history-received`,
+      ...base,
+      action: "inbound_received",
+      actionStatus: "received",
+      statusBefore: null,
+      statusAfter: "received",
+      actor: "system",
+      reason: "Mock sandbox event received",
+      message: "Inbound sandbox event received",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.receivedAt
+    },
+    {
+      id: `${item.id}-history-routed`,
+      ...base,
+      action: "normalized_routed",
+      actionStatus: `${item.normalizationStatus}/${item.routingStatus}`,
+      statusBefore: "received",
+      statusAfter: item.routingStatus,
+      actor: "system",
+      reason: `lookup=${item.conversationLookupStatus}`,
+      message: "Normalized and routed with safe provider context",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.receivedAt
+    },
+    {
+      id: `${item.id}-history-queued`,
+      ...base,
+      action: "unmatched_queued",
+      actionStatus: item.unmatchedStatus,
+      statusBefore: item.routingStatus,
+      statusAfter: item.unmatchedStatus,
+      actor: "system",
+      reason: item.unmatchedReason,
+      message: "Queued for safe unmatched inbound review",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.receivedAt
+    }
+  ];
+  if (item.reviewStatus === "reviewed" || item.reviewStatus === "skipped") {
+    entries.push({
+      id: `${item.id}-history-${item.reviewStatus}`,
+      ...base,
+      action: item.reviewStatus,
+      actionStatus: item.reviewStatus,
+      statusBefore: "review-needed",
+      statusAfter: item.unmatchedStatus,
+      actor: item.reviewedBy ?? "system",
+      reason: item.reviewReason,
+      message: item.reviewStatus === "reviewed" ? "Unmatched inbound item marked reviewed" : "Unmatched inbound item skipped",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.reviewedAt ?? item.unmatchedResolvedAt ?? item.receivedAt
+    });
+  }
+  if (item.reviewStatus === "linked") {
+    entries.push({
+      id: `${item.id}-history-linked`,
+      ...base,
+      action: "linked_to_conversation",
+      actionStatus: item.linkStatus,
+      statusBefore: "review-needed",
+      statusAfter: item.unmatchedStatus,
+      actor: "system",
+      reason: item.linkStatus,
+      message: "Linked to safe conversation",
+      linkedConversationId: item.linkedConversationId,
+      linkedMessageId: item.linkedMessageId,
+      receivedAt: item.receivedAt,
+      actionAt: item.unmatchedResolvedAt ?? item.receivedAt
+    });
+    if (item.messagePersisted) {
+      entries.push({
+        id: `${item.id}-history-linked-message`,
+        ...base,
+        action: "linked_message_persisted",
+        actionStatus: item.linkStatus,
+        statusBefore: "linked",
+        statusAfter: item.linkStatus,
+        actor: "system",
+        reason: "safe message persisted",
+        message: "Linked and persisted safe inbound message",
+        linkedConversationId: item.linkedConversationId,
+        linkedMessageId: item.linkedMessageId,
+        receivedAt: item.receivedAt,
+        actionAt: item.unmatchedResolvedAt ?? item.receivedAt
+      });
+    }
+  }
+  return {
+    unmatchedInboundId: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel,
+    roomKeyDigest: item.roomKeyDigest,
+    entries,
+    externalCalls: 0
+  };
+}
+
+function createMockUnmatchedExport(filters: ProviderWebhookUnmatchedInboundExportQuery): ProviderWebhookUnmatchedInboundExport {
+  const format = filters.format ?? "json";
+  const limit = Math.min(filters.limit ?? 500, 500);
+  const offset = filters.offset ?? 0;
+  const sortBy = filters.sortBy ?? "receivedAt";
+  const sortOrder = filters.sortOrder ?? "desc";
+  const filtered = filterMockUnmatchedInbound(filters);
+  const sorted = [...filtered].sort((left, right) => {
+    const compared = left.receivedAt.localeCompare(right.receivedAt);
+    return sortOrder === "asc" ? compared : -compared;
+  });
+  const rows = sorted.slice(offset, offset + limit).map((item) => ({
+    id: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    receivedAt: item.receivedAt,
+    reviewedAt: item.reviewedAt,
+    linkedConversationId: item.linkedConversationId,
+    candidateCount: mockProviderWebhookCandidatesByUnmatchedId[item.id]?.length ?? null,
+    safeMessagePreview: safeMockText(item.textPreview),
+    safeReason: safeMockText(item.reviewReason ?? item.unmatchedReason),
+    safeResultSummary: safeMockText(item.reviewStatus === "linked" ? `linked:${item.linkStatus}` : item.reviewStatus),
+    externalCalls: 0 as const
+  }));
+  return {
+    format,
+    rows,
+    csv: format === "csv" ? mockRowsToCsv(rows) : null,
+    appliedFilters: {
+      ...filters,
+      format,
+      limit,
+      offset,
+      sortBy,
+      sortOrder
+    },
+    appliedSort: {
+      sortBy,
+      sortOrder
+    },
+    requestedLimit: filters.limit ?? 500,
+    exportMaxLimit: 500,
+    exportedCount: rows.length,
+    externalCalls: 0
+  };
+}
+
+function mockSafeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
+  return `${item.provider} room digest ${item.roomKeyDigest?.replace(/^sha256:/, "").slice(0, 12) ?? "none"}`;
+}
+
+function mockRowsToCsv(rows: ProviderWebhookUnmatchedInboundExport["rows"]) {
+  const columns: (keyof ProviderWebhookUnmatchedInboundExport["rows"][number])[] = ["id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt", "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason", "safeResultSummary", "externalCalls"];
+  return [
+    columns.join(","),
+    ...rows.map((row) => columns.map((column) => mockCsvCell(row[column])).join(","))
+  ].join("\n");
+}
+
+function mockCsvCell(value: ProviderWebhookUnmatchedInboundExport["rows"][number][keyof ProviderWebhookUnmatchedInboundExport["rows"][number]]) {
+  if (value === null || value === undefined) return "";
+  return `"${String(value).replace(/"/g, "\"\"")}"`;
+}
+
 function refreshMockUnmatchedCounts() {
   const summary = summarizeMockUnmatchedInbound(mockProviderWebhookUnmatchedInbound);
   mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
@@ -513,6 +751,9 @@ export const mockProviderReadiness: ProviderReadiness = {
   webhookUnmatchedInboundReviewEnabled: true,
   webhookUnmatchedReviewActionsEnabled: true,
   webhookCandidateLookupEnabled: true,
+  webhookUnmatchedHistoryEnabled: true,
+  webhookUnmatchedQueueExportEnabled: true,
+  webhookUnmatchedQueueExportMaxLimit: 500,
   unmatchedInboundOpenCount: 1,
   unmatchedInboundQueuedCount: 1,
   unmatchedInboundReplayBlockedCount: 0,
@@ -752,4 +993,10 @@ function safeMockReason(value: string | undefined) {
   const trimmed = value?.replace(/\s+/g, " ").trim();
   if (!trimmed || /token|secret|authorization|cookie|replyToken|Bearer\s+/i.test(trimmed)) return null;
   return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+}
+
+function safeMockText(value: string | null | undefined) {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed || /token|secret|authorization|cookie|replyToken|Bearer\s+/i.test(trimmed)) return null;
+  return trimmed.length > 160 ? `${trimmed.slice(0, 157)}...` : trimmed;
 }
