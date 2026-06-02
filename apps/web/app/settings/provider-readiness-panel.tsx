@@ -13,6 +13,7 @@ type ProviderReadinessPanelProps = {
   unmatchedInboundLoading?: boolean;
   unmatchedInboundError?: string;
   unmatchedActionSavingId?: string;
+  unmatchedActionStatus?: string;
   webhookEventSaving?: boolean;
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
   onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
@@ -34,6 +35,7 @@ export function ProviderReadinessPanel({
   unmatchedInboundLoading = false,
   unmatchedInboundError = "",
   unmatchedActionSavingId = "",
+  unmatchedActionStatus = "",
   webhookEventSaving = false,
   onCreateSandboxEvent,
   onReviewUnmatchedInbound,
@@ -232,6 +234,7 @@ export function ProviderReadinessPanel({
         )
       ),
       unmatchedInboundError ? e("div", { className: "apiErrorBox compact", role: "alert" }, unmatchedInboundError) : null,
+      unmatchedActionStatus ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" }, unmatchedActionStatus) : null,
       unmatchedInboundLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound review items...") : null,
       unmatchedInboundItems.length > 0 ? e("div", { className: "webhookEventList" },
         ...unmatchedInboundItems.slice(0, 5).map((item) => e("article", { key: item.id, className: "webhookEventRow" },

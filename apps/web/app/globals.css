@@ -2691,6 +2691,16 @@ dd {
   text-transform: uppercase;
 }
 
+.webhookActionStatus {
+  padding: 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .webhookEventForm {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) minmax(190px, 1fr) auto;
