@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -33,6 +33,7 @@ describe("ProviderReadinessPanel", () => {
       candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
       reviewMetrics: providerWebhookReviewMetrics(),
       reviewAlerts: providerWebhookReviewAlerts(),
+      reviewTriage: providerWebhookReviewTriage(),
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       activeDiagnostics: providerWebhookDiagnostics(),
       activeHistoryId: "provider-webhook-unmatched-1",
@@ -73,7 +74,11 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("diagnostics=enabled");
     expect(html).toContain("review alerts=enabled");
     expect(html).toContain("queue health=enabled");
+    expect(html).toContain("review triage=enabled");
+    expect(html).toContain("triage guidance=enabled");
     expect(html).toContain("critical alert count=1");
+    expect(html).toContain("critical triage count=1");
+    expect(html).toContain("open triage count=1");
     expect(html).toContain("open unmatched count=1");
     expect(html).toContain("stale open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
@@ -152,6 +157,26 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("critical / LINE / message.created");
     expect(html).toContain("ageBucket=over3Days");
     expect(html).toContain("Open diagnostics");
+    expect(html).toContain("Triage lanes");
+    expect(html).toContain("triage generated");
+    expect(html).toContain("total triage items");
+    expect(html).toContain("open triage items");
+    expect(html).toContain("triage lanes");
+    expect(html).toContain("critical lane count");
+    expect(html).toContain("manual review");
+    expect(html).toContain("candidate lookup");
+    expect(html).toContain("safe link candidate");
+    expect(html).toContain("Triage thresholds");
+    expect(html).toContain("Critical stale open / critical");
+    expect(html).toContain("laneKey=critical_stale_open");
+    expect(html).toContain("safeDrilldownFilters=status=open");
+    expect(html).toContain("OPEN_DIAGNOSTICS");
+    expect(html).toContain("MARK_REVIEWED");
+    expect(html).toContain("LINK_AND_PERSIST_SAFE_MESSAGE");
+    expect(html).toContain("critical_stale_open / critical / LINE");
+    expect(html).toContain("candidatesAvailable=true");
+    expect(html).toContain("exportAvailable=true");
+    expect(html).toContain("Run candidate lookup");
     expect(html).toContain("visible unmatched count=1");
     expect(html).toContain("total unmatched count=12");
     expect(html).toContain("page size=5");
@@ -263,6 +288,9 @@ describe("ProviderReadinessPanel", () => {
       reviewAlerts: null,
       reviewAlertsLoading: false,
       reviewAlertsError: "Review Alerts API error: Failed to fetch",
+      reviewTriage: null,
+      reviewTriageLoading: false,
+      reviewTriageError: "Triage Guidance API error: Failed to fetch",
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
       unmatchedInboundLoading: false,
       unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
@@ -276,6 +304,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Webhook Events API error: Failed to fetch");
     expect(html).toContain("Review Metrics API error: Failed to fetch");
     expect(html).toContain("Review Alerts API error: Failed to fetch");
+    expect(html).toContain("Triage Guidance API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).toContain("Diagnostics API error: Failed to fetch");
     expect(html).toContain("History API error: Failed to fetch");
@@ -327,7 +356,11 @@ function providerReadiness(): ProviderReadiness {
     webhookDiagnosticsEnabled: true,
     webhookReviewAlertsEnabled: true,
     webhookReviewQueueHealthEnabled: true,
+    reviewTriageEnabled: true,
+    triageGuidanceEnabled: true,
     reviewAlertCriticalCount: 1,
+    criticalTriageCount: 1,
+    openTriageCount: 1,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundStaleOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
@@ -607,6 +640,117 @@ function providerWebhookReviewAlerts(): ProviderWebhookReviewAlerts {
       routingOutcome: "dry-run-only/not-found",
       diagnosticsAvailable: true,
       historyAvailable: true,
+      externalCalls: 0
+    }],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewTriage(): ProviderWebhookReviewTriage {
+  return {
+    generatedAt: "2026-05-31T00:07:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    totalTriageLanes: 8,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    lanes: [
+      {
+        laneKey: "critical_stale_open",
+        label: "Critical stale open",
+        severity: "critical",
+        count: 1,
+        description: "Open unmatched inbound items past the critical review threshold.",
+        recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+        safeDrilldownFilters: { status: "open" }
+      },
+      {
+        laneKey: "safe_link_candidate_available",
+        label: "Safe link candidate available",
+        severity: "info",
+        count: 1,
+        description: "Open normalized items with safe platform, channel account, and room digest context.",
+        recommendedNextActions: ["RUN_CANDIDATE_LOOKUP", "LINK_ONLY", "LINK_AND_PERSIST_SAFE_MESSAGE"],
+        safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+      }
+    ],
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byPlatform: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    byLane: [
+      { key: "critical_stale_open", label: "critical_stale_open", count: 1 },
+      { key: "warning_stale_open", label: "warning_stale_open", count: 0 },
+      { key: "candidate_lookup_recommended", label: "candidate_lookup_recommended", count: 0 },
+      { key: "safe_link_candidate_available", label: "safe_link_candidate_available", count: 1 },
+      { key: "needs_manual_review", label: "needs_manual_review", count: 0 },
+      { key: "recently_reviewed", label: "recently_reviewed", count: 0 },
+      { key: "skipped_ignored", label: "skipped_ignored", count: 0 },
+      { key: "failed_routing_missing_match", label: "failed_routing_missing_match", count: 0 }
+    ],
+    topItems: [{
+      unmatchedId: "provider-webhook-unmatched-1",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      receivedAt: "2026-05-31T00:00:00.000Z",
+      ageBucket: "over3Days",
+      triageLane: "critical_stale_open",
+      severity: "critical",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      candidatesAvailable: true,
+      exportAvailable: true,
       externalCalls: 0
     }],
     externalCalls: 0

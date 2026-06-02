@@ -2086,6 +2086,37 @@ export const providerWebhookReviewAlertsFiltersSchema = providerWebhookReviewMet
   .strip();
 export type ProviderWebhookReviewAlertsFilters = z.infer<typeof providerWebhookReviewAlertsFiltersSchema>;
 
+export const providerWebhookReviewTriageLaneSchema = z.enum([
+  "critical_stale_open",
+  "warning_stale_open",
+  "candidate_lookup_recommended",
+  "safe_link_candidate_available",
+  "needs_manual_review",
+  "recently_reviewed",
+  "skipped_ignored",
+  "failed_routing_missing_match"
+]);
+export type ProviderWebhookReviewTriageLane = z.infer<typeof providerWebhookReviewTriageLaneSchema>;
+
+export const providerWebhookTriageRecommendedActionSchema = z.enum([
+  "OPEN_DIAGNOSTICS",
+  "VIEW_HISTORY",
+  "RUN_CANDIDATE_LOOKUP",
+  "APPLY_FILTER",
+  "MARK_REVIEWED",
+  "SKIP",
+  "LINK_ONLY",
+  "LINK_AND_PERSIST_SAFE_MESSAGE"
+]);
+export type ProviderWebhookTriageRecommendedAction = z.infer<typeof providerWebhookTriageRecommendedActionSchema>;
+
+export const providerWebhookReviewTriageFiltersSchema = providerWebhookReviewAlertsFiltersSchema
+  .extend({
+    triageLane: providerWebhookReviewTriageLaneSchema.optional()
+  })
+  .strip();
+export type ProviderWebhookReviewTriageFilters = z.infer<typeof providerWebhookReviewTriageFiltersSchema>;
+
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
   entryCount: z.number().int().nonnegative()
@@ -2142,7 +2173,11 @@ export const providerReadinessSchema = z.object({
   webhookDiagnosticsEnabled: z.boolean(),
   webhookReviewAlertsEnabled: z.boolean(),
   webhookReviewQueueHealthEnabled: z.boolean(),
+  reviewTriageEnabled: z.boolean(),
+  triageGuidanceEnabled: z.boolean(),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
+  criticalTriageCount: z.number().int().nonnegative(),
+  openTriageCount: z.number().int().nonnegative(),
   unmatchedInboundOpenCount: z.number().int().nonnegative(),
   unmatchedInboundStaleOpenCount: z.number().int().nonnegative(),
   unmatchedInboundQueuedCount: z.number().int().nonnegative(),
@@ -2411,6 +2446,62 @@ export const providerWebhookReviewAlertsSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewAlerts = z.infer<typeof providerWebhookReviewAlertsSchema>;
+
+export const providerWebhookReviewTriageLaneSummarySchema = z.object({
+  laneKey: providerWebhookReviewTriageLaneSchema,
+  label: z.string().min(1),
+  severity: providerWebhookReviewAlertSeveritySchema,
+  count: z.number().int().nonnegative(),
+  description: z.string().min(1),
+  recommendedNextActions: z.array(providerWebhookTriageRecommendedActionSchema),
+  safeDrilldownFilters: providerWebhookReviewMetricsFiltersSchema
+}).strict();
+export type ProviderWebhookReviewTriageLaneSummary = z.infer<typeof providerWebhookReviewTriageLaneSummarySchema>;
+
+export const providerWebhookReviewTriageItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  ageBucket: providerWebhookReviewAlertAgeBucketSchema,
+  triageLane: providerWebhookReviewTriageLaneSchema,
+  severity: providerWebhookReviewAlertSeveritySchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  routingOutcome: z.string().min(1),
+  recommendedNextActions: z.array(providerWebhookTriageRecommendedActionSchema),
+  diagnosticsAvailable: z.boolean(),
+  historyAvailable: z.boolean(),
+  candidatesAvailable: z.boolean(),
+  exportAvailable: z.boolean(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewTriageItem = z.infer<typeof providerWebhookReviewTriageItemSchema>;
+
+export const providerWebhookReviewTriageSchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewTriageFiltersSchema,
+  totalItems: z.number().int().nonnegative(),
+  totalOpenItems: z.number().int().nonnegative(),
+  totalTriageLanes: z.number().int().nonnegative(),
+  thresholds: providerWebhookReviewAlertThresholdsSchema,
+  lanes: z.array(providerWebhookReviewTriageLaneSummarySchema),
+  byProvider: z.array(providerWebhookReviewMetricsCountSchema),
+  byPlatform: z.array(providerWebhookReviewMetricsCountSchema),
+  byEventType: z.array(providerWebhookReviewMetricsCountSchema),
+  byReviewStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byLinkStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byUnmatchedStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byLane: z.array(providerWebhookReviewMetricsCountSchema),
+  topItems: z.array(providerWebhookReviewTriageItemSchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewTriage = z.infer<typeof providerWebhookReviewTriageSchema>;
 
 export const providerWebhookReviewMetricsSchema = z.object({
   generatedAt: z.string().datetime(),

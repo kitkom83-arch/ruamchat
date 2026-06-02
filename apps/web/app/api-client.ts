@@ -20,6 +20,8 @@ import {
   providerWebhookReviewAlertsSchema,
   providerWebhookReviewMetricsFiltersSchema,
   providerWebhookReviewMetricsSchema,
+  providerWebhookReviewTriageFiltersSchema,
+  providerWebhookReviewTriageSchema,
   providerWebhookUnmatchedInboundDiagnosticsSchema,
   providerWebhookUnmatchedInboundExportQuerySchema,
   providerWebhookUnmatchedInboundExportSchema,
@@ -177,6 +179,8 @@ import {
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
+  type ProviderWebhookReviewTriage,
+  type ProviderWebhookReviewTriageFilters,
   type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
   type ProviderWebhookUnmatchedInboundExportQuery,
@@ -329,6 +333,31 @@ export async function getProviderWebhookReviewAlerts(filters: ProviderWebhookRev
   }
   const search = params.toString();
   return request(`/provider-webhooks/review-alerts${search ? `?${search}` : ""}`, providerWebhookReviewAlertsSchema);
+}
+
+export async function getProviderWebhookReviewTriage(filters: ProviderWebhookReviewTriageFilters = {}): Promise<ProviderWebhookReviewTriage> {
+  const parsed = providerWebhookReviewTriageFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  const orderedKeys: (keyof ProviderWebhookReviewTriageFilters)[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "severity",
+    "triageLane"
+  ];
+  for (const key of orderedKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const search = params.toString();
+  return request(`/provider-webhooks/review-triage${search ? `?${search}` : ""}`, providerWebhookReviewTriageSchema);
 }
 
 export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundPage> {

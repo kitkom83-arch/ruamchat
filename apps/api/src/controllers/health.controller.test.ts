@@ -89,7 +89,11 @@ describe("HealthController", () => {
       expect(result.providerReadiness.webhookDiagnosticsEnabled).toBe(true);
       expect(result.providerReadiness.webhookReviewAlertsEnabled).toBe(true);
       expect(result.providerReadiness.webhookReviewQueueHealthEnabled).toBe(true);
+      expect(result.providerReadiness.reviewTriageEnabled).toBe(true);
+      expect(result.providerReadiness.triageGuidanceEnabled).toBe(true);
       expect(result.providerReadiness.reviewAlertCriticalCount).toEqual(expect.any(Number));
+      expect(result.providerReadiness.criticalTriageCount).toEqual(expect.any(Number));
+      expect(result.providerReadiness.openTriageCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.unmatchedInboundOpenCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.unmatchedInboundStaleOpenCount).toEqual(expect.any(Number));
       expect(result.providerReadiness.unmatchedInboundQueuedCount).toEqual(expect.any(Number));

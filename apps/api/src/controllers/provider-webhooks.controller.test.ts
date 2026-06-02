@@ -1034,6 +1034,95 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("returns tenant-scoped safe triage guidance without mutating review state", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const criticalItem = await createUnmatched(controller, "raw-triage-critical-room-67", "event-triage-critical-67", "Safe triage critical");
+    criticalItem.receivedAt = "2026-05-28T00:00:00.000Z";
+    const linkableItem = await createUnmatched(controller, "raw-triage-link-room-67", "event-triage-link-67", "Safe triage link");
+    const reviewedItem = await createUnmatched(controller, "raw-triage-reviewed-room-67", "event-triage-reviewed-67", "Safe triage reviewed");
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, { status: "reviewed" });
+    const before = JSON.stringify(controller.listUnmatchedInbound(tenantId, undefined));
+
+    const allTriage = controller.getReviewTriage(tenantId, {});
+    const criticalTriage = controller.getReviewTriage(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    });
+    const otherTriage = controller.getReviewTriage("00000000-0000-4000-8000-000000000099", {});
+    const after = JSON.stringify(controller.listUnmatchedInbound(tenantId, undefined));
+    const serialized = JSON.stringify({ allTriage, criticalTriage, otherTriage });
+
+    expect(() => controller.getReviewTriage(undefined, {})).toThrow(BadRequestException);
+    expect(() => controller.getReviewTriage(tenantId, { triageLane: "urgent" })).toThrow(BadRequestException);
+    expect(() => controller.getReviewTriage(tenantId, { severity: "urgent" })).toThrow(BadRequestException);
+    expect(before).toBe(after);
+    expect(allTriage).toMatchObject({
+      totalItems: 3,
+      totalOpenItems: 2,
+      totalTriageLanes: 8,
+      thresholds: {
+        staleWarningHours: 24,
+        staleCriticalHours: 72,
+        overSlaHours: 48
+      },
+      externalCalls: 0
+    });
+    expect(criticalTriage).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created",
+        severity: "critical",
+        triageLane: "critical_stale_open"
+      },
+      totalItems: 1,
+      totalOpenItems: 1,
+      externalCalls: 0
+    });
+    expect(criticalTriage.lanes.find((lane) => lane.laneKey === "critical_stale_open")).toMatchObject({
+      count: 1,
+      recommendedNextActions: expect.arrayContaining(["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"]),
+      safeDrilldownFilters: { status: "open" }
+    });
+    expect(allTriage.byLane.find((item) => item.key === "safe_link_candidate_available")?.count).toBeGreaterThanOrEqual(1);
+    expect(allTriage.byReviewStatus.find((item) => item.key === "reviewed")?.count).toBe(1);
+    expect(allTriage.topItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        unmatchedId: criticalItem.id,
+        provider: "line",
+        platform: "line",
+        channelAccountId: "sandbox:line",
+        safeRoomLabel: expect.stringContaining("room digest"),
+        roomKeyDigest: criticalItem.roomKeyDigest,
+        triageLane: "critical_stale_open",
+        severity: "critical",
+        candidatesAvailable: true,
+        diagnosticsAvailable: true,
+        historyAvailable: true,
+        exportAvailable: true,
+        externalCalls: 0
+      }),
+      expect.objectContaining({
+        unmatchedId: linkableItem.id,
+        triageLane: "safe_link_candidate_available",
+        recommendedNextActions: expect.arrayContaining(["RUN_CANDIDATE_LOOKUP", "LINK_ONLY", "LINK_AND_PERSIST_SAFE_MESSAGE"]),
+        externalCalls: 0
+      })
+    ]));
+    expect(otherTriage.totalItems).toBe(0);
+    expect(otherTriage.externalCalls).toBe(0);
+    expect(serialized).not.toContain("raw-triage");
+    expect(serialized).not.toContain("raw-sender-event-triage-critical-67");
+    expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
     const { controller } = buildController(noMatchConversations());
     const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");

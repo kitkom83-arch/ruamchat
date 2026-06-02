@@ -10,6 +10,10 @@ import type {
   ProviderWebhookReviewAlertSeverity,
   ProviderWebhookReviewMetrics,
   ProviderWebhookReviewMetricsFilters,
+  ProviderWebhookReviewTriage,
+  ProviderWebhookReviewTriageFilters,
+  ProviderWebhookReviewTriageLane,
+  ProviderWebhookTriageRecommendedAction,
   ProviderWebhookUnmatchedInboundDiagnostics,
   ProviderWebhookUnmatchedInboundExport,
   ProviderWebhookUnmatchedInboundExportQuery,
@@ -32,6 +36,7 @@ import {
   bulkReviewProviderWebhookUnmatchedInbound,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewTriage,
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
@@ -90,6 +95,11 @@ export type SettingsProviderWebhookReviewMetricsData = {
 export type SettingsProviderWebhookReviewAlertsData = {
   mode: DataMode;
   alerts: ProviderWebhookReviewAlerts;
+};
+
+export type SettingsProviderWebhookReviewTriageData = {
+  mode: DataMode;
+  triage: ProviderWebhookReviewTriage;
 };
 
 export type SettingsProviderWebhookCandidateData = {
@@ -208,6 +218,23 @@ export async function loadSettingsProviderWebhookReviewAlertsData(
   return {
     mode,
     alerts: createMockReviewAlerts(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewTriageData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewTriageFilters = {}
+): Promise<SettingsProviderWebhookReviewTriageData> {
+  if (mode === "api") {
+    return {
+      mode,
+      triage: await getProviderWebhookReviewTriage(filters)
+    };
+  }
+
+  return {
+    mode,
+    triage: createMockReviewTriage(filters)
   };
 }
 
@@ -664,6 +691,46 @@ function createMockReviewAlerts(filters: ProviderWebhookReviewAlertsFilters): Pr
   };
 }
 
+function createMockReviewTriage(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewTriage {
+  const appliedFilters = cleanMockReviewTriageFilters(filters);
+  const items = filterMockUnmatchedInbound(mockTriageBaseFilters(appliedFilters))
+    .map(mockReviewTriageItem)
+    .filter((item) => !appliedFilters.severity || item.severity === appliedFilters.severity)
+    .filter((item) => !appliedFilters.triageLane || item.triageLane === appliedFilters.triageLane)
+    .sort((left, right) => {
+      const severityCompared = mockTriageSeverityRank(right.severity) - mockTriageSeverityRank(left.severity);
+      if (severityCompared !== 0) return severityCompared;
+      return left.receivedAt.localeCompare(right.receivedAt);
+    });
+  const openItems = items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters,
+    totalItems: items.length,
+    totalOpenItems: openItems.length,
+    totalTriageLanes: mockTriageLanes.length,
+    thresholds: mockReviewAlertThresholds,
+    lanes: mockTriageLanes.map((laneKey) => ({
+      laneKey,
+      label: mockTriageLaneDetails[laneKey].label,
+      severity: mockTriageLaneSeverity(laneKey),
+      count: items.filter((item) => item.triageLane === laneKey).length,
+      description: mockTriageLaneDetails[laneKey].description,
+      recommendedNextActions: mockTriageActionsForLane(laneKey),
+      safeDrilldownFilters: mockTriageLaneDetails[laneKey].safeDrilldownFilters
+    })),
+    byProvider: countMockBy(items, providersForMetrics, (item) => item.provider),
+    byPlatform: countMockBy(items, providersForMetrics, (item) => item.platform),
+    byEventType: countMockBy(items, eventTypesForMetrics, (item) => item.eventType),
+    byReviewStatus: countMockBy(items, reviewStatusesForMetrics, (item) => item.reviewStatus),
+    byLinkStatus: countMockBy(items, linkStatusesForMetrics, (item) => item.linkStatus),
+    byUnmatchedStatus: countMockBy(items, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
+    byLane: countMockBy(items, mockTriageLanes, (item) => item.triageLane),
+    topItems: items.slice(0, 10),
+    externalCalls: 0
+  };
+}
+
 function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
   return {
     unmatchedId: item.id,
@@ -682,6 +749,33 @@ function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     diagnosticsAvailable: true,
     historyAvailable: true,
+    externalCalls: 0 as const
+  };
+}
+
+function mockReviewTriageItem(item: ProviderWebhookUnmatchedInboundItem) {
+  const lane = mockTriageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: mockAgeBucket(item.receivedAt),
+    triageLane: lane,
+    severity: mockTriageSeverityForItem(item, lane),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+    recommendedNextActions: mockTriageActionsForLane(lane),
+    diagnosticsAvailable: true,
+    historyAvailable: true,
+    candidatesAvailable: isMockLinkableUnmatchedItem(item),
+    exportAvailable: true,
     externalCalls: 0 as const
   };
 }
@@ -725,12 +819,81 @@ function cleanMockReviewAlertsFilters(filters: ProviderWebhookReviewAlertsFilter
   } as ProviderWebhookReviewAlertsFilters;
 }
 
+function cleanMockReviewTriageFilters(filters: ProviderWebhookReviewTriageFilters) {
+  return {
+    ...cleanMockReviewMetricsFilters(filters),
+    ...(filters.severity ? { severity: filters.severity } : {}),
+    ...(filters.triageLane ? { triageLane: filters.triageLane } : {})
+  } as ProviderWebhookReviewTriageFilters;
+}
+
+function mockTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
+  const { severity: _severity, triageLane: _triageLane, ...baseFilters } = filters;
+  return baseFilters;
+}
+
 const providersForMetrics = ["line", "telegram", "facebook", "instagram"] as const;
 const eventTypesForMetrics = ["message.created", "webhook.verified", "webhook.failed"] as const;
 const reviewStatusesForMetrics = ["pending", "reviewed", "skipped", "linked"] as const;
 const linkStatusesForMetrics = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
 const unmatchedStatusesForMetrics = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
 const alertSeveritiesForMetrics = ["info", "warning", "critical"] as const;
+const mockTriageLanes: ProviderWebhookReviewTriageLane[] = [
+  "critical_stale_open",
+  "warning_stale_open",
+  "candidate_lookup_recommended",
+  "safe_link_candidate_available",
+  "needs_manual_review",
+  "recently_reviewed",
+  "skipped_ignored",
+  "failed_routing_missing_match"
+];
+const mockTriageLaneDetails: Record<ProviderWebhookReviewTriageLane, {
+  label: string;
+  description: string;
+  safeDrilldownFilters: ProviderWebhookReviewMetricsFilters;
+}> = {
+  critical_stale_open: {
+    label: "Critical stale open",
+    description: "Open unmatched inbound items past the critical review threshold.",
+    safeDrilldownFilters: { status: "open" }
+  },
+  warning_stale_open: {
+    label: "Warning stale open",
+    description: "Open unmatched inbound items past the warning review threshold.",
+    safeDrilldownFilters: { status: "open" }
+  },
+  candidate_lookup_recommended: {
+    label: "Candidate lookup recommended",
+    description: "Open items where a safe candidate lookup should be run next.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+  },
+  safe_link_candidate_available: {
+    label: "Safe link candidate available",
+    description: "Open normalized items with safe platform, channel account, and room digest context.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending", linkStatus: "none" }
+  },
+  needs_manual_review: {
+    label: "Needs manual review",
+    description: "Open items that need an operator decision before any safe action.",
+    safeDrilldownFilters: { status: "open", reviewStatus: "pending" }
+  },
+  recently_reviewed: {
+    label: "Recently reviewed",
+    description: "Items already reviewed or safely linked, shown for history follow-up.",
+    safeDrilldownFilters: { reviewStatus: "reviewed" }
+  },
+  skipped_ignored: {
+    label: "Skipped / ignored",
+    description: "Skipped, duplicate, or blocked items that should only be reviewed through history.",
+    safeDrilldownFilters: { status: "skipped" }
+  },
+  failed_routing_missing_match: {
+    label: "Failed routing / missing conversation match",
+    description: "Items with blocked routing or missing safe conversation match context.",
+    safeDrilldownFilters: { status: "open" }
+  }
+};
 const mockReviewAlertThresholds = {
   staleWarningHours: 24,
   staleCriticalHours: 72,
@@ -778,6 +941,57 @@ function mockReviewAlertSeverity(receivedAt: string): ProviderWebhookReviewAlert
   if (ageHours >= mockReviewAlertThresholds.staleCriticalHours) return "critical";
   if (ageHours >= mockReviewAlertThresholds.staleWarningHours) return "warning";
   return "info";
+}
+
+function mockTriageLaneForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewTriageLane {
+  if (item.reviewStatus === "skipped" || item.unmatchedStatus === "skipped" || item.unmatchedStatus === "duplicate-skipped" || item.unmatchedStatus === "blocked") {
+    return "skipped_ignored";
+  }
+  if (item.reviewStatus === "reviewed" || item.reviewStatus === "linked" || item.unmatchedStatus === "reviewed" || item.unmatchedStatus === "linked") {
+    return "recently_reviewed";
+  }
+  if (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed") {
+    const ageHours = mockHoursSince(item.receivedAt);
+    if (ageHours >= mockReviewAlertThresholds.staleCriticalHours) return "critical_stale_open";
+    if (ageHours >= mockReviewAlertThresholds.staleWarningHours) return "warning_stale_open";
+    if (isMockLinkableUnmatchedItem(item)) return "safe_link_candidate_available";
+    if (item.conversationLookupStatus === "not-found") return "candidate_lookup_recommended";
+    if (item.routingStatus === "blocked-signature" || item.routingStatus === "blocked-replay" || item.routingStatus === "unsupported") {
+      return "failed_routing_missing_match";
+    }
+    return "needs_manual_review";
+  }
+  return "failed_routing_missing_match";
+}
+
+function mockTriageSeverityForItem(item: ProviderWebhookUnmatchedInboundItem, lane: ProviderWebhookReviewTriageLane): ProviderWebhookReviewAlertSeverity {
+  if (lane === "critical_stale_open") return "critical";
+  if (lane === "warning_stale_open") return "warning";
+  if (lane === "failed_routing_missing_match" && item.routingStatus !== "dry-run-only") return "warning";
+  return "info";
+}
+
+function mockTriageLaneSeverity(lane: ProviderWebhookReviewTriageLane): ProviderWebhookReviewAlertSeverity {
+  if (lane === "critical_stale_open") return "critical";
+  if (lane === "warning_stale_open" || lane === "failed_routing_missing_match") return "warning";
+  return "info";
+}
+
+function mockTriageActionsForLane(lane: ProviderWebhookReviewTriageLane): ProviderWebhookTriageRecommendedAction[] {
+  if (lane === "critical_stale_open") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"];
+  if (lane === "warning_stale_open") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "RUN_CANDIDATE_LOOKUP"];
+  if (lane === "safe_link_candidate_available") return ["RUN_CANDIDATE_LOOKUP", "LINK_ONLY", "LINK_AND_PERSIST_SAFE_MESSAGE"];
+  if (lane === "candidate_lookup_recommended") return ["RUN_CANDIDATE_LOOKUP", "OPEN_DIAGNOSTICS", "VIEW_HISTORY"];
+  if (lane === "needs_manual_review") return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "MARK_REVIEWED", "SKIP"];
+  if (lane === "recently_reviewed") return ["VIEW_HISTORY", "OPEN_DIAGNOSTICS"];
+  if (lane === "skipped_ignored") return ["VIEW_HISTORY", "APPLY_FILTER"];
+  return ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "SKIP"];
+}
+
+function mockTriageSeverityRank(severity: ProviderWebhookReviewAlertSeverity) {
+  if (severity === "critical") return 3;
+  if (severity === "warning") return 2;
+  return 1;
 }
 
 function mockHoursSince(receivedAt: string) {
@@ -1032,6 +1246,8 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
   mockProviderReadiness.unmatchedInboundStaleOpenCount = mockProviderWebhookUnmatchedInbound.filter(isMockStaleOpenUnmatchedItem).length;
   mockProviderReadiness.reviewAlertCriticalCount = createMockReviewAlerts({}).criticalCount;
+  mockProviderReadiness.criticalTriageCount = createMockReviewTriage({}).topItems.filter((item) => item.severity === "critical").length;
+  mockProviderReadiness.openTriageCount = createMockReviewTriage({}).totalOpenItems;
   mockProviderReadiness.unmatchedInboundReviewedCount = summary.reviewedCount;
   mockProviderReadiness.unmatchedInboundSkippedCount = summary.skippedCount;
   mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
@@ -1078,7 +1294,11 @@ export const mockProviderReadiness: ProviderReadiness = {
   webhookDiagnosticsEnabled: true,
   webhookReviewAlertsEnabled: true,
   webhookReviewQueueHealthEnabled: true,
+  reviewTriageEnabled: true,
+  triageGuidanceEnabled: true,
   reviewAlertCriticalCount: 1,
+  criticalTriageCount: 1,
+  openTriageCount: 1,
   unmatchedInboundOpenCount: 1,
   unmatchedInboundStaleOpenCount: 1,
   unmatchedInboundQueuedCount: 1,

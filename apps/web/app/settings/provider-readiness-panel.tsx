@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, ListChecks, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -27,6 +27,9 @@ type ProviderReadinessPanelProps = {
   reviewAlerts?: ProviderWebhookReviewAlerts | null;
   reviewAlertsLoading?: boolean;
   reviewAlertsError?: string;
+  reviewTriage?: ProviderWebhookReviewTriage | null;
+  reviewTriageLoading?: boolean;
+  reviewTriageError?: string;
   activeDiagnosticsId?: string;
   activeDiagnostics?: ProviderWebhookUnmatchedInboundDiagnostics | null;
   diagnosticsLoadingId?: string;
@@ -88,6 +91,9 @@ export function ProviderReadinessPanel({
   reviewAlerts = null,
   reviewAlertsLoading = false,
   reviewAlertsError = "",
+  reviewTriage = null,
+  reviewTriageLoading = false,
+  reviewTriageError = "",
   activeDiagnosticsId = "",
   activeDiagnostics = null,
   diagnosticsLoadingId = "",
@@ -218,6 +224,61 @@ export function ProviderReadinessPanel({
     );
   }
 
+  function triageActionControl(action: ProviderWebhookReviewTriage["topItems"][number]["recommendedNextActions"][number], item: ProviderWebhookReviewTriage["topItems"][number]) {
+    if (action === "OPEN_DIAGNOSTICS") {
+      return e("button", {
+        key: `${item.unmatchedId}-${action}`,
+        className: "webhookEventButton",
+        type: "button",
+        disabled: !item.diagnosticsAvailable || diagnosticsLoadingId === item.unmatchedId || !onLoadDiagnostics,
+        onClick: () => void onLoadDiagnostics?.(item.unmatchedId)
+      },
+        e(Activity, { size: 15 }),
+        diagnosticsLoadingId === item.unmatchedId ? "Loading diagnostics..." : "Open diagnostics"
+      );
+    }
+    if (action === "VIEW_HISTORY") {
+      return e("button", {
+        key: `${item.unmatchedId}-${action}`,
+        className: "webhookEventButton",
+        type: "button",
+        disabled: !item.historyAvailable || historyLoadingId === item.unmatchedId || !onLoadHistory,
+        onClick: () => void onLoadHistory?.(item.unmatchedId)
+      },
+        e(FileClock, { size: 15 }),
+        historyLoadingId === item.unmatchedId ? "Loading history..." : "View history"
+      );
+    }
+    if (action === "RUN_CANDIDATE_LOOKUP") {
+      return e("button", {
+        key: `${item.unmatchedId}-${action}`,
+        className: "webhookEventButton",
+        type: "button",
+        disabled: !item.candidatesAvailable || candidateLoadingId === item.unmatchedId || !onLoadCandidates,
+        onClick: () => void onLoadCandidates?.(item.unmatchedId)
+      },
+        e(Search, { size: 15 }),
+        candidateLoadingId === item.unmatchedId ? "Loading candidates..." : "Run candidate lookup"
+      );
+    }
+    if (action === "APPLY_FILTER") {
+      return e("button", {
+        key: `${item.unmatchedId}-${action}`,
+        className: "webhookEventButton",
+        type: "button",
+        disabled: !onUnmatchedFiltersChange,
+        onClick: () => updateQueueFilters({
+          provider: item.provider,
+          eventType: item.eventType,
+          reviewStatus: item.reviewStatus,
+          linkStatus: item.linkStatus,
+          unmatchedStatus: item.unmatchedStatus
+        })
+      }, "Apply queue filter");
+    }
+    return e("span", { key: `${item.unmatchedId}-${action}`, className: "webhookWarningPill" }, action);
+  }
+
   return e("section", { className: "providerReadinessPanel", "aria-label": "Provider sandbox and webhook readiness" },
     e("div", { className: "providerReadinessHeader" },
       e("div", { className: "channelPanelTop" },
@@ -259,7 +320,11 @@ export function ProviderReadinessPanel({
         e("span", null, `diagnostics=${readiness.webhookDiagnosticsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `review alerts=${readiness.webhookReviewAlertsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `queue health=${readiness.webhookReviewQueueHealthEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `review triage=${readiness.reviewTriageEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `triage guidance=${readiness.triageGuidanceEnabled ? "enabled" : "disabled"}`),
         e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
+        e("span", null, `critical triage count=${readiness.criticalTriageCount}`),
+        e("span", null, `open triage count=${readiness.openTriageCount}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
         e("span", null, `stale open unmatched count=${readiness.unmatchedInboundStaleOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
@@ -337,6 +402,101 @@ export function ProviderReadinessPanel({
           )
         )
       ) : null
+    ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review triage guidance" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(ListChecks, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Triage lanes"),
+            e("p", null, "Deterministic safe guidance only. Recommended actions do not run automatically.")
+          )
+        ),
+        reviewTriage ? e("div", { className: "webhookLastEvent", "aria-label": "Review triage status" },
+          e("span", null, "triage generated"),
+          e("strong", null, formatDate(reviewTriage.generatedAt)),
+          e("span", null, `externalCalls=${reviewTriage.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewTriage.appliedFilters)}`)
+        ) : null
+      ),
+      reviewTriageError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewTriageError) : null,
+      reviewTriageLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook triage guidance...") : null,
+      reviewTriage ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total triage items", reviewTriage.totalItems, {}),
+        metricFilterButton("open triage items", reviewTriage.totalOpenItems, { status: "open" }),
+        metricFilterButton("triage lanes", reviewTriage.totalTriageLanes, {}),
+        metricFilterButton("top triage summaries", reviewTriage.topItems.length, {}),
+        metricFilterButton("critical lane count", reviewTriage.byLane.find((item) => item.key === "critical_stale_open")?.count ?? 0, { status: "open" }),
+        metricFilterButton("manual review", reviewTriage.byLane.find((item) => item.key === "needs_manual_review")?.count ?? 0, { status: "open", reviewStatus: "pending" }),
+        metricFilterButton("candidate lookup", reviewTriage.byLane.find((item) => item.key === "candidate_lookup_recommended")?.count ?? 0, { status: "open", reviewStatus: "pending" }),
+        metricFilterButton("safe link candidate", reviewTriage.byLane.find((item) => item.key === "safe_link_candidate_available")?.count ?? 0, { status: "open", reviewStatus: "pending", linkStatus: "none" })
+      ) : !reviewTriageLoading && !reviewTriageError ? e("div", { className: "providerEmptyState" }, "No triage guidance returned.") : null,
+      reviewTriage ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By provider", reviewTriage.byProvider, (key) => ({ provider: key as ProviderWebhookUnmatchedInboundFilters["provider"] })),
+        metricCountGroup("By event type", reviewTriage.byEventType, (key) => ({ eventType: key as ProviderWebhookEventType })),
+        metricCountGroup("By review status", reviewTriage.byReviewStatus, (key) => ({ reviewStatus: key as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })),
+        metricCountGroup("By link status", reviewTriage.byLinkStatus, (key) => ({ linkStatus: key as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })),
+        metricCountGroup("By unmatched status", reviewTriage.byUnmatchedStatus, (key) => ({ unmatchedStatus: key as ProviderWebhookUnmatchedInboundFilters["unmatchedStatus"] }))
+      ) : null,
+      reviewTriage ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "Triage thresholds"),
+          e("div", null,
+            e("span", null, `staleWarningHours=${reviewTriage.thresholds.staleWarningHours}`),
+            e("span", null, `staleCriticalHours=${reviewTriage.thresholds.staleCriticalHours}`),
+            e("span", null, `overSlaHours=${reviewTriage.thresholds.overSlaHours}`)
+          )
+        ),
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "By lane"),
+          e("div", null,
+            ...reviewTriage.byLane.map((item) => e("span", { key: item.key }, `${item.label}=${item.count}`))
+          )
+        )
+      ) : null,
+      reviewTriage ? e("div", { className: "webhookEventList compact", "aria-label": "Safe triage lane cards" },
+        ...reviewTriage.lanes.map((lane) => e("article", { key: lane.laneKey, className: "webhookHistoryRow" },
+          e("strong", null, `${lane.label} / ${lane.severity}`),
+          e("span", null, `laneKey=${lane.laneKey}`),
+          e("span", null, `count=${lane.count}`),
+          e("span", null, `safeDrilldownFilters=${formatAppliedFilters(lane.safeDrilldownFilters)}`),
+          e("p", null, lane.description),
+          e("div", { className: "webhookEventActions" },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: !onUnmatchedFiltersChange,
+              onClick: () => updateQueueFilters(lane.safeDrilldownFilters)
+            }, "Apply lane filter"),
+            ...lane.recommendedNextActions.map((action) => e("span", { key: action, className: "webhookWarningPill" }, action))
+          )
+        ))
+      ) : null,
+      reviewTriage && reviewTriage.topItems.length > 0 ? e("div", { className: "webhookEventList compact", "aria-label": "Top safe triage item summaries" },
+        ...reviewTriage.topItems.map((item) => e("article", { key: item.unmatchedId, className: "webhookHistoryRow" },
+          e("strong", null, `${item.triageLane} / ${item.severity} / ${providerLabel(item.provider)}`),
+          e("span", null, `unmatchedId=${item.unmatchedId}`),
+          e("span", null, `platform=${item.platform}`),
+          e("span", null, `channelAccountId=${item.channelAccountId ?? "none"}`),
+          e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
+          e("span", null, `roomKeyDigest=${item.roomKeyDigest ?? "none"}`),
+          e("span", null, `eventType=${item.eventType}`),
+          e("span", null, `ageBucket=${item.ageBucket}`),
+          e("span", null, `reviewStatus=${item.reviewStatus}`),
+          e("span", null, `linkStatus=${item.linkStatus}`),
+          e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `routingOutcome=${item.routingOutcome}`),
+          e("span", null, `diagnosticsAvailable=${String(item.diagnosticsAvailable)}`),
+          e("span", null, `historyAvailable=${String(item.historyAvailable)}`),
+          e("span", null, `candidatesAvailable=${String(item.candidatesAvailable)}`),
+          e("span", null, `exportAvailable=${String(item.exportAvailable)}`),
+          e("span", null, `receivedAt=${formatDate(item.receivedAt)}`),
+          e("span", null, `externalCalls=${item.externalCalls}`),
+          e("div", { className: "webhookEventActions" },
+            ...item.recommendedNextActions.map((action) => triageActionControl(action, item))
+          )
+        ))
+      ) : reviewTriage && !reviewTriageLoading ? e("div", { className: "providerEmptyState" }, "No top triage item summaries.") : null
     ),
     e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review alerts" },
       e("div", { className: "webhookEventHeader" },

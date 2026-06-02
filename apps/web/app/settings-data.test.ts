@@ -8,6 +8,7 @@ import {
   loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewMetricsData,
+  loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -35,6 +36,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookReviewAlerts: vi.fn(),
   getProviderWebhookReviewMetrics: vi.fn(),
+  getProviderWebhookReviewTriage: vi.fn(),
   getProviderWebhookUnmatchedInbound: vi.fn(),
   getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
   getProviderWebhookUnmatchedInboundDiagnostics: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookReviewAlerts: api.getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics: api.getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewTriage: api.getProviderWebhookReviewTriage,
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundDiagnostics: api.getProviderWebhookUnmatchedInboundDiagnostics,
@@ -75,6 +78,7 @@ beforeEach(() => {
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookReviewAlerts.mockReset();
   api.getProviderWebhookReviewMetrics.mockReset();
+  api.getProviderWebhookReviewTriage.mockReset();
   api.getProviderWebhookUnmatchedInbound.mockReset();
   api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
   api.getProviderWebhookUnmatchedInboundDiagnostics.mockReset();
@@ -284,6 +288,7 @@ describe("settings API-mode data loaders", () => {
   it("loads review metrics, alerts, and diagnostics from API mode without exposing raw values", async () => {
     api.getProviderWebhookReviewMetrics.mockResolvedValueOnce(providerWebhookReviewMetricsResponse());
     api.getProviderWebhookReviewAlerts.mockResolvedValueOnce(providerWebhookReviewAlertsResponse());
+    api.getProviderWebhookReviewTriage.mockResolvedValueOnce(providerWebhookReviewTriageResponse());
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockResolvedValueOnce(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-api"));
 
     const metrics = await loadSettingsProviderWebhookReviewMetricsData("api", {
@@ -298,6 +303,14 @@ describe("settings API-mode data loaders", () => {
       linkStatus: "none",
       eventType: "message.created",
       severity: "critical"
+    });
+    const triage = await loadSettingsProviderWebhookReviewTriageData("api", {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created",
+      severity: "critical",
+      triageLane: "critical_stale_open"
     });
     const diagnostics = await loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-api");
 
@@ -314,6 +327,14 @@ describe("settings API-mode data loaders", () => {
       eventType: "message.created",
       severity: "critical"
     }));
+    expect(api.getProviderWebhookReviewTriage).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    }));
     expect(api.getProviderWebhookUnmatchedInboundDiagnostics).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(metrics.mode).toBe("api");
     expect(metrics.metrics).toMatchObject({
@@ -329,6 +350,19 @@ describe("settings API-mode data loaders", () => {
       overSlaCount: 1,
       externalCalls: 0
     });
+    expect(triage.mode).toBe("api");
+    expect(triage.triage).toMatchObject({
+      totalItems: 1,
+      totalOpenItems: 1,
+      totalTriageLanes: 8,
+      externalCalls: 0
+    });
+    expect(triage.triage.topItems[0]).toMatchObject({
+      triageLane: "critical_stale_open",
+      recommendedNextActions: expect.arrayContaining(["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER"]),
+      candidatesAvailable: true,
+      externalCalls: 0
+    });
     expect(diagnostics.mode).toBe("api");
     expect(diagnostics.diagnostics).toMatchObject({
       unmatchedId: "provider-webhook-unmatched-api",
@@ -337,7 +371,7 @@ describe("settings API-mode data loaders", () => {
       roomKeyDigest: "sha256:saferoomdigest",
       externalCalls: 0
     });
-    expect(JSON.stringify({ metrics, alerts, diagnostics })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+    expect(JSON.stringify({ metrics, alerts, triage, diagnostics })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
   it("surfaces API-mode history and export failures without mutating mock state", async () => {
@@ -366,6 +400,11 @@ describe("settings API-mode data loaders", () => {
 
     await expect(loadSettingsProviderWebhookReviewAlertsData("api", { provider: "line" }))
       .rejects.toThrow("alerts unavailable");
+
+    api.getProviderWebhookReviewTriage.mockRejectedValueOnce(new Error("API request failed (503): triage unavailable"));
+
+    await expect(loadSettingsProviderWebhookReviewTriageData("api", { provider: "line" }))
+      .rejects.toThrow("triage unavailable");
 
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockRejectedValueOnce(new Error("API request failed (503): diagnostics unavailable"));
 
@@ -453,6 +492,11 @@ describe("settings API-mode data loaders", () => {
     await expect(loadSettingsProviderWebhookCandidateData("api", "provider-webhook-unmatched-api"))
       .rejects.toThrow("candidates unavailable");
 
+    api.getProviderWebhookReviewTriage.mockRejectedValueOnce(new Error("API request failed (503): triage unavailable"));
+
+    await expect(loadSettingsProviderWebhookReviewTriageData("api", { provider: "line" }))
+      .rejects.toThrow("triage unavailable");
+
     api.getProviderWebhookUnmatchedInboundHistory.mockRejectedValueOnce(new Error("API request failed (503): history unavailable"));
 
     await expect(loadSettingsProviderWebhookHistoryData("api", "provider-webhook-unmatched-api"))
@@ -539,6 +583,10 @@ describe("settings API-mode data loaders", () => {
       provider: "line",
       severity: "critical"
     });
+    const triage = await loadSettingsProviderWebhookReviewTriageData("mock", {
+      provider: "line",
+      triageLane: "critical_stale_open"
+    });
 
     expect(channels.channels).toEqual(mockSettingsChannels);
     expect(readiness.providerReadiness).toEqual(mockProviderReadiness);
@@ -549,6 +597,9 @@ describe("settings API-mode data loaders", () => {
     expect(alerts.alerts.externalCalls).toBe(0);
     expect(alerts.alerts.appliedFilters).toEqual({ provider: "line", severity: "critical" });
     expect(alerts.alerts.bySeverity.find((item) => item.key === "critical")?.count).toBeGreaterThanOrEqual(0);
+    expect(triage.triage.externalCalls).toBe(0);
+    expect(triage.triage.appliedFilters).toEqual({ provider: "line", triageLane: "critical_stale_open" });
+    expect(triage.triage.topItems.every((item) => item.triageLane === "critical_stale_open")).toBe(true);
     expect((await loadSettingsProviderWebhookDiagnosticsData("mock", "provider-webhook-unmatched-local-1")).diagnostics.safeRoomLabel).toContain("room digest");
     expect(team.members.map((member) => member.id)).toEqual(["agent-may", "agent-ton", "agent-beam", "agent-nok"]);
     expect(team.slaPolicies.map((policy) => policy.priorityScope)).toEqual(["low", "medium", "high", "urgent"]);
@@ -558,6 +609,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsSlaPolicies).not.toHaveBeenCalled();
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookReviewTriage).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewAlerts).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewMetrics).not.toHaveBeenCalled();
     expect(api.getProviderWebhookUnmatchedInboundDiagnostics).not.toHaveBeenCalled();
@@ -785,7 +837,11 @@ function providerReadinessResponse() {
     webhookDiagnosticsEnabled: true,
     webhookReviewAlertsEnabled: true,
     webhookReviewQueueHealthEnabled: true,
+    reviewTriageEnabled: true,
+    triageGuidanceEnabled: true,
     reviewAlertCriticalCount: 1,
+    criticalTriageCount: 1,
+    openTriageCount: 1,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundStaleOpenCount: 0,
     unmatchedInboundQueuedCount: 1,
@@ -1226,6 +1282,113 @@ function providerWebhookReviewAlertsResponse() {
       routingOutcome: "dry-run-only/not-found",
       diagnosticsAvailable: true,
       historyAvailable: true,
+      externalCalls: 0
+    }],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewTriageResponse() {
+  return {
+    generatedAt: "2026-05-31T00:07:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    totalTriageLanes: 8,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    lanes: [
+      {
+        laneKey: "critical_stale_open",
+        label: "Critical stale open",
+        severity: "critical",
+        count: 1,
+        description: "Open unmatched inbound items past the critical review threshold.",
+        recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+        safeDrilldownFilters: { status: "open" }
+      }
+    ],
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byPlatform: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    byLane: [
+      { key: "critical_stale_open", label: "critical_stale_open", count: 1 },
+      { key: "warning_stale_open", label: "warning_stale_open", count: 0 },
+      { key: "candidate_lookup_recommended", label: "candidate_lookup_recommended", count: 0 },
+      { key: "safe_link_candidate_available", label: "safe_link_candidate_available", count: 0 },
+      { key: "needs_manual_review", label: "needs_manual_review", count: 0 },
+      { key: "recently_reviewed", label: "recently_reviewed", count: 0 },
+      { key: "skipped_ignored", label: "skipped_ignored", count: 0 },
+      { key: "failed_routing_missing_match", label: "failed_routing_missing_match", count: 0 }
+    ],
+    topItems: [{
+      unmatchedId: "provider-webhook-unmatched-api",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      receivedAt: "2026-05-31T00:00:00.000Z",
+      ageBucket: "over3Days",
+      triageLane: "critical_stale_open",
+      severity: "critical",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      candidatesAvailable: true,
+      exportAvailable: true,
       externalCalls: 0
     }],
     externalCalls: 0

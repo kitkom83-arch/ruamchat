@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -25,6 +25,14 @@ export class ProviderWebhooksController {
     @Query() query: unknown
   ) {
     return this.events.getReviewAlerts(requireTenantId(tenant), parseReviewAlertsFilters(query));
+  }
+
+  @Get("review-triage")
+  getReviewTriage(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown
+  ) {
+    return this.events.getReviewTriage(requireTenantId(tenant), parseReviewTriageFilters(query));
   }
 
   @Get("unmatched-inbound")
@@ -179,6 +187,21 @@ function parseReviewAlertsFilters(query: unknown) {
   );
   const parsed = providerWebhookReviewAlertsFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid provider webhook review alerts filters");
+  return parsed.data;
+}
+
+function parseReviewTriageFilters(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    return {};
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookReviewTriageFiltersSchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid provider webhook review triage filters");
   return parsed.data;
 }
 
