@@ -4,6 +4,9 @@ import type {
   ProviderReadiness,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
+  ProviderWebhookReviewMetrics,
+  ProviderWebhookReviewMetricsFilters,
+  ProviderWebhookUnmatchedInboundDiagnostics,
   ProviderWebhookUnmatchedInboundExport,
   ProviderWebhookUnmatchedInboundExportQuery,
   ProviderWebhookUnmatchedInboundBulkReviewRequest,
@@ -23,10 +26,12 @@ import type {
 import {
   createProviderWebhookSandboxEvent,
   bulkReviewProviderWebhookUnmatchedInbound,
+  getProviderWebhookReviewMetrics,
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
@@ -72,9 +77,19 @@ export type SettingsProviderWebhookUnmatchedInboundData = {
   externalCalls: 0;
 };
 
+export type SettingsProviderWebhookReviewMetricsData = {
+  mode: DataMode;
+  metrics: ProviderWebhookReviewMetrics;
+};
+
 export type SettingsProviderWebhookCandidateData = {
   mode: DataMode;
   candidates: ProviderWebhookCandidateConversation[];
+};
+
+export type SettingsProviderWebhookDiagnosticsData = {
+  mode: DataMode;
+  diagnostics: ProviderWebhookUnmatchedInboundDiagnostics;
 };
 
 export type SettingsProviderWebhookHistoryData = {
@@ -152,6 +167,23 @@ export async function loadSettingsProviderWebhookUnmatchedInboundData(mode: Data
   };
 }
 
+export async function loadSettingsProviderWebhookReviewMetricsData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewMetricsFilters = {}
+): Promise<SettingsProviderWebhookReviewMetricsData> {
+  if (mode === "api") {
+    return {
+      mode,
+      metrics: await getProviderWebhookReviewMetrics(filters)
+    };
+  }
+
+  return {
+    mode,
+    metrics: createMockReviewMetrics(filters)
+  };
+}
+
 export async function loadSettingsProviderWebhookCandidateData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookCandidateData> {
   if (mode === "api") {
     return {
@@ -163,6 +195,20 @@ export async function loadSettingsProviderWebhookCandidateData(mode: DataMode, u
   return {
     mode,
     candidates: mockProviderWebhookCandidatesByUnmatchedId[unmatchedInboundId] ?? []
+  };
+}
+
+export async function loadSettingsProviderWebhookDiagnosticsData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookDiagnosticsData> {
+  if (mode === "api") {
+    return {
+      mode,
+      diagnostics: await getProviderWebhookUnmatchedInboundDiagnostics(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    diagnostics: createMockUnmatchedDiagnostics(unmatchedInboundId)
   };
 }
 
@@ -517,6 +563,161 @@ function summarizeMockUnmatchedInbound(items: ProviderWebhookUnmatchedInboundIte
   };
 }
 
+function createMockReviewMetrics(filters: ProviderWebhookReviewMetricsFilters): ProviderWebhookReviewMetrics {
+  const appliedFilters = cleanMockReviewMetricsFilters(filters);
+  const items = filterMockUnmatchedInbound(appliedFilters);
+  const events = filterMockEventsForMetrics(appliedFilters);
+  const openItems = items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  const receivedAtValues = items.map((item) => item.receivedAt).sort();
+  const openReceivedAtValues = openItems.map((item) => item.receivedAt).sort();
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters,
+    totalEvents: events.length,
+    totalUnmatched: items.length,
+    openUnmatched: openItems.length,
+    reviewedCount: items.filter((item) => item.reviewStatus === "reviewed").length,
+    skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
+    linkedCount: items.filter((item) => item.reviewStatus === "linked").length,
+    persistedInboundCount: events.filter((event) => event.messagePersisted).length,
+    signatureRejectedCount: events.filter((event) => event.signatureStatus === "failed").length,
+    replayRejectedCount: events.filter((event) => event.replayDetected || event.routingStatus === "blocked-replay").length,
+    byProvider: countMockBy(items, providersForMetrics, (item) => item.provider),
+    byEventType: countMockBy(items, eventTypesForMetrics, (item) => item.eventType),
+    byReviewStatus: countMockBy(items, reviewStatusesForMetrics, (item) => item.reviewStatus),
+    byLinkStatus: countMockBy(items, linkStatusesForMetrics, (item) => item.linkStatus),
+    byUnmatchedStatus: countMockBy(items, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
+    ageBuckets: mockAgeBuckets(openItems),
+    funnel: {
+      inboundReceived: events.length,
+      persisted: events.filter((event) => event.messagePersisted).length,
+      unmatchedQueued: items.length,
+      reviewed: items.filter((item) => item.reviewStatus === "reviewed").length,
+      skipped: items.filter((item) => item.reviewStatus === "skipped").length,
+      linked: items.filter((item) => item.reviewStatus === "linked").length,
+      exportedHistoryAvailable: items.length
+    },
+    latestReceivedAt: receivedAtValues[receivedAtValues.length - 1] ?? null,
+    oldestOpenReceivedAt: openReceivedAtValues[0] ?? null,
+    externalCalls: 0
+  };
+}
+
+function filterMockEventsForMetrics(filters: ProviderWebhookReviewMetricsFilters) {
+  const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
+  const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
+  return mockProviderWebhookEvents.filter((event) => {
+    if (filters.provider && event.provider !== filters.provider) return false;
+    if (filters.eventType && event.eventType !== filters.eventType) return false;
+    if (receivedFrom && event.receivedAt < new Date(receivedFrom).toISOString()) return false;
+    if (receivedTo && event.receivedAt > new Date(receivedTo).toISOString()) return false;
+    return true;
+  });
+}
+
+function cleanMockReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilters) {
+  const allowedKeys = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo"
+  ] as const;
+  return Object.fromEntries(
+    allowedKeys
+      .map((key) => [key, filters[key]] as const)
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewMetricsFilters;
+}
+
+const providersForMetrics = ["line", "telegram", "facebook", "instagram"] as const;
+const eventTypesForMetrics = ["message.created", "webhook.verified", "webhook.failed"] as const;
+const reviewStatusesForMetrics = ["pending", "reviewed", "skipped", "linked"] as const;
+const linkStatusesForMetrics = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
+const unmatchedStatusesForMetrics = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
+
+function countMockBy<T, K extends string>(items: T[], keys: readonly K[], getKey: (item: T) => K) {
+  return keys.map((key) => ({
+    key,
+    label: key,
+    count: items.filter((item) => getKey(item) === key).length
+  }));
+}
+
+function mockAgeBuckets(items: ProviderWebhookUnmatchedInboundItem[]) {
+  const now = Date.now();
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * oneHour;
+  const threeDays = 3 * oneDay;
+  return items.reduce((buckets, item) => {
+    const age = Math.max(0, now - new Date(item.receivedAt).getTime());
+    if (age < oneHour) buckets.under1Hour += 1;
+    else if (age < oneDay) buckets.oneTo24Hours += 1;
+    else if (age < threeDays) buckets.oneTo3Days += 1;
+    else buckets.over3Days += 1;
+    return buckets;
+  }, {
+    under1Hour: 0,
+    oneTo24Hours: 0,
+    oneTo3Days: 0,
+    over3Days: 0
+  });
+}
+
+function createMockUnmatchedDiagnostics(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundDiagnostics {
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  const event = mockProviderWebhookEvents.find((candidate) => candidate.unmatchedInboundId === item.id);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+    normalizedEventType: item.normalizedEventType,
+    persistenceOutcome: event?.inboundPersistenceStatus ?? (item.messagePersisted ? "persisted" : "not-persisted"),
+    candidateLookupAvailable: isMockLinkableUnmatchedItem(item),
+    historyAvailable: true,
+    exportAvailable: true,
+    lastActionAt: item.unmatchedResolvedAt ?? item.reviewedAt ?? item.receivedAt,
+    safeWarnings: {
+      signatureRejected: event?.signatureStatus === "failed" || item.routingStatus === "blocked-signature",
+      replayDuplicate: event?.replayDetected === true || item.routingStatus === "blocked-replay" || item.unmatchedStatus === "duplicate-skipped",
+      missingConversationMatch: item.conversationLookupStatus === "not-found",
+      staleOpenItem: isMockStaleOpenUnmatchedItem(item)
+    },
+    externalCalls: 0
+  };
+}
+
+function isMockLinkableUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed")
+    && item.normalizationStatus === "normalized"
+    && item.conversationLookupStatus === "not-found"
+    && item.providerEventDigest !== null
+    && item.channelAccountId !== null
+    && item.roomKeyDigest !== null;
+}
+
+function isMockStaleOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
+  if (item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed") return false;
+  const receivedAt = new Date(item.receivedAt).getTime();
+  if (Number.isNaN(receivedAt)) return false;
+  return Date.now() - receivedAt >= 3 * 24 * 60 * 60 * 1000;
+}
+
 function createMockUnmatchedHistory(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundHistory {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
@@ -712,6 +913,7 @@ function mockCsvCell(value: ProviderWebhookUnmatchedInboundExport["rows"][number
 function refreshMockUnmatchedCounts() {
   const summary = summarizeMockUnmatchedInbound(mockProviderWebhookUnmatchedInbound);
   mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
+  mockProviderReadiness.unmatchedInboundStaleOpenCount = mockProviderWebhookUnmatchedInbound.filter(isMockStaleOpenUnmatchedItem).length;
   mockProviderReadiness.unmatchedInboundReviewedCount = summary.reviewedCount;
   mockProviderReadiness.unmatchedInboundSkippedCount = summary.skippedCount;
   mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
@@ -754,7 +956,10 @@ export const mockProviderReadiness: ProviderReadiness = {
   webhookUnmatchedHistoryEnabled: true,
   webhookUnmatchedQueueExportEnabled: true,
   webhookUnmatchedQueueExportMaxLimit: 500,
+  webhookReviewMetricsEnabled: true,
+  webhookDiagnosticsEnabled: true,
   unmatchedInboundOpenCount: 1,
+  unmatchedInboundStaleOpenCount: 1,
   unmatchedInboundQueuedCount: 1,
   unmatchedInboundReplayBlockedCount: 0,
   unmatchedInboundReviewedCount: 0,

@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewMetrics, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -31,6 +31,9 @@ describe("ProviderReadinessPanel", () => {
         linkedCount: 1
       },
       candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
+      reviewMetrics: providerWebhookReviewMetrics(),
+      activeDiagnosticsId: "provider-webhook-unmatched-1",
+      activeDiagnostics: providerWebhookDiagnostics(),
       activeHistoryId: "provider-webhook-unmatched-1",
       activeHistory: providerWebhookHistory(),
       unmatchedExportResult: providerWebhookExport(),
@@ -65,7 +68,10 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("history audit=enabled");
     expect(html).toContain("queue export=enabled");
     expect(html).toContain("export max limit=500");
+    expect(html).toContain("review metrics=enabled");
+    expect(html).toContain("diagnostics=enabled");
     expect(html).toContain("open unmatched count=1");
+    expect(html).toContain("stale open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
     expect(html).toContain("unmatched replay blocked count=1");
     expect(html).toContain("reviewed unmatched count=1");
@@ -118,6 +124,17 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Export current filtered queue");
     expect(html).toContain("Export CSV");
     expect(html).toContain("Export json: exportedCount=1; exportMaxLimit=500; externalCalls=0");
+    expect(html).toContain("Review metrics");
+    expect(html).toContain("metrics generated");
+    expect(html).toContain("applied filters=provider=line;reviewStatus=pending");
+    expect(html).toContain("total events");
+    expect(html).toContain("open unmatched");
+    expect(html).toContain("By provider");
+    expect(html).toContain("By event type");
+    expect(html).toContain("Open age buckets");
+    expect(html).toContain("over3Days=1");
+    expect(html).toContain("Safe review funnel");
+    expect(html).toContain("inbound received=2");
     expect(html).toContain("visible unmatched count=1");
     expect(html).toContain("total unmatched count=12");
     expect(html).toContain("page size=5");
@@ -132,6 +149,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Mark reviewed");
     expect(html).toContain("Skip");
     expect(html).toContain("Load candidates");
+    expect(html).toContain("View diagnostics");
+    expect(html).toContain("diagnostics warnings=2");
+    expect(html).toContain("Safe diagnostics");
+    expect(html).toContain("routingOutcome=dry-run-only/not-found");
+    expect(html).toContain("candidateLookupAvailable=true");
+    expect(html).toContain("missingConversationMatch");
+    expect(html).toContain("staleOpenItem");
     expect(html).toContain("View history");
     expect(html).toContain("history entries=3");
     expect(html).toContain("inbound_received / received");
@@ -216,16 +240,23 @@ describe("ProviderReadinessPanel", () => {
       webhookEvents: [],
       webhookEventsLoading: false,
       webhookEventsError: "Webhook Events API error: Failed to fetch",
+      reviewMetrics: null,
+      reviewMetricsLoading: false,
+      reviewMetricsError: "Review Metrics API error: Failed to fetch",
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
       unmatchedInboundLoading: false,
       unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
+      activeDiagnosticsId: "provider-webhook-unmatched-1",
+      diagnosticsErrorById: { "provider-webhook-unmatched-1": "Diagnostics API error: Failed to fetch" },
       activeHistoryId: "provider-webhook-unmatched-1",
       historyErrorById: { "provider-webhook-unmatched-1": "History API error: Failed to fetch" },
       unmatchedExportError: "Unmatched Export API error: Failed to fetch"
     }));
 
     expect(html).toContain("Webhook Events API error: Failed to fetch");
+    expect(html).toContain("Review Metrics API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
+    expect(html).toContain("Diagnostics API error: Failed to fetch");
     expect(html).toContain("History API error: Failed to fetch");
     expect(html).toContain("Unmatched Export API error: Failed to fetch");
     expect(html).not.toContain("payloadFieldCount=");
@@ -271,7 +302,10 @@ function providerReadiness(): ProviderReadiness {
     webhookUnmatchedHistoryEnabled: true,
     webhookUnmatchedQueueExportEnabled: true,
     webhookUnmatchedQueueExportMaxLimit: 500,
+    webhookReviewMetricsEnabled: true,
+    webhookDiagnosticsEnabled: true,
     unmatchedInboundOpenCount: 1,
+    unmatchedInboundStaleOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
     unmatchedInboundReplayBlockedCount: 1,
     unmatchedInboundReviewedCount: 1,
@@ -394,6 +428,106 @@ function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundI
     textPreview: "Safe sandbox preview",
     textLength: 20,
     receivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewMetrics(): ProviderWebhookReviewMetrics {
+  return {
+    generatedAt: "2026-05-31T00:05:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending"
+    },
+    totalEvents: 2,
+    totalUnmatched: 1,
+    openUnmatched: 1,
+    reviewedCount: 0,
+    skippedCount: 0,
+    linkedCount: 0,
+    persistedInboundCount: 0,
+    signatureRejectedCount: 0,
+    replayRejectedCount: 1,
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    ageBuckets: {
+      under1Hour: 0,
+      oneTo24Hours: 0,
+      oneTo3Days: 0,
+      over3Days: 1
+    },
+    funnel: {
+      inboundReceived: 2,
+      persisted: 0,
+      unmatchedQueued: 1,
+      reviewed: 0,
+      skipped: 0,
+      linked: 0,
+      exportedHistoryAvailable: 1
+    },
+    latestReceivedAt: "2026-05-31T00:00:00.000Z",
+    oldestOpenReceivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookDiagnostics(): ProviderWebhookUnmatchedInboundDiagnostics {
+  return {
+    unmatchedId: "provider-webhook-unmatched-1",
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    routingOutcome: "dry-run-only/not-found",
+    normalizedEventType: "message",
+    persistenceOutcome: "skipped-no-match",
+    candidateLookupAvailable: true,
+    historyAvailable: true,
+    exportAvailable: true,
+    lastActionAt: "2026-05-31T00:00:00.000Z",
+    safeWarnings: {
+      signatureRejected: false,
+      replayDuplicate: false,
+      missingConversationMatch: true,
+      staleOpenItem: true
+    },
     externalCalls: 0
   };
 }

@@ -2701,6 +2701,71 @@ dd {
   font-weight: 800;
 }
 
+.webhookMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.webhookMetricButton {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 9px;
+  text-align: left;
+}
+
+.webhookMetricButton span,
+.webhookMetricGroup span {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.webhookMetricButton strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.webhookMetricGroups {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.webhookMetricGroups.twoColumn {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.webhookMetricGroup {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.webhookMetricGroup > div {
+  display: grid;
+  gap: 6px;
+}
+
+.webhookMetricGroup .webhookMetricButton {
+  min-height: 38px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.webhookMetricGroup .webhookMetricButton strong {
+  font-size: 14px;
+}
+
 .webhookEventForm {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) minmax(190px, 1fr) auto;
@@ -2818,6 +2883,41 @@ dd {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.webhookDiagnosticsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.webhookDiagnosticsGrid > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.webhookDiagnosticsGrid strong,
+.webhookDiagnosticsGrid span {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.webhookDiagnosticsGrid span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.webhookWarningPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #92400e !important;
 }
 
 .webhookCandidateRow {
@@ -3385,7 +3485,11 @@ dd {
   }
 
   .webhookEventHeader,
-  .webhookEventForm {
+  .webhookEventForm,
+  .webhookMetricsGrid,
+  .webhookMetricGroups,
+  .webhookMetricGroups.twoColumn,
+  .webhookDiagnosticsGrid {
     display: grid;
     grid-template-columns: 1fr;
   }

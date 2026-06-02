@@ -5,7 +5,10 @@ import {
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundReviewRequestSchema,
   providerWebhookSandboxEventRequestSchema,
+  type ProviderWebhookReviewMetrics,
+  type ProviderWebhookReviewMetricsFilters,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
+  type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
   type ProviderWebhookUnmatchedInboundExportQuery,
   type ProviderWebhookUnmatchedInboundExportRow,
@@ -88,6 +91,47 @@ export class ProviderWebhookEventsService {
     };
   }
 
+  getReviewMetrics(tenantId: string, filters: ProviderWebhookReviewMetricsFilters = {}): ProviderWebhookReviewMetrics {
+    const normalizedFilters = cleanReviewMetricsFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const filteredEvents = filterEventsForMetrics(tenantId, normalizedFilters);
+    const openItems = filteredItems.filter(isOpenUnmatchedStatusItem);
+    const sortedReceivedAt = [...filteredItems].map((item) => item.receivedAt).sort();
+    const sortedOpenReceivedAt = [...openItems].map((item) => item.receivedAt).sort();
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      totalEvents: filteredEvents.length,
+      totalUnmatched: filteredItems.length,
+      openUnmatched: openItems.length,
+      reviewedCount: filteredItems.filter((item) => item.reviewStatus === "reviewed").length,
+      skippedCount: filteredItems.filter((item) => item.reviewStatus === "skipped").length,
+      linkedCount: filteredItems.filter((item) => item.reviewStatus === "linked").length,
+      persistedInboundCount: filteredEvents.filter((event) => event.messagePersisted).length,
+      signatureRejectedCount: filteredEvents.filter((event) => event.signatureStatus === "failed").length,
+      replayRejectedCount: filteredEvents.filter((event) => event.replayDetected || event.routingStatus === "blocked-replay").length,
+      byProvider: countByStable(filteredItems, ["line", "telegram", "facebook", "instagram"], (item) => item.provider),
+      byEventType: countByStable(filteredItems, ["message.created", "webhook.verified", "webhook.failed"], (item) => item.eventType),
+      byReviewStatus: countByStable(filteredItems, ["pending", "reviewed", "skipped", "linked"], (item) => item.reviewStatus),
+      byLinkStatus: countByStable(filteredItems, ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"], (item) => item.linkStatus),
+      byUnmatchedStatus: countByStable(filteredItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
+      ageBuckets: ageBucketsForOpenItems(openItems),
+      funnel: {
+        inboundReceived: filteredEvents.length,
+        persisted: filteredEvents.filter((event) => event.messagePersisted).length,
+        unmatchedQueued: filteredItems.length,
+        reviewed: filteredItems.filter((item) => item.reviewStatus === "reviewed").length,
+        skipped: filteredItems.filter((item) => item.reviewStatus === "skipped").length,
+        linked: filteredItems.filter((item) => item.reviewStatus === "linked").length,
+        exportedHistoryAvailable: filteredItems.filter((item) => buildHistoryEntriesForItem(item).length > 0).length
+      },
+      latestReceivedAt: sortedReceivedAt.at(-1) ?? null,
+      oldestOpenReceivedAt: sortedOpenReceivedAt[0] ?? null,
+      externalCalls: 0 as const
+    };
+  }
+
   async listUnmatchedInboundCandidates(tenantId: string, id: string) {
     const item = findUnmatchedInboundItem(tenantId, id);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
@@ -101,6 +145,40 @@ export class ProviderWebhookEventsService {
       roomKeyDigest: item.roomKeyDigest,
       limit: 5
     });
+  }
+
+  getUnmatchedInboundDiagnostics(tenantId: string, id: string): ProviderWebhookUnmatchedInboundDiagnostics {
+    const item = findUnmatchedInboundItem(tenantId, id);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    const event = findEventForUnmatchedItem(item);
+    const historyEntries = buildHistoryEntriesForItem(item);
+    return {
+      unmatchedId: item.id,
+      provider: item.provider,
+      platform: item.provider,
+      channelAccountId: item.channelAccountId,
+      safeRoomLabel: safeRoomLabel(item),
+      roomKeyDigest: item.roomKeyDigest,
+      eventType: item.eventType,
+      receivedAt: item.receivedAt,
+      reviewStatus: item.reviewStatus,
+      linkStatus: item.linkStatus,
+      unmatchedStatus: item.unmatchedStatus,
+      routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
+      normalizedEventType: item.normalizedEventType,
+      persistenceOutcome: event?.inboundPersistenceStatus ?? (item.messagePersisted ? "persisted" : "not-persisted"),
+      candidateLookupAvailable: isSafeLinkableUnmatchedItem(item),
+      historyAvailable: historyEntries.length > 0,
+      exportAvailable: true,
+      lastActionAt: latestItemActivityAt(item),
+      safeWarnings: {
+        signatureRejected: event?.signatureStatus === "failed" || item.routingStatus === "blocked-signature",
+        replayDuplicate: event?.replayDetected === true || item.routingStatus === "blocked-replay" || item.unmatchedStatus === "duplicate-skipped",
+        missingConversationMatch: item.conversationLookupStatus === "not-found",
+        staleOpenItem: isStaleOpenUnmatchedItem(item)
+      },
+      externalCalls: 0 as const
+    };
   }
 
   listUnmatchedInboundHistory(tenantId: string, id: string): ProviderWebhookUnmatchedInboundHistory {
@@ -948,7 +1026,10 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     webhookUnmatchedHistoryEnabled: true,
     webhookUnmatchedQueueExportEnabled: true,
     webhookUnmatchedQueueExportMaxLimit: unmatchedInboundExportMaxLimit,
+    webhookReviewMetricsEnabled: true,
+    webhookDiagnosticsEnabled: true,
     unmatchedInboundOpenCount: unmatchedInboundItems.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed").length,
+    unmatchedInboundStaleOpenCount: unmatchedInboundItems.filter(isStaleOpenUnmatchedItem).length,
     unmatchedInboundQueuedCount: unmatchedInboundItems.length,
     unmatchedInboundReplayBlockedCount: events.filter((event) => event.unmatchedStatus === "duplicate-skipped" || event.unmatchedReason === "blocked-replay").length,
     unmatchedInboundReviewedCount: unmatchedInboundItems.filter((item) => item.reviewStatus === "reviewed").length,
@@ -1021,10 +1102,29 @@ function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookU
   });
 }
 
+function filterEventsForMetrics(tenantId: string, filters: ProviderWebhookReviewMetricsFilters) {
+  const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
+  const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
+  return events.filter((event) => {
+    if (event.tenantId !== tenantId) return false;
+    if (filters.provider && event.provider !== filters.provider) return false;
+    if (filters.eventType && event.eventType !== filters.eventType) return false;
+    if (receivedFrom && event.receivedAt < new Date(receivedFrom).toISOString()) return false;
+    if (receivedTo && event.receivedAt > new Date(receivedTo).toISOString()) return false;
+    return true;
+  });
+}
+
 function cleanUnmatchedInboundFilters(filters: ProviderWebhookUnmatchedInboundFilters) {
   return Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
   ) as ProviderWebhookUnmatchedInboundFilters;
+}
+
+function cleanReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewMetricsFilters;
 }
 
 function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundItem[]) {
@@ -1034,6 +1134,34 @@ function summarizeUnmatchedInboundItems(items: ProviderWebhookUnmatchedInboundIt
     skippedCount: items.filter((item) => item.reviewStatus === "skipped").length,
     linkedCount: items.filter((item) => item.reviewStatus === "linked").length
   };
+}
+
+function countByStable<T, K extends string>(items: T[], keys: readonly K[], getKey: (item: T) => K) {
+  return keys.map((key) => ({
+    key,
+    label: key,
+    count: items.filter((item) => getKey(item) === key).length
+  }));
+}
+
+function ageBucketsForOpenItems(items: ProviderWebhookUnmatchedInboundItem[]) {
+  const now = Date.now();
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * oneHour;
+  const threeDays = 3 * oneDay;
+  return items.reduce((buckets, item) => {
+    const age = Math.max(0, now - new Date(item.receivedAt).getTime());
+    if (age < oneHour) buckets.under1Hour += 1;
+    else if (age < oneDay) buckets.oneTo24Hours += 1;
+    else if (age < threeDays) buckets.oneTo3Days += 1;
+    else buckets.over3Days += 1;
+    return buckets;
+  }, {
+    under1Hour: 0,
+    oneTo24Hours: 0,
+    oneTo3Days: 0,
+    over3Days: 0
+  });
 }
 
 function buildHistoryEntriesForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookUnmatchedInboundHistoryEntry[] {
@@ -1306,6 +1434,13 @@ function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
 
 function latestItemActivityAt(item: ProviderWebhookUnmatchedInboundItem) {
   return item.unmatchedResolvedAt ?? item.reviewedAt ?? item.receivedAt;
+}
+
+function isStaleOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
+  if (!isOpenUnmatchedStatusItem(item)) return false;
+  const receivedAt = new Date(item.receivedAt).getTime();
+  if (Number.isNaN(receivedAt)) return false;
+  return Date.now() - receivedAt >= 3 * 24 * 60 * 60 * 1000;
 }
 
 function rejectLiveProviderMode() {
