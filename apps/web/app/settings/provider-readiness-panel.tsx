@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, RadioTower, Search, Send, ShieldCheck, SkipForward, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -24,6 +24,9 @@ type ProviderReadinessPanelProps = {
   reviewMetrics?: ProviderWebhookReviewMetrics | null;
   reviewMetricsLoading?: boolean;
   reviewMetricsError?: string;
+  reviewAlerts?: ProviderWebhookReviewAlerts | null;
+  reviewAlertsLoading?: boolean;
+  reviewAlertsError?: string;
   activeDiagnosticsId?: string;
   activeDiagnostics?: ProviderWebhookUnmatchedInboundDiagnostics | null;
   diagnosticsLoadingId?: string;
@@ -82,6 +85,9 @@ export function ProviderReadinessPanel({
   reviewMetrics = null,
   reviewMetricsLoading = false,
   reviewMetricsError = "",
+  reviewAlerts = null,
+  reviewAlertsLoading = false,
+  reviewAlertsError = "",
   activeDiagnosticsId = "",
   activeDiagnostics = null,
   diagnosticsLoadingId = "",
@@ -251,6 +257,9 @@ export function ProviderReadinessPanel({
         e("span", null, `export max limit=${readiness.webhookUnmatchedQueueExportMaxLimit}`),
         e("span", null, `review metrics=${readiness.webhookReviewMetricsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `diagnostics=${readiness.webhookDiagnosticsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `review alerts=${readiness.webhookReviewAlertsEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `queue health=${readiness.webhookReviewQueueHealthEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
         e("span", null, `open unmatched count=${readiness.unmatchedInboundOpenCount}`),
         e("span", null, `stale open unmatched count=${readiness.unmatchedInboundStaleOpenCount}`),
         e("span", null, `unmatched queued count=${readiness.unmatchedInboundQueuedCount}`),
@@ -328,6 +337,102 @@ export function ProviderReadinessPanel({
           )
         )
       ) : null
+    ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review alerts" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(Bell, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Queue SLA alerts"),
+            e("p", null, "Safe queue health, stale unmatched items, and alert drilldown filters.")
+          )
+        ),
+        reviewAlerts ? e("div", { className: "webhookLastEvent", "aria-label": "Review alerts status" },
+          e("span", null, "alerts generated"),
+          e("strong", null, formatDate(reviewAlerts.generatedAt)),
+          e("span", null, `externalCalls=${reviewAlerts.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewAlerts.appliedFilters)}`)
+        ) : null
+      ),
+      reviewAlertsError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewAlertsError) : null,
+      reviewAlertsLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook review alerts...") : null,
+      reviewAlerts ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total alerts", reviewAlerts.totalAlerts, { status: "open" }),
+        metricFilterButton("info", reviewAlerts.infoCount, { status: "open" }),
+        metricFilterButton("warning", reviewAlerts.warningCount, { status: "open" }),
+        metricFilterButton("critical", reviewAlerts.criticalCount, { status: "open" }),
+        metricFilterButton("stale open", reviewAlerts.staleOpenCount, { status: "open" }),
+        metricFilterButton("over SLA", reviewAlerts.overSlaCount, { status: "open" }),
+        metricFilterButton("oldest open", reviewAlerts.oldestOpenReceivedAt ? 1 : 0, { status: "open" }),
+        metricFilterButton("top stale summaries", reviewAlerts.alertItems.length, { status: "open" })
+      ) : !reviewAlertsLoading && !reviewAlertsError ? e("div", { className: "providerEmptyState" }, "No review alerts returned.") : null,
+      reviewAlerts ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By severity", reviewAlerts.bySeverity, () => ({ status: "open" })),
+        metricCountGroup("By provider", reviewAlerts.byProvider, (key) => ({ provider: key as ProviderWebhookUnmatchedInboundFilters["provider"], status: "open" })),
+        metricCountGroup("By event type", reviewAlerts.byEventType, (key) => ({ eventType: key as ProviderWebhookEventType, status: "open" })),
+        metricCountGroup("By review status", reviewAlerts.byReviewStatus, (key) => ({ reviewStatus: key as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })),
+        metricCountGroup("By unmatched status", reviewAlerts.byUnmatchedStatus, (key) => ({ unmatchedStatus: key as ProviderWebhookUnmatchedInboundFilters["unmatchedStatus"] }))
+      ) : null,
+      reviewAlerts ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "SLA/staleness thresholds"),
+          e("div", null,
+            e("span", null, `staleWarningHours=${reviewAlerts.thresholds.staleWarningHours}`),
+            e("span", null, `staleCriticalHours=${reviewAlerts.thresholds.staleCriticalHours}`),
+            e("span", null, `overSlaHours=${reviewAlerts.thresholds.overSlaHours}`),
+            e("span", null, `latestAlertGeneratedAt=${reviewAlerts.latestAlertGeneratedAt ? formatDate(reviewAlerts.latestAlertGeneratedAt) : "none"}`),
+            e("span", null, `oldestOpenReceivedAt=${reviewAlerts.oldestOpenReceivedAt ? formatDate(reviewAlerts.oldestOpenReceivedAt) : "none"}`)
+          )
+        ),
+        e("div", { className: "webhookMetricGroup" },
+          e("strong", null, "By link status"),
+          e("div", null,
+            ...reviewAlerts.byLinkStatus.map((item) => metricFilterButton(item.label, item.count, { linkStatus: item.key as ProviderWebhookUnmatchedInboundFilters["linkStatus"] }))
+          )
+        )
+      ) : null,
+      reviewAlerts && reviewAlerts.alertItems.length > 0 ? e("div", { className: "webhookEventList compact", "aria-label": "Top stale unmatched alert summaries" },
+        ...reviewAlerts.alertItems.map((item) => e("article", { key: item.unmatchedId, className: "webhookHistoryRow" },
+          e("strong", null, `${item.severity} / ${providerLabel(item.provider)} / ${item.eventType}`),
+          e("span", null, `unmatchedId=${item.unmatchedId}`),
+          e("span", null, `platform=${item.platform}`),
+          e("span", null, `channelAccountId=${item.channelAccountId ?? "none"}`),
+          e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
+          e("span", null, `roomKeyDigest=${item.roomKeyDigest ?? "none"}`),
+          e("span", null, `ageBucket=${item.ageBucket}`),
+          e("span", null, `reviewStatus=${item.reviewStatus}`),
+          e("span", null, `linkStatus=${item.linkStatus}`),
+          e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `routingOutcome=${item.routingOutcome}`),
+          e("span", null, `diagnosticsAvailable=${String(item.diagnosticsAvailable)}`),
+          e("span", null, `historyAvailable=${String(item.historyAvailable)}`),
+          e("span", null, `receivedAt=${formatDate(item.receivedAt)}`),
+          e("span", null, `externalCalls=${item.externalCalls}`),
+          e("div", { className: "webhookEventActions" },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: !onUnmatchedFiltersChange,
+              onClick: () => updateQueueFilters({
+                provider: item.provider,
+                eventType: item.eventType,
+                reviewStatus: item.reviewStatus,
+                linkStatus: item.linkStatus,
+                unmatchedStatus: item.unmatchedStatus
+              })
+            }, "Apply filters"),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: !item.diagnosticsAvailable || diagnosticsLoadingId === item.unmatchedId || !onLoadDiagnostics,
+              onClick: () => void onLoadDiagnostics?.(item.unmatchedId)
+            },
+              e(Activity, { size: 15 }),
+              diagnosticsLoadingId === item.unmatchedId ? "Loading diagnostics..." : "Open diagnostics"
+            )
+          )
+        ))
+      ) : reviewAlerts && !reviewAlertsLoading ? e("div", { className: "providerEmptyState" }, "No stale unmatched alert summaries.") : null
     ),
     e("div", { className: "webhookEventSurface", "aria-label": "Webhook sandbox event log" },
       e("div", { className: "webhookEventHeader" },

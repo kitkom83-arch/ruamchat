@@ -16,6 +16,8 @@ import {
   apiHealthSchema,
   providerWebhookEventSchema,
   providerWebhookCandidateConversationSchema,
+  providerWebhookReviewAlertsFiltersSchema,
+  providerWebhookReviewAlertsSchema,
   providerWebhookReviewMetricsFiltersSchema,
   providerWebhookReviewMetricsSchema,
   providerWebhookUnmatchedInboundDiagnosticsSchema,
@@ -171,6 +173,8 @@ import {
   type ProviderReadiness,
   type ProviderWebhookCandidateConversation,
   type ProviderWebhookEvent,
+  type ProviderWebhookReviewAlerts,
+  type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
   type ProviderWebhookUnmatchedInboundDiagnostics,
@@ -301,6 +305,30 @@ export async function getProviderWebhookReviewMetrics(filters: ProviderWebhookRe
   }
   const search = params.toString();
   return request(`/provider-webhooks/review-metrics${search ? `?${search}` : ""}`, providerWebhookReviewMetricsSchema);
+}
+
+export async function getProviderWebhookReviewAlerts(filters: ProviderWebhookReviewAlertsFilters = {}): Promise<ProviderWebhookReviewAlerts> {
+  const parsed = providerWebhookReviewAlertsFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  const orderedKeys: (keyof ProviderWebhookReviewAlertsFilters)[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "severity"
+  ];
+  for (const key of orderedKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const search = params.toString();
+  return request(`/provider-webhooks/review-alerts${search ? `?${search}` : ""}`, providerWebhookReviewAlertsSchema);
 }
 
 export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilters = {}): Promise<ProviderWebhookUnmatchedInboundPage> {

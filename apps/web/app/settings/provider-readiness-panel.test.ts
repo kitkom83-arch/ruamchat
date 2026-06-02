@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewMetrics, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -32,6 +32,7 @@ describe("ProviderReadinessPanel", () => {
       },
       candidateItemsById: { "provider-webhook-unmatched-1": [providerWebhookCandidateConversation()] },
       reviewMetrics: providerWebhookReviewMetrics(),
+      reviewAlerts: providerWebhookReviewAlerts(),
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       activeDiagnostics: providerWebhookDiagnostics(),
       activeHistoryId: "provider-webhook-unmatched-1",
@@ -70,6 +71,9 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("export max limit=500");
     expect(html).toContain("review metrics=enabled");
     expect(html).toContain("diagnostics=enabled");
+    expect(html).toContain("review alerts=enabled");
+    expect(html).toContain("queue health=enabled");
+    expect(html).toContain("critical alert count=1");
     expect(html).toContain("open unmatched count=1");
     expect(html).toContain("stale open unmatched count=1");
     expect(html).toContain("unmatched queued count=2");
@@ -135,6 +139,19 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("over3Days=1");
     expect(html).toContain("Safe review funnel");
     expect(html).toContain("inbound received=2");
+    expect(html).toContain("Queue SLA alerts");
+    expect(html).toContain("alerts generated");
+    expect(html).toContain("total alerts");
+    expect(html).toContain("critical");
+    expect(html).toContain("stale open");
+    expect(html).toContain("over SLA");
+    expect(html).toContain("By severity");
+    expect(html).toContain("SLA/staleness thresholds");
+    expect(html).toContain("staleWarningHours=24");
+    expect(html).toContain("top stale summaries");
+    expect(html).toContain("critical / LINE / message.created");
+    expect(html).toContain("ageBucket=over3Days");
+    expect(html).toContain("Open diagnostics");
     expect(html).toContain("visible unmatched count=1");
     expect(html).toContain("total unmatched count=12");
     expect(html).toContain("page size=5");
@@ -243,6 +260,9 @@ describe("ProviderReadinessPanel", () => {
       reviewMetrics: null,
       reviewMetricsLoading: false,
       reviewMetricsError: "Review Metrics API error: Failed to fetch",
+      reviewAlerts: null,
+      reviewAlertsLoading: false,
+      reviewAlertsError: "Review Alerts API error: Failed to fetch",
       unmatchedInboundItems: [providerWebhookUnmatchedInboundItem()],
       unmatchedInboundLoading: false,
       unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
@@ -255,6 +275,7 @@ describe("ProviderReadinessPanel", () => {
 
     expect(html).toContain("Webhook Events API error: Failed to fetch");
     expect(html).toContain("Review Metrics API error: Failed to fetch");
+    expect(html).toContain("Review Alerts API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).toContain("Diagnostics API error: Failed to fetch");
     expect(html).toContain("History API error: Failed to fetch");
@@ -304,6 +325,9 @@ function providerReadiness(): ProviderReadiness {
     webhookUnmatchedQueueExportMaxLimit: 500,
     webhookReviewMetricsEnabled: true,
     webhookDiagnosticsEnabled: true,
+    webhookReviewAlertsEnabled: true,
+    webhookReviewQueueHealthEnabled: true,
+    reviewAlertCriticalCount: 1,
     unmatchedInboundOpenCount: 1,
     unmatchedInboundStaleOpenCount: 1,
     unmatchedInboundQueuedCount: 2,
@@ -498,6 +522,93 @@ function providerWebhookReviewMetrics(): ProviderWebhookReviewMetrics {
     },
     latestReceivedAt: "2026-05-31T00:00:00.000Z",
     oldestOpenReceivedAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewAlerts(): ProviderWebhookReviewAlerts {
+  return {
+    generatedAt: "2026-05-31T00:06:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending"
+    },
+    totalAlerts: 1,
+    infoCount: 0,
+    warningCount: 0,
+    criticalCount: 1,
+    staleOpenCount: 1,
+    overSlaCount: 1,
+    oldestOpenReceivedAt: "2026-05-31T00:00:00.000Z",
+    latestAlertGeneratedAt: "2026-05-31T00:06:00.000Z",
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    byProvider: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byPlatform: [
+      { key: "line", label: "line", count: 1 },
+      { key: "telegram", label: "telegram", count: 0 },
+      { key: "facebook", label: "facebook", count: 0 },
+      { key: "instagram", label: "instagram", count: 0 }
+    ],
+    byEventType: [
+      { key: "message.created", label: "message.created", count: 1 },
+      { key: "webhook.verified", label: "webhook.verified", count: 0 },
+      { key: "webhook.failed", label: "webhook.failed", count: 0 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 },
+      { key: "rejected", label: "rejected", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "linked-message-persisted", label: "linked-message-persisted", count: 0 },
+      { key: "duplicate-noop", label: "duplicate-noop", count: 0 }
+    ],
+    byUnmatchedStatus: [
+      { key: "open", label: "open", count: 0 },
+      { key: "review-needed", label: "review-needed", count: 1 },
+      { key: "reviewed", label: "reviewed", count: 0 },
+      { key: "blocked", label: "blocked", count: 0 },
+      { key: "skipped", label: "skipped", count: 0 },
+      { key: "linked", label: "linked", count: 0 },
+      { key: "duplicate-skipped", label: "duplicate-skipped", count: 0 }
+    ],
+    bySeverity: [
+      { key: "info", label: "info", count: 0 },
+      { key: "warning", label: "warning", count: 0 },
+      { key: "critical", label: "critical", count: 1 }
+    ],
+    alertItems: [{
+      unmatchedId: "provider-webhook-unmatched-1",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      receivedAt: "2026-05-31T00:00:00.000Z",
+      ageBucket: "over3Days",
+      severity: "critical",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      externalCalls: 0
+    }],
     externalCalls: 0
   };
 }

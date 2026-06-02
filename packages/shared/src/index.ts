@@ -2076,6 +2076,16 @@ export const providerWebhookReviewMetricsFiltersSchema = providerWebhookUnmatche
   .strip();
 export type ProviderWebhookReviewMetricsFilters = z.infer<typeof providerWebhookReviewMetricsFiltersSchema>;
 
+export const providerWebhookReviewAlertSeveritySchema = z.enum(["info", "warning", "critical"]);
+export type ProviderWebhookReviewAlertSeverity = z.infer<typeof providerWebhookReviewAlertSeveritySchema>;
+
+export const providerWebhookReviewAlertsFiltersSchema = providerWebhookReviewMetricsFiltersSchema
+  .extend({
+    severity: providerWebhookReviewAlertSeveritySchema.optional()
+  })
+  .strip();
+export type ProviderWebhookReviewAlertsFilters = z.infer<typeof providerWebhookReviewAlertsFiltersSchema>;
+
 export const providerAllowlistSummarySchema = z.object({
   configured: z.boolean(),
   entryCount: z.number().int().nonnegative()
@@ -2130,6 +2140,9 @@ export const providerReadinessSchema = z.object({
   webhookUnmatchedQueueExportMaxLimit: z.number().int().positive(),
   webhookReviewMetricsEnabled: z.boolean(),
   webhookDiagnosticsEnabled: z.boolean(),
+  webhookReviewAlertsEnabled: z.boolean(),
+  webhookReviewQueueHealthEnabled: z.boolean(),
+  reviewAlertCriticalCount: z.number().int().nonnegative(),
   unmatchedInboundOpenCount: z.number().int().nonnegative(),
   unmatchedInboundStaleOpenCount: z.number().int().nonnegative(),
   unmatchedInboundQueuedCount: z.number().int().nonnegative(),
@@ -2343,6 +2356,61 @@ export const providerWebhookReviewFunnelSchema = z.object({
   exportedHistoryAvailable: z.number().int().nonnegative()
 }).strict();
 export type ProviderWebhookReviewFunnel = z.infer<typeof providerWebhookReviewFunnelSchema>;
+
+export const providerWebhookReviewAlertThresholdsSchema = z.object({
+  staleWarningHours: z.number().int().positive(),
+  staleCriticalHours: z.number().int().positive(),
+  overSlaHours: z.number().int().positive()
+}).strict();
+export type ProviderWebhookReviewAlertThresholds = z.infer<typeof providerWebhookReviewAlertThresholdsSchema>;
+
+export const providerWebhookReviewAlertAgeBucketSchema = z.enum(["under1Hour", "oneTo24Hours", "oneTo3Days", "over3Days"]);
+export type ProviderWebhookReviewAlertAgeBucket = z.infer<typeof providerWebhookReviewAlertAgeBucketSchema>;
+
+export const providerWebhookReviewAlertItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  ageBucket: providerWebhookReviewAlertAgeBucketSchema,
+  severity: providerWebhookReviewAlertSeveritySchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  routingOutcome: z.string().min(1),
+  diagnosticsAvailable: z.boolean(),
+  historyAvailable: z.boolean(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewAlertItem = z.infer<typeof providerWebhookReviewAlertItemSchema>;
+
+export const providerWebhookReviewAlertsSchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewAlertsFiltersSchema,
+  totalAlerts: z.number().int().nonnegative(),
+  infoCount: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  criticalCount: z.number().int().nonnegative(),
+  staleOpenCount: z.number().int().nonnegative(),
+  overSlaCount: z.number().int().nonnegative(),
+  oldestOpenReceivedAt: z.string().datetime().nullable(),
+  latestAlertGeneratedAt: z.string().datetime().nullable(),
+  thresholds: providerWebhookReviewAlertThresholdsSchema,
+  byProvider: z.array(providerWebhookReviewMetricsCountSchema),
+  byPlatform: z.array(providerWebhookReviewMetricsCountSchema),
+  byEventType: z.array(providerWebhookReviewMetricsCountSchema),
+  byReviewStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byLinkStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byUnmatchedStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  bySeverity: z.array(providerWebhookReviewMetricsCountSchema),
+  alertItems: z.array(providerWebhookReviewAlertItemSchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewAlerts = z.infer<typeof providerWebhookReviewAlertsSchema>;
 
 export const providerWebhookReviewMetricsSchema = z.object({
   generatedAt: z.string().datetime(),

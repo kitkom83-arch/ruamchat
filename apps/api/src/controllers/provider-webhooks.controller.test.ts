@@ -963,6 +963,77 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(JSON.stringify(otherMetrics)).not.toMatch(/raw-metrics-tenant|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret/i);
   });
 
+  it("returns tenant-scoped safe review alerts with SLA thresholds and filters", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const criticalItem = await createUnmatched(controller, "raw-alert-room-66", "event-alert-critical-66", "Safe alert critical");
+    criticalItem.receivedAt = "2026-05-28T00:00:00.000Z";
+    const reviewedItem = await createUnmatched(controller, "raw-alert-reviewed-room-66", "event-alert-reviewed-66", "Safe alert reviewed");
+    await controller.reviewUnmatchedInbound(tenantId, "user-api", reviewedItem.id, { status: "reviewed" });
+
+    const alerts = controller.getReviewAlerts(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      severity: "critical"
+    });
+    const otherAlerts = controller.getReviewAlerts("00000000-0000-4000-8000-000000000099", {});
+    const serialized = JSON.stringify({ alerts, otherAlerts });
+
+    expect(() => controller.getReviewAlerts(undefined, {})).toThrow(BadRequestException);
+    expect(() => controller.getReviewAlerts(tenantId, { severity: "urgent" })).toThrow(BadRequestException);
+    expect(alerts).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        eventType: "message.created",
+        severity: "critical"
+      },
+      totalAlerts: 1,
+      infoCount: 0,
+      warningCount: 0,
+      criticalCount: 1,
+      staleOpenCount: 1,
+      overSlaCount: 1,
+      oldestOpenReceivedAt: criticalItem.receivedAt,
+      thresholds: {
+        staleWarningHours: 24,
+        staleCriticalHours: 72,
+        overSlaHours: 48
+      },
+      externalCalls: 0
+    });
+    expect(alerts.byProvider.find((item) => item.key === "line")?.count).toBe(1);
+    expect(alerts.byPlatform.find((item) => item.key === "line")?.count).toBe(1);
+    expect(alerts.bySeverity.find((item) => item.key === "critical")?.count).toBe(1);
+    expect(alerts.alertItems).toEqual([expect.objectContaining({
+      unmatchedId: criticalItem.id,
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: expect.stringContaining("room digest"),
+      roomKeyDigest: criticalItem.roomKeyDigest,
+      eventType: "message.created",
+      ageBucket: "over3Days",
+      severity: "critical",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      routingOutcome: "dry-run-only/not-found",
+      diagnosticsAvailable: true,
+      historyAvailable: true,
+      externalCalls: 0
+    })]);
+    expect(otherAlerts.totalAlerts).toBe(0);
+    expect(otherAlerts.externalCalls).toBe(0);
+    expect(serialized).not.toContain("raw-alert-room-66");
+    expect(serialized).not.toContain("raw-sender-event-alert-critical-66");
+    expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
     const { controller } = buildController(noMatchConversations());
     const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");
