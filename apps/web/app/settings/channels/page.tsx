@@ -2,14 +2,16 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
+  exportSettingsProviderWebhookUnmatchedInboundData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
   loadSettingsProviderWebhookCandidateData,
+  loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
@@ -40,6 +42,13 @@ export default function ChannelSettingsPage() {
   const [selectedUnmatchedIds, setSelectedUnmatchedIds] = useState<string[]>([]);
   const [unmatchedBulkSavingStatus, setUnmatchedBulkSavingStatus] = useState<"" | "reviewed" | "skipped">("");
   const [unmatchedBulkResult, setUnmatchedBulkResult] = useState<ProviderWebhookUnmatchedInboundBulkReviewResponse | null>(null);
+  const [activeHistoryId, setActiveHistoryId] = useState("");
+  const [activeHistory, setActiveHistory] = useState<ProviderWebhookUnmatchedInboundHistory | null>(null);
+  const [historyLoadingId, setHistoryLoadingId] = useState("");
+  const [historyErrorById, setHistoryErrorById] = useState<Record<string, string>>({});
+  const [unmatchedExportResult, setUnmatchedExportResult] = useState<ProviderWebhookUnmatchedInboundExport | null>(null);
+  const [unmatchedExportLoadingFormat, setUnmatchedExportLoadingFormat] = useState<"" | ProviderWebhookUnmatchedInboundExportFormat>("");
+  const [unmatchedExportError, setUnmatchedExportError] = useState("");
   const [candidateItemsById, setCandidateItemsById] = useState<Record<string, ProviderWebhookCandidateConversation[]>>({});
   const [candidateErrorById, setCandidateErrorById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -155,6 +164,46 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadHistory(unmatchedInboundId: string) {
+    setActiveHistoryId(unmatchedInboundId);
+    setHistoryLoadingId(unmatchedInboundId);
+    setHistoryErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    try {
+      const result = await loadSettingsProviderWebhookHistoryData(dataMode, unmatchedInboundId);
+      setActiveHistory(result.history);
+    } catch (reason) {
+      setActiveHistory(null);
+      setHistoryErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `History API error: ${reason instanceof Error ? reason.message : "Unable to load unmatched inbound history"}`
+      }));
+    } finally {
+      setHistoryLoadingId("");
+    }
+  }
+
+  async function refreshActiveHistory() {
+    if (activeHistoryId) await loadHistory(activeHistoryId);
+  }
+
+  async function exportUnmatchedQueue(format: ProviderWebhookUnmatchedInboundExportFormat) {
+    setUnmatchedExportLoadingFormat(format);
+    setUnmatchedExportError("");
+    setUnmatchedExportResult(null);
+    try {
+      const result = await exportSettingsProviderWebhookUnmatchedInboundData(dataMode, {
+        ...unmatchedFilters,
+        format
+      });
+      setUnmatchedExportResult(result.exportResult);
+    } catch (reason) {
+      setUnmatchedExportResult(null);
+      setUnmatchedExportError(`Unmatched Export API error: ${reason instanceof Error ? reason.message : "Unable to export unmatched inbound review"}`);
+    } finally {
+      setUnmatchedExportLoadingFormat("");
+    }
+  }
+
   const groupedChannels = useMemo(() => {
     const groups = new Map<string, SettingsChannelAccount[]>();
     for (const channel of channels) {
@@ -201,6 +250,7 @@ export default function ChannelSettingsPage() {
       await refreshWebhookEvents();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
+      await refreshActiveHistory();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -221,6 +271,7 @@ export default function ChannelSettingsPage() {
       await refreshWebhookEvents();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
+      await refreshActiveHistory();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -266,6 +317,7 @@ export default function ChannelSettingsPage() {
           await loadCandidates(id);
         }
       }
+      await refreshActiveHistory();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -307,6 +359,13 @@ export default function ChannelSettingsPage() {
         unmatchedActionStatus={unmatchedActionStatus}
         unmatchedBulkSavingStatus={unmatchedBulkSavingStatus}
         unmatchedBulkResult={unmatchedBulkResult}
+        activeHistoryId={activeHistoryId}
+        activeHistory={activeHistory}
+        historyLoadingId={historyLoadingId}
+        historyErrorById={historyErrorById}
+        unmatchedExportResult={unmatchedExportResult}
+        unmatchedExportLoadingFormat={unmatchedExportLoadingFormat}
+        unmatchedExportError={unmatchedExportError}
         candidateItemsById={candidateItemsById}
         candidateErrorById={candidateErrorById}
         candidateLoadingId={candidateLoadingId}
@@ -318,6 +377,8 @@ export default function ChannelSettingsPage() {
         onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
         onLoadCandidates={loadCandidates}
+        onLoadHistory={loadHistory}
+        onExportUnmatchedInbound={exportUnmatchedQueue}
       />
 
       <section className="channelGrid" aria-label="Channel webhook settings">

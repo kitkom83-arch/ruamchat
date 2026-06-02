@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -20,6 +20,23 @@ export class ProviderWebhooksController {
     return shouldReturnPagedUnmatchedInbound(query)
       ? this.events.listUnmatchedInboundPage(requireTenantId(tenant), filters)
       : this.events.listUnmatchedInbound(requireTenantId(tenant), filters);
+  }
+
+  @Get("unmatched-inbound/export")
+  exportUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown
+  ) {
+    const filters = parseUnmatchedInboundExportQuery(query);
+    return this.events.exportUnmatchedInboundQueue(requireTenantId(tenant), filters);
+  }
+
+  @Get("unmatched-inbound/:id/history")
+  listUnmatchedInboundHistory(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.listUnmatchedInboundHistory(requireTenantId(tenant), id);
   }
 
   @Get("unmatched-inbound/:id/candidates")
@@ -93,6 +110,21 @@ function parseUnmatchedInboundFilters(query: unknown) {
   );
   const parsed = providerWebhookUnmatchedInboundFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound filters");
+  return parsed.data;
+}
+
+function parseUnmatchedInboundExportQuery(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    return {};
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookUnmatchedInboundExportQuerySchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid unmatched inbound export query");
   return parsed.data;
 }
 

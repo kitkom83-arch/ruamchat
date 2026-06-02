@@ -20,6 +20,8 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundExport,
+  getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
   getKnowledgeBases,
@@ -273,6 +275,55 @@ describe("frontend API client", () => {
       externalCalls: 0
     });
     expect(JSON.stringify(result)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender/i);
+  });
+
+  it("sends x-tenant-id for unmatched history and queue export with safe filters", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookHistoryResponse("provider-webhook-unmatched-1")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookExportResponse([providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")], "csv")));
+
+    const history = await getProviderWebhookUnmatchedInboundHistory("provider-webhook-unmatched-1");
+    const exported = await getProviderWebhookUnmatchedInboundExport({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      offset: 10,
+      sortBy: "receivedAt",
+      sortOrder: "asc",
+      format: "csv",
+      limit: 25
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/history", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/export?provider=line&reviewStatus=pending&linkStatus=none&eventType=message.created&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&offset=10&sortBy=receivedAt&sortOrder=asc&format=csv&limit=25", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(history.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining(["inbound_received", "unmatched_queued"]));
+    expect(exported).toMatchObject({
+      format: "csv",
+      exportedCount: 1,
+      exportMaxLimit: 500,
+      externalCalls: 0
+    });
+    expect(exported.rows[0]).toMatchObject({
+      id: "provider-webhook-unmatched-1",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest saferoomdige",
+      roomKeyDigest: "sha256:saferoomdigest",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ history, exported })).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender/i);
+  });
+
+  it("surfaces unmatched history and export API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "history unavailable" }, 503));
+    await expect(getProviderWebhookUnmatchedInboundHistory("provider-webhook-unmatched-1"))
+      .rejects.toThrow("API request failed (503): history unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "export unavailable" }, 503));
+    await expect(getProviderWebhookUnmatchedInboundExport({ format: "json" }))
+      .rejects.toThrow("API request failed (503): export unavailable");
   });
 
   it("validates conversations and keeps room filters explicit", async () => {
@@ -1115,6 +1166,9 @@ function providerReadinessResponse() {
       webhookUnmatchedInboundReviewEnabled: true,
       webhookUnmatchedReviewActionsEnabled: true,
       webhookCandidateLookupEnabled: true,
+      webhookUnmatchedHistoryEnabled: true,
+      webhookUnmatchedQueueExportEnabled: true,
+      webhookUnmatchedQueueExportMaxLimit: 500,
       unmatchedInboundOpenCount: 1,
       unmatchedInboundQueuedCount: 1,
       unmatchedInboundReplayBlockedCount: 0,
@@ -1293,6 +1347,92 @@ function providerWebhookCandidateResponse(conversationId: string, provider: "lin
     latestMessageAt: "2026-05-31T00:00:00.000Z",
     matchReason: "platform, channel account, and room digest match",
     matchConfidence: 0.98,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistoryResponse(unmatchedInboundId: string) {
+  return {
+    unmatchedInboundId,
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    entries: [
+      providerWebhookHistoryEntryResponse(unmatchedInboundId, "inbound_received", "received"),
+      providerWebhookHistoryEntryResponse(unmatchedInboundId, "unmatched_queued", "review-needed")
+    ],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHistoryEntryResponse(unmatchedInboundId: string, action: "inbound_received" | "unmatched_queued", actionStatus: string) {
+  return {
+    id: `${unmatchedInboundId}-${action}`,
+    unmatchedInboundId,
+    provider: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    action,
+    actionStatus,
+    statusBefore: action === "inbound_received" ? null : "dry-run-only",
+    statusAfter: actionStatus,
+    actor: "system",
+    reason: "safe-review-required-no-conversation-match",
+    message: "Safe history entry",
+    linkedConversationId: null,
+    linkedMessageId: null,
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    actionAt: "2026-05-31T00:00:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1")], format: "json" | "csv" = "json") {
+  const rows = items.map((item) => ({
+    id: item.id,
+    provider: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: `${item.provider} room digest saferoomdige`,
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    receivedAt: item.receivedAt,
+    reviewedAt: item.reviewedAt,
+    linkedConversationId: item.linkedConversationId,
+    candidateCount: null,
+    safeMessagePreview: item.textPreview,
+    safeReason: item.unmatchedReason,
+    safeResultSummary: item.reviewStatus,
+    externalCalls: 0
+  }));
+  return {
+    format,
+    rows,
+    csv: format === "csv" ? "id,provider\nprovider-webhook-unmatched-1,line" : null,
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      eventType: "message.created",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      offset: 10,
+      sortBy: "receivedAt",
+      sortOrder: "asc",
+      format,
+      limit: 25
+    },
+    appliedSort: {
+      sortBy: "receivedAt",
+      sortOrder: "asc"
+    },
+    requestedLimit: 25,
+    exportMaxLimit: 500,
+    exportedCount: rows.length,
     externalCalls: 0
   };
 }

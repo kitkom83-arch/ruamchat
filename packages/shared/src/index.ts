@@ -2109,6 +2109,9 @@ export const providerReadinessSchema = z.object({
   webhookUnmatchedInboundReviewEnabled: z.boolean(),
   webhookUnmatchedReviewActionsEnabled: z.boolean(),
   webhookCandidateLookupEnabled: z.boolean(),
+  webhookUnmatchedHistoryEnabled: z.boolean(),
+  webhookUnmatchedQueueExportEnabled: z.boolean(),
+  webhookUnmatchedQueueExportMaxLimit: z.number().int().positive(),
   unmatchedInboundOpenCount: z.number().int().nonnegative(),
   unmatchedInboundQueuedCount: z.number().int().nonnegative(),
   unmatchedInboundReplayBlockedCount: z.number().int().nonnegative(),
@@ -2336,6 +2339,100 @@ export const providerWebhookUnmatchedInboundBulkReviewResponseSchema = z.object(
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookUnmatchedInboundBulkReviewResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewResponseSchema>;
+
+export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
+  "inbound_received",
+  "normalized_routed",
+  "unmatched_queued",
+  "reviewed",
+  "skipped",
+  "linked_to_conversation",
+  "linked_message_persisted",
+  "bulk_reviewed",
+  "bulk_skipped",
+  "link_rejected"
+]);
+export type ProviderWebhookUnmatchedInboundHistoryAction = z.infer<typeof providerWebhookUnmatchedInboundHistoryActionSchema>;
+
+export const providerWebhookUnmatchedInboundHistoryEntrySchema = z.object({
+  id: z.string().min(1),
+  unmatchedInboundId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  action: providerWebhookUnmatchedInboundHistoryActionSchema,
+  actionStatus: z.string().min(1),
+  statusBefore: z.string().min(1).nullable(),
+  statusAfter: z.string().min(1).nullable(),
+  actor: z.string().min(1).nullable(),
+  reason: z.string().min(1).nullable(),
+  message: z.string().min(1).nullable(),
+  linkedConversationId: z.string().min(1).nullable(),
+  linkedMessageId: z.string().min(1).nullable(),
+  receivedAt: z.string().datetime().nullable(),
+  actionAt: z.string().datetime(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundHistoryEntry = z.infer<typeof providerWebhookUnmatchedInboundHistoryEntrySchema>;
+
+export const providerWebhookUnmatchedInboundHistorySchema = z.object({
+  unmatchedInboundId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  entries: z.array(providerWebhookUnmatchedInboundHistoryEntrySchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundHistory = z.infer<typeof providerWebhookUnmatchedInboundHistorySchema>;
+
+export const providerWebhookUnmatchedInboundExportFormatSchema = z.enum(["json", "csv"]);
+export type ProviderWebhookUnmatchedInboundExportFormat = z.infer<typeof providerWebhookUnmatchedInboundExportFormatSchema>;
+
+export const providerWebhookUnmatchedInboundExportQuerySchema = providerWebhookUnmatchedInboundFiltersSchema
+  .omit({ limit: true })
+  .extend({
+    format: providerWebhookUnmatchedInboundExportFormatSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(5000).optional()
+  })
+  .strict();
+export type ProviderWebhookUnmatchedInboundExportQuery = z.infer<typeof providerWebhookUnmatchedInboundExportQuerySchema>;
+
+export const providerWebhookUnmatchedInboundExportRowSchema = z.object({
+  id: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  receivedAt: z.string().datetime(),
+  reviewedAt: z.string().datetime().nullable(),
+  linkedConversationId: z.string().min(1).nullable(),
+  candidateCount: z.number().int().nonnegative().nullable(),
+  safeMessagePreview: z.string().min(1).nullable(),
+  safeReason: z.string().min(1).nullable(),
+  safeResultSummary: z.string().min(1).nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundExportRow = z.infer<typeof providerWebhookUnmatchedInboundExportRowSchema>;
+
+export const providerWebhookUnmatchedInboundExportSchema = z.object({
+  format: providerWebhookUnmatchedInboundExportFormatSchema,
+  rows: z.array(providerWebhookUnmatchedInboundExportRowSchema),
+  csv: z.string().min(1).nullable(),
+  appliedFilters: providerWebhookUnmatchedInboundExportQuerySchema,
+  appliedSort: providerWebhookUnmatchedInboundAppliedSortSchema,
+  requestedLimit: z.number().int().positive(),
+  exportMaxLimit: z.number().int().positive(),
+  exportedCount: z.number().int().nonnegative(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundExport = z.infer<typeof providerWebhookUnmatchedInboundExportSchema>;
 
 export const apiReadinessSchema = z.object({
   status: z.literal("ok"),

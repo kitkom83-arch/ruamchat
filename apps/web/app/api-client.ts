@@ -16,9 +16,12 @@ import {
   apiHealthSchema,
   providerWebhookEventSchema,
   providerWebhookCandidateConversationSchema,
+  providerWebhookUnmatchedInboundExportQuerySchema,
+  providerWebhookUnmatchedInboundExportSchema,
   providerWebhookUnmatchedInboundBulkReviewRequestSchema,
   providerWebhookUnmatchedInboundBulkReviewResponseSchema,
   providerWebhookUnmatchedInboundFiltersSchema,
+  providerWebhookUnmatchedInboundHistorySchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
   providerWebhookUnmatchedInboundItemSchema,
   providerWebhookUnmatchedInboundPageSchema,
@@ -165,9 +168,12 @@ import {
   type ProviderReadiness,
   type ProviderWebhookCandidateConversation,
   type ProviderWebhookEvent,
+  type ProviderWebhookUnmatchedInboundExport,
+  type ProviderWebhookUnmatchedInboundExportQuery,
   type ProviderWebhookUnmatchedInboundBulkReviewRequest,
   type ProviderWebhookUnmatchedInboundBulkReviewResponse,
   type ProviderWebhookUnmatchedInboundFilters,
+  type ProviderWebhookUnmatchedInboundHistory,
   type ProviderWebhookUnmatchedInboundLinkRequest,
   type ProviderWebhookUnmatchedInboundItem,
   type ProviderWebhookUnmatchedInboundPage,
@@ -287,6 +293,38 @@ export async function getProviderWebhookUnmatchedInbound(filters: ProviderWebhoo
 
 export async function getProviderWebhookUnmatchedInboundCandidates(unmatchedInboundId: string): Promise<ProviderWebhookCandidateConversation[]> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/candidates`, providerWebhookCandidateConversationSchema.array());
+}
+
+export async function getProviderWebhookUnmatchedInboundHistory(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundHistory> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/history`, providerWebhookUnmatchedInboundHistorySchema);
+}
+
+export async function getProviderWebhookUnmatchedInboundExport(filters: ProviderWebhookUnmatchedInboundExportQuery = {}): Promise<ProviderWebhookUnmatchedInboundExport> {
+  const parsed = providerWebhookUnmatchedInboundExportQuerySchema.parse(filters);
+  const params = new URLSearchParams();
+  const orderedKeys: (keyof ProviderWebhookUnmatchedInboundExportQuery)[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "offset",
+    "sortBy",
+    "sortOrder",
+    "format",
+    "limit"
+  ];
+  for (const key of orderedKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const search = params.toString();
+  return request(`/provider-webhooks/unmatched-inbound/export${search ? `?${search}` : ""}`, providerWebhookUnmatchedInboundExportSchema);
 }
 
 export async function createProviderWebhookSandboxEvent(payload: ProviderWebhookSandboxEventRequest): Promise<ProviderWebhookEvent> {

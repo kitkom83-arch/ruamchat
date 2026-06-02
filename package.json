@@ -70,6 +70,7 @@
     "smoke:sprint61": "node scripts/smoke-sprint61-provider-webhook-review-workspace-ui-actions.mjs",
     "smoke:sprint62": "node scripts/smoke-sprint62-provider-webhook-review-candidate-lookup.mjs",
     "smoke:sprint63": "node scripts/smoke-sprint63-provider-webhook-review-bulk-pagination.mjs",
+    "smoke:sprint64": "node scripts/smoke-sprint64-provider-webhook-review-audit-export.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {
