@@ -2,12 +2,13 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, ProviderWebhookReviewEscalationReason, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
   bulkAssignSettingsProviderWebhookUnmatchedInbound,
   bulkEscalateSettingsProviderWebhookUnmatchedInbound,
+  bulkResolveSettingsProviderWebhookUnmatchedInbound,
   archiveSettingsProviderWebhookSavedView,
   assignSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
@@ -25,11 +26,14 @@ import {
   loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderWebhookReviewWorkloadData,
+  loadSettingsProviderWebhookReviewResolutionSummaryData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookSavedViewsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
-  reviewSettingsProviderWebhookUnmatchedInbound
+  resolveSettingsProviderWebhookUnmatchedInbound,
+  reviewSettingsProviderWebhookUnmatchedInbound,
+  updateSettingsProviderWebhookUnmatchedInboundChecklist
 } from "../../settings-data";
 import { ProviderReadinessPanel } from "../provider-readiness-panel";
 
@@ -71,6 +75,10 @@ export default function ChannelSettingsPage() {
   const [reviewWorkload, setReviewWorkload] = useState<ProviderWebhookReviewWorkload | null>(null);
   const [workloadLoading, setWorkloadLoading] = useState(true);
   const [workloadError, setWorkloadError] = useState("");
+  const [reviewResolutionSummary, setReviewResolutionSummary] = useState<ProviderWebhookReviewResolutionSummary | null>(null);
+  const [resolutionSummaryLoading, setResolutionSummaryLoading] = useState(true);
+  const [resolutionSummaryError, setResolutionSummaryError] = useState("");
+  const [unmatchedBulkResolutionResult, setUnmatchedBulkResolutionResult] = useState<ProviderWebhookUnmatchedInboundBulkResolutionResponse | null>(null);
   const [reviewSavedViews, setReviewSavedViews] = useState<ProviderWebhookReviewSavedView[]>([]);
   const [savedViewsLoading, setSavedViewsLoading] = useState(true);
   const [savedViewsError, setSavedViewsError] = useState("");
@@ -247,6 +255,23 @@ export default function ChannelSettingsPage() {
     }
   }, [unmatchedFilters, triageSavedViewFilters]);
 
+  const refreshReviewResolutionSummary = useCallback(async () => {
+    setResolutionSummaryLoading(true);
+    setResolutionSummaryError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewResolutionSummaryData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewResolutionSummary(result.summary);
+    } catch (reason) {
+      setReviewResolutionSummary(null);
+      setResolutionSummaryError(`Resolution / Checklist / Resolution Summary API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook resolution summary"}`);
+    } finally {
+      setResolutionSummaryLoading(false);
+    }
+  }, [unmatchedFilters, triageSavedViewFilters]);
+
   const refreshSavedViews = useCallback(async () => {
     setSavedViewsLoading(true);
     setSavedViewsError("");
@@ -280,6 +305,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewWorkload();
   }, [refreshReviewWorkload]);
+
+  useEffect(() => {
+    void refreshReviewResolutionSummary();
+  }, [refreshReviewResolutionSummary]);
 
   useEffect(() => {
     void refreshSavedViews();
@@ -493,6 +522,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewAlerts();
       await refreshReviewTriage();
       await refreshReviewWorkload();
+      await refreshReviewResolutionSummary();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -515,6 +545,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewAlerts();
       await refreshReviewTriage();
       await refreshReviewWorkload();
+      await refreshReviewResolutionSummary();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -542,6 +573,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewAlerts();
       await refreshReviewTriage();
       await refreshReviewWorkload();
+      await refreshReviewResolutionSummary();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -562,6 +594,7 @@ export default function ChannelSettingsPage() {
     await refreshReviewAlerts();
     await refreshReviewTriage();
     await refreshReviewWorkload();
+    await refreshReviewResolutionSummary();
     await refreshSavedViews();
     const visibleIds = new Set(refreshedItems.map((item) => item.id));
     for (const id of ids) {
@@ -618,10 +651,74 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function resolveUnmatchedInbound(unmatchedInboundId: string, operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION", resolutionOutcome?: ProviderWebhookReviewResolutionOutcome) {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    setResolutionSummaryError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkResolutionResult(null);
+    try {
+      const result = await resolveSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, {
+        operation,
+        resolutionOutcome,
+        note: operation === "CLEAR_RESOLUTION" ? "safe resolution cleared" : "safe resolution metadata updated"
+      });
+      setUnmatchedActionStatus(`Resolution ${result.id}: resolutionStatus=${result.resolutionStatus}; outcome=${result.resolutionOutcome ?? "none"}; readiness=${result.closureReadiness}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation([unmatchedInboundId]);
+    } catch (reason) {
+      setResolutionSummaryError(`Resolution / Checklist / Resolution Summary API error: ${reason instanceof Error ? reason.message : "Unable to update resolution"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
+  async function updateResolutionChecklist(unmatchedInboundId: string, operation: "COMPLETE_STEP" | "UNCOMPLETE_STEP" | "RESET_CHECKLIST", step?: ProviderWebhookReviewClosureChecklistStep) {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    setResolutionSummaryError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkResolutionResult(null);
+    try {
+      const result = await updateSettingsProviderWebhookUnmatchedInboundChecklist(dataMode, unmatchedInboundId, { operation, step });
+      setUnmatchedActionStatus(`Checklist ${result.id}: completed=${result.checklistCompletedCount}/${result.checklistTotalCount}; readiness=${result.closureReadiness}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation([unmatchedInboundId]);
+    } catch (reason) {
+      setResolutionSummaryError(`Resolution / Checklist / Resolution Summary API error: ${reason instanceof Error ? reason.message : "Unable to update checklist"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
+  async function bulkResolveUnmatchedInbound(operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION" | "COMPLETE_STEP" | "RESET_CHECKLIST") {
+    const ids = selectedUnmatchedIds;
+    setUnmatchedBulkMetadataSavingStatus(operation);
+    setUnmatchedInboundError("");
+    setResolutionSummaryError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkResolutionResult(null);
+    try {
+      const result = await bulkResolveSettingsProviderWebhookUnmatchedInbound(dataMode, {
+        ids,
+        operation,
+        resolutionOutcome: operation === "SET_RESOLUTION" ? "NEEDS_REVIEW" : undefined,
+        step: operation === "COMPLETE_STEP" ? "VIEWED_DIAGNOSTICS" : undefined,
+        note: operation === "CLEAR_RESOLUTION" ? "safe bulk resolution cleared" : "safe bulk resolution metadata updated"
+      });
+      setUnmatchedBulkResolutionResult(result);
+      setUnmatchedActionStatus(`Bulk resolution ${operation}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation(ids);
+    } catch (reason) {
+      setResolutionSummaryError(`Resolution / Checklist / Resolution Summary API error: ${reason instanceof Error ? reason.message : "Unable to bulk update resolution checklist"}`);
+    } finally {
+      setUnmatchedBulkMetadataSavingStatus("");
+    }
+  }
+
   function updateUnmatchedFilters(filters: ProviderWebhookUnmatchedInboundFilters) {
     setSelectedUnmatchedIds([]);
     setUnmatchedBulkResult(null);
     setUnmatchedBulkMetadataResult(null);
+    setUnmatchedBulkResolutionResult(null);
     setUnmatchedActionStatus("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
@@ -653,6 +750,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewAlerts();
       await refreshReviewTriage();
       await refreshReviewWorkload();
+      await refreshReviewResolutionSummary();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -753,6 +851,7 @@ export default function ChannelSettingsPage() {
         unmatchedBulkResult={unmatchedBulkResult}
         unmatchedBulkMetadataSavingStatus={unmatchedBulkMetadataSavingStatus}
         unmatchedBulkMetadataResult={unmatchedBulkMetadataResult}
+        unmatchedBulkResolutionResult={unmatchedBulkResolutionResult}
         reviewMetrics={reviewMetrics}
         reviewMetricsLoading={metricsLoading}
         reviewMetricsError={metricsError}
@@ -765,6 +864,9 @@ export default function ChannelSettingsPage() {
         reviewWorkload={reviewWorkload}
         reviewWorkloadLoading={workloadLoading}
         reviewWorkloadError={workloadError}
+        reviewResolutionSummary={reviewResolutionSummary}
+        reviewResolutionSummaryLoading={resolutionSummaryLoading}
+        reviewResolutionSummaryError={resolutionSummaryError}
         reviewSavedViews={reviewSavedViews}
         reviewSavedViewsLoading={savedViewsLoading}
         reviewSavedViewsError={savedViewsError}
@@ -796,8 +898,11 @@ export default function ChannelSettingsPage() {
         onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
         onAssignUnmatchedInbound={assignUnmatchedInbound}
         onEscalateUnmatchedInbound={escalateUnmatchedInbound}
+        onResolveUnmatchedInbound={resolveUnmatchedInbound}
+        onUpdateResolutionChecklist={updateResolutionChecklist}
         onBulkAssignUnmatchedInbound={bulkAssignUnmatchedInbound}
         onBulkEscalateUnmatchedInbound={bulkEscalateUnmatchedInbound}
+        onBulkResolveUnmatchedInbound={bulkResolveUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
         onCreateSavedView={createSavedView}
         onApplySavedView={applySavedView}
@@ -905,6 +1010,10 @@ function savedFiltersFromQueueFilters(filters: ProviderWebhookUnmatchedInboundFi
     ...(filters.assignmentStatus ? { assignmentStatus: filters.assignmentStatus } : {}),
     ...(filters.escalationStatus ? { escalationStatus: filters.escalationStatus } : {}),
     ...(filters.escalationReason ? { escalationReason: filters.escalationReason } : {}),
+    ...(filters.resolutionStatus ? { resolutionStatus: filters.resolutionStatus } : {}),
+    ...(filters.resolutionOutcome ? { resolutionOutcome: filters.resolutionOutcome } : {}),
+    ...(filters.closureReadiness ? { closureReadiness: filters.closureReadiness } : {}),
+    ...(filters.checklistIncomplete !== undefined ? { checklistIncomplete: filters.checklistIncomplete } : {}),
     ...(filters.receivedAtFrom ? { receivedAtFrom: filters.receivedAtFrom } : {}),
     ...(filters.receivedAtTo ? { receivedAtTo: filters.receivedAtTo } : {}),
     ...(filters.limit ? { pageSize: filters.limit } : {})
@@ -923,6 +1032,10 @@ function queueFiltersFromSavedView(savedView: ProviderWebhookReviewSavedView): P
     ...(savedView.filters.assignmentStatus ? { assignmentStatus: savedView.filters.assignmentStatus } : {}),
     ...(savedView.filters.escalationStatus ? { escalationStatus: savedView.filters.escalationStatus } : {}),
     ...(savedView.filters.escalationReason ? { escalationReason: savedView.filters.escalationReason } : {}),
+    ...(savedView.filters.resolutionStatus ? { resolutionStatus: savedView.filters.resolutionStatus } : {}),
+    ...(savedView.filters.resolutionOutcome ? { resolutionOutcome: savedView.filters.resolutionOutcome } : {}),
+    ...(savedView.filters.closureReadiness ? { closureReadiness: savedView.filters.closureReadiness } : {}),
+    ...(savedView.filters.checklistIncomplete !== undefined ? { checklistIncomplete: savedView.filters.checklistIncomplete } : {}),
     ...(savedView.filters.receivedAtFrom ? { receivedAtFrom: savedView.filters.receivedAtFrom } : {}),
     ...(savedView.filters.receivedAtTo ? { receivedAtTo: savedView.filters.receivedAtTo } : {}),
     limit: savedView.filters.pageSize ?? defaultUnmatchedFilters.limit,

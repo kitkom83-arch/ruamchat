@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Flag, Link2, ListChecks, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -23,6 +23,7 @@ type ProviderReadinessPanelProps = {
   unmatchedBulkResult?: ProviderWebhookUnmatchedInboundBulkReviewResponse | null;
   unmatchedBulkMetadataSavingStatus?: string;
   unmatchedBulkMetadataResult?: ProviderWebhookUnmatchedInboundBulkAssignmentResponse | ProviderWebhookUnmatchedInboundBulkEscalationResponse | null;
+  unmatchedBulkResolutionResult?: ProviderWebhookUnmatchedInboundBulkResolutionResponse | null;
   reviewMetrics?: ProviderWebhookReviewMetrics | null;
   reviewMetricsLoading?: boolean;
   reviewMetricsError?: string;
@@ -35,6 +36,9 @@ type ProviderReadinessPanelProps = {
   reviewWorkload?: ProviderWebhookReviewWorkload | null;
   reviewWorkloadLoading?: boolean;
   reviewWorkloadError?: string;
+  reviewResolutionSummary?: ProviderWebhookReviewResolutionSummary | null;
+  reviewResolutionSummaryLoading?: boolean;
+  reviewResolutionSummaryError?: string;
   reviewSavedViews?: ProviderWebhookReviewSavedView[];
   reviewSavedViewsLoading?: boolean;
   reviewSavedViewsError?: string;
@@ -66,8 +70,11 @@ type ProviderReadinessPanelProps = {
   onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
   onAssignUnmatchedInbound?: (unmatchedInboundId: string, operation: "ASSIGN_TO_ME" | "ASSIGN_TO_OPERATOR" | "UNASSIGN", assignedToOperatorLabel?: string) => Promise<void>;
   onEscalateUnmatchedInbound?: (unmatchedInboundId: string, operation: "ESCALATE" | "CLEAR_ESCALATION", escalationReason?: ProviderWebhookReviewEscalationReason) => Promise<void>;
+  onResolveUnmatchedInbound?: (unmatchedInboundId: string, operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION", resolutionOutcome?: ProviderWebhookReviewResolutionOutcome) => Promise<void>;
+  onUpdateResolutionChecklist?: (unmatchedInboundId: string, operation: "COMPLETE_STEP" | "UNCOMPLETE_STEP" | "RESET_CHECKLIST", step?: ProviderWebhookReviewClosureChecklistStep) => Promise<void>;
   onBulkAssignUnmatchedInbound?: (operation: "ASSIGN_TO_ME" | "UNASSIGN") => Promise<void>;
   onBulkEscalateUnmatchedInbound?: (operation: "ESCALATE" | "CLEAR_ESCALATION") => Promise<void>;
+  onBulkResolveUnmatchedInbound?: (operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION" | "COMPLETE_STEP" | "RESET_CHECKLIST") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
   onCreateSavedView?: (name: string, description: string, pinned: boolean, isDefault: boolean) => Promise<void>;
   onApplySavedView?: (savedView: ProviderWebhookReviewSavedView) => void;
@@ -90,6 +97,33 @@ const queueStatuses = ["open", "reviewed", "blocked", "skipped", "linked"] as co
 const assignmentStatuses = ["unassigned", "assigned", "assigned_to_me", "assigned_to_others"] as const;
 const escalationStatuses = ["none", "escalated"] as const;
 const escalationReasons: ProviderWebhookReviewEscalationReason[] = ["SLA_RISK", "NO_SAFE_CANDIDATE", "ROUTING_FAILED", "HIGH_PRIORITY_CUSTOMER", "NEEDS_MANAGER_REVIEW", "MANUAL_REVIEW_BLOCKED"];
+const resolutionStatuses = ["unresolved", "resolved"] as const;
+const resolutionOutcomes: ProviderWebhookReviewResolutionOutcome[] = [
+  "NEEDS_REVIEW",
+  "REVIEWED_NO_MATCH",
+  "REVIEWED_SAFE_MATCH",
+  "LINKED_EXISTING_CONVERSATION",
+  "LINKED_AND_PERSISTED_SAFE_MESSAGE",
+  "SKIPPED_DUPLICATE",
+  "SKIPPED_SPAM",
+  "SKIPPED_UNSUPPORTED_EVENT",
+  "ESCALATED_TO_MANAGER",
+  "BLOCKED_UNSAFE",
+  "ROUTING_FAILED",
+  "MANUAL_REVIEW_REQUIRED"
+];
+const closureReadinessValues = ["NOT_READY", "READY_FOR_REVIEW", "READY_FOR_SKIP", "READY_FOR_LINK", "READY_FOR_LINK_AND_PERSIST", "ALREADY_REVIEWED", "BLOCKED"] as const;
+const closureChecklistSteps: ProviderWebhookReviewClosureChecklistStep[] = [
+  "VIEWED_DIAGNOSTICS",
+  "REVIEWED_HISTORY",
+  "REVIEWED_TRIAGE_GUIDANCE",
+  "REVIEWED_CANDIDATES",
+  "CONFIRMED_NO_RAW_LEAKAGE",
+  "CONFIRMED_NO_PROVIDER_OUTBOUND",
+  "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+  "CONFIRMED_SAFE_LINK_TARGET",
+  "CONFIRMED_OPERATOR_NOTE"
+];
 const pageSizes = [5, 10, 25, 50] as const;
 
 export function ProviderReadinessPanel({
@@ -113,6 +147,7 @@ export function ProviderReadinessPanel({
   unmatchedBulkResult = null,
   unmatchedBulkMetadataSavingStatus = "",
   unmatchedBulkMetadataResult = null,
+  unmatchedBulkResolutionResult = null,
   reviewMetrics = null,
   reviewMetricsLoading = false,
   reviewMetricsError = "",
@@ -125,6 +160,9 @@ export function ProviderReadinessPanel({
   reviewWorkload = null,
   reviewWorkloadLoading = false,
   reviewWorkloadError = "",
+  reviewResolutionSummary = null,
+  reviewResolutionSummaryLoading = false,
+  reviewResolutionSummaryError = "",
   reviewSavedViews = [],
   reviewSavedViewsLoading = false,
   reviewSavedViewsError = "",
@@ -156,8 +194,11 @@ export function ProviderReadinessPanel({
   onBulkReviewUnmatchedInbound,
   onAssignUnmatchedInbound,
   onEscalateUnmatchedInbound,
+  onResolveUnmatchedInbound,
+  onUpdateResolutionChecklist,
   onBulkAssignUnmatchedInbound,
   onBulkEscalateUnmatchedInbound,
+  onBulkResolveUnmatchedInbound,
   onLinkUnmatchedInbound,
   onCreateSavedView,
   onApplySavedView,
@@ -395,11 +436,18 @@ export function ProviderReadinessPanel({
         e("span", null, `assignment=${readiness.reviewAssignmentEnabled ? "enabled" : "disabled"}`),
         e("span", null, `escalation=${readiness.reviewEscalationEnabled ? "enabled" : "disabled"}`),
         e("span", null, `assignment workload=${readiness.assignmentWorkloadEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `review resolution=${readiness.reviewResolutionEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `closure checklist=${readiness.reviewClosureChecklistEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `resolution summary=${readiness.resolutionSummaryEnabled ? "enabled" : "disabled"}`),
         e("span", null, `saved view count=${readiness.savedViewCount}`),
         e("span", null, `operator note count=${readiness.operatorNoteCount}`),
         e("span", null, `unassigned open count=${readiness.unassignedOpenCount}`),
         e("span", null, `assigned open count=${readiness.assignedOpenCount}`),
         e("span", null, `escalated open count=${readiness.escalatedOpenCount}`),
+        e("span", null, `unresolved open count=${readiness.unresolvedOpenCount}`),
+        e("span", null, `ready for closure count=${readiness.readyForClosureCount}`),
+        e("span", null, `blocked resolution count=${readiness.blockedResolutionCount}`),
+        e("span", null, `checklist incomplete open count=${readiness.checklistIncompleteOpenCount}`),
         e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
         e("span", null, `critical triage count=${readiness.criticalTriageCount}`),
         e("span", null, `open triage count=${readiness.openTriageCount}`),
@@ -801,7 +849,11 @@ export function ProviderReadinessPanel({
         metricFilterButton("assigned to others", reviewWorkload.counts.assignedToOthersOpen, { assignmentStatus: "assigned_to_others", status: "open" }),
         metricFilterButton("escalated open", reviewWorkload.counts.escalatedOpen, { escalationStatus: "escalated", status: "open" }),
         metricFilterButton("overdue assigned", reviewWorkload.counts.overdueAssignedOpen, { assignmentStatus: "assigned", status: "open" }),
-        metricFilterButton("resolved assigned", reviewWorkload.counts.resolvedAssigned, { assignmentStatus: "assigned" })
+        metricFilterButton("resolved assigned", reviewWorkload.counts.resolvedAssigned, { assignmentStatus: "assigned" }),
+        metricFilterButton("unresolved open", reviewWorkload.counts.unresolvedOpen, { resolutionStatus: "unresolved", status: "open" }),
+        metricFilterButton("ready for closure", reviewWorkload.counts.readyForClosure, { status: "open" }),
+        metricFilterButton("blocked resolution", reviewWorkload.counts.blockedResolution, { closureReadiness: "BLOCKED" }),
+        metricFilterButton("checklist incomplete", reviewWorkload.counts.checklistIncompleteOpen, { checklistIncomplete: true, status: "open" })
       ) : !reviewWorkloadLoading && !reviewWorkloadError ? e("div", { className: "providerEmptyState" }, "No assignment workload returned.") : null,
       reviewWorkload ? e("div", { className: "webhookMetricGroups" },
         metricCountGroup("By assignee", reviewWorkload.byAssignee, (key) => ({ assignedTo: key === "unassigned" ? undefined : key })),
@@ -816,7 +868,11 @@ export function ProviderReadinessPanel({
           e("span", null, `staleCriticalHours=${reviewWorkload.thresholds.staleCriticalHours}`),
           e("span", null, `overSlaHours=${reviewWorkload.thresholds.overSlaHours}`),
           e("span", null, `recentlyAssigned=${reviewWorkload.counts.recentlyAssigned}`),
-          e("span", null, `recentlyEscalated=${reviewWorkload.counts.recentlyEscalated}`)
+          e("span", null, `recentlyEscalated=${reviewWorkload.counts.recentlyEscalated}`),
+          e("span", null, `unresolvedOpen=${reviewWorkload.counts.unresolvedOpen}`),
+          e("span", null, `readyForClosure=${reviewWorkload.counts.readyForClosure}`),
+          e("span", null, `blockedResolution=${reviewWorkload.counts.blockedResolution}`),
+          e("span", null, `checklistIncompleteOpen=${reviewWorkload.counts.checklistIncompleteOpen}`)
         )
       ) : null,
       reviewWorkload && (reviewWorkload.topAssignedItems.length > 0 || reviewWorkload.topEscalatedItems.length > 0) ? e("div", { className: "webhookEventList compact", "aria-label": "Top assignment escalation summaries" },
@@ -830,10 +886,89 @@ export function ProviderReadinessPanel({
           e("span", null, `reviewStatus=${item.reviewStatus}`),
           e("span", null, `linkStatus=${item.linkStatus}`),
           e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `resolutionStatus=${item.resolutionStatus}`),
+          e("span", null, `resolutionOutcome=${item.resolutionOutcome ?? "none"}`),
+          e("span", null, `closureReadiness=${item.closureReadiness}`),
+          e("span", null, `checklist=${item.checklistCompletedCount}/${item.checklistTotalCount}`),
           e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
           e("span", null, `externalCalls=${item.externalCalls}`)
         ))
       ) : reviewWorkload && !reviewWorkloadLoading ? e("div", { className: "providerEmptyState" }, "No top assignment or escalation summaries.") : null
+    ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review resolution summary" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(CheckSquare, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Resolution checklist summary"),
+            e("p", null, "Internal closure readiness guidance only. No review, skip, link, or message persistence runs automatically.")
+          )
+        ),
+        reviewResolutionSummary ? e("div", { className: "webhookLastEvent", "aria-label": "Resolution summary status" },
+          e("span", null, "resolution generated"),
+          e("strong", null, formatDate(reviewResolutionSummary.generatedAt)),
+          e("span", null, `externalCalls=${reviewResolutionSummary.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewResolutionSummary.appliedFilters)}`)
+        ) : null
+      ),
+      reviewResolutionSummaryError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewResolutionSummaryError) : null,
+      reviewResolutionSummaryLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook resolution summary...") : null,
+      reviewResolutionSummary ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total resolution items", reviewResolutionSummary.totalItems, {}),
+        metricFilterButton("open resolution items", reviewResolutionSummary.totalOpenItems, { status: "open" }),
+        metricFilterButton("unresolved open", reviewResolutionSummary.counts.unresolvedOpen, { resolutionStatus: "unresolved", status: "open" }),
+        metricFilterButton("ready review", reviewResolutionSummary.counts.readyForReview, { closureReadiness: "READY_FOR_REVIEW" }),
+        metricFilterButton("ready skip", reviewResolutionSummary.counts.readyForSkip, { closureReadiness: "READY_FOR_SKIP" }),
+        metricFilterButton("ready link", reviewResolutionSummary.counts.readyForLink, { closureReadiness: "READY_FOR_LINK" }),
+        metricFilterButton("ready link persist", reviewResolutionSummary.counts.readyForLinkAndPersist, { closureReadiness: "READY_FOR_LINK_AND_PERSIST" }),
+        metricFilterButton("blocked", reviewResolutionSummary.counts.blocked, { closureReadiness: "BLOCKED" }),
+        metricFilterButton("resolved recently", reviewResolutionSummary.counts.resolvedRecently, { resolutionStatus: "resolved" }),
+        metricFilterButton("checklist incomplete", reviewResolutionSummary.counts.checklistIncompleteOpen, { checklistIncomplete: true, status: "open" })
+      ) : !reviewResolutionSummaryLoading && !reviewResolutionSummaryError ? e("div", { className: "providerEmptyState" }, "No resolution summary returned.") : null,
+      reviewResolutionSummary ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By resolution status", reviewResolutionSummary.byResolutionStatus, (key) => ({ resolutionStatus: key as ProviderWebhookUnmatchedInboundFilters["resolutionStatus"] })),
+        metricCountGroup("By resolution outcome", reviewResolutionSummary.byResolutionOutcome, (key) => key === "none" ? { resolutionStatus: "unresolved" } : { resolutionOutcome: key as ProviderWebhookReviewResolutionOutcome }),
+        metricCountGroup("By closure readiness", reviewResolutionSummary.byClosureReadiness, (key) => ({ closureReadiness: key as ProviderWebhookUnmatchedInboundFilters["closureReadiness"] })),
+        metricCountGroup("By checklist step", reviewResolutionSummary.byChecklistStep, () => ({ checklistIncomplete: true })),
+        metricCountGroup("By provider", reviewResolutionSummary.byProvider, (key) => ({ provider: key as ProviderWebhookUnmatchedInboundFilters["provider"] })),
+        metricCountGroup("By review status", reviewResolutionSummary.byReviewStatus, (key) => ({ reviewStatus: key as ProviderWebhookUnmatchedInboundFilters["reviewStatus"] })),
+        metricCountGroup("By link status", reviewResolutionSummary.byLinkStatus, (key) => ({ linkStatus: key as ProviderWebhookUnmatchedInboundFilters["linkStatus"] })),
+        metricCountGroup("By unmatched status", reviewResolutionSummary.byUnmatchedStatus, (key) => ({ unmatchedStatus: key as ProviderWebhookUnmatchedInboundFilters["unmatchedStatus"] }))
+      ) : null,
+      reviewResolutionSummary ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", null,
+          e("strong", null, "Resolution thresholds"),
+          e("span", null, `staleWarningHours=${reviewResolutionSummary.thresholds.staleWarningHours}`),
+          e("span", null, `staleCriticalHours=${reviewResolutionSummary.thresholds.staleCriticalHours}`),
+          e("span", null, `overSlaHours=${reviewResolutionSummary.thresholds.overSlaHours}`)
+        )
+      ) : null,
+      reviewResolutionSummary && (reviewResolutionSummary.topReadyItems.length > 0 || reviewResolutionSummary.topBlockedItems.length > 0) ? e("div", { className: "webhookEventList compact", "aria-label": "Top resolution summaries" },
+        ...[...reviewResolutionSummary.topReadyItems, ...reviewResolutionSummary.topBlockedItems].slice(0, 10).map((item) => e("article", { key: `${item.unmatchedId}-${item.closureReadiness}-${item.resolutionOutcome ?? "none"}`, className: "webhookHistoryRow" },
+          e("strong", null, `${item.closureReadiness} / ${item.resolutionOutcome ?? "none"} / ${providerLabel(item.provider)}`),
+          e("span", null, `unmatchedId=${item.unmatchedId}`),
+          e("span", null, `platform=${item.platform}`),
+          e("span", null, `channelAccountId=${item.channelAccountId ?? "none"}`),
+          e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
+          e("span", null, `roomKeyDigest=${item.roomKeyDigest ?? "none"}`),
+          e("span", null, `eventType=${item.eventType}`),
+          e("span", null, `ageBucket=${item.ageBucket}`),
+          e("span", null, `reviewStatus=${item.reviewStatus}`),
+          e("span", null, `linkStatus=${item.linkStatus}`),
+          e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `assignmentStatus=${item.assignmentStatus}`),
+          e("span", null, `assignedTo=${item.assignedToOperatorLabel ?? "none"}`),
+          e("span", null, `escalationStatus=${item.escalationStatus}`),
+          e("span", null, `escalationReason=${item.escalationReason ?? "none"}`),
+          e("span", null, `resolutionStatus=${item.resolutionStatus}`),
+          e("span", null, `resolvedAt=${item.resolvedAt ? formatDate(item.resolvedAt) : "none"}`),
+          e("span", null, `resolvedBy=${item.resolvedByOperatorLabel ?? "none"}`),
+          e("span", null, `checklist=${item.checklistCompletedCount}/${item.checklistTotalCount}`),
+          e("span", null, `incompleteSteps=${item.checklistIncompleteSteps.join("|") || "none"}`),
+          e("span", null, `recommendedNextActions=${item.recommendedNextActions.join("|") || "none"}`),
+          e("span", null, `externalCalls=${item.externalCalls}`)
+        ))
+      ) : reviewResolutionSummary && !reviewResolutionSummaryLoading ? e("div", { className: "providerEmptyState" }, "No top ready or blocked resolution summaries.") : null
     ),
     e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review saved views" },
       e("div", { className: "webhookEventHeader" },
@@ -1051,6 +1186,47 @@ export function ProviderReadinessPanel({
           )
         ),
         e("label", { className: "settingsInlineField" },
+          e("span", null, "Resolution status"),
+          e("select", {
+            value: unmatchedFilters.resolutionStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ resolutionStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["resolutionStatus"] })
+          },
+            e("option", { value: "all" }, "All resolution"),
+            ...resolutionStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Resolution outcome"),
+          e("select", {
+            value: unmatchedFilters.resolutionOutcome ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ resolutionOutcome: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookReviewResolutionOutcome })
+          },
+            e("option", { value: "all" }, "All outcomes"),
+            ...resolutionOutcomes.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Closure readiness"),
+          e("select", {
+            value: unmatchedFilters.closureReadiness ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ closureReadiness: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["closureReadiness"] })
+          },
+            e("option", { value: "all" }, "All readiness"),
+            ...closureReadinessValues.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Checklist incomplete"),
+          e("select", {
+            value: unmatchedFilters.checklistIncomplete === undefined ? "all" : String(unmatchedFilters.checklistIncomplete),
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ checklistIncomplete: event.target.value === "all" ? undefined : event.target.value === "true" })
+          },
+            e("option", { value: "all" }, "All checklist"),
+            e("option", { value: "true" }, "Incomplete only"),
+            e("option", { value: "false" }, "Complete only")
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
           e("span", null, "Received from"),
           e("input", {
             type: "datetime-local",
@@ -1189,6 +1365,42 @@ export function ProviderReadinessPanel({
         e("button", {
           className: "webhookEventButton",
           type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkResolveUnmatchedInbound,
+          onClick: () => void onBulkResolveUnmatchedInbound?.("SET_RESOLUTION")
+        },
+          e(CheckSquare, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "SET_RESOLUTION" ? "Bulk resolving..." : "Bulk Set resolution"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkResolveUnmatchedInbound,
+          onClick: () => void onBulkResolveUnmatchedInbound?.("CLEAR_RESOLUTION")
+        },
+          e(RotateCcw, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "CLEAR_RESOLUTION" ? "Bulk clearing..." : "Bulk Clear resolution"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkResolveUnmatchedInbound,
+          onClick: () => void onBulkResolveUnmatchedInbound?.("COMPLETE_STEP")
+        },
+          e(ListChecks, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "COMPLETE_STEP" ? "Bulk checklist..." : "Bulk Complete diagnostics step"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkResolveUnmatchedInbound,
+          onClick: () => void onBulkResolveUnmatchedInbound?.("RESET_CHECKLIST")
+        },
+          e(RotateCcw, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "RESET_CHECKLIST" ? "Bulk resetting..." : "Bulk Reset checklist"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
           disabled: Boolean(unmatchedExportLoadingFormat) || !onExportUnmatchedInbound,
           onClick: () => void onExportUnmatchedInbound?.("json")
         },
@@ -1219,6 +1431,11 @@ export function ProviderReadinessPanel({
       unmatchedBulkMetadataResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk assignment escalation result" },
         ...unmatchedBulkMetadataResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}-${result.assignmentStatus ?? "none"}-${result.escalationStatus ?? "none"}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
           `${result.id}: ${result.resultStatus}; assignmentStatus=${result.assignmentStatus ?? "none"}; escalationStatus=${result.escalationStatus ?? "none"}; escalationReason=${result.escalationReason ?? "none"}; error=${result.error ?? "none"}; externalCalls=${result.externalCalls}`
+        ))
+      ) : null,
+      unmatchedBulkResolutionResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk resolution checklist result" },
+        ...unmatchedBulkResolutionResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}-${result.resolutionStatus ?? "none"}-${result.closureReadiness ?? "none"}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
+          `${result.id}: ${result.resultStatus}; resolutionStatus=${result.resolutionStatus ?? "none"}; resolutionOutcome=${result.resolutionOutcome ?? "none"}; closureReadiness=${result.closureReadiness ?? "none"}; checklist=${result.checklistCompletedCount ?? "none"}/${result.checklistTotalCount ?? "none"}; error=${result.error ?? "none"}; externalCalls=${result.externalCalls}`
         ))
       ) : null,
       unmatchedInboundLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound review items...") : null,
@@ -1255,6 +1472,14 @@ export function ProviderReadinessPanel({
             e("span", null, `escalationReason=${item.escalationReason ?? "none"}`),
             e("span", null, `escalatedAt=${item.escalatedAt ? formatDate(item.escalatedAt) : "none"}`),
             e("span", null, `escalatedBy=${item.escalatedByOperatorLabel ?? "none"}`),
+            e("span", { className: item.resolutionStatus === "resolved" ? "webhookWarningPill" : undefined }, `resolutionStatus=${item.resolutionStatus}`),
+            e("span", null, `resolutionOutcome=${item.resolutionOutcome ?? "none"}`),
+            e("span", { className: item.closureReadiness === "BLOCKED" ? "webhookWarningPill" : undefined }, `closureReadiness=${item.closureReadiness}`),
+            e("span", null, `resolvedAt=${item.resolvedAt ? formatDate(item.resolvedAt) : "none"}`),
+            e("span", null, `resolvedBy=${item.resolvedByOperatorLabel ?? "none"}`),
+            e("span", null, `checklist=${item.checklistCompletedCount}/${item.checklistTotalCount}`),
+            e("span", null, `incompleteSteps=${item.checklistIncompleteSteps.join("|") || "none"}`),
+            e("span", null, `recommendedNextActions=${item.recommendedNextActions.join("|") || "none"}`),
             e("span", null, `lastOperatorNoteAt=${item.lastOperatorNoteAt ? formatDate(item.lastOperatorNoteAt) : "none"}`),
             e("span", null, `messagePersisted=${String(item.messagePersisted)}`),
             e("span", null, `linkedConversationId=${item.linkedConversationId ?? "none"}`),
@@ -1334,6 +1559,83 @@ export function ProviderReadinessPanel({
               "Clear escalation"
             )
           ) : null,
+          isOpenUnmatchedItem(item) ? e("div", { className: "webhookHistorySurface", "aria-label": `Resolution checklist controls for ${item.id}` },
+            e("div", { className: "webhookEventActions" },
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onResolveUnmatchedInbound,
+                onClick: () => void onResolveUnmatchedInbound?.(item.id, "SET_RESOLUTION", "NEEDS_REVIEW")
+              },
+                e(CheckSquare, { size: 15 }),
+                unmatchedActionSavingId === item.id ? "Saving..." : "Set needs review"
+              ),
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onResolveUnmatchedInbound,
+                onClick: () => void onResolveUnmatchedInbound?.(item.id, "SET_RESOLUTION", "REVIEWED_SAFE_MATCH")
+              },
+                e(Check, { size: 15 }),
+                "Set safe match"
+              ),
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onResolveUnmatchedInbound,
+                onClick: () => void onResolveUnmatchedInbound?.(item.id, "SET_RESOLUTION", "BLOCKED_UNSAFE")
+              },
+                e(AlertTriangle, { size: 15 }),
+                "Set blocked unsafe"
+              ),
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onResolveUnmatchedInbound,
+                onClick: () => void onResolveUnmatchedInbound?.(item.id, "CLEAR_RESOLUTION")
+              },
+                e(RotateCcw, { size: 15 }),
+                "Clear resolution"
+              ),
+              e("button", {
+                className: "webhookEventButton",
+                type: "button",
+                disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onUpdateResolutionChecklist,
+                onClick: () => void onUpdateResolutionChecklist?.(item.id, "RESET_CHECKLIST")
+              },
+                e(RotateCcw, { size: 15 }),
+                "Reset checklist"
+              )
+            ),
+            e("div", { className: "webhookEventList compact", "aria-label": `Closure checklist for ${item.id}` },
+              ...item.closureChecklist.map((step) => e("div", { key: `${item.id}-${step.step}`, className: "webhookHistoryRow" },
+                e("strong", null, step.step),
+                e("span", null, `completed=${String(step.completed)}`),
+                e("span", null, `completedAt=${step.completedAt ? formatDate(step.completedAt) : "none"}`),
+                e("span", null, `completedBy=${step.completedByOperatorLabel ?? "none"}`),
+                e("div", { className: "webhookEventActions" },
+                  e("button", {
+                    className: "webhookEventButton",
+                    type: "button",
+                    disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onUpdateResolutionChecklist || step.completed,
+                    onClick: () => void onUpdateResolutionChecklist?.(item.id, "COMPLETE_STEP", step.step)
+                  },
+                    e(Check, { size: 15 }),
+                    "Complete"
+                  ),
+                  e("button", {
+                    className: "webhookEventButton",
+                    type: "button",
+                    disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onUpdateResolutionChecklist || !step.completed,
+                    onClick: () => void onUpdateResolutionChecklist?.(item.id, "UNCOMPLETE_STEP", step.step)
+                  },
+                    e(RotateCcw, { size: 15 }),
+                    "Uncomplete"
+                  )
+                )
+              ))
+            )
+          ) : null,
           activeDiagnosticsId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe diagnostics for ${item.id}` },
             diagnosticsErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, diagnosticsErrorById[item.id]) : null,
             diagnosticsLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading safe diagnostics...") : null,
@@ -1359,6 +1661,14 @@ export function ProviderReadinessPanel({
                 e("span", null, `escalationStatus=${activeDiagnostics.escalationStatus}`),
                 e("span", null, `escalationReason=${activeDiagnostics.escalationReason ?? "none"}`),
                 e("span", null, `escalatedAt=${activeDiagnostics.escalatedAt ? formatDate(activeDiagnostics.escalatedAt) : "none"}`),
+                e("span", null, `resolutionStatus=${activeDiagnostics.resolutionStatus}`),
+                e("span", null, `resolutionOutcome=${activeDiagnostics.resolutionOutcome ?? "none"}`),
+                e("span", null, `closureReadiness=${activeDiagnostics.closureReadiness}`),
+                e("span", null, `resolvedAt=${activeDiagnostics.resolvedAt ? formatDate(activeDiagnostics.resolvedAt) : "none"}`),
+                e("span", null, `resolvedBy=${activeDiagnostics.resolvedByOperatorLabel ?? "none"}`),
+                e("span", null, `checklist=${activeDiagnostics.checklistCompletedCount}/${activeDiagnostics.checklistTotalCount}`),
+                e("span", null, `checklistIncompleteSteps=${activeDiagnostics.checklistIncompleteSteps.join("|") || "none"}`),
+                e("span", null, `recommendedNextActions=${activeDiagnostics.recommendedNextActions.join("|") || "none"}`),
                 e("span", null, `lastOperatorNoteAt=${activeDiagnostics.lastOperatorNoteAt ? formatDate(activeDiagnostics.lastOperatorNoteAt) : "none"}`),
                 e("span", null, `persistenceOutcome=${activeDiagnostics.persistenceOutcome}`),
                 e("span", null, `lastActionAt=${activeDiagnostics.lastActionAt ? formatDate(activeDiagnostics.lastActionAt) : "none"}`)
@@ -1453,6 +1763,10 @@ export function ProviderReadinessPanel({
                 e("span", null, `assignedTo=${note.context.assignedToOperatorLabel ?? "none"}`),
                 e("span", null, `escalationStatus=${note.context.escalationStatus ?? "none"}`),
                 e("span", null, `escalationReason=${note.context.escalationReason ?? "none"}`),
+                e("span", null, `resolutionStatus=${note.context.resolutionStatus ?? "unresolved"}`),
+                e("span", null, `resolutionOutcome=${note.context.resolutionOutcome ?? "none"}`),
+                e("span", null, `closureReadiness=${note.context.closureReadiness ?? "NOT_READY"}`),
+                e("span", null, `checklist=${note.context.checklistCompletedCount ?? 0}/${note.context.checklistTotalCount ?? closureChecklistSteps.length}`),
                 e("p", null, note.note),
                 e("span", null, `externalCalls=${note.externalCalls}`)
               ))
@@ -1608,6 +1922,10 @@ function formatSavedViewFilters(view: ProviderWebhookReviewSavedView) {
     "assignmentStatus",
     "escalationStatus",
     "escalationReason",
+    "resolutionStatus",
+    "resolutionOutcome",
+    "closureReadiness",
+    "checklistIncomplete",
     "receivedAtFrom",
     "receivedAtTo",
     "pageSize"

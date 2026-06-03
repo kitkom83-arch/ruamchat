@@ -4,6 +4,8 @@ import type {
   CreateProviderWebhookReviewSavedViewRequest,
   DataMode,
   ProviderReadiness,
+  ProviderWebhookReviewClosureChecklistStep,
+  ProviderWebhookReviewRecommendedNextAction,
   ProviderWebhookCandidateConversation,
   ProviderWebhookEvent,
   ProviderWebhookOperatorNote,
@@ -13,6 +15,8 @@ import type {
   ProviderWebhookReviewAlertSeverity,
   ProviderWebhookReviewMetrics,
   ProviderWebhookReviewMetricsFilters,
+  ProviderWebhookReviewResolutionSummary,
+  ProviderWebhookReviewResolutionSummaryFilters,
   ProviderWebhookReviewTriage,
   ProviderWebhookReviewTriageFilters,
   ProviderWebhookReviewTriageLane,
@@ -29,6 +33,8 @@ import type {
   ProviderWebhookUnmatchedInboundBulkAssignmentResponse,
   ProviderWebhookUnmatchedInboundBulkEscalationRequest,
   ProviderWebhookUnmatchedInboundBulkEscalationResponse,
+  ProviderWebhookUnmatchedInboundBulkResolutionRequest,
+  ProviderWebhookUnmatchedInboundBulkResolutionResponse,
   ProviderWebhookUnmatchedInboundBulkReviewRequest,
   ProviderWebhookUnmatchedInboundBulkReviewResponse,
   ProviderWebhookUnmatchedInboundEscalationRequest,
@@ -38,6 +44,8 @@ import type {
   ProviderWebhookUnmatchedInboundItem,
   ProviderWebhookUnmatchedInboundPage,
   ProviderWebhookUnmatchedInboundReviewRequest,
+  ProviderWebhookUnmatchedInboundResolutionChecklistRequest,
+  ProviderWebhookUnmatchedInboundResolutionRequest,
   ProviderWebhookSandboxEventRequest,
   SettingsCannedReply,
   SettingsChannelAccount,
@@ -54,6 +62,7 @@ import {
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
+  getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewTriage,
   getProviderWebhookReviewWorkload,
   getProviderReadiness,
@@ -69,6 +78,9 @@ import {
   bulkAssignProviderWebhookUnmatchedInbound,
   escalateProviderWebhookUnmatchedInbound,
   bulkEscalateProviderWebhookUnmatchedInbound,
+  resolveProviderWebhookUnmatchedInbound,
+  updateProviderWebhookUnmatchedInboundChecklist,
+  bulkResolveProviderWebhookUnmatchedInbound,
   updateProviderWebhookReviewSavedView,
   getSettingsCannedReplies,
   getSettingsChannels,
@@ -129,6 +141,11 @@ export type SettingsProviderWebhookReviewTriageData = {
 export type SettingsProviderWebhookReviewWorkloadData = {
   mode: DataMode;
   workload: ProviderWebhookReviewWorkload;
+};
+
+export type SettingsProviderWebhookReviewResolutionSummaryData = {
+  mode: DataMode;
+  summary: ProviderWebhookReviewResolutionSummary;
 };
 
 export type SettingsProviderWebhookSavedViewsData = {
@@ -294,6 +311,23 @@ export async function loadSettingsProviderWebhookReviewWorkloadData(
   };
 }
 
+export async function loadSettingsProviderWebhookReviewResolutionSummaryData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewResolutionSummaryFilters = {}
+): Promise<SettingsProviderWebhookReviewResolutionSummaryData> {
+  if (mode === "api") {
+    return {
+      mode,
+      summary: await getProviderWebhookReviewResolutionSummary(filters)
+    };
+  }
+
+  return {
+    mode,
+    summary: createMockReviewResolutionSummary(filters)
+  };
+}
+
 export async function loadSettingsProviderWebhookSavedViewsData(mode: DataMode): Promise<SettingsProviderWebhookSavedViewsData> {
   if (mode === "api") {
     return {
@@ -447,7 +481,12 @@ export async function createSettingsProviderWebhookOperatorNote(
       assignmentStatus: item.assignmentStatus,
       assignedToOperatorLabel: item.assignedToOperatorLabel,
       escalationStatus: item.escalationStatus,
-      escalationReason: item.escalationReason
+      escalationReason: item.escalationReason,
+      resolutionStatus: item.resolutionStatus,
+      resolutionOutcome: item.resolutionOutcome,
+      closureReadiness: item.closureReadiness,
+      checklistCompletedCount: item.checklistCompletedCount,
+      checklistTotalCount: item.checklistTotalCount
     },
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -588,6 +627,38 @@ export async function escalateSettingsProviderWebhookUnmatchedInbound(
   return item;
 }
 
+export async function resolveSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundResolutionRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return resolveProviderWebhookUnmatchedInbound(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  applyMockResolution(item, payload);
+  refreshMockUnmatchedCounts();
+  return item;
+}
+
+export async function updateSettingsProviderWebhookUnmatchedInboundChecklist(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundResolutionChecklistRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return updateProviderWebhookUnmatchedInboundChecklist(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  applyMockChecklist(item, payload);
+  refreshMockUnmatchedCounts();
+  return item;
+}
+
 export async function bulkReviewSettingsProviderWebhookUnmatchedInbound(
   mode: DataMode,
   payload: ProviderWebhookUnmatchedInboundBulkReviewRequest
@@ -649,6 +720,57 @@ export async function bulkReviewSettingsProviderWebhookUnmatchedInbound(
       updatedCount: results.filter((result) => result.resultStatus === "updated").length,
       alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
     },
+    externalCalls: 0
+  };
+}
+
+export async function bulkResolveSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  payload: ProviderWebhookUnmatchedInboundBulkResolutionRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkResolutionResponse> {
+  if (mode === "api") {
+    return bulkResolveProviderWebhookUnmatchedInbound(payload);
+  }
+
+  const uniqueIds = Array.from(new Set(payload.ids.map((id) => id.trim()).filter(Boolean)));
+  const results: ProviderWebhookUnmatchedInboundBulkResolutionResponse["results"] = [];
+  for (const id of uniqueIds) {
+    const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === id);
+    if (!item) {
+      results.push({ id, ok: false, resultStatus: "not-found", resolutionStatus: null, resolutionOutcome: null, closureReadiness: null, checklistCompletedCount: null, checklistTotalCount: null, error: "Unmatched inbound item not found", externalCalls: 0 });
+      continue;
+    }
+    const before = mockResolutionFingerprint(item);
+    if (payload.operation === "SET_RESOLUTION" || payload.operation === "CLEAR_RESOLUTION") {
+      applyMockResolution(item, {
+        operation: payload.operation,
+        resolutionOutcome: payload.resolutionOutcome,
+        note: payload.note
+      });
+    } else {
+      applyMockChecklist(item, {
+        operation: payload.operation === "COMPLETE_STEP" ? "COMPLETE_STEP" : "RESET_CHECKLIST",
+        step: payload.step
+      });
+    }
+    results.push({
+      id,
+      ok: true,
+      resultStatus: before === mockResolutionFingerprint(item) ? "already-applied" : "updated",
+      resolutionStatus: item.resolutionStatus,
+      resolutionOutcome: item.resolutionOutcome,
+      closureReadiness: item.closureReadiness,
+      checklistCompletedCount: item.checklistCompletedCount,
+      checklistTotalCount: item.checklistTotalCount,
+      error: null,
+      externalCalls: 0
+    });
+  }
+  refreshMockUnmatchedCounts();
+  return {
+    operation: payload.operation,
+    results,
+    summary: mockBulkResolutionSummary(payload.ids.length, uniqueIds.length, results),
     externalCalls: 0
   };
 }
@@ -924,6 +1046,13 @@ function filterMockUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilt
     if (filters.assignmentStatus === "assigned_to_others" && (item.assignmentStatus !== "assigned" || item.assignedToOperatorLabel === "operator:current")) return false;
     if (filters.escalationStatus && item.escalationStatus !== filters.escalationStatus) return false;
     if (filters.escalationReason && item.escalationReason !== filters.escalationReason) return false;
+    syncMockResolutionState(item);
+    if (filters.severity && mockTriageSeverityForItem(item, mockTriageLaneForItem(item)) !== filters.severity) return false;
+    if (filters.triageLane && mockTriageLaneForItem(item) !== filters.triageLane) return false;
+    if (filters.resolutionStatus && item.resolutionStatus !== filters.resolutionStatus) return false;
+    if (filters.resolutionOutcome && item.resolutionOutcome !== filters.resolutionOutcome) return false;
+    if (filters.closureReadiness && item.closureReadiness !== filters.closureReadiness) return false;
+    if (filters.checklistIncomplete !== undefined && (item.checklistCompletedCount < item.checklistTotalCount) !== filters.checklistIncomplete) return false;
     if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
     if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
     return true;
@@ -1076,7 +1205,11 @@ function createMockReviewWorkload(filters: ProviderWebhookReviewWorkloadFilters)
       overdueAssignedOpen: assignedOpen.filter((item) => mockHoursSince(item.assignedAt ?? item.receivedAt) >= mockReviewAlertThresholds.overSlaHours).length,
       recentlyAssigned: items.filter((item) => item.assignedAt).length,
       recentlyEscalated: items.filter((item) => item.escalatedAt).length,
-      resolvedAssigned: items.filter((item) => item.assignmentStatus === "assigned" && item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed").length
+      resolvedAssigned: items.filter((item) => item.assignmentStatus === "assigned" && item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed").length,
+      unresolvedOpen: openItems.filter((item) => item.resolutionStatus === "unresolved").length,
+      readyForClosure: openItems.filter((item) => item.closureReadiness === "READY_FOR_REVIEW" || item.closureReadiness === "READY_FOR_SKIP" || item.closureReadiness === "READY_FOR_LINK" || item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").length,
+      blockedResolution: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
+      checklistIncompleteOpen: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length
     },
     byAssignee: countMockByDynamic(items, (item) => item.assignedToOperatorLabel ?? "unassigned"),
     byAssignmentStatus: countMockBy(items, ["unassigned", "assigned"], (item) => item.assignmentStatus),
@@ -1089,6 +1222,48 @@ function createMockReviewWorkload(filters: ProviderWebhookReviewWorkloadFilters)
     byUnmatchedStatus: countMockBy(items, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
     topAssignedItems: items.filter((item) => item.assignmentStatus === "assigned").slice(0, 10),
     topEscalatedItems: items.filter((item) => item.escalationStatus === "escalated").slice(0, 10),
+    externalCalls: 0
+  };
+}
+
+function createMockReviewResolutionSummary(filters: ProviderWebhookReviewResolutionSummaryFilters): ProviderWebhookReviewResolutionSummary {
+  const appliedFilters = cleanMockReviewResolutionSummaryFilters(filters);
+  const items = filterMockUnmatchedInbound(mockTriageBaseFilters(appliedFilters))
+    .map(mockResolutionSummaryItem)
+    .filter((item) => !appliedFilters.severity || item.severity === appliedFilters.severity)
+    .filter((item) => !appliedFilters.triageLane || item.triageLane === appliedFilters.triageLane)
+    .filter((item) => !appliedFilters.resolutionStatus || item.resolutionStatus === appliedFilters.resolutionStatus)
+    .filter((item) => !appliedFilters.resolutionOutcome || item.resolutionOutcome === appliedFilters.resolutionOutcome)
+    .filter((item) => !appliedFilters.closureReadiness || item.closureReadiness === appliedFilters.closureReadiness)
+    .filter((item) => appliedFilters.checklistIncomplete === undefined || (item.checklistCompletedCount < item.checklistTotalCount) === appliedFilters.checklistIncomplete);
+  const openItems = items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters,
+    totalItems: items.length,
+    totalOpenItems: openItems.length,
+    thresholds: mockReviewAlertThresholds,
+    counts: {
+      unresolvedOpen: openItems.filter((item) => item.resolutionStatus === "unresolved").length,
+      readyForReview: openItems.filter((item) => item.closureReadiness === "READY_FOR_REVIEW").length,
+      readyForSkip: openItems.filter((item) => item.closureReadiness === "READY_FOR_SKIP").length,
+      readyForLink: openItems.filter((item) => item.closureReadiness === "READY_FOR_LINK").length,
+      readyForLinkAndPersist: openItems.filter((item) => item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").length,
+      blocked: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
+      resolvedRecently: items.filter((item) => item.resolvedAt).length,
+      checklistIncompleteOpen: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length
+    },
+    byResolutionStatus: countMockBy(items, mockResolutionStatuses, (item) => item.resolutionStatus),
+    byResolutionOutcome: countMockBy(items, mockResolutionOutcomes, (item) => item.resolutionOutcome ?? "none"),
+    byClosureReadiness: countMockBy(items, mockClosureReadinessValues, (item) => item.closureReadiness),
+    byChecklistStep: countMockBy(items.flatMap((item) => item.closureChecklist.filter((step) => step.completed)), mockClosureChecklistSteps, (step) => step.step),
+    byProvider: countMockBy(items, providersForMetrics, (item) => item.provider),
+    byPlatform: countMockBy(items, providersForMetrics, (item) => item.platform),
+    byReviewStatus: countMockBy(items, reviewStatusesForMetrics, (item) => item.reviewStatus),
+    byLinkStatus: countMockBy(items, linkStatusesForMetrics, (item) => item.linkStatus),
+    byUnmatchedStatus: countMockBy(items, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
+    topReadyItems: items.filter((item) => item.closureReadiness === "READY_FOR_REVIEW" || item.closureReadiness === "READY_FOR_SKIP" || item.closureReadiness === "READY_FOR_LINK" || item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").slice(0, 10),
+    topBlockedItems: items.filter((item) => item.closureReadiness === "BLOCKED").slice(0, 10),
     externalCalls: 0
   };
 }
@@ -1120,6 +1295,7 @@ function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
 }
 
 function mockAssignmentSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
+  syncMockResolutionState(item);
   const lane = mockTriageLaneForItem(item);
   return {
     unmatchedId: item.id,
@@ -1144,6 +1320,51 @@ function mockAssignmentSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
     escalationReason: item.escalationReason,
     escalatedAt: item.escalatedAt,
     escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    lastOperatorNoteAt: item.lastOperatorNoteAt,
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: isMockLinkableUnmatchedItem(item),
+    externalCalls: 0 as const
+  };
+}
+
+function mockResolutionSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
+  syncMockResolutionState(item);
+  const lane = mockTriageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: mockAgeBucket(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: mockTriageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    resolvedAt: item.resolvedAt,
+    resolvedByOperatorLabel: item.resolvedByOperatorLabel,
+    closureReadiness: item.closureReadiness,
+    closureChecklist: item.closureChecklist,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    checklistIncompleteSteps: item.checklistIncompleteSteps,
+    recommendedNextActions: item.recommendedNextActions,
     lastOperatorNoteAt: item.lastOperatorNoteAt,
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -1207,6 +1428,10 @@ function cleanMockReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilt
     "assignmentStatus",
     "escalationStatus",
     "escalationReason",
+    "resolutionStatus",
+    "resolutionOutcome",
+    "closureReadiness",
+    "checklistIncomplete",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -1234,6 +1459,16 @@ function cleanMockReviewTriageFilters(filters: ProviderWebhookReviewTriageFilter
   } as ProviderWebhookReviewTriageFilters;
 }
 
+function cleanMockReviewResolutionSummaryFilters(filters: ProviderWebhookReviewResolutionSummaryFilters) {
+  return {
+    ...cleanMockReviewTriageFilters(filters),
+    ...(filters.resolutionStatus ? { resolutionStatus: filters.resolutionStatus } : {}),
+    ...(filters.resolutionOutcome ? { resolutionOutcome: filters.resolutionOutcome } : {}),
+    ...(filters.closureReadiness ? { closureReadiness: filters.closureReadiness } : {}),
+    ...(filters.checklistIncomplete !== undefined ? { checklistIncomplete: filters.checklistIncomplete } : {})
+  } as ProviderWebhookReviewResolutionSummaryFilters;
+}
+
 function cleanMockSavedViewFilters(filters: CreateProviderWebhookReviewSavedViewRequest["filters"] = {}): ProviderWebhookReviewSavedView["filters"] {
   const allowedKeys = [
     "provider",
@@ -1247,6 +1482,10 @@ function cleanMockSavedViewFilters(filters: CreateProviderWebhookReviewSavedView
     "assignmentStatus",
     "escalationStatus",
     "escalationReason",
+    "resolutionStatus",
+    "resolutionOutcome",
+    "closureReadiness",
+    "checklistIncomplete",
     "receivedAtFrom",
     "receivedAtTo",
     "pageSize"
@@ -1270,6 +1509,20 @@ const linkStatusesForMetrics = ["none", "rejected", "linked", "linked-message-pe
 const unmatchedStatusesForMetrics = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
 const alertSeveritiesForMetrics = ["info", "warning", "critical"] as const;
 const mockEscalationReasons = ["none", "SLA_RISK", "NO_SAFE_CANDIDATE", "ROUTING_FAILED", "HIGH_PRIORITY_CUSTOMER", "NEEDS_MANAGER_REVIEW", "MANUAL_REVIEW_BLOCKED"] as const;
+const mockResolutionStatuses = ["unresolved", "resolved"] as const;
+const mockResolutionOutcomes = ["none", "NEEDS_REVIEW", "REVIEWED_NO_MATCH", "REVIEWED_SAFE_MATCH", "LINKED_EXISTING_CONVERSATION", "LINKED_AND_PERSISTED_SAFE_MESSAGE", "SKIPPED_DUPLICATE", "SKIPPED_SPAM", "SKIPPED_UNSUPPORTED_EVENT", "ESCALATED_TO_MANAGER", "BLOCKED_UNSAFE", "ROUTING_FAILED", "MANUAL_REVIEW_REQUIRED"] as const;
+const mockClosureReadinessValues = ["NOT_READY", "READY_FOR_REVIEW", "READY_FOR_SKIP", "READY_FOR_LINK", "READY_FOR_LINK_AND_PERSIST", "ALREADY_REVIEWED", "BLOCKED"] as const;
+const mockClosureChecklistSteps: ProviderWebhookReviewClosureChecklistStep[] = [
+  "VIEWED_DIAGNOSTICS",
+  "REVIEWED_HISTORY",
+  "REVIEWED_TRIAGE_GUIDANCE",
+  "REVIEWED_CANDIDATES",
+  "CONFIRMED_NO_RAW_LEAKAGE",
+  "CONFIRMED_NO_PROVIDER_OUTBOUND",
+  "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+  "CONFIRMED_SAFE_LINK_TARGET",
+  "CONFIRMED_OPERATOR_NOTE"
+];
 const mockTriageLanes: ProviderWebhookReviewTriageLane[] = [
   "critical_stale_open",
   "warning_stale_open",
@@ -1446,6 +1699,7 @@ function mockHoursSince(receivedAt: string) {
 function createMockUnmatchedDiagnostics(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundDiagnostics {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
+  syncMockResolutionState(item);
   const event = mockProviderWebhookEvents.find((candidate) => candidate.unmatchedInboundId === item.id);
   return {
     unmatchedId: item.id,
@@ -1467,6 +1721,16 @@ function createMockUnmatchedDiagnostics(unmatchedInboundId: string): ProviderWeb
     escalationReason: item.escalationReason,
     escalatedAt: item.escalatedAt,
     escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    resolvedAt: item.resolvedAt,
+    resolvedByOperatorLabel: item.resolvedByOperatorLabel,
+    closureReadiness: item.closureReadiness,
+    closureChecklist: item.closureChecklist,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    checklistIncompleteSteps: item.checklistIncompleteSteps,
+    recommendedNextActions: item.recommendedNextActions,
     lastOperatorNoteAt: item.lastOperatorNoteAt,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     normalizedEventType: item.normalizedEventType,
@@ -1504,6 +1768,7 @@ function isMockStaleOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem)
 function createMockUnmatchedHistory(unmatchedInboundId: string): ProviderWebhookUnmatchedInboundHistory {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
+  syncMockResolutionState(item);
   const safeRoomLabel = mockSafeRoomLabel(item);
   const base = {
     unmatchedInboundId: item.id,
@@ -1646,6 +1911,40 @@ function createMockUnmatchedHistory(unmatchedInboundId: string): ProviderWebhook
       actionAt: item.escalatedAt ?? item.receivedAt
     });
   }
+  if (item.resolutionOutcome) {
+    entries.push({
+      id: `${item.id}-history-resolution`,
+      ...base,
+      action: "resolution_set",
+      actionStatus: item.resolutionOutcome,
+      statusBefore: "unresolved",
+      statusAfter: `${item.resolutionStatus}:${item.resolutionOutcome}`,
+      actor: item.resolvedByOperatorLabel ?? "operator:current",
+      reason: item.resolutionOutcome,
+      message: "Resolution metadata updated",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.resolvedAt ?? item.receivedAt
+    });
+  }
+  if (item.checklistCompletedCount > 0) {
+    entries.push({
+      id: `${item.id}-history-checklist`,
+      ...base,
+      action: "checklist_completed",
+      actionStatus: `${item.checklistCompletedCount}/${item.checklistTotalCount}`,
+      statusBefore: "0/0",
+      statusAfter: `${item.checklistCompletedCount}/${item.checklistTotalCount}`,
+      actor: "operator:current",
+      reason: item.closureChecklist.filter((step) => step.completed).map((step) => step.step).join(",").slice(0, 160),
+      message: "Resolution checklist updated",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.closureChecklist.find((step) => step.completed)?.completedAt ?? item.receivedAt
+    });
+  }
   return {
     unmatchedInboundId: item.id,
     provider: item.provider,
@@ -1668,31 +1967,39 @@ function createMockUnmatchedExport(filters: ProviderWebhookUnmatchedInboundExpor
     const compared = left.receivedAt.localeCompare(right.receivedAt);
     return sortOrder === "asc" ? compared : -compared;
   });
-  const rows = sorted.slice(offset, offset + limit).map((item) => ({
-    id: item.id,
-    provider: item.provider,
-    channelAccountId: item.channelAccountId,
-    safeRoomLabel: mockSafeRoomLabel(item),
-    roomKeyDigest: item.roomKeyDigest,
-    eventType: item.eventType,
-    reviewStatus: item.reviewStatus,
-    linkStatus: item.linkStatus,
-    unmatchedStatus: item.unmatchedStatus,
-    receivedAt: item.receivedAt,
-    reviewedAt: item.reviewedAt,
-    linkedConversationId: item.linkedConversationId,
-    candidateCount: mockProviderWebhookCandidatesByUnmatchedId[item.id]?.length ?? null,
-    safeMessagePreview: safeMockText(item.textPreview),
-    safeReason: safeMockText(item.reviewReason ?? item.unmatchedReason),
-    safeResultSummary: safeMockText(item.reviewStatus === "linked" ? `linked:${item.linkStatus}` : item.reviewStatus),
-    assignmentStatus: item.assignmentStatus,
-    assignedToOperatorLabel: item.assignedToOperatorLabel,
-    assignedAt: item.assignedAt,
-    escalationStatus: item.escalationStatus,
-    escalationReason: item.escalationReason,
-    escalatedAt: item.escalatedAt,
-    externalCalls: 0 as const
-  }));
+  const rows = sorted.slice(offset, offset + limit).map((item) => {
+    syncMockResolutionState(item);
+    return {
+      id: item.id,
+      provider: item.provider,
+      channelAccountId: item.channelAccountId,
+      safeRoomLabel: mockSafeRoomLabel(item),
+      roomKeyDigest: item.roomKeyDigest,
+      eventType: item.eventType,
+      reviewStatus: item.reviewStatus,
+      linkStatus: item.linkStatus,
+      unmatchedStatus: item.unmatchedStatus,
+      receivedAt: item.receivedAt,
+      reviewedAt: item.reviewedAt,
+      linkedConversationId: item.linkedConversationId,
+      candidateCount: mockProviderWebhookCandidatesByUnmatchedId[item.id]?.length ?? null,
+      safeMessagePreview: safeMockText(item.textPreview),
+      safeReason: safeMockText(item.reviewReason ?? item.unmatchedReason),
+      safeResultSummary: safeMockText(item.reviewStatus === "linked" ? `linked:${item.linkStatus}` : item.reviewStatus),
+      assignmentStatus: item.assignmentStatus,
+      assignedToOperatorLabel: item.assignedToOperatorLabel,
+      assignedAt: item.assignedAt,
+      escalationStatus: item.escalationStatus,
+      escalationReason: item.escalationReason,
+      escalatedAt: item.escalatedAt,
+      resolutionStatus: item.resolutionStatus,
+      resolutionOutcome: item.resolutionOutcome,
+      closureReadiness: item.closureReadiness,
+      checklistCompletedCount: item.checklistCompletedCount,
+      checklistTotalCount: item.checklistTotalCount,
+      externalCalls: 0 as const
+    };
+  });
   return {
     format,
     rows,
@@ -1720,8 +2027,121 @@ function mockSafeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
   return `${item.provider} room digest ${item.roomKeyDigest?.replace(/^sha256:/, "").slice(0, 12) ?? "none"}`;
 }
 
+function defaultMockClosureChecklist() {
+  return mockClosureChecklistSteps.map((step) => ({
+    step,
+    completed: false,
+    completedAt: null,
+    completedByOperatorLabel: null
+  }));
+}
+
+function ensureMockResolutionState(item: ProviderWebhookUnmatchedInboundItem) {
+  item.resolutionStatus = item.resolutionStatus ?? "unresolved";
+  item.resolutionOutcome = item.resolutionOutcome ?? null;
+  item.resolvedAt = item.resolvedAt ?? null;
+  item.resolvedByOperatorLabel = item.resolvedByOperatorLabel ?? null;
+  const existing = new Map((item.closureChecklist ?? []).map((step) => [step.step, step]));
+  item.closureChecklist = mockClosureChecklistSteps.map((step) => {
+    const current = existing.get(step);
+    return {
+      step,
+      completed: current?.completed ?? false,
+      completedAt: current?.completedAt ?? null,
+      completedByOperatorLabel: current?.completedByOperatorLabel ?? null
+    };
+  });
+}
+
+function syncMockResolutionState(item: ProviderWebhookUnmatchedInboundItem) {
+  ensureMockResolutionState(item);
+  item.checklistTotalCount = item.closureChecklist.length;
+  item.checklistCompletedCount = item.closureChecklist.filter((step) => step.completed).length;
+  item.checklistIncompleteSteps = item.closureChecklist.filter((step) => !step.completed).map((step) => step.step);
+  item.resolutionStatus = item.resolutionOutcome ? "resolved" : "unresolved";
+  item.closureReadiness = mockClosureReadinessForItem(item);
+  item.recommendedNextActions = mockRecommendedNextActionsForItem(item);
+  item.externalCalls = 0;
+  return item;
+}
+
+function mockClosureReadinessForItem(item: ProviderWebhookUnmatchedInboundItem) {
+  if (item.unmatchedStatus === "blocked" || item.resolutionOutcome === "BLOCKED_UNSAFE" || item.resolutionOutcome === "ROUTING_FAILED") return "BLOCKED";
+  if (item.reviewStatus !== "pending" || (item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed")) return "ALREADY_REVIEWED";
+  if (!item.resolutionOutcome) return "NOT_READY";
+  if (item.checklistIncompleteSteps.length > 0) return "NOT_READY";
+  if (item.resolutionOutcome === "SKIPPED_DUPLICATE" || item.resolutionOutcome === "SKIPPED_SPAM" || item.resolutionOutcome === "SKIPPED_UNSUPPORTED_EVENT") return "READY_FOR_SKIP";
+  if (item.resolutionOutcome === "REVIEWED_SAFE_MATCH" || item.resolutionOutcome === "LINKED_EXISTING_CONVERSATION") return "READY_FOR_LINK";
+  if (item.resolutionOutcome === "LINKED_AND_PERSISTED_SAFE_MESSAGE") return "READY_FOR_LINK_AND_PERSIST";
+  return "READY_FOR_REVIEW";
+}
+
+function mockRecommendedNextActionsForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewRecommendedNextAction[] {
+  if (item.closureReadiness === "ALREADY_REVIEWED") return ["VIEW_HISTORY", "OPEN_DIAGNOSTICS"];
+  if (item.closureReadiness === "BLOCKED") return item.escalationStatus === "escalated"
+    ? ["VIEW_HISTORY", "ADD_OPERATOR_NOTE", "CLEAR_ESCALATION"]
+    : ["OPEN_DIAGNOSTICS", "ADD_OPERATOR_NOTE", "ESCALATE"];
+  const incomplete = new Set(item.checklistIncompleteSteps);
+  const actions: ProviderWebhookReviewRecommendedNextAction[] = [];
+  if (incomplete.has("VIEWED_DIAGNOSTICS")) actions.push("OPEN_DIAGNOSTICS");
+  if (incomplete.has("REVIEWED_HISTORY")) actions.push("VIEW_HISTORY");
+  if (incomplete.has("REVIEWED_CANDIDATES") && isMockLinkableUnmatchedItem(item)) actions.push("RUN_CANDIDATE_LOOKUP");
+  if (incomplete.has("CONFIRMED_OPERATOR_NOTE")) actions.push("ADD_OPERATOR_NOTE");
+  if (incomplete.has("CONFIRMED_ASSIGNMENT_OR_ESCALATION") && item.assignmentStatus === "unassigned") actions.push("ASSIGN_OWNER");
+  if (item.escalationStatus === "escalated") actions.push("CLEAR_ESCALATION");
+  if (!item.resolutionOutcome) actions.push("MARK_REVIEWED");
+  if (item.closureReadiness === "READY_FOR_REVIEW") actions.push("MARK_REVIEWED");
+  if (item.closureReadiness === "READY_FOR_SKIP") actions.push("SKIP");
+  if (item.closureReadiness === "READY_FOR_LINK") actions.push("LINK_ONLY");
+  if (item.closureReadiness === "READY_FOR_LINK_AND_PERSIST") actions.push("LINK_AND_PERSIST_SAFE_MESSAGE");
+  return Array.from(new Set(actions)).slice(0, 8);
+}
+
+function applyMockResolution(item: ProviderWebhookUnmatchedInboundItem, payload: ProviderWebhookUnmatchedInboundResolutionRequest) {
+  const nowIso = new Date().toISOString();
+  if (payload.operation === "CLEAR_RESOLUTION") {
+    item.resolutionStatus = "unresolved";
+    item.resolutionOutcome = null;
+    item.resolvedAt = null;
+    item.resolvedByOperatorLabel = null;
+  } else {
+    item.resolutionStatus = "resolved";
+    item.resolutionOutcome = payload.resolutionOutcome ?? "NEEDS_REVIEW";
+    item.resolvedAt = nowIso;
+    item.resolvedByOperatorLabel = "operator:current";
+  }
+  item.lastOperatorNoteAt = payload.note ? nowIso : item.lastOperatorNoteAt;
+  syncMockResolutionState(item);
+}
+
+function applyMockChecklist(item: ProviderWebhookUnmatchedInboundItem, payload: ProviderWebhookUnmatchedInboundResolutionChecklistRequest) {
+  const nowIso = new Date().toISOString();
+  ensureMockResolutionState(item);
+  if (payload.operation === "RESET_CHECKLIST") {
+    item.closureChecklist = defaultMockClosureChecklist();
+  } else {
+    const target = item.closureChecklist.find((step) => step.step === payload.step);
+    if (!target) throw new Error("Safe checklist step is required");
+    target.completed = payload.operation === "COMPLETE_STEP";
+    target.completedAt = target.completed ? nowIso : null;
+    target.completedByOperatorLabel = target.completed ? "operator:current" : null;
+  }
+  syncMockResolutionState(item);
+}
+
+function mockResolutionFingerprint(item: ProviderWebhookUnmatchedInboundItem) {
+  syncMockResolutionState(item);
+  return [
+    item.resolutionStatus,
+    item.resolutionOutcome ?? "",
+    item.resolvedAt ?? "",
+    item.closureReadiness,
+    item.closureChecklist.map((step) => `${step.step}:${step.completed ? "1" : "0"}`).join(",")
+  ].join("|");
+}
+
 function mockRowsToCsv(rows: ProviderWebhookUnmatchedInboundExport["rows"]) {
-  const columns: (keyof ProviderWebhookUnmatchedInboundExport["rows"][number])[] = ["id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt", "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason", "safeResultSummary", "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "escalationStatus", "escalationReason", "escalatedAt", "externalCalls"];
+  const columns: (keyof ProviderWebhookUnmatchedInboundExport["rows"][number])[] = ["id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt", "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason", "safeResultSummary", "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "escalationStatus", "escalationReason", "escalatedAt", "resolutionStatus", "resolutionOutcome", "closureReadiness", "checklistCompletedCount", "checklistTotalCount", "externalCalls"];
   return [
     columns.join(","),
     ...rows.map((row) => columns.map((column) => mockCsvCell(row[column])).join(","))
@@ -1783,12 +2203,28 @@ function mockBulkMetadataSummary(
   };
 }
 
+function mockBulkResolutionSummary(
+  requestedCount: number,
+  dedupedCount: number,
+  results: ProviderWebhookUnmatchedInboundBulkResolutionResponse["results"]
+) {
+  return {
+    requestedCount,
+    dedupedCount,
+    successCount: results.filter((result) => result.ok).length,
+    errorCount: results.filter((result) => !result.ok).length,
+    updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+    alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+  };
+}
+
 function mockCsvCell(value: ProviderWebhookUnmatchedInboundExport["rows"][number][keyof ProviderWebhookUnmatchedInboundExport["rows"][number]]) {
   if (value === null || value === undefined) return "";
   return `"${String(value).replace(/"/g, "\"\"")}"`;
 }
 
 function refreshMockUnmatchedCounts() {
+  mockProviderWebhookUnmatchedInbound.forEach(syncMockResolutionState);
   const summary = summarizeMockUnmatchedInbound(mockProviderWebhookUnmatchedInbound);
   mockProviderReadiness.unmatchedInboundOpenCount = summary.openCount;
   mockProviderReadiness.unmatchedInboundStaleOpenCount = mockProviderWebhookUnmatchedInbound.filter(isMockStaleOpenUnmatchedItem).length;
@@ -1809,6 +2245,11 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.escalatedOpenCount = mockProviderWebhookUnmatchedInbound.filter((item) =>
     (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed") && item.escalationStatus === "escalated"
   ).length;
+  const openItems = mockProviderWebhookUnmatchedInbound.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  mockProviderReadiness.unresolvedOpenCount = openItems.filter((item) => item.resolutionStatus === "unresolved").length;
+  mockProviderReadiness.readyForClosureCount = openItems.filter((item) => item.closureReadiness === "READY_FOR_REVIEW" || item.closureReadiness === "READY_FOR_SKIP" || item.closureReadiness === "READY_FOR_LINK" || item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").length;
+  mockProviderReadiness.blockedResolutionCount = openItems.filter((item) => item.closureReadiness === "BLOCKED").length;
+  mockProviderReadiness.checklistIncompleteOpenCount = openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -1859,11 +2300,18 @@ export const mockProviderReadiness: ProviderReadiness = {
   reviewAssignmentEnabled: true,
   reviewEscalationEnabled: true,
   assignmentWorkloadEnabled: true,
+  reviewResolutionEnabled: true,
+  reviewClosureChecklistEnabled: true,
+  resolutionSummaryEnabled: true,
   savedViewCount: 1,
   operatorNoteCount: 0,
   unassignedOpenCount: 1,
   assignedOpenCount: 0,
   escalatedOpenCount: 0,
+  unresolvedOpenCount: 1,
+  readyForClosureCount: 0,
+  blockedResolutionCount: 0,
+  checklistIncompleteOpenCount: 1,
   reviewAlertCriticalCount: 1,
   criticalTriageCount: 1,
   openTriageCount: 1,
@@ -1976,6 +2424,16 @@ export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundI
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY",
+    closureChecklist: defaultMockClosureChecklist(),
+    checklistCompletedCount: 0,
+    checklistTotalCount: mockClosureChecklistSteps.length,
+    checklistIncompleteSteps: [...mockClosureChecklistSteps],
+    recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE", "ASSIGN_OWNER"],
     lastOperatorNoteAt: null,
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -2007,6 +2465,9 @@ export let mockProviderWebhookReviewSavedViews: ProviderWebhookReviewSavedView[]
       unmatchedStatus: "review-needed",
       eventType: "message.created",
       triageLane: "safe_link_candidate_available",
+      resolutionStatus: "unresolved",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
       pageSize: 10
     },
     sort: {

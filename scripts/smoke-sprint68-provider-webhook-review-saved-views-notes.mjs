@@ -262,7 +262,7 @@ function safeSavedViewShape(value) {
 
 function safeOperatorNoteShape(value) {
   const allowed = new Set(["id", "unmatchedId", "tenantId", "authorId", "authorLabel", "note", "context", "createdAt", "updatedAt", "externalCalls"]);
-  const contextAllowed = new Set(["provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus", "escalationReason"]);
+  const contextAllowed = new Set(["provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus", "escalationReason", "resolutionStatus", "resolutionOutcome", "closureReadiness", "checklistCompletedCount", "checklistTotalCount"]);
   return value && typeof value === "object"
     && Object.keys(value).every((key) => allowed.has(key))
     && Object.keys(value.context ?? {}).every((key) => contextAllowed.has(key))
@@ -311,6 +311,9 @@ function safeDiagnosticsShape(value) {
     "eventType", "receivedAt", "reviewStatus", "linkStatus", "unmatchedStatus",
     "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "assignedByOperatorLabel",
     "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
+    "resolutionStatus", "resolutionOutcome", "resolvedAt", "resolvedByOperatorLabel",
+    "closureReadiness", "closureChecklist", "checklistCompletedCount", "checklistTotalCount",
+    "checklistIncompleteSteps", "recommendedNextActions",
     "lastOperatorNoteAt",
     "routingOutcome", "normalizedEventType", "persistenceOutcome", "candidateLookupAvailable",
     "historyAvailable", "exportAvailable", "lastActionAt", "safeWarnings", "externalCalls"

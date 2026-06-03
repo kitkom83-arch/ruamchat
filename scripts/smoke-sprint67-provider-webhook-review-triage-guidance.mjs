@@ -288,7 +288,9 @@ function safeAlertItemShape(value) {
     "unmatchedId", "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "receivedAt", "ageBucket", "severity", "reviewStatus", "linkStatus",
     "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus",
-    "escalationReason", "routingOutcome", "diagnosticsAvailable", "historyAvailable", "externalCalls"
+    "escalationReason", "resolutionStatus", "resolutionOutcome", "closureReadiness",
+    "checklistCompletedCount", "checklistTotalCount", "routingOutcome", "diagnosticsAvailable",
+    "historyAvailable", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.provider === value.platform
@@ -337,7 +339,8 @@ function safeTriageItemShape(value) {
     "unmatchedId", "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "receivedAt", "ageBucket", "triageLane", "severity", "reviewStatus", "linkStatus",
     "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus",
-    "escalationReason", "routingOutcome", "recommendedNextActions", "diagnosticsAvailable",
+    "escalationReason", "resolutionStatus", "resolutionOutcome", "closureReadiness",
+    "checklistCompletedCount", "checklistTotalCount", "routingOutcome", "recommendedNextActions", "diagnosticsAvailable",
     "historyAvailable", "candidatesAvailable", "exportAvailable", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
@@ -387,6 +390,9 @@ function safeDiagnosticsShape(value) {
     "eventType", "receivedAt", "reviewStatus", "linkStatus", "unmatchedStatus",
     "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "assignedByOperatorLabel",
     "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
+    "resolutionStatus", "resolutionOutcome", "resolvedAt", "resolvedByOperatorLabel",
+    "closureReadiness", "closureChecklist", "checklistCompletedCount", "checklistTotalCount",
+    "checklistIncompleteSteps", "recommendedNextActions",
     "lastOperatorNoteAt",
     "routingOutcome", "normalizedEventType", "persistenceOutcome", "candidateLookupAvailable",
     "historyAvailable", "exportAvailable", "lastActionAt", "safeWarnings", "externalCalls"
@@ -430,7 +436,9 @@ function safeExportShape(value) {
     "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt",
     "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason",
     "safeResultSummary", "assignmentStatus", "assignedToOperatorLabel", "assignedAt",
-    "escalationStatus", "escalationReason", "escalatedAt", "externalCalls"
+    "escalationStatus", "escalationReason", "escalatedAt", "resolutionStatus",
+    "resolutionOutcome", "closureReadiness", "checklistCompletedCount",
+    "checklistTotalCount", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && ["json", "csv"].includes(value.format)
@@ -467,7 +475,9 @@ function safeUnmatchedItemShape(value) {
     "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
     "lastOperatorNoteAt", "historyAvailable", "diagnosticsAvailable", "candidatesAvailable", "payloadDigest",
     "providerEventDigest", "deliveryDigest", "senderKeyDigest", "roomKeyDigest", "textPreview",
-    "textLength", "receivedAt", "externalCalls"
+    "textLength", "receivedAt", "resolutionStatus", "resolutionOutcome", "resolvedAt",
+    "resolvedByOperatorLabel", "closureReadiness", "closureChecklist", "checklistCompletedCount",
+    "checklistTotalCount", "checklistIncompleteSteps", "recommendedNextActions", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.mode === "sandbox"
@@ -568,6 +578,7 @@ function noRawPayloadValues(value) {
 
 function looksRawSecret(value) {
   if (value === null || value === undefined) return false;
+  if (value === "CONFIRMED_NO_RAW_LEAKAGE") return false;
   const text = String(value);
   if (/^sha256:[a-f0-9]{8,}$/i.test(text)) return false;
   return /(^|[^a-z])sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(text);

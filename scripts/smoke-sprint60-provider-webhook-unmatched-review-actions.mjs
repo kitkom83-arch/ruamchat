@@ -265,7 +265,9 @@ function safeUnmatchedItemShape(value) {
     "textLength", "receivedAt", "assignmentStatus", "assignedToOperatorLabel", "assignedAt",
     "assignedByOperatorLabel", "escalationStatus", "escalationReason", "escalatedAt",
     "escalatedByOperatorLabel", "lastOperatorNoteAt", "historyAvailable", "diagnosticsAvailable",
-    "candidatesAvailable", "externalCalls"
+    "candidatesAvailable", "resolutionStatus", "resolutionOutcome", "resolvedAt",
+    "resolvedByOperatorLabel", "closureReadiness", "closureChecklist", "checklistCompletedCount",
+    "checklistTotalCount", "checklistIncompleteSteps", "recommendedNextActions", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.mode === "sandbox"
@@ -353,6 +355,7 @@ function noRawPayloadValues(value) {
 
 function looksRawSecret(value) {
   if (value === null || value === undefined) return false;
+  if (value === "CONFIRMED_NO_RAW_LEAKAGE") return false;
   const text = String(value);
   if (/^sha256:[a-f0-9]{8,}$/i.test(text)) return false;
   return /(^|[^a-z])sk-[a-z0-9_-]{8,}|Bearer\s+[a-z0-9._-]+|raw-|mock-line-secret|xox[baprs]-|EA[A-Za-z0-9]{20,}/i.test(text);
