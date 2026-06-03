@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureReport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -36,10 +36,13 @@ describe("ProviderReadinessPanel", () => {
       reviewTriage: providerWebhookReviewTriage(),
       reviewWorkload: providerWebhookReviewWorkload(),
       reviewResolutionSummary: providerWebhookReviewResolutionSummary(),
+      reviewClosureReport: providerWebhookReviewClosureReport(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
       reviewSavedViewActionStatus: "Saved view Safe queue view; externalCalls=0",
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       activeDiagnostics: providerWebhookDiagnostics(),
+      activeClosureEvidenceId: "provider-webhook-unmatched-1",
+      activeClosureEvidence: providerWebhookClosureEvidence(),
       activeHistoryId: "provider-webhook-unmatched-1",
       activeHistory: providerWebhookHistory(),
       operatorNotesById: { "provider-webhook-unmatched-1": [providerWebhookOperatorNote()] },
@@ -89,6 +92,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("review resolution=enabled");
     expect(html).toContain("closure checklist=enabled");
     expect(html).toContain("resolution summary=enabled");
+    expect(html).toContain("closure evidence=enabled");
+    expect(html).toContain("closure report=enabled");
     expect(html).toContain("saved view count=1");
     expect(html).toContain("operator note count=1");
     expect(html).toContain("unassigned open count=1");
@@ -98,6 +103,9 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("ready for closure count=0");
     expect(html).toContain("blocked resolution count=0");
     expect(html).toContain("checklist incomplete open count=1");
+    expect(html).toContain("closure evidence ready count=1");
+    expect(html).toContain("closure evidence blocked count=0");
+    expect(html).toContain("closure evidence incomplete count=1");
     expect(html).toContain("critical alert count=1");
     expect(html).toContain("critical triage count=1");
     expect(html).toContain("open triage count=1");
@@ -229,6 +237,18 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("checklist incomplete");
     expect(html).toContain("By resolution status");
     expect(html).toContain("By closure readiness");
+    expect(html).toContain("Closure evidence report");
+    expect(html).toContain("closure report generated");
+    expect(html).toContain("total evidence items");
+    expect(html).toContain("evidence ready");
+    expect(html).toContain("evidence blocked");
+    expect(html).toContain("evidence incomplete");
+    expect(html).toContain("By incomplete checklist step");
+    expect(html).toContain("ready / READY_FOR_REVIEW / LINE");
+    expect(html).toContain("evidenceStatus=ready");
+    expect(html).toContain("noProviderOutboundConfirmed=true");
+    expect(html).toContain("noRawLeakageConfirmed=true");
+    expect(html).toContain("safeLinkTargetConfirmed=true");
     expect(html).toContain("recommendedNextActions=VIEW_HISTORY|RUN_CANDIDATE_LOOKUP|ADD_OPERATOR_NOTE");
     expect(html).toContain("Run candidate lookup");
     expect(html).toContain("visible unmatched count=1");
@@ -266,6 +286,12 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Uncomplete");
     expect(html).toContain("Load candidates");
     expect(html).toContain("View diagnostics");
+    expect(html).toContain("View closure evidence");
+    expect(html).toContain("Safe closure evidence");
+    expect(html).toContain("Closure evidence");
+    expect(html).toContain("historyEntryCount=3");
+    expect(html).toContain("operatorNoteCount=2");
+    expect(html).toContain("candidateSummaryCount=1");
     expect(html).toContain("diagnostics warnings=2");
     expect(html).toContain("Safe diagnostics");
     expect(html).toContain("routingOutcome=dry-run-only/not-found");
@@ -379,6 +405,9 @@ describe("ProviderReadinessPanel", () => {
       reviewTriage: null,
       reviewTriageLoading: false,
       reviewTriageError: "Triage Guidance API error: Failed to fetch",
+      reviewClosureReport: null,
+      reviewClosureReportLoading: false,
+      reviewClosureReportError: "Closure Evidence / Report API error: Failed to fetch",
       reviewSavedViews: [],
       reviewSavedViewsLoading: false,
       reviewSavedViewsError: "Saved Views API error: Failed to fetch",
@@ -387,6 +416,8 @@ describe("ProviderReadinessPanel", () => {
       unmatchedInboundError: "Unmatched Inbound API error: Failed to fetch",
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       diagnosticsErrorById: { "provider-webhook-unmatched-1": "Diagnostics API error: Failed to fetch" },
+      activeClosureEvidenceId: "provider-webhook-unmatched-1",
+      closureEvidenceErrorById: { "provider-webhook-unmatched-1": "Closure Evidence / Report API error: Failed to fetch" },
       activeHistoryId: "provider-webhook-unmatched-1",
       historyErrorById: { "provider-webhook-unmatched-1": "History API error: Failed to fetch" },
       operatorNotesById: { "provider-webhook-unmatched-1": [] },
@@ -398,6 +429,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Review Metrics API error: Failed to fetch");
     expect(html).toContain("Review Alerts API error: Failed to fetch");
     expect(html).toContain("Triage Guidance API error: Failed to fetch");
+    expect(html).toContain("Closure Evidence / Report API error: Failed to fetch");
     expect(html).toContain("Saved Views API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).toContain("Diagnostics API error: Failed to fetch");
@@ -461,6 +493,8 @@ function providerReadiness(): ProviderReadiness {
     reviewResolutionEnabled: true,
     reviewClosureChecklistEnabled: true,
     resolutionSummaryEnabled: true,
+    reviewClosureEvidenceEnabled: true,
+    reviewClosureReportEnabled: true,
     savedViewCount: 1,
     operatorNoteCount: 1,
     unassignedOpenCount: 1,
@@ -470,6 +504,9 @@ function providerReadiness(): ProviderReadiness {
     readyForClosureCount: 0,
     blockedResolutionCount: 0,
     checklistIncompleteOpenCount: 1,
+    closureEvidenceReadyCount: 1,
+    closureEvidenceBlockedCount: 0,
+    closureEvidenceIncompleteCount: 1,
     reviewAlertCriticalCount: 1,
     criticalTriageCount: 1,
     openTriageCount: 1,
@@ -1144,6 +1181,80 @@ function providerWebhookReviewResolutionSummary(): ProviderWebhookReviewResoluti
     byUnmatchedStatus: [{ key: "review-needed", label: "review-needed", count: 1 }],
     topReadyItems: [baseItem],
     topBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookClosureEvidence(): ProviderWebhookReviewClosureEvidence {
+  return {
+    generatedAt: "2026-06-04T00:00:00.000Z",
+    unmatchedId: "provider-webhook-unmatched-1",
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    ageBucket: "over3Days",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    triageLane: "safe_link_candidate_available",
+    severity: "info",
+    assignmentStatus: "assigned",
+    assignedToOperatorLabel: "operator:current",
+    escalationStatus: "escalated",
+    escalationReason: "SLA_RISK",
+    resolutionStatus: "resolved",
+    resolutionOutcome: "NEEDS_REVIEW",
+    closureReadiness: "READY_FOR_REVIEW",
+    evidenceStatus: "ready",
+    checklistCompletedCount: 9,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [],
+    recommendedNextActions: ["MARK_REVIEWED"],
+    evidenceFlags: {
+      diagnosticsViewedOrAvailable: true,
+      historyAvailable: true,
+      operatorNotesAvailable: true,
+      candidatesAvailable: true,
+      assignmentOrEscalationPresent: true,
+      noProviderOutboundConfirmed: true,
+      noRawLeakageConfirmed: true,
+      safeLinkTargetConfirmed: true
+    },
+    historyEntryCount: 3,
+    operatorNoteCount: 2,
+    candidateSummaryCount: 1,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewClosureReport(): ProviderWebhookReviewClosureReport {
+  const { generatedAt: _generatedAt, ...item } = providerWebhookClosureEvidence();
+  void _generatedAt;
+  return {
+    generatedAt: "2026-06-04T00:00:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: false
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    evidenceReadyCount: 1,
+    evidenceBlockedCount: 0,
+    evidenceIncompleteCount: 0,
+    byClosureReadiness: [{ key: "READY_FOR_REVIEW", label: "READY_FOR_REVIEW", count: 1 }],
+    byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+    byChecklistStep: [{ key: "CONFIRMED_NO_RAW_LEAKAGE", label: "CONFIRMED_NO_RAW_LEAKAGE", count: 0 }],
+    byAssignmentStatus: [{ key: "assigned", label: "assigned", count: 1 }],
+    byEscalationStatus: [{ key: "escalated", label: "escalated", count: 1 }],
+    topEvidenceReadyItems: [item],
+    topEvidenceBlockedItems: [],
     externalCalls: 0
   };
 }

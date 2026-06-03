@@ -24,6 +24,11 @@ import {
   type ProviderWebhookReviewAlertSeverity,
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewAlertAgeBucket,
+  type ProviderWebhookReviewClosureEvidence,
+  type ProviderWebhookReviewClosureEvidenceStatus,
+  type ProviderWebhookReviewClosureEvidenceSummaryItem,
+  type ProviderWebhookReviewClosureReport,
+  type ProviderWebhookReviewClosureReportFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
   type ProviderWebhookReviewRecommendedNextAction,
@@ -462,6 +467,43 @@ export class ProviderWebhookEventsService {
         item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
       ).slice(0, 10),
       topBlockedItems: filteredItems.filter((item) => item.closureReadiness === "BLOCKED").slice(0, 10),
+      externalCalls: 0 as const
+    };
+  }
+
+  getUnmatchedInboundClosureEvidence(tenantId: string, id: string): ProviderWebhookReviewClosureEvidence {
+    const item = findUnmatchedInboundItem(tenantId, id);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    return {
+      generatedAt: new Date().toISOString(),
+      ...closureEvidenceSummaryItemFromUnmatched(item)
+    };
+  }
+
+  getReviewClosureReport(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string): ProviderWebhookReviewClosureReport {
+    const normalizedFilters = cleanReviewClosureReportFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
+      .map(closureEvidenceSummaryItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
+      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    const openItems = filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      totalItems: filteredItems.length,
+      totalOpenItems: openItems.length,
+      evidenceReadyCount: filteredItems.filter((item) => item.evidenceStatus === "ready").length,
+      evidenceBlockedCount: filteredItems.filter((item) => item.evidenceStatus === "blocked").length,
+      evidenceIncompleteCount: filteredItems.filter((item) => item.evidenceStatus === "incomplete").length,
+      byClosureReadiness: countByStable(filteredItems, closureReadinessValues, (item) => item.closureReadiness),
+      byResolutionOutcome: countByStable(filteredItems, resolutionOutcomes, (item) => item.resolutionOutcome ?? "none"),
+      byChecklistStep: countByStable(filteredItems.flatMap((item) => item.checklistIncompleteSteps), closureChecklistSteps, (step) => step),
+      byAssignmentStatus: countByStable(filteredItems, ["unassigned", "assigned"], (item) => item.assignmentStatus),
+      byEscalationStatus: countByStable(filteredItems, ["none", "escalated"], (item) => item.escalationStatus),
+      topEvidenceReadyItems: filteredItems.filter((item) => item.evidenceStatus === "ready").slice(0, 10),
+      topEvidenceBlockedItems: filteredItems.filter((item) => item.evidenceStatus === "blocked").slice(0, 10),
       externalCalls: 0 as const
     };
   }
@@ -1995,6 +2037,7 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     .filter(isOpenUnmatchedStatusItem)
     .map(reviewAlertItemFromUnmatched);
   const triageItems = unmatchedInboundItems.map(reviewTriageItemFromUnmatched);
+  const closureEvidenceItems = unmatchedInboundItems.map(closureEvidenceSummaryItemFromUnmatched);
   const openItems = unmatchedInboundItems.filter(isOpenUnmatchedStatusItem);
   return {
     webhookSignatureVerificationConfigured: true,
@@ -2039,6 +2082,8 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     reviewResolutionEnabled: true,
     reviewClosureChecklistEnabled: true,
     resolutionSummaryEnabled: true,
+    reviewClosureEvidenceEnabled: true,
+    reviewClosureReportEnabled: true,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
     unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
@@ -2053,6 +2098,9 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     ).length,
     blockedResolutionCount: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
     checklistIncompleteOpenCount: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length,
+    closureEvidenceReadyCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "ready").length,
+    closureEvidenceBlockedCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "blocked").length,
+    closureEvidenceIncompleteCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "incomplete").length,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
     openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
@@ -2349,6 +2397,12 @@ function cleanReviewResolutionSummaryFilters(filters: ProviderWebhookReviewResol
   return Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
   ) as ProviderWebhookReviewResolutionSummaryFilters;
+}
+
+function cleanReviewClosureReportFilters(filters: ProviderWebhookReviewClosureReportFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewClosureReportFilters;
 }
 
 function reviewTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
@@ -2793,6 +2847,85 @@ function resolutionSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboun
     candidatesAvailable: isSafeLinkableUnmatchedItem(item),
     externalCalls: 0 as const
   };
+}
+
+function closureEvidenceSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewClosureEvidenceSummaryItem {
+  syncResolutionState(item);
+  const lane = triageLaneForItem(item);
+  const historyEntryCount = buildHistoryEntriesForItem(item).length;
+  const operatorNoteCount = countOperatorNotesForItem(item);
+  const candidatesAvailable = isSafeLinkableUnmatchedItem(item);
+  const noProviderOutboundConfirmed = checklistStepCompleted(item, "CONFIRMED_NO_PROVIDER_OUTBOUND");
+  const noRawLeakageConfirmed = checklistStepCompleted(item, "CONFIRMED_NO_RAW_LEAKAGE");
+  const safeLinkTargetConfirmed = checklistStepCompleted(item, "CONFIRMED_SAFE_LINK_TARGET");
+  const assignmentOrEscalationPresent =
+    item.assignmentStatus === "assigned" ||
+    item.escalationStatus === "escalated" ||
+    checklistStepCompleted(item, "CONFIRMED_ASSIGNMENT_OR_ESCALATION");
+
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: ageBucketForReceivedAt(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: triageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    evidenceStatus: closureEvidenceStatusForItem(item),
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    checklistIncompleteSteps: [...item.checklistIncompleteSteps],
+    recommendedNextActions: [...item.recommendedNextActions],
+    evidenceFlags: {
+      diagnosticsViewedOrAvailable: item.diagnosticsAvailable || checklistStepCompleted(item, "VIEWED_DIAGNOSTICS"),
+      historyAvailable: historyEntryCount > 0,
+      operatorNotesAvailable: operatorNoteCount > 0 || checklistStepCompleted(item, "CONFIRMED_OPERATOR_NOTE"),
+      candidatesAvailable,
+      assignmentOrEscalationPresent,
+      noProviderOutboundConfirmed,
+      noRawLeakageConfirmed,
+      safeLinkTargetConfirmed
+    },
+    historyEntryCount,
+    operatorNoteCount,
+    candidateSummaryCount: candidatesAvailable ? 1 : 0,
+    externalCalls: 0 as const
+  };
+}
+
+function closureEvidenceStatusForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewClosureEvidenceStatus {
+  if (item.closureReadiness === "BLOCKED") return "blocked";
+  if (
+    item.closureReadiness === "READY_FOR_REVIEW" ||
+    item.closureReadiness === "READY_FOR_SKIP" ||
+    item.closureReadiness === "READY_FOR_LINK" ||
+    item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
+  ) {
+    return "ready";
+  }
+  return "incomplete";
+}
+
+function checklistStepCompleted(item: ProviderWebhookUnmatchedInboundItem, step: ProviderWebhookReviewClosureChecklistStep) {
+  return item.closureChecklist.some((checklistItem) => checklistItem.step === step && checklistItem.completed);
+}
+
+function countOperatorNotesForItem(item: ProviderWebhookUnmatchedInboundItem) {
+  return operatorNotes.filter((note) => note.tenantId === item.tenantId && note.unmatchedId === item.id).length;
 }
 
 function exportResultSummary(item: ProviderWebhookUnmatchedInboundItem) {

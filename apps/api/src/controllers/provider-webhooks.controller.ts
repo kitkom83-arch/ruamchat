@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewResolutionSummaryFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookReviewWorkloadFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewClosureReportFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewResolutionSummaryFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookReviewWorkloadFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -56,6 +56,15 @@ export class ProviderWebhooksController {
     return this.events.getReviewResolutionSummary(requireTenantId(tenant), parseReviewResolutionSummaryFilters(query), userId);
   }
 
+  @Get("review-closure-report")
+  getReviewClosureReport(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewClosureReport(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-saved-views")
   listReviewSavedViews(@Headers("x-tenant-id") tenant: string | undefined) {
     return this.events.listReviewSavedViews(requireTenantId(tenant));
@@ -108,6 +117,14 @@ export class ProviderWebhooksController {
   ) {
     const filters = parseUnmatchedInboundExportQuery(query);
     return this.events.exportUnmatchedInboundQueue(requireTenantId(tenant), filters);
+  }
+
+  @Get("unmatched-inbound/:id/closure-evidence")
+  getUnmatchedInboundClosureEvidence(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.getUnmatchedInboundClosureEvidence(requireTenantId(tenant), id);
   }
 
   @Get("unmatched-inbound/:id/operator-notes")
@@ -372,6 +389,21 @@ function parseReviewResolutionSummaryFilters(query: unknown) {
   );
   const parsed = providerWebhookReviewResolutionSummaryFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid provider webhook review resolution summary filters");
+  return parsed.data;
+}
+
+function parseReviewClosureReportFilters(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    return {};
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookReviewClosureReportFiltersSchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid provider webhook review closure report filters");
   return parsed.data;
 }
 

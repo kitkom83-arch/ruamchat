@@ -13,6 +13,10 @@ import type {
   ProviderWebhookReviewAlertsFilters,
   ProviderWebhookReviewAlertAgeBucket,
   ProviderWebhookReviewAlertSeverity,
+  ProviderWebhookReviewClosureEvidence,
+  ProviderWebhookReviewClosureEvidenceStatus,
+  ProviderWebhookReviewClosureReport,
+  ProviderWebhookReviewClosureReportFilters,
   ProviderWebhookReviewMetrics,
   ProviderWebhookReviewMetricsFilters,
   ProviderWebhookReviewResolutionSummary,
@@ -60,6 +64,7 @@ import {
   bulkReviewProviderWebhookUnmatchedInbound,
   getProviderWebhookOperatorNotes,
   getProviderWebhookReviewAlerts,
+  getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewResolutionSummary,
@@ -69,6 +74,7 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
@@ -146,6 +152,16 @@ export type SettingsProviderWebhookReviewWorkloadData = {
 export type SettingsProviderWebhookReviewResolutionSummaryData = {
   mode: DataMode;
   summary: ProviderWebhookReviewResolutionSummary;
+};
+
+export type SettingsProviderWebhookReviewClosureReportData = {
+  mode: DataMode;
+  report: ProviderWebhookReviewClosureReport;
+};
+
+export type SettingsProviderWebhookClosureEvidenceData = {
+  mode: DataMode;
+  evidence: ProviderWebhookReviewClosureEvidence;
 };
 
 export type SettingsProviderWebhookSavedViewsData = {
@@ -325,6 +341,23 @@ export async function loadSettingsProviderWebhookReviewResolutionSummaryData(
   return {
     mode,
     summary: createMockReviewResolutionSummary(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewClosureReportData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewClosureReportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      report: await getProviderWebhookReviewClosureReport(filters)
+    };
+  }
+
+  return {
+    mode,
+    report: createMockReviewClosureReport(filters)
   };
 }
 
@@ -522,6 +555,20 @@ export async function loadSettingsProviderWebhookDiagnosticsData(mode: DataMode,
   return {
     mode,
     diagnostics: createMockUnmatchedDiagnostics(unmatchedInboundId)
+  };
+}
+
+export async function loadSettingsProviderWebhookClosureEvidenceData(mode: DataMode, unmatchedInboundId: string): Promise<SettingsProviderWebhookClosureEvidenceData> {
+  if (mode === "api") {
+    return {
+      mode,
+      evidence: await getProviderWebhookUnmatchedInboundClosureEvidence(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    evidence: createMockClosureEvidence(unmatchedInboundId)
   };
 }
 
@@ -1268,6 +1315,41 @@ function createMockReviewResolutionSummary(filters: ProviderWebhookReviewResolut
   };
 }
 
+function createMockReviewClosureReport(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewClosureReport {
+  const appliedFilters = cleanMockReviewClosureReportFilters(filters);
+  const items = filterMockUnmatchedInbound(mockTriageBaseFilters(appliedFilters))
+    .map(mockClosureEvidenceSummaryItem)
+    .filter((item) => !appliedFilters.severity || item.severity === appliedFilters.severity)
+    .filter((item) => !appliedFilters.triageLane || item.triageLane === appliedFilters.triageLane);
+  const openItems = items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters,
+    totalItems: items.length,
+    totalOpenItems: openItems.length,
+    evidenceReadyCount: items.filter((item) => item.evidenceStatus === "ready").length,
+    evidenceBlockedCount: items.filter((item) => item.evidenceStatus === "blocked").length,
+    evidenceIncompleteCount: items.filter((item) => item.evidenceStatus === "incomplete").length,
+    byClosureReadiness: countMockBy(items, mockClosureReadinessValues, (item) => item.closureReadiness),
+    byResolutionOutcome: countMockBy(items, mockResolutionOutcomes, (item) => item.resolutionOutcome ?? "none"),
+    byChecklistStep: countMockBy(items.flatMap((item) => item.checklistIncompleteSteps), mockClosureChecklistSteps, (step) => step),
+    byAssignmentStatus: countMockBy(items, ["unassigned", "assigned"], (item) => item.assignmentStatus),
+    byEscalationStatus: countMockBy(items, ["none", "escalated"], (item) => item.escalationStatus),
+    topEvidenceReadyItems: items.filter((item) => item.evidenceStatus === "ready").slice(0, 10),
+    topEvidenceBlockedItems: items.filter((item) => item.evidenceStatus === "blocked").slice(0, 10),
+    externalCalls: 0
+  };
+}
+
+function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  return {
+    generatedAt: new Date().toISOString(),
+    ...mockClosureEvidenceSummaryItem(item)
+  };
+}
+
 function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
   return {
     unmatchedId: item.id,
@@ -1373,6 +1455,72 @@ function mockResolutionSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
   };
 }
 
+function mockClosureEvidenceSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
+  syncMockResolutionState(item);
+  const lane = mockTriageLaneForItem(item);
+  const operatorNoteCount = mockProviderWebhookOperatorNotes.filter((note) => note.unmatchedId === item.id).length;
+  const candidatesAvailable = isMockLinkableUnmatchedItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: mockAgeBucket(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: mockTriageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    evidenceStatus: mockClosureEvidenceStatusForItem(item),
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    checklistIncompleteSteps: [...item.checklistIncompleteSteps],
+    recommendedNextActions: [...item.recommendedNextActions],
+    evidenceFlags: {
+      diagnosticsViewedOrAvailable: item.diagnosticsAvailable || mockChecklistStepCompleted(item, "VIEWED_DIAGNOSTICS"),
+      historyAvailable: true,
+      operatorNotesAvailable: operatorNoteCount > 0 || mockChecklistStepCompleted(item, "CONFIRMED_OPERATOR_NOTE"),
+      candidatesAvailable,
+      assignmentOrEscalationPresent: item.assignmentStatus === "assigned" || item.escalationStatus === "escalated" || mockChecklistStepCompleted(item, "CONFIRMED_ASSIGNMENT_OR_ESCALATION"),
+      noProviderOutboundConfirmed: mockChecklistStepCompleted(item, "CONFIRMED_NO_PROVIDER_OUTBOUND"),
+      noRawLeakageConfirmed: mockChecklistStepCompleted(item, "CONFIRMED_NO_RAW_LEAKAGE"),
+      safeLinkTargetConfirmed: mockChecklistStepCompleted(item, "CONFIRMED_SAFE_LINK_TARGET")
+    },
+    historyEntryCount: createMockUnmatchedHistory(item.id).entries.length,
+    operatorNoteCount,
+    candidateSummaryCount: candidatesAvailable ? 1 : 0,
+    externalCalls: 0 as const
+  };
+}
+
+function mockClosureEvidenceStatusForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewClosureEvidenceStatus {
+  if (item.closureReadiness === "BLOCKED") return "blocked";
+  if (
+    item.closureReadiness === "READY_FOR_REVIEW" ||
+    item.closureReadiness === "READY_FOR_SKIP" ||
+    item.closureReadiness === "READY_FOR_LINK" ||
+    item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
+  ) {
+    return "ready";
+  }
+  return "incomplete";
+}
+
+function mockChecklistStepCompleted(item: ProviderWebhookUnmatchedInboundItem, step: ProviderWebhookReviewClosureChecklistStep) {
+  return item.closureChecklist.some((checklistItem) => checklistItem.step === step && checklistItem.completed);
+}
+
 function mockReviewTriageItem(item: ProviderWebhookUnmatchedInboundItem) {
   const lane = mockTriageLaneForItem(item);
   return {
@@ -1467,6 +1615,12 @@ function cleanMockReviewResolutionSummaryFilters(filters: ProviderWebhookReviewR
     ...(filters.closureReadiness ? { closureReadiness: filters.closureReadiness } : {}),
     ...(filters.checklistIncomplete !== undefined ? { checklistIncomplete: filters.checklistIncomplete } : {})
   } as ProviderWebhookReviewResolutionSummaryFilters;
+}
+
+function cleanMockReviewClosureReportFilters(filters: ProviderWebhookReviewClosureReportFilters) {
+  return {
+    ...cleanMockReviewResolutionSummaryFilters(filters)
+  } as ProviderWebhookReviewClosureReportFilters;
 }
 
 function cleanMockSavedViewFilters(filters: CreateProviderWebhookReviewSavedViewRequest["filters"] = {}): ProviderWebhookReviewSavedView["filters"] {
@@ -2250,6 +2404,10 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.readyForClosureCount = openItems.filter((item) => item.closureReadiness === "READY_FOR_REVIEW" || item.closureReadiness === "READY_FOR_SKIP" || item.closureReadiness === "READY_FOR_LINK" || item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").length;
   mockProviderReadiness.blockedResolutionCount = openItems.filter((item) => item.closureReadiness === "BLOCKED").length;
   mockProviderReadiness.checklistIncompleteOpenCount = openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length;
+  const closureReport = createMockReviewClosureReport({});
+  mockProviderReadiness.closureEvidenceReadyCount = closureReport.evidenceReadyCount;
+  mockProviderReadiness.closureEvidenceBlockedCount = closureReport.evidenceBlockedCount;
+  mockProviderReadiness.closureEvidenceIncompleteCount = closureReport.evidenceIncompleteCount;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -2303,6 +2461,8 @@ export const mockProviderReadiness: ProviderReadiness = {
   reviewResolutionEnabled: true,
   reviewClosureChecklistEnabled: true,
   resolutionSummaryEnabled: true,
+  reviewClosureEvidenceEnabled: true,
+  reviewClosureReportEnabled: true,
   savedViewCount: 1,
   operatorNoteCount: 0,
   unassignedOpenCount: 1,
@@ -2312,6 +2472,9 @@ export const mockProviderReadiness: ProviderReadiness = {
   readyForClosureCount: 0,
   blockedResolutionCount: 0,
   checklistIncompleteOpenCount: 1,
+  closureEvidenceReadyCount: 0,
+  closureEvidenceBlockedCount: 0,
+  closureEvidenceIncompleteCount: 1,
   reviewAlertCriticalCount: 1,
   criticalTriageCount: 1,
   openTriageCount: 1,

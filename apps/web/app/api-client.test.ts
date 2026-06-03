@@ -26,6 +26,7 @@ import {
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookReviewAlerts,
+  getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewSavedViews,
@@ -34,6 +35,7 @@ import {
   getProviderWebhookOperatorNotes,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
@@ -705,6 +707,62 @@ describe("frontend API client", () => {
     });
     expect(bulk.summary.successCount).toBe(1);
     expect(JSON.stringify({ summary, resolved, checklist, bulk }))
+      .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
+  it("sends x-tenant-id and safe filters for closure evidence and report", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewClosureReportResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-1")));
+
+    const report = await getProviderWebhookReviewClosureReport({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: false,
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "info",
+      triageLane: "safe_link_candidate_available"
+    });
+    const evidence = await getProviderWebhookUnmatchedInboundClosureEvidence("provider-webhook-unmatched-1");
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(report).toMatchObject({
+      totalItems: 1,
+      evidenceReadyCount: 1,
+      evidenceBlockedCount: 0,
+      evidenceIncompleteCount: 0,
+      appliedFilters: {
+        resolutionStatus: "resolved",
+        resolutionOutcome: "NEEDS_REVIEW",
+        closureReadiness: "READY_FOR_REVIEW",
+        checklistIncomplete: false
+      },
+      externalCalls: 0
+    });
+    expect(evidence).toMatchObject({
+      unmatchedId: "provider-webhook-unmatched-1",
+      evidenceStatus: "ready",
+      evidenceFlags: {
+        noProviderOutboundConfirmed: true,
+        noRawLeakageConfirmed: true,
+        safeLinkTargetConfirmed: true
+      },
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ report, evidence }))
       .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
@@ -1712,11 +1770,23 @@ function providerReadinessResponse() {
       reviewAssignmentEnabled: true,
       reviewEscalationEnabled: true,
       assignmentWorkloadEnabled: true,
+      reviewResolutionEnabled: true,
+      reviewClosureChecklistEnabled: true,
+      resolutionSummaryEnabled: true,
+      reviewClosureEvidenceEnabled: true,
+      reviewClosureReportEnabled: true,
       savedViewCount: 1,
       operatorNoteCount: 1,
       unassignedOpenCount: 1,
       assignedOpenCount: 0,
       escalatedOpenCount: 0,
+      unresolvedOpenCount: 1,
+      readyForClosureCount: 0,
+      blockedResolutionCount: 0,
+      checklistIncompleteOpenCount: 1,
+      closureEvidenceReadyCount: 0,
+      closureEvidenceBlockedCount: 0,
+      closureEvidenceIncompleteCount: 1,
       reviewAlertCriticalCount: 1,
       criticalTriageCount: 1,
       openTriageCount: 1,
@@ -2595,6 +2665,92 @@ function providerWebhookReviewResolutionSummaryResponse() {
     byUnmatchedStatus: [{ key: "review-needed", label: "review-needed", count: 1 }],
     topReadyItems: [item],
     topBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewClosureReportResponse() {
+  const { generatedAt: _generatedAt, ...item } = providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-1");
+  void _generatedAt;
+  return {
+    generatedAt: "2026-06-04T00:00:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: false,
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "info",
+      triageLane: "safe_link_candidate_available"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    evidenceReadyCount: 1,
+    evidenceBlockedCount: 0,
+    evidenceIncompleteCount: 0,
+    byClosureReadiness: [{ key: "READY_FOR_REVIEW", label: "READY_FOR_REVIEW", count: 1 }],
+    byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+    byChecklistStep: [{ key: "CONFIRMED_NO_RAW_LEAKAGE", label: "CONFIRMED_NO_RAW_LEAKAGE", count: 0 }],
+    byAssignmentStatus: [{ key: "assigned", label: "assigned", count: 1 }],
+    byEscalationStatus: [{ key: "escalated", label: "escalated", count: 1 }],
+    topEvidenceReadyItems: [item],
+    topEvidenceBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookClosureEvidenceResponse(unmatchedId: string) {
+  return {
+    generatedAt: "2026-06-04T00:00:00.000Z",
+    unmatchedId,
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    ageBucket: "over3Days",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    triageLane: "safe_link_candidate_available",
+    severity: "info",
+    assignmentStatus: "assigned",
+    assignedToOperatorLabel: "operator:current",
+    escalationStatus: "escalated",
+    escalationReason: "SLA_RISK",
+    resolutionStatus: "resolved",
+    resolutionOutcome: "NEEDS_REVIEW",
+    closureReadiness: "READY_FOR_REVIEW",
+    evidenceStatus: "ready",
+    checklistCompletedCount: 9,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [],
+    recommendedNextActions: ["MARK_REVIEWED"],
+    evidenceFlags: {
+      diagnosticsViewedOrAvailable: true,
+      historyAvailable: true,
+      operatorNotesAvailable: true,
+      candidatesAvailable: true,
+      assignmentOrEscalationPresent: true,
+      noProviderOutboundConfirmed: true,
+      noRawLeakageConfirmed: true,
+      safeLinkTargetConfirmed: true
+    },
+    historyEntryCount: 3,
+    operatorNoteCount: 2,
+    candidateSummaryCount: 1,
     externalCalls: 0
   };
 }
