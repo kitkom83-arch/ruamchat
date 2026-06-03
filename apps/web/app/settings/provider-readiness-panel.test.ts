@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -35,6 +35,7 @@ describe("ProviderReadinessPanel", () => {
       reviewAlerts: providerWebhookReviewAlerts(),
       reviewTriage: providerWebhookReviewTriage(),
       reviewWorkload: providerWebhookReviewWorkload(),
+      reviewResolutionSummary: providerWebhookReviewResolutionSummary(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
       reviewSavedViewActionStatus: "Saved view Safe queue view; externalCalls=0",
       activeDiagnosticsId: "provider-webhook-unmatched-1",
@@ -85,11 +86,18 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("assignment=enabled");
     expect(html).toContain("escalation=enabled");
     expect(html).toContain("assignment workload=enabled");
+    expect(html).toContain("review resolution=enabled");
+    expect(html).toContain("closure checklist=enabled");
+    expect(html).toContain("resolution summary=enabled");
     expect(html).toContain("saved view count=1");
     expect(html).toContain("operator note count=1");
     expect(html).toContain("unassigned open count=1");
     expect(html).toContain("assigned open count=0");
     expect(html).toContain("escalated open count=0");
+    expect(html).toContain("unresolved open count=1");
+    expect(html).toContain("ready for closure count=0");
+    expect(html).toContain("blocked resolution count=0");
+    expect(html).toContain("checklist incomplete open count=1");
     expect(html).toContain("critical alert count=1");
     expect(html).toContain("critical triage count=1");
     expect(html).toContain("open triage count=1");
@@ -135,6 +143,10 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Assignment status");
     expect(html).toContain("Escalation status");
     expect(html).toContain("Escalation reason");
+    expect(html).toContain("Resolution status");
+    expect(html).toContain("Resolution outcome");
+    expect(html).toContain("Closure readiness");
+    expect(html).toContain("Checklist incomplete");
     expect(html).toContain("Unmatched status");
     expect(html).toContain("Event type");
     expect(html).toContain("Received from");
@@ -152,6 +164,10 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Bulk Unassign");
     expect(html).toContain("Bulk Escalate");
     expect(html).toContain("Bulk Clear escalation");
+    expect(html).toContain("Bulk Set resolution");
+    expect(html).toContain("Bulk Clear resolution");
+    expect(html).toContain("Bulk Complete diagnostics step");
+    expect(html).toContain("Bulk Reset checklist");
     expect(html).toContain("Export current filtered queue");
     expect(html).toContain("Export CSV");
     expect(html).toContain("Export json: exportedCount=1; exportMaxLimit=500; externalCalls=0");
@@ -207,6 +223,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Workload thresholds");
     expect(html).toContain("assignedTo=operator:current");
     expect(html).toContain("escalationReason=SLA_RISK");
+    expect(html).toContain("Resolution checklist summary");
+    expect(html).toContain("resolution generated");
+    expect(html).toContain("total resolution items");
+    expect(html).toContain("checklist incomplete");
+    expect(html).toContain("By resolution status");
+    expect(html).toContain("By closure readiness");
+    expect(html).toContain("recommendedNextActions=VIEW_HISTORY|RUN_CANDIDATE_LOOKUP|ADD_OPERATOR_NOTE");
     expect(html).toContain("Run candidate lookup");
     expect(html).toContain("visible unmatched count=1");
     expect(html).toContain("total unmatched count=12");
@@ -222,6 +245,10 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("assignmentStatus=unassigned");
     expect(html).toContain("assignedTo=none");
     expect(html).toContain("escalationStatus=none");
+    expect(html).toContain("resolutionStatus=unresolved");
+    expect(html).toContain("resolutionOutcome=none");
+    expect(html).toContain("closureReadiness=NOT_READY");
+    expect(html).toContain("checklist=1/9");
     expect(html).toContain("Mark reviewed");
     expect(html).toContain("Skip");
     expect(html).toContain("Assign to me");
@@ -229,6 +256,14 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Unassign");
     expect(html).toContain("Escalate SLA risk");
     expect(html).toContain("Clear escalation");
+    expect(html).toContain("Set needs review");
+    expect(html).toContain("Set safe match");
+    expect(html).toContain("Set blocked unsafe");
+    expect(html).toContain("Clear resolution");
+    expect(html).toContain("Reset checklist");
+    expect(html).toContain("VIEWED_DIAGNOSTICS");
+    expect(html).toContain("Complete");
+    expect(html).toContain("Uncomplete");
     expect(html).toContain("Load candidates");
     expect(html).toContain("View diagnostics");
     expect(html).toContain("diagnostics warnings=2");
@@ -261,7 +296,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Saved review views");
     expect(html).toContain("Save current filters");
     expect(html).toContain("Safe queue view");
-    expect(html).toContain("filters=provider=line;reviewStatus=pending;linkStatus=none;unmatchedStatus=review-needed;eventType=message.created;severity=info;triageLane=safe_link_candidate_available;assignedTo=me;assignmentStatus=assigned_to_me;escalationStatus=escalated;escalationReason=SLA_RISK;pageSize=10");
+    expect(html).toContain("filters=provider=line;reviewStatus=pending;linkStatus=none;unmatchedStatus=review-needed;eventType=message.created;severity=info;triageLane=safe_link_candidate_available;assignedTo=me;assignmentStatus=assigned_to_me;escalationStatus=escalated;escalationReason=SLA_RISK;resolutionStatus=unresolved;resolutionOutcome=NEEDS_REVIEW;closureReadiness=NOT_READY;checklistIncomplete=true;pageSize=10");
     expect(html).toContain("sort=receivedAt desc");
     expect(html).toContain("Apply saved view");
     expect(html).toContain("Archive");
@@ -423,11 +458,18 @@ function providerReadiness(): ProviderReadiness {
     reviewAssignmentEnabled: true,
     reviewEscalationEnabled: true,
     assignmentWorkloadEnabled: true,
+    reviewResolutionEnabled: true,
+    reviewClosureChecklistEnabled: true,
+    resolutionSummaryEnabled: true,
     savedViewCount: 1,
     operatorNoteCount: 1,
     unassignedOpenCount: 1,
     assignedOpenCount: 0,
     escalatedOpenCount: 0,
+    unresolvedOpenCount: 1,
+    readyForClosureCount: 0,
+    blockedResolutionCount: 0,
+    checklistIncompleteOpenCount: 1,
     reviewAlertCriticalCount: 1,
     criticalTriageCount: 1,
     openTriageCount: 1,
@@ -449,6 +491,89 @@ function providerReadiness(): ProviderReadiness {
       provider("facebook", false, false, 0),
       provider("instagram", false, false, 0)
     ]
+  };
+}
+
+function providerWebhookClosureChecklist() {
+  return [
+    {
+      step: "VIEWED_DIAGNOSTICS" as const,
+      completed: true,
+      completedAt: "2026-05-31T00:03:00.000Z",
+      completedByOperatorLabel: "operator:current"
+    },
+    {
+      step: "REVIEWED_HISTORY" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_TRIAGE_GUIDANCE" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_CANDIDATES" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_RAW_LEAKAGE" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_PROVIDER_OUTBOUND" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_ASSIGNMENT_OR_ESCALATION" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_SAFE_LINK_TARGET" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_OPERATOR_NOTE" as const,
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    }
+  ];
+}
+
+function providerWebhookResolutionFields() {
+  return {
+    resolutionStatus: "unresolved" as const,
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY" as const,
+    closureChecklist: providerWebhookClosureChecklist(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY" as const,
+      "REVIEWED_TRIAGE_GUIDANCE" as const,
+      "REVIEWED_CANDIDATES" as const,
+      "CONFIRMED_NO_RAW_LEAKAGE" as const,
+      "CONFIRMED_NO_PROVIDER_OUTBOUND" as const,
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION" as const,
+      "CONFIRMED_SAFE_LINK_TARGET" as const,
+      "CONFIRMED_OPERATOR_NOTE" as const
+    ],
+    recommendedNextActions: ["VIEW_HISTORY" as const, "RUN_CANDIDATE_LOOKUP" as const, "ADD_OPERATOR_NOTE" as const]
   };
 }
 
@@ -555,6 +680,7 @@ function providerWebhookUnmatchedInboundItem(): ProviderWebhookUnmatchedInboundI
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    ...providerWebhookResolutionFields(),
     lastOperatorNoteAt: null,
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -871,6 +997,11 @@ function providerWebhookReviewWorkload(): ProviderWebhookReviewWorkload {
     escalationReason: "SLA_RISK" as const,
     escalatedAt: "2026-05-31T00:11:00.000Z",
     escalatedByOperatorLabel: "operator:current",
+    resolutionStatus: "unresolved" as const,
+    resolutionOutcome: null,
+    closureReadiness: "NOT_READY" as const,
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
     lastOperatorNoteAt: "2026-05-31T00:12:00.000Z",
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -901,7 +1032,11 @@ function providerWebhookReviewWorkload(): ProviderWebhookReviewWorkload {
       overdueAssignedOpen: 0,
       recentlyAssigned: 1,
       recentlyEscalated: 1,
-      resolvedAssigned: 0
+      resolvedAssigned: 0,
+      unresolvedOpen: 1,
+      readyForClosure: 0,
+      blockedResolution: 0,
+      checklistIncompleteOpen: 1
     },
     byAssignee: [{ key: "operator:current", label: "operator:current", count: 1 }],
     byAssignmentStatus: [
@@ -927,6 +1062,92 @@ function providerWebhookReviewWorkload(): ProviderWebhookReviewWorkload {
   };
 }
 
+function providerWebhookReviewResolutionSummary(): ProviderWebhookReviewResolutionSummary {
+  const baseItem = {
+    unmatchedId: "provider-webhook-unmatched-1",
+    provider: "line" as const,
+    platform: "line" as const,
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created" as const,
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    ageBucket: "over3Days" as const,
+    reviewStatus: "pending" as const,
+    linkStatus: "none" as const,
+    unmatchedStatus: "review-needed" as const,
+    triageLane: "critical_stale_open" as const,
+    severity: "critical" as const,
+    assignmentStatus: "assigned" as const,
+    assignedToOperatorLabel: "operator:current",
+    escalationStatus: "escalated" as const,
+    escalationReason: "SLA_RISK" as const,
+    resolutionStatus: "unresolved" as const,
+    resolutionOutcome: "NEEDS_REVIEW" as const,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY" as const,
+    closureChecklist: providerWebhookClosureChecklist(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY" as const,
+      "REVIEWED_TRIAGE_GUIDANCE" as const,
+      "REVIEWED_CANDIDATES" as const,
+      "CONFIRMED_NO_RAW_LEAKAGE" as const,
+      "CONFIRMED_NO_PROVIDER_OUTBOUND" as const,
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION" as const,
+      "CONFIRMED_SAFE_LINK_TARGET" as const,
+      "CONFIRMED_OPERATOR_NOTE" as const
+    ],
+    recommendedNextActions: ["VIEW_HISTORY" as const, "RUN_CANDIDATE_LOOKUP" as const, "ADD_OPERATOR_NOTE" as const],
+    lastOperatorNoteAt: "2026-05-31T00:12:00.000Z",
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: true,
+    externalCalls: 0 as const
+  };
+  return {
+    generatedAt: "2026-05-31T00:09:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    counts: {
+      unresolvedOpen: 1,
+      readyForReview: 0,
+      readyForSkip: 0,
+      readyForLink: 0,
+      readyForLinkAndPersist: 0,
+      blocked: 0,
+      resolvedRecently: 0,
+      checklistIncompleteOpen: 1
+    },
+    byResolutionStatus: [{ key: "unresolved", label: "unresolved", count: 1 }],
+    byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+    byClosureReadiness: [{ key: "NOT_READY", label: "NOT_READY", count: 1 }],
+    byChecklistStep: [{ key: "REVIEWED_HISTORY", label: "REVIEWED_HISTORY", count: 1 }],
+    byProvider: [{ key: "line", label: "line", count: 1 }],
+    byPlatform: [{ key: "line", label: "line", count: 1 }],
+    byReviewStatus: [{ key: "pending", label: "pending", count: 1 }],
+    byLinkStatus: [{ key: "none", label: "none", count: 1 }],
+    byUnmatchedStatus: [{ key: "review-needed", label: "review-needed", count: 1 }],
+    topReadyItems: [baseItem],
+    topBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
 function providerWebhookReviewSavedView(): ProviderWebhookReviewSavedView {
   return {
     id: "provider-webhook-review-view-1",
@@ -947,6 +1168,10 @@ function providerWebhookReviewSavedView(): ProviderWebhookReviewSavedView {
       assignmentStatus: "assigned_to_me",
       escalationStatus: "escalated",
       escalationReason: "SLA_RISK",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
       pageSize: 10
     },
     sort: {
@@ -983,7 +1208,12 @@ function providerWebhookOperatorNote(): ProviderWebhookOperatorNote {
       assignmentStatus: "unassigned",
       assignedToOperatorLabel: null,
       escalationStatus: "none",
-      escalationReason: null
+      escalationReason: null,
+      resolutionStatus: "unresolved",
+      resolutionOutcome: null,
+      closureReadiness: "NOT_READY",
+      checklistCompletedCount: 1,
+      checklistTotalCount: 9
     },
     createdAt: "2026-05-31T00:00:00.000Z",
     updatedAt: "2026-05-31T00:00:00.000Z",
@@ -1012,6 +1242,7 @@ function providerWebhookDiagnostics(): ProviderWebhookUnmatchedInboundDiagnostic
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    ...providerWebhookResolutionFields(),
     lastOperatorNoteAt: null,
     routingOutcome: "dry-run-only/not-found",
     normalizedEventType: "message",
@@ -1101,6 +1332,11 @@ function providerWebhookExport(): ProviderWebhookUnmatchedInboundExport {
       escalationStatus: "none",
       escalationReason: null,
       escalatedAt: null,
+      resolutionStatus: "unresolved",
+      resolutionOutcome: null,
+      closureReadiness: "NOT_READY",
+      checklistCompletedCount: 1,
+      checklistTotalCount: 9,
       externalCalls: 0
     }],
     csv: null,

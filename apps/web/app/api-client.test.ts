@@ -16,6 +16,7 @@ import {
   assignProviderWebhookUnmatchedInbound,
   bulkAssignProviderWebhookUnmatchedInbound,
   bulkEscalateProviderWebhookUnmatchedInbound,
+  bulkResolveProviderWebhookUnmatchedInbound,
   bulkReviewProviderWebhookUnmatchedInbound,
   deleteKnowledgeBase,
   createWebchatMessage,
@@ -26,6 +27,7 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewTriage,
   getProviderWebhookReviewWorkload,
@@ -37,7 +39,9 @@ import {
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
+  resolveProviderWebhookUnmatchedInbound,
   escalateProviderWebhookUnmatchedInbound,
+  updateProviderWebhookUnmatchedInboundChecklist,
   updateProviderWebhookReviewSavedView,
   getKnowledgeBases,
   getKnowledgeChunks,
@@ -589,6 +593,118 @@ describe("frontend API client", () => {
     expect(bulkAssigned.summary.successCount).toBe(1);
     expect(bulkEscalated.summary.successCount).toBe(1);
     expect(JSON.stringify({ workload, assigned, escalated, bulkAssigned, bulkEscalated }))
+      .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
+  it("sends x-tenant-id and safe bodies for resolution summary, resolution, checklist, and bulk resolution", async () => {
+    const resolvedItem = {
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"),
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      resolvedAt: "2026-05-31T00:09:00.000Z",
+      resolvedByOperatorLabel: "operator:current"
+    };
+    const checkedItem = {
+      ...resolvedItem,
+      checklistCompletedCount: 2,
+      checklistIncompleteSteps: [
+        "REVIEWED_TRIAGE_GUIDANCE",
+        "REVIEWED_CANDIDATES",
+        "CONFIRMED_NO_RAW_LEAKAGE",
+        "CONFIRMED_NO_PROVIDER_OUTBOUND",
+        "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+        "CONFIRMED_SAFE_LINK_TARGET",
+        "CONFIRMED_OPERATOR_NOTE"
+      ]
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewResolutionSummaryResponse()))
+      .mockResolvedValueOnce(jsonResponse(resolvedItem))
+      .mockResolvedValueOnce(jsonResponse(checkedItem))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookBulkResolutionResponse("RESET_CHECKLIST")));
+
+    const summary = await getProviderWebhookReviewResolutionSummary({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    });
+    const resolved = await resolveProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "safe resolution note"
+    });
+    const checklist = await updateProviderWebhookUnmatchedInboundChecklist("provider-webhook-unmatched-1", {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    });
+    const bulk = await bulkResolveProviderWebhookUnmatchedInbound({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "RESET_CHECKLIST",
+      note: "safe bulk checklist reset"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-resolution-summary?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=unresolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=NOT_READY&checklistIncomplete=true&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=critical&triageLane=critical_stale_open", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/resolution", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/resolution-checklist", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/bulk-resolution", expect.objectContaining({ method: "PATCH" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "safe resolution note"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "RESET_CHECKLIST",
+      note: "safe bulk checklist reset"
+    });
+    expect(summary).toMatchObject({
+      counts: { unresolvedOpen: 1, checklistIncompleteOpen: 1 },
+      appliedFilters: {
+        resolutionStatus: "unresolved",
+        resolutionOutcome: "NEEDS_REVIEW",
+        closureReadiness: "NOT_READY",
+        checklistIncomplete: true
+      },
+      externalCalls: 0
+    });
+    expect(resolved).toMatchObject({
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(checklist).toMatchObject({
+      checklistCompletedCount: 2,
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(bulk.summary.successCount).toBe(1);
+    expect(JSON.stringify({ summary, resolved, checklist, bulk }))
       .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
@@ -1705,6 +1821,65 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
   };
 }
 
+function providerWebhookClosureChecklistResponse() {
+  return [
+    {
+      step: "VIEWED_DIAGNOSTICS",
+      completed: true,
+      completedAt: "2026-05-31T00:03:00.000Z",
+      completedByOperatorLabel: "operator:current"
+    },
+    {
+      step: "REVIEWED_HISTORY",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_TRIAGE_GUIDANCE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_CANDIDATES",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_RAW_LEAKAGE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_SAFE_LINK_TARGET",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_OPERATOR_NOTE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    }
+  ];
+}
+
 function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
   return {
     id,
@@ -1737,6 +1912,25 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY",
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"],
     lastOperatorNoteAt: null,
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -2281,7 +2475,11 @@ function providerWebhookReviewWorkloadResponse() {
       overdueAssignedOpen: 0,
       recentlyAssigned: 1,
       recentlyEscalated: 1,
-      resolvedAssigned: 0
+      resolvedAssigned: 0,
+      unresolvedOpen: 1,
+      readyForClosure: 0,
+      blockedResolution: 0,
+      checklistIncompleteOpen: 1
     },
     byAssignee: [
       { key: "operator:current", label: "operator:current", count: 1 }
@@ -2319,6 +2517,88 @@ function providerWebhookReviewWorkloadResponse() {
   };
 }
 
+function providerWebhookReviewResolutionSummaryResponse() {
+  const {
+    assignedAt,
+    assignedByOperatorLabel,
+    escalatedAt,
+    escalatedByOperatorLabel,
+    ...baseItem
+  } = providerWebhookAssignmentSummaryItemResponse();
+  void assignedAt;
+  void assignedByOperatorLabel;
+  void escalatedAt;
+  void escalatedByOperatorLabel;
+  const item = {
+    ...baseItem,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"]
+  };
+  return {
+    generatedAt: "2026-05-31T00:09:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    counts: {
+      unresolvedOpen: 1,
+      readyForReview: 0,
+      readyForSkip: 0,
+      readyForLink: 0,
+      readyForLinkAndPersist: 0,
+      blocked: 0,
+      resolvedRecently: 0,
+      checklistIncompleteOpen: 1
+    },
+    byResolutionStatus: [{ key: "unresolved", label: "unresolved", count: 1 }],
+    byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+    byClosureReadiness: [{ key: "NOT_READY", label: "NOT_READY", count: 1 }],
+    byChecklistStep: [{ key: "REVIEWED_HISTORY", label: "REVIEWED_HISTORY", count: 1 }],
+    byProvider: [{ key: "line", label: "line", count: 1 }],
+    byPlatform: [{ key: "line", label: "line", count: 1 }],
+    byReviewStatus: [{ key: "pending", label: "pending", count: 1 }],
+    byLinkStatus: [{ key: "none", label: "none", count: 1 }],
+    byUnmatchedStatus: [{ key: "review-needed", label: "review-needed", count: 1 }],
+    topReadyItems: [item],
+    topBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
 function providerWebhookAssignmentSummaryItemResponse() {
   return {
     unmatchedId: "provider-webhook-unmatched-1",
@@ -2343,6 +2623,11 @@ function providerWebhookAssignmentSummaryItemResponse() {
     escalationReason: "SLA_RISK",
     escalatedAt: "2026-05-31T00:11:00.000Z",
     escalatedByOperatorLabel: "operator:current",
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    closureReadiness: "NOT_READY",
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
     lastOperatorNoteAt: "2026-05-31T00:12:00.000Z",
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -2405,6 +2690,35 @@ function providerWebhookBulkEscalationResponse(operation: "ESCALATE" | "CLEAR_ES
   };
 }
 
+function providerWebhookBulkResolutionResponse(operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION" | "COMPLETE_STEP" | "RESET_CHECKLIST") {
+  return {
+    operation,
+    results: [
+      {
+        id: "provider-webhook-unmatched-1",
+        ok: true,
+        resultStatus: "updated",
+        resolutionStatus: operation === "CLEAR_RESOLUTION" ? "unresolved" : "resolved",
+        resolutionOutcome: operation === "CLEAR_RESOLUTION" ? null : "NEEDS_REVIEW",
+        closureReadiness: "NOT_READY",
+        checklistCompletedCount: operation === "RESET_CHECKLIST" ? 0 : 1,
+        checklistTotalCount: 9,
+        error: null,
+        externalCalls: 0
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
   return {
     unmatchedId: unmatchedInboundId,
@@ -2426,6 +2740,25 @@ function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY",
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"],
     lastOperatorNoteAt: null,
     routingOutcome: "dry-run-only/not-found",
     normalizedEventType: "message",

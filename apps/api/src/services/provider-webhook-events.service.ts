@@ -6,6 +6,9 @@ import {
   providerWebhookUnmatchedInboundAssignmentRequestSchema,
   providerWebhookUnmatchedInboundBulkAssignmentRequestSchema,
   providerWebhookUnmatchedInboundBulkEscalationRequestSchema,
+  providerWebhookUnmatchedInboundBulkResolutionRequestSchema,
+  providerWebhookUnmatchedInboundResolutionChecklistRequestSchema,
+  providerWebhookUnmatchedInboundResolutionRequestSchema,
   providerWebhookReviewSavedViewFiltersSchema,
   providerWebhookUnmatchedInboundEscalationRequestSchema,
   updateProviderWebhookReviewSavedViewRequestSchema,
@@ -23,6 +26,10 @@ import {
   type ProviderWebhookReviewAlertAgeBucket,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
+  type ProviderWebhookReviewRecommendedNextAction,
+  type ProviderWebhookReviewResolutionOutcome,
+  type ProviderWebhookReviewResolutionSummary,
+  type ProviderWebhookReviewResolutionSummaryFilters,
   type ProviderWebhookReviewTriage,
   type ProviderWebhookReviewTriageFilters,
   type ProviderWebhookReviewTriageLane,
@@ -33,10 +40,15 @@ import {
   type ProviderWebhookUnmatchedInboundBulkAssignmentResponse,
   type ProviderWebhookUnmatchedInboundBulkEscalationResponse,
   type ProviderWebhookUnmatchedInboundBulkMetadataItemResult,
+  type ProviderWebhookUnmatchedInboundBulkResolutionItemResult,
+  type ProviderWebhookUnmatchedInboundBulkResolutionRequest,
+  type ProviderWebhookUnmatchedInboundBulkResolutionResponse,
   type ProviderWebhookUnmatchedInboundBulkAssignmentRequest,
   type ProviderWebhookUnmatchedInboundBulkEscalationRequest,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
   type ProviderWebhookUnmatchedInboundEscalationRequest,
+  type ProviderWebhookUnmatchedInboundResolutionChecklistRequest,
+  type ProviderWebhookUnmatchedInboundResolutionRequest,
   type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
   type ProviderWebhookUnmatchedInboundExportQuery,
@@ -48,6 +60,8 @@ import {
   type ProviderWebhookUnmatchedInboundHistoryEntry,
   type ProviderSandboxProvider,
   type ProviderWebhookEvent,
+  type ProviderWebhookReviewClosureChecklistItem,
+  type ProviderWebhookReviewClosureChecklistStep,
   type ProviderWebhookMessageType,
   type ProviderWebhookNormalizedEventType,
   type ProviderWebhookSandboxEventRequest,
@@ -85,6 +99,42 @@ const escalationReasons = [
   "NEEDS_MANAGER_REVIEW",
   "MANUAL_REVIEW_BLOCKED"
 ] as const;
+const resolutionStatuses = ["unresolved", "resolved"] as const;
+const resolutionOutcomes = [
+  "none",
+  "NEEDS_REVIEW",
+  "REVIEWED_NO_MATCH",
+  "REVIEWED_SAFE_MATCH",
+  "LINKED_EXISTING_CONVERSATION",
+  "LINKED_AND_PERSISTED_SAFE_MESSAGE",
+  "SKIPPED_DUPLICATE",
+  "SKIPPED_SPAM",
+  "SKIPPED_UNSUPPORTED_EVENT",
+  "ESCALATED_TO_MANAGER",
+  "BLOCKED_UNSAFE",
+  "ROUTING_FAILED",
+  "MANUAL_REVIEW_REQUIRED"
+] as const;
+const closureReadinessValues = [
+  "NOT_READY",
+  "READY_FOR_REVIEW",
+  "READY_FOR_SKIP",
+  "READY_FOR_LINK",
+  "READY_FOR_LINK_AND_PERSIST",
+  "ALREADY_REVIEWED",
+  "BLOCKED"
+] as const;
+const closureChecklistSteps: ProviderWebhookReviewClosureChecklistStep[] = [
+  "VIEWED_DIAGNOSTICS",
+  "REVIEWED_HISTORY",
+  "REVIEWED_TRIAGE_GUIDANCE",
+  "REVIEWED_CANDIDATES",
+  "CONFIRMED_NO_RAW_LEAKAGE",
+  "CONFIRMED_NO_PROVIDER_OUTBOUND",
+  "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+  "CONFIRMED_SAFE_LINK_TARGET",
+  "CONFIRMED_OPERATOR_NOTE"
+];
 const triageLaneDetails: Record<ProviderWebhookReviewTriageLane, {
   label: string;
   description: string;
@@ -339,7 +389,16 @@ export class ProviderWebhookEventsService {
         overdueAssignedOpen: assignedOpen.filter((item) => hoursSince(item.assignedAt ?? item.receivedAt) >= reviewAlertThresholds.overSlaHours).length,
         recentlyAssigned: filteredItems.filter((item) => item.assignedAt && nowMs - new Date(item.assignedAt).getTime() <= recentWindowMs).length,
         recentlyEscalated: filteredItems.filter((item) => item.escalatedAt && nowMs - new Date(item.escalatedAt).getTime() <= recentWindowMs).length,
-        resolvedAssigned: filteredItems.filter((item) => item.assignmentStatus === "assigned" && !isOpenUnmatchedStatus(item.unmatchedStatus)).length
+        resolvedAssigned: filteredItems.filter((item) => item.assignmentStatus === "assigned" && !isOpenUnmatchedStatus(item.unmatchedStatus)).length,
+        unresolvedOpen: openItems.filter((item) => item.resolutionStatus === "unresolved").length,
+        readyForClosure: openItems.filter((item) =>
+          item.closureReadiness === "READY_FOR_REVIEW" ||
+          item.closureReadiness === "READY_FOR_SKIP" ||
+          item.closureReadiness === "READY_FOR_LINK" ||
+          item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
+        ).length,
+        blockedResolution: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
+        checklistIncompleteOpen: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length
       },
       byAssignee: countByDynamic(filteredItems, (item) => item.assignedToOperatorLabel ?? "unassigned"),
       byAssignmentStatus: countByStable(filteredItems, ["unassigned", "assigned"], (item) => item.assignmentStatus),
@@ -352,6 +411,120 @@ export class ProviderWebhookEventsService {
       byUnmatchedStatus: countByStable(filteredItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
       topAssignedItems: filteredItems.filter((item) => item.assignmentStatus === "assigned").slice(0, 10),
       topEscalatedItems: filteredItems.filter((item) => item.escalationStatus === "escalated").slice(0, 10),
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewResolutionSummary(tenantId: string, filters: ProviderWebhookReviewResolutionSummaryFilters = {}, actorUserId?: string): ProviderWebhookReviewResolutionSummary {
+    const normalizedFilters = cleanReviewResolutionSummaryFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
+      .map(resolutionSummaryItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
+      .filter((item) => !normalizedFilters.resolutionStatus || item.resolutionStatus === normalizedFilters.resolutionStatus)
+      .filter((item) => !normalizedFilters.resolutionOutcome || item.resolutionOutcome === normalizedFilters.resolutionOutcome)
+      .filter((item) => !normalizedFilters.closureReadiness || item.closureReadiness === normalizedFilters.closureReadiness)
+      .filter((item) => normalizedFilters.checklistIncomplete === undefined || (item.checklistCompletedCount < item.checklistTotalCount) === normalizedFilters.checklistIncomplete)
+      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    const openItems = filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus));
+    const nowMs = Date.now();
+    const recentWindowMs = 24 * 60 * 60 * 1000;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      totalItems: filteredItems.length,
+      totalOpenItems: openItems.length,
+      thresholds: reviewAlertThresholds,
+      counts: {
+        unresolvedOpen: openItems.filter((item) => item.resolutionStatus === "unresolved").length,
+        readyForReview: openItems.filter((item) => item.closureReadiness === "READY_FOR_REVIEW").length,
+        readyForSkip: openItems.filter((item) => item.closureReadiness === "READY_FOR_SKIP").length,
+        readyForLink: openItems.filter((item) => item.closureReadiness === "READY_FOR_LINK").length,
+        readyForLinkAndPersist: openItems.filter((item) => item.closureReadiness === "READY_FOR_LINK_AND_PERSIST").length,
+        blocked: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
+        resolvedRecently: filteredItems.filter((item) => item.resolvedAt && nowMs - new Date(item.resolvedAt).getTime() <= recentWindowMs).length,
+        checklistIncompleteOpen: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length
+      },
+      byResolutionStatus: countByStable(filteredItems, resolutionStatuses, (item) => item.resolutionStatus),
+      byResolutionOutcome: countByStable(filteredItems, resolutionOutcomes, (item) => item.resolutionOutcome ?? "none"),
+      byClosureReadiness: countByStable(filteredItems, closureReadinessValues, (item) => item.closureReadiness),
+      byChecklistStep: countByStable(filteredItems.flatMap((item) => item.closureChecklist.filter((step) => step.completed)), closureChecklistSteps, (step) => step.step),
+      byProvider: countByStable(filteredItems, ["line", "telegram", "facebook", "instagram"], (item) => item.provider),
+      byPlatform: countByStable(filteredItems, ["line", "telegram", "facebook", "instagram"], (item) => item.platform),
+      byReviewStatus: countByStable(filteredItems, ["pending", "reviewed", "skipped", "linked"], (item) => item.reviewStatus),
+      byLinkStatus: countByStable(filteredItems, ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"], (item) => item.linkStatus),
+      byUnmatchedStatus: countByStable(filteredItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
+      topReadyItems: filteredItems.filter((item) =>
+        item.closureReadiness === "READY_FOR_REVIEW" ||
+        item.closureReadiness === "READY_FOR_SKIP" ||
+        item.closureReadiness === "READY_FOR_LINK" ||
+        item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
+      ).slice(0, 10),
+      topBlockedItems: filteredItems.filter((item) => item.closureReadiness === "BLOCKED").slice(0, 10),
+      externalCalls: 0 as const
+    };
+  }
+
+  async resolveUnmatchedInbound(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string) {
+    const parsed = providerWebhookUnmatchedInboundResolutionRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook resolution request");
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    await this.applyResolutionToItem(tenantId, item, parsed.data, actorUserId, false);
+    return snapshotUnmatchedInboundItem(item);
+  }
+
+  async updateUnmatchedInboundChecklist(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string) {
+    const parsed = providerWebhookUnmatchedInboundResolutionChecklistRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook resolution checklist request");
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    await this.applyChecklistToItem(tenantId, item, parsed.data, actorUserId, false);
+    return snapshotUnmatchedInboundItem(item);
+  }
+
+  async bulkResolveUnmatchedInbound(tenantId: string, body: unknown, actorUserId?: string): Promise<ProviderWebhookUnmatchedInboundBulkResolutionResponse> {
+    const parsed = providerWebhookUnmatchedInboundBulkResolutionRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook bulk resolution request");
+    const input = parsed.data;
+    const uniqueIds = Array.from(new Set(input.ids.map((id) => id.trim()).filter(Boolean)));
+    const results: ProviderWebhookUnmatchedInboundBulkResolutionItemResult[] = [];
+    for (const id of uniqueIds) {
+      const item = findUnmatchedInboundItem(tenantId, id);
+      if (!item) {
+        results.push(bulkResolutionResult(id, false, "not-found", null, null, null, null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+      const before = resolutionFingerprint(item);
+      if (input.operation === "SET_RESOLUTION" || input.operation === "CLEAR_RESOLUTION") {
+        await this.applyResolutionToItem(tenantId, item, {
+          operation: input.operation,
+          resolutionOutcome: input.resolutionOutcome,
+          note: input.note
+        }, actorUserId, true);
+      } else {
+        await this.applyChecklistToItem(tenantId, item, {
+          operation: input.operation === "COMPLETE_STEP" ? "COMPLETE_STEP" : "RESET_CHECKLIST",
+          step: input.step
+        }, actorUserId, true);
+      }
+      results.push(bulkResolutionResult(
+        item.id,
+        true,
+        before === resolutionFingerprint(item) ? "already-applied" : "updated",
+        item.resolutionStatus,
+        item.resolutionOutcome,
+        item.closureReadiness,
+        item.checklistCompletedCount,
+        item.checklistTotalCount,
+        null
+      ));
+    }
+    return {
+      operation: input.operation,
+      results,
+      summary: bulkResolutionSummary(input.ids.length, uniqueIds.length, results),
       externalCalls: 0 as const
     };
   }
@@ -592,6 +765,16 @@ export class ProviderWebhookEventsService {
       escalationReason: item.escalationReason,
       escalatedAt: item.escalatedAt,
       escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+      resolutionStatus: item.resolutionStatus,
+      resolutionOutcome: item.resolutionOutcome,
+      resolvedAt: item.resolvedAt,
+      resolvedByOperatorLabel: item.resolvedByOperatorLabel,
+      closureReadiness: item.closureReadiness,
+      closureChecklist: item.closureChecklist,
+      checklistCompletedCount: item.checklistCompletedCount,
+      checklistTotalCount: item.checklistTotalCount,
+      checklistIncompleteSteps: item.checklistIncompleteSteps,
+      recommendedNextActions: item.recommendedNextActions,
       lastOperatorNoteAt: item.lastOperatorNoteAt,
       routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
       normalizedEventType: item.normalizedEventType,
@@ -1070,6 +1253,126 @@ export class ProviderWebhookEventsService {
     await this.recordMetadataAudit(tenantId, actorUserId, item, action, actionStatus);
   }
 
+  private async applyResolutionToItem(
+    tenantId: string,
+    item: ProviderWebhookUnmatchedInboundItem,
+    input: ProviderWebhookUnmatchedInboundResolutionRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const actorLabel = safeActorLabel(actorUserId);
+    const note = safeMetadataNote(input.note);
+    if (input.note && !note) throw new BadRequestException("Resolution note contains unsafe provider or credential content");
+
+    ensureResolutionState(item);
+    const beforeStatus = resolutionStatusText(item);
+    const now = new Date().toISOString();
+    let action: ProviderWebhookUnmatchedInboundHistoryAction;
+    let actionStatus: string;
+    let reason: string | null = note;
+
+    if (input.operation === "CLEAR_RESOLUTION") {
+      item.resolutionStatus = "unresolved";
+      item.resolutionOutcome = null;
+      item.resolvedAt = null;
+      item.resolvedByOperatorLabel = null;
+      action = bulk ? "bulk_resolution_cleared" : "resolution_cleared";
+      actionStatus = "cleared";
+      reason = note ?? "resolution cleared";
+    } else {
+      if (!input.resolutionOutcome) throw new BadRequestException("Safe resolution outcome is required");
+      item.resolutionStatus = "resolved";
+      item.resolutionOutcome = input.resolutionOutcome;
+      item.resolvedAt = now;
+      item.resolvedByOperatorLabel = actorLabel;
+      action = bulk ? "bulk_resolution_set" : "resolution_set";
+      actionStatus = input.resolutionOutcome;
+      reason = note ?? input.resolutionOutcome;
+    }
+    syncResolutionState(item);
+    item.externalCalls = 0;
+
+    addUnmatchedHistoryEntry(item, {
+      action,
+      actionStatus,
+      statusBefore: beforeStatus,
+      statusAfter: resolutionStatusText(item),
+      actor: actorLabel,
+      reason,
+      message: input.operation === "CLEAR_RESOLUTION"
+        ? "Resolution metadata cleared"
+        : "Resolution metadata updated",
+      actionAt: now
+    });
+    addMetadataOperatorNote(tenantId, item, actorUserId, input.operation === "CLEAR_RESOLUTION" ? "resolution cleared" : "resolution updated", reason, now);
+    await this.recordResolutionAudit(tenantId, actorUserId, item, action, actionStatus);
+  }
+
+  private async applyChecklistToItem(
+    tenantId: string,
+    item: ProviderWebhookUnmatchedInboundItem,
+    input: ProviderWebhookUnmatchedInboundResolutionChecklistRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const actorLabel = safeActorLabel(actorUserId);
+    ensureResolutionState(item);
+    const now = new Date().toISOString();
+    let action: ProviderWebhookUnmatchedInboundHistoryAction;
+    let actionStatus: string;
+    let reason: string | null = null;
+    let statusBefore = checklistStatusText(item);
+
+    if (input.operation === "RESET_CHECKLIST") {
+      item.closureChecklist = closureChecklistSteps.map((step) => ({
+        step,
+        completed: false,
+        completedAt: null,
+        completedByOperatorLabel: null
+      }));
+      action = bulk ? "bulk_checklist_reset" : "checklist_reset";
+      actionStatus = "reset";
+      reason = "checklist reset";
+    } else {
+      if (!input.step) throw new BadRequestException("Safe checklist step is required");
+      const target = item.closureChecklist.find((step) => step.step === input.step);
+      if (!target) throw new BadRequestException("Safe checklist step is required");
+      statusBefore = `${input.step}:${target.completed ? "complete" : "incomplete"}`;
+      if (input.operation === "COMPLETE_STEP") {
+        target.completed = true;
+        target.completedAt = now;
+        target.completedByOperatorLabel = actorLabel;
+        action = bulk ? "bulk_checklist_completed" : "checklist_completed";
+        actionStatus = input.step;
+        reason = input.step;
+      } else {
+        target.completed = false;
+        target.completedAt = null;
+        target.completedByOperatorLabel = null;
+        action = "checklist_uncompleted";
+        actionStatus = input.step;
+        reason = input.step;
+      }
+    }
+    syncResolutionState(item);
+    item.externalCalls = 0;
+
+    addUnmatchedHistoryEntry(item, {
+      action,
+      actionStatus,
+      statusBefore,
+      statusAfter: checklistStatusText(item),
+      actor: actorLabel,
+      reason,
+      message: input.operation === "RESET_CHECKLIST"
+        ? "Resolution checklist reset"
+        : `Resolution checklist ${input.operation === "COMPLETE_STEP" ? "completed" : "uncompleted"}`,
+      actionAt: now
+    });
+    addMetadataOperatorNote(tenantId, item, actorUserId, input.operation === "RESET_CHECKLIST" ? "checklist reset" : "checklist updated", reason, now);
+    await this.recordResolutionAudit(tenantId, actorUserId, item, action, actionStatus);
+  }
+
   async create(tenantId: string, body: unknown, actorUserId?: string) {
     rejectLiveProviderMode();
     const parsed = providerWebhookSandboxEventRequestSchema.safeParse(body);
@@ -1234,6 +1537,16 @@ export class ProviderWebhookEventsService {
       escalationReason: null,
       escalatedAt: null,
       escalatedByOperatorLabel: null,
+      resolutionStatus: "unresolved",
+      resolutionOutcome: null,
+      resolvedAt: null,
+      resolvedByOperatorLabel: null,
+      closureReadiness: "NOT_READY",
+      closureChecklist: defaultClosureChecklist(),
+      checklistCompletedCount: 0,
+      checklistTotalCount: closureChecklistSteps.length,
+      checklistIncompleteSteps: [...closureChecklistSteps],
+      recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE", "ASSIGN_OWNER"],
       lastOperatorNoteAt: null,
       historyAvailable: true,
       diagnosticsAvailable: true,
@@ -1626,6 +1939,42 @@ export class ProviderWebhookEventsService {
       // Assignment and escalation metadata must not depend on optional audit persistence.
     }
   }
+
+  private async recordResolutionAudit(
+    tenantId: string,
+    actorUserId: string | undefined,
+    item: ProviderWebhookUnmatchedInboundItem,
+    action: ProviderWebhookUnmatchedInboundHistoryAction,
+    status: string
+  ) {
+    try {
+      await this.audit.record({
+        tenantId,
+        actorUserId,
+        action: `provider_webhook.unmatched_inbound_${action}`,
+        entityType: "provider_webhook_unmatched_inbound_metadata",
+        entityId: item.id,
+        metadata: {
+          tenantId,
+          unmatchedInboundId: item.id,
+          provider: item.provider,
+          channelAccountId: item.channelAccountId,
+          resolutionStatus: item.resolutionStatus,
+          resolutionOutcome: item.resolutionOutcome,
+          closureReadiness: item.closureReadiness,
+          checklistCompletedCount: item.checklistCompletedCount,
+          checklistTotalCount: item.checklistTotalCount,
+          payloadDigest: item.payloadDigest,
+          senderKeyDigest: item.senderKeyDigest,
+          roomKeyDigest: item.roomKeyDigest,
+          status,
+          externalCalls: 0
+        }
+      });
+    } catch {
+      // Resolution/checklist metadata must not depend on optional audit persistence.
+    }
+  }
 }
 
 export function resetProviderWebhookEventStoreForTest() {
@@ -1638,6 +1987,7 @@ export function resetProviderWebhookEventStoreForTest() {
 }
 
 export function getProviderWebhookGuardrailReadinessSnapshot() {
+  unmatchedInboundItems.forEach(syncResolutionState);
   const latest = events[0] ?? null;
   const latestUnmatched = [...unmatchedInboundItems]
     .sort((left, right) => latestItemActivityAt(right).localeCompare(latestItemActivityAt(left)))[0] ?? null;
@@ -1686,11 +2036,23 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     reviewAssignmentEnabled: true,
     reviewEscalationEnabled: true,
     assignmentWorkloadEnabled: true,
+    reviewResolutionEnabled: true,
+    reviewClosureChecklistEnabled: true,
+    resolutionSummaryEnabled: true,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
     unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
     assignedOpenCount: openItems.filter((item) => item.assignmentStatus === "assigned").length,
     escalatedOpenCount: openItems.filter((item) => item.escalationStatus === "escalated").length,
+    unresolvedOpenCount: openItems.filter((item) => item.resolutionStatus === "unresolved").length,
+    readyForClosureCount: openItems.filter((item) =>
+      item.closureReadiness === "READY_FOR_REVIEW" ||
+      item.closureReadiness === "READY_FOR_SKIP" ||
+      item.closureReadiness === "READY_FOR_LINK" ||
+      item.closureReadiness === "READY_FOR_LINK_AND_PERSIST"
+    ).length,
+    blockedResolutionCount: openItems.filter((item) => item.closureReadiness === "BLOCKED").length,
+    checklistIncompleteOpenCount: openItems.filter((item) => item.checklistCompletedCount < item.checklistTotalCount).length,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
     openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
@@ -1795,12 +2157,106 @@ function operatorNoteContext(item: ProviderWebhookUnmatchedInboundItem): Provide
     assignmentStatus: item.assignmentStatus,
     assignedToOperatorLabel: item.assignedToOperatorLabel,
     escalationStatus: item.escalationStatus,
-    escalationReason: item.escalationReason
+    escalationReason: item.escalationReason,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount
   };
 }
 
 function isOpenUnmatchedStatus(status: ProviderWebhookUnmatchedInboundStatus) {
   return status === "open" || status === "review-needed";
+}
+
+function defaultClosureChecklist(): ProviderWebhookReviewClosureChecklistItem[] {
+  return closureChecklistSteps.map((step) => ({
+    step,
+    completed: false,
+    completedAt: null,
+    completedByOperatorLabel: null
+  }));
+}
+
+function ensureResolutionState(item: ProviderWebhookUnmatchedInboundItem) {
+  item.resolutionStatus = item.resolutionStatus ?? "unresolved";
+  item.resolutionOutcome = item.resolutionOutcome ?? null;
+  item.resolvedAt = item.resolvedAt ?? null;
+  item.resolvedByOperatorLabel = item.resolvedByOperatorLabel ?? null;
+  const existing = new Map((item.closureChecklist ?? []).map((step) => [step.step, step]));
+  item.closureChecklist = closureChecklistSteps.map((step) => {
+    const current = existing.get(step);
+    return {
+      step,
+      completed: current?.completed ?? false,
+      completedAt: current?.completedAt ?? null,
+      completedByOperatorLabel: current?.completedByOperatorLabel ?? null
+    };
+  });
+}
+
+function syncResolutionState(item: ProviderWebhookUnmatchedInboundItem) {
+  ensureResolutionState(item);
+  item.checklistTotalCount = item.closureChecklist.length;
+  item.checklistCompletedCount = item.closureChecklist.filter((step) => step.completed).length;
+  item.checklistIncompleteSteps = item.closureChecklist
+    .filter((step) => !step.completed)
+    .map((step) => step.step);
+  item.resolutionStatus = item.resolutionOutcome ? "resolved" : "unresolved";
+  item.closureReadiness = closureReadinessForItem(item);
+  item.recommendedNextActions = recommendedNextActionsForItem(item);
+  item.externalCalls = 0;
+  return item;
+}
+
+function snapshotUnmatchedInboundItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookUnmatchedInboundItem {
+  const synced = syncResolutionState(item);
+  return {
+    ...synced,
+    closureChecklist: synced.closureChecklist.map((step) => ({ ...step })),
+    checklistIncompleteSteps: [...synced.checklistIncompleteSteps],
+    recommendedNextActions: [...synced.recommendedNextActions]
+  };
+}
+
+function closureReadinessForItem(item: ProviderWebhookUnmatchedInboundItem) {
+  if (item.unmatchedStatus === "blocked" || item.resolutionOutcome === "BLOCKED_UNSAFE" || item.resolutionOutcome === "ROUTING_FAILED") return "BLOCKED";
+  if (item.reviewStatus !== "pending" || !isOpenUnmatchedStatus(item.unmatchedStatus)) return "ALREADY_REVIEWED";
+  if (!item.resolutionOutcome) return "NOT_READY";
+  if (item.checklistIncompleteSteps.length > 0) return "NOT_READY";
+  if (item.resolutionOutcome === "SKIPPED_DUPLICATE" || item.resolutionOutcome === "SKIPPED_SPAM" || item.resolutionOutcome === "SKIPPED_UNSUPPORTED_EVENT") {
+    return "READY_FOR_SKIP";
+  }
+  if (item.resolutionOutcome === "REVIEWED_SAFE_MATCH" || item.resolutionOutcome === "LINKED_EXISTING_CONVERSATION") {
+    return "READY_FOR_LINK";
+  }
+  if (item.resolutionOutcome === "LINKED_AND_PERSISTED_SAFE_MESSAGE") {
+    return "READY_FOR_LINK_AND_PERSIST";
+  }
+  return "READY_FOR_REVIEW";
+}
+
+function recommendedNextActionsForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewRecommendedNextAction[] {
+  if (item.closureReadiness === "ALREADY_REVIEWED") return ["VIEW_HISTORY", "OPEN_DIAGNOSTICS"];
+  if (item.closureReadiness === "BLOCKED") return item.escalationStatus === "escalated"
+    ? ["VIEW_HISTORY", "ADD_OPERATOR_NOTE", "CLEAR_ESCALATION"]
+    : ["OPEN_DIAGNOSTICS", "ADD_OPERATOR_NOTE", "ESCALATE"];
+
+  const incomplete = new Set(item.checklistIncompleteSteps);
+  const actions: ProviderWebhookReviewRecommendedNextAction[] = [];
+  if (incomplete.has("VIEWED_DIAGNOSTICS")) actions.push("OPEN_DIAGNOSTICS");
+  if (incomplete.has("REVIEWED_HISTORY")) actions.push("VIEW_HISTORY");
+  if (incomplete.has("REVIEWED_CANDIDATES") && isSafeLinkableUnmatchedItem(item)) actions.push("RUN_CANDIDATE_LOOKUP");
+  if (incomplete.has("CONFIRMED_OPERATOR_NOTE")) actions.push("ADD_OPERATOR_NOTE");
+  if (incomplete.has("CONFIRMED_ASSIGNMENT_OR_ESCALATION") && item.assignmentStatus === "unassigned") actions.push("ASSIGN_OWNER");
+  if (item.escalationStatus === "escalated") actions.push("CLEAR_ESCALATION");
+  if (!item.resolutionOutcome) actions.push("MARK_REVIEWED");
+  if (item.closureReadiness === "READY_FOR_REVIEW") actions.push("MARK_REVIEWED");
+  if (item.closureReadiness === "READY_FOR_SKIP") actions.push("SKIP");
+  if (item.closureReadiness === "READY_FOR_LINK") actions.push("LINK_ONLY");
+  if (item.closureReadiness === "READY_FOR_LINK_AND_PERSIST") actions.push("LINK_AND_PERSIST_SAFE_MESSAGE");
+  return Array.from(new Set(actions)).slice(0, 8);
 }
 
 function matchesLegacyStatusFilter(item: ProviderWebhookUnmatchedInboundItem, status: ProviderWebhookUnmatchedInboundStatusFilter | undefined) {
@@ -1819,7 +2275,7 @@ function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookU
   const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
   const actorLabel = safeActorLabel(actorUserId);
   const assignedTo = filters.assignedTo === "me" ? actorLabel : safeFilterText(filters.assignedTo);
-  return unmatchedInboundItems.filter((item) => {
+  return unmatchedInboundItems.map((item) => syncResolutionState(item)).filter((item) => {
     if (item.tenantId !== tenantId) return false;
     if (!matchesLegacyStatusFilter(item, filters.status)) return false;
     if (filters.provider && item.provider !== filters.provider) return false;
@@ -1834,6 +2290,12 @@ function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookU
     if (filters.assignmentStatus === "assigned_to_others" && (item.assignmentStatus !== "assigned" || item.assignedToOperatorLabel === actorLabel)) return false;
     if (filters.escalationStatus && item.escalationStatus !== filters.escalationStatus) return false;
     if (filters.escalationReason && item.escalationReason !== filters.escalationReason) return false;
+    if (filters.severity && triageSeverityForItem(item, triageLaneForItem(item)) !== filters.severity) return false;
+    if (filters.triageLane && triageLaneForItem(item) !== filters.triageLane) return false;
+    if (filters.resolutionStatus && item.resolutionStatus !== filters.resolutionStatus) return false;
+    if (filters.resolutionOutcome && item.resolutionOutcome !== filters.resolutionOutcome) return false;
+    if (filters.closureReadiness && item.closureReadiness !== filters.closureReadiness) return false;
+    if (filters.checklistIncomplete !== undefined && (item.checklistCompletedCount < item.checklistTotalCount) !== filters.checklistIncomplete) return false;
     if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
     if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
     return true;
@@ -1881,6 +2343,12 @@ function cleanReviewWorkloadFilters(filters: ProviderWebhookReviewWorkloadFilter
   return Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
   ) as ProviderWebhookReviewWorkloadFilters;
+}
+
+function cleanReviewResolutionSummaryFilters(filters: ProviderWebhookReviewResolutionSummaryFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewResolutionSummaryFilters;
 }
 
 function reviewTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
@@ -2009,6 +2477,7 @@ function reviewTriageItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem
 }
 
 function assignmentSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem) {
+  syncResolutionState(item);
   const lane = triageLaneForItem(item);
   return {
     unmatchedId: item.id,
@@ -2033,6 +2502,11 @@ function assignmentSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboun
     escalationReason: item.escalationReason,
     escalatedAt: item.escalatedAt,
     escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
     lastOperatorNoteAt: item.lastOperatorNoteAt,
     historyAvailable: buildHistoryEntriesForItem(item).length > 0,
     diagnosticsAvailable: true,
@@ -2272,6 +2746,51 @@ function exportRowFromItem(item: ProviderWebhookUnmatchedInboundItem): ProviderW
     escalationStatus: item.escalationStatus,
     escalationReason: item.escalationReason,
     escalatedAt: item.escalatedAt,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    externalCalls: 0 as const
+  };
+}
+
+function resolutionSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem) {
+  syncResolutionState(item);
+  const lane = triageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: ageBucketForReceivedAt(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: triageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    resolvedAt: item.resolvedAt,
+    resolvedByOperatorLabel: item.resolvedByOperatorLabel,
+    closureReadiness: item.closureReadiness,
+    closureChecklist: item.closureChecklist,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
+    checklistIncompleteSteps: item.checklistIncompleteSteps,
+    recommendedNextActions: item.recommendedNextActions,
+    lastOperatorNoteAt: item.lastOperatorNoteAt,
+    historyAvailable: buildHistoryEntriesForItem(item).length > 0,
+    diagnosticsAvailable: true,
+    candidatesAvailable: isSafeLinkableUnmatchedItem(item),
     externalCalls: 0 as const
   };
 }
@@ -2301,6 +2820,26 @@ function metadataFingerprint(item: ProviderWebhookUnmatchedInboundItem) {
   ].join("|");
 }
 
+function resolutionFingerprint(item: ProviderWebhookUnmatchedInboundItem) {
+  syncResolutionState(item);
+  return [
+    item.resolutionStatus,
+    item.resolutionOutcome ?? "",
+    item.resolvedAt ?? "",
+    item.resolvedByOperatorLabel ?? "",
+    item.closureReadiness,
+    item.closureChecklist.map((step) => `${step.step}:${step.completed ? "1" : "0"}`).join(",")
+  ].join("|");
+}
+
+function resolutionStatusText(item: ProviderWebhookUnmatchedInboundItem) {
+  return item.resolutionOutcome ? `${item.resolutionStatus}:${item.resolutionOutcome}` : item.resolutionStatus;
+}
+
+function checklistStatusText(item: ProviderWebhookUnmatchedInboundItem) {
+  return `${item.checklistCompletedCount}/${item.checklistTotalCount}`;
+}
+
 function bulkMetadataResult(
   id: string,
   ok: boolean,
@@ -2322,7 +2861,43 @@ function bulkMetadataResult(
   };
 }
 
+function bulkResolutionResult(
+  id: string,
+  ok: boolean,
+  resultStatus: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["resultStatus"],
+  resolutionStatus: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["resolutionStatus"],
+  resolutionOutcome: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["resolutionOutcome"],
+  closureReadiness: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["closureReadiness"],
+  checklistCompletedCount: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["checklistCompletedCount"],
+  checklistTotalCount: ProviderWebhookUnmatchedInboundBulkResolutionItemResult["checklistTotalCount"],
+  error: string | null
+): ProviderWebhookUnmatchedInboundBulkResolutionItemResult {
+  return {
+    id,
+    ok,
+    resultStatus,
+    resolutionStatus,
+    resolutionOutcome,
+    closureReadiness,
+    checklistCompletedCount,
+    checklistTotalCount,
+    error,
+    externalCalls: 0 as const
+  };
+}
+
 function bulkMetadataSummary(requestedCount: number, dedupedCount: number, results: ProviderWebhookUnmatchedInboundBulkMetadataItemResult[]) {
+  return {
+    requestedCount,
+    dedupedCount,
+    successCount: results.filter((result) => result.ok).length,
+    errorCount: results.filter((result) => !result.ok).length,
+    updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+    alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+  };
+}
+
+function bulkResolutionSummary(requestedCount: number, dedupedCount: number, results: ProviderWebhookUnmatchedInboundBulkResolutionItemResult[]) {
   return {
     requestedCount,
     dedupedCount,
@@ -2385,6 +2960,11 @@ function rowsToCsv(rows: ProviderWebhookUnmatchedInboundExportRow[]) {
     "escalationStatus",
     "escalationReason",
     "escalatedAt",
+    "resolutionStatus",
+    "resolutionOutcome",
+    "closureReadiness",
+    "checklistCompletedCount",
+    "checklistTotalCount",
     "externalCalls"
   ];
   const csvRows = [

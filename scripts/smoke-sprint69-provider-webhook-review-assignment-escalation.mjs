@@ -328,6 +328,9 @@ function safeDiagnosticsShape(value) {
     "eventType", "receivedAt", "reviewStatus", "linkStatus", "unmatchedStatus",
     "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "assignedByOperatorLabel",
     "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
+    "resolutionStatus", "resolutionOutcome", "resolvedAt", "resolvedByOperatorLabel",
+    "closureReadiness", "closureChecklist", "checklistCompletedCount", "checklistTotalCount",
+    "checklistIncompleteSteps", "recommendedNextActions",
     "lastOperatorNoteAt", "routingOutcome", "normalizedEventType", "persistenceOutcome",
     "candidateLookupAvailable", "historyAvailable", "exportAvailable", "lastActionAt",
     "safeWarnings", "externalCalls"
@@ -353,7 +356,9 @@ function safeOperatorNoteShape(value) {
   const contextAllowed = new Set([
     "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "reviewStatus", "linkStatus", "unmatchedStatus",
-    "assignmentStatus", "assignedToOperatorLabel", "escalationStatus", "escalationReason"
+    "assignmentStatus", "assignedToOperatorLabel", "escalationStatus", "escalationReason",
+    "resolutionStatus", "resolutionOutcome", "closureReadiness", "checklistCompletedCount",
+    "checklistTotalCount"
   ]);
   return value && typeof value === "object"
     && Object.keys(value).every((key) => allowed.has(key))

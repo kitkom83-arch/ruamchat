@@ -2054,8 +2054,87 @@ export const providerWebhookReviewEscalationReasonSchema = z.enum([
 ]);
 export type ProviderWebhookReviewEscalationReason = z.infer<typeof providerWebhookReviewEscalationReasonSchema>;
 
+export const providerWebhookReviewResolutionOperationSchema = z.enum(["SET_RESOLUTION", "CLEAR_RESOLUTION"]);
+export type ProviderWebhookReviewResolutionOperation = z.infer<typeof providerWebhookReviewResolutionOperationSchema>;
+
+export const providerWebhookReviewResolutionStatusSchema = z.enum(["unresolved", "resolved"]);
+export type ProviderWebhookReviewResolutionStatus = z.infer<typeof providerWebhookReviewResolutionStatusSchema>;
+
+export const providerWebhookReviewResolutionOutcomeSchema = z.enum([
+  "NEEDS_REVIEW",
+  "REVIEWED_NO_MATCH",
+  "REVIEWED_SAFE_MATCH",
+  "LINKED_EXISTING_CONVERSATION",
+  "LINKED_AND_PERSISTED_SAFE_MESSAGE",
+  "SKIPPED_DUPLICATE",
+  "SKIPPED_SPAM",
+  "SKIPPED_UNSUPPORTED_EVENT",
+  "ESCALATED_TO_MANAGER",
+  "BLOCKED_UNSAFE",
+  "ROUTING_FAILED",
+  "MANUAL_REVIEW_REQUIRED"
+]);
+export type ProviderWebhookReviewResolutionOutcome = z.infer<typeof providerWebhookReviewResolutionOutcomeSchema>;
+
+export const providerWebhookReviewClosureChecklistOperationSchema = z.enum(["COMPLETE_STEP", "UNCOMPLETE_STEP", "RESET_CHECKLIST"]);
+export type ProviderWebhookReviewClosureChecklistOperation = z.infer<typeof providerWebhookReviewClosureChecklistOperationSchema>;
+
+export const providerWebhookReviewClosureChecklistStepSchema = z.enum([
+  "VIEWED_DIAGNOSTICS",
+  "REVIEWED_HISTORY",
+  "REVIEWED_TRIAGE_GUIDANCE",
+  "REVIEWED_CANDIDATES",
+  "CONFIRMED_NO_RAW_LEAKAGE",
+  "CONFIRMED_NO_PROVIDER_OUTBOUND",
+  "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+  "CONFIRMED_SAFE_LINK_TARGET",
+  "CONFIRMED_OPERATOR_NOTE"
+]);
+export type ProviderWebhookReviewClosureChecklistStep = z.infer<typeof providerWebhookReviewClosureChecklistStepSchema>;
+
+export const providerWebhookReviewClosureReadinessSchema = z.enum([
+  "NOT_READY",
+  "READY_FOR_REVIEW",
+  "READY_FOR_SKIP",
+  "READY_FOR_LINK",
+  "READY_FOR_LINK_AND_PERSIST",
+  "ALREADY_REVIEWED",
+  "BLOCKED"
+]);
+export type ProviderWebhookReviewClosureReadiness = z.infer<typeof providerWebhookReviewClosureReadinessSchema>;
+
+export const providerWebhookReviewRecommendedNextActionSchema = z.enum([
+  "OPEN_DIAGNOSTICS",
+  "VIEW_HISTORY",
+  "RUN_CANDIDATE_LOOKUP",
+  "ADD_OPERATOR_NOTE",
+  "ASSIGN_OWNER",
+  "ESCALATE",
+  "CLEAR_ESCALATION",
+  "MARK_REVIEWED",
+  "SKIP",
+  "LINK_ONLY",
+  "LINK_AND_PERSIST_SAFE_MESSAGE"
+]);
+export type ProviderWebhookReviewRecommendedNextAction = z.infer<typeof providerWebhookReviewRecommendedNextActionSchema>;
+
 export const providerWebhookEventTypeSchema = z.enum(["message.created", "webhook.verified", "webhook.failed"]);
 export type ProviderWebhookEventType = z.infer<typeof providerWebhookEventTypeSchema>;
+
+export const providerWebhookReviewAlertSeveritySchema = z.enum(["info", "warning", "critical"]);
+export type ProviderWebhookReviewAlertSeverity = z.infer<typeof providerWebhookReviewAlertSeveritySchema>;
+
+export const providerWebhookReviewTriageLaneSchema = z.enum([
+  "critical_stale_open",
+  "warning_stale_open",
+  "candidate_lookup_recommended",
+  "safe_link_candidate_available",
+  "needs_manual_review",
+  "recently_reviewed",
+  "skipped_ignored",
+  "failed_routing_missing_match"
+]);
+export type ProviderWebhookReviewTriageLane = z.infer<typeof providerWebhookReviewTriageLaneSchema>;
 
 export const providerWebhookUnmatchedInboundStatusFilterSchema = z.enum(["open", "reviewed", "blocked", "skipped", "linked"]).optional();
 export type ProviderWebhookUnmatchedInboundStatusFilter = z.infer<typeof providerWebhookUnmatchedInboundStatusFilterSchema>;
@@ -2078,6 +2157,12 @@ export const providerWebhookUnmatchedInboundFiltersSchema = z.object({
   assignmentStatus: providerWebhookReviewAssignmentStatusFilterSchema.optional(),
   escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
   escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
+  severity: providerWebhookReviewAlertSeveritySchema.optional(),
+  triageLane: providerWebhookReviewTriageLaneSchema.optional(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.optional(),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.optional(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.optional(),
+  checklistIncomplete: z.union([z.boolean(), z.enum(["true", "false"])]).transform((value) => value === true || value === "true").optional(),
   receivedFrom: providerWebhookReceivedAtFilterSchema.optional(),
   receivedTo: providerWebhookReceivedAtFilterSchema.optional(),
   receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
@@ -2101,6 +2186,10 @@ export const providerWebhookReviewMetricsFiltersSchema = providerWebhookUnmatche
     assignmentStatus: true,
     escalationStatus: true,
     escalationReason: true,
+    resolutionStatus: true,
+    resolutionOutcome: true,
+    closureReadiness: true,
+    checklistIncomplete: true,
     receivedFrom: true,
     receivedTo: true,
     receivedAtFrom: true,
@@ -2109,27 +2198,12 @@ export const providerWebhookReviewMetricsFiltersSchema = providerWebhookUnmatche
   .strip();
 export type ProviderWebhookReviewMetricsFilters = z.infer<typeof providerWebhookReviewMetricsFiltersSchema>;
 
-export const providerWebhookReviewAlertSeveritySchema = z.enum(["info", "warning", "critical"]);
-export type ProviderWebhookReviewAlertSeverity = z.infer<typeof providerWebhookReviewAlertSeveritySchema>;
-
 export const providerWebhookReviewAlertsFiltersSchema = providerWebhookReviewMetricsFiltersSchema
   .extend({
     severity: providerWebhookReviewAlertSeveritySchema.optional()
   })
   .strip();
 export type ProviderWebhookReviewAlertsFilters = z.infer<typeof providerWebhookReviewAlertsFiltersSchema>;
-
-export const providerWebhookReviewTriageLaneSchema = z.enum([
-  "critical_stale_open",
-  "warning_stale_open",
-  "candidate_lookup_recommended",
-  "safe_link_candidate_available",
-  "needs_manual_review",
-  "recently_reviewed",
-  "skipped_ignored",
-  "failed_routing_missing_match"
-]);
-export type ProviderWebhookReviewTriageLane = z.infer<typeof providerWebhookReviewTriageLaneSchema>;
 
 export const providerWebhookTriageRecommendedActionSchema = z.enum([
   "OPEN_DIAGNOSTICS",
@@ -2162,6 +2236,10 @@ export const providerWebhookReviewSavedViewFiltersSchema = z.object({
   assignmentStatus: providerWebhookReviewAssignmentStatusFilterSchema.optional(),
   escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
   escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.optional(),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.optional(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.optional(),
+  checklistIncomplete: z.union([z.boolean(), z.enum(["true", "false"])]).transform((value) => value === true || value === "true").optional(),
   receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
   receivedAtTo: providerWebhookReceivedAtFilterSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional()
@@ -2230,7 +2308,12 @@ export const providerWebhookOperatorNoteContextSchema = z.object({
   assignmentStatus: providerWebhookReviewAssignmentStatusSchema.optional(),
   assignedToOperatorLabel: z.string().min(1).nullable().optional(),
   escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
-  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable().optional()
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable().optional(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.optional(),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable().optional(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.optional(),
+  checklistCompletedCount: z.number().int().nonnegative().optional(),
+  checklistTotalCount: z.number().int().nonnegative().optional()
 }).strict();
 export type ProviderWebhookOperatorNoteContext = z.infer<typeof providerWebhookOperatorNoteContextSchema>;
 
@@ -2311,11 +2394,18 @@ export const providerReadinessSchema = z.object({
   reviewAssignmentEnabled: z.boolean(),
   reviewEscalationEnabled: z.boolean(),
   assignmentWorkloadEnabled: z.boolean(),
+  reviewResolutionEnabled: z.boolean().default(false),
+  reviewClosureChecklistEnabled: z.boolean().default(false),
+  resolutionSummaryEnabled: z.boolean().default(false),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
   unassignedOpenCount: z.number().int().nonnegative(),
   assignedOpenCount: z.number().int().nonnegative(),
   escalatedOpenCount: z.number().int().nonnegative(),
+  unresolvedOpenCount: z.number().int().nonnegative().default(0),
+  readyForClosureCount: z.number().int().nonnegative().default(0),
+  blockedResolutionCount: z.number().int().nonnegative().default(0),
+  checklistIncompleteOpenCount: z.number().int().nonnegative().default(0),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
   criticalTriageCount: z.number().int().nonnegative(),
   openTriageCount: z.number().int().nonnegative(),
@@ -2438,6 +2528,19 @@ export const providerWebhookUnmatchedInboundEscalationRequestSchema = z.object({
 }).strict();
 export type ProviderWebhookUnmatchedInboundEscalationRequest = z.infer<typeof providerWebhookUnmatchedInboundEscalationRequestSchema>;
 
+export const providerWebhookUnmatchedInboundResolutionRequestSchema = z.object({
+  operation: providerWebhookReviewResolutionOperationSchema,
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundResolutionRequest = z.infer<typeof providerWebhookUnmatchedInboundResolutionRequestSchema>;
+
+export const providerWebhookUnmatchedInboundResolutionChecklistRequestSchema = z.object({
+  operation: providerWebhookReviewClosureChecklistOperationSchema,
+  step: providerWebhookReviewClosureChecklistStepSchema.optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundResolutionChecklistRequest = z.infer<typeof providerWebhookUnmatchedInboundResolutionChecklistRequestSchema>;
+
 export const providerWebhookCandidateConversationSchema = z.object({
   conversationId: z.string().min(1),
   platform: providerSandboxProviderSchema,
@@ -2451,6 +2554,14 @@ export const providerWebhookCandidateConversationSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookCandidateConversation = z.infer<typeof providerWebhookCandidateConversationSchema>;
+
+export const providerWebhookReviewClosureChecklistItemSchema = z.object({
+  step: providerWebhookReviewClosureChecklistStepSchema,
+  completed: z.boolean(),
+  completedAt: z.string().datetime().nullable(),
+  completedByOperatorLabel: z.string().min(1).nullable()
+}).strict();
+export type ProviderWebhookReviewClosureChecklistItem = z.infer<typeof providerWebhookReviewClosureChecklistItemSchema>;
 
 export const providerWebhookUnmatchedInboundItemSchema = z.object({
   id: z.string().min(1),
@@ -2483,6 +2594,16 @@ export const providerWebhookUnmatchedInboundItemSchema = z.object({
   escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   escalatedAt: z.string().datetime().nullable(),
   escalatedByOperatorLabel: z.string().min(1).nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.default("unresolved"),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable().default(null),
+  resolvedAt: z.string().datetime().nullable().default(null),
+  resolvedByOperatorLabel: z.string().min(1).nullable().default(null),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.default("NOT_READY"),
+  closureChecklist: z.array(providerWebhookReviewClosureChecklistItemSchema).default([]),
+  checklistCompletedCount: z.number().int().nonnegative().default(0),
+  checklistTotalCount: z.number().int().nonnegative().default(0),
+  checklistIncompleteSteps: z.array(providerWebhookReviewClosureChecklistStepSchema).default([]),
+  recommendedNextActions: z.array(providerWebhookReviewRecommendedNextActionSchema).default([]),
   lastOperatorNoteAt: z.string().datetime().nullable(),
   historyAvailable: z.boolean(),
   diagnosticsAvailable: z.boolean(),
@@ -2592,6 +2713,11 @@ export const providerWebhookReviewAssignmentSummaryItemSchema = z.object({
   escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   escalatedAt: z.string().datetime().nullable(),
   escalatedByOperatorLabel: z.string().min(1).nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.default("unresolved"),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable().default(null),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.default("NOT_READY"),
+  checklistCompletedCount: z.number().int().nonnegative().default(0),
+  checklistTotalCount: z.number().int().nonnegative().default(0),
   lastOperatorNoteAt: z.string().datetime().nullable(),
   historyAvailable: z.boolean(),
   diagnosticsAvailable: z.boolean(),
@@ -2752,7 +2878,11 @@ export const providerWebhookReviewWorkloadSchema = z.object({
     overdueAssignedOpen: z.number().int().nonnegative(),
     recentlyAssigned: z.number().int().nonnegative(),
     recentlyEscalated: z.number().int().nonnegative(),
-    resolvedAssigned: z.number().int().nonnegative()
+    resolvedAssigned: z.number().int().nonnegative(),
+    unresolvedOpen: z.number().int().nonnegative().default(0),
+    readyForClosure: z.number().int().nonnegative().default(0),
+    blockedResolution: z.number().int().nonnegative().default(0),
+    checklistIncompleteOpen: z.number().int().nonnegative().default(0)
   }).strict(),
   byAssignee: z.array(providerWebhookReviewMetricsCountSchema),
   byAssignmentStatus: z.array(providerWebhookReviewMetricsCountSchema),
@@ -2768,6 +2898,77 @@ export const providerWebhookReviewWorkloadSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewWorkload = z.infer<typeof providerWebhookReviewWorkloadSchema>;
+
+export const providerWebhookReviewResolutionSummaryFiltersSchema = providerWebhookReviewWorkloadFiltersSchema.strip();
+export type ProviderWebhookReviewResolutionSummaryFilters = z.infer<typeof providerWebhookReviewResolutionSummaryFiltersSchema>;
+
+export const providerWebhookReviewResolutionSummaryItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  ageBucket: providerWebhookReviewAlertAgeBucketSchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  triageLane: providerWebhookReviewTriageLaneSchema,
+  severity: providerWebhookReviewAlertSeveritySchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema,
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable(),
+  resolvedAt: z.string().datetime().nullable(),
+  resolvedByOperatorLabel: z.string().min(1).nullable(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema,
+  closureChecklist: z.array(providerWebhookReviewClosureChecklistItemSchema),
+  checklistCompletedCount: z.number().int().nonnegative(),
+  checklistTotalCount: z.number().int().nonnegative(),
+  checklistIncompleteSteps: z.array(providerWebhookReviewClosureChecklistStepSchema),
+  recommendedNextActions: z.array(providerWebhookReviewRecommendedNextActionSchema),
+  lastOperatorNoteAt: z.string().datetime().nullable(),
+  historyAvailable: z.boolean(),
+  diagnosticsAvailable: z.boolean(),
+  candidatesAvailable: z.boolean(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewResolutionSummaryItem = z.infer<typeof providerWebhookReviewResolutionSummaryItemSchema>;
+
+export const providerWebhookReviewResolutionSummarySchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewResolutionSummaryFiltersSchema,
+  totalItems: z.number().int().nonnegative(),
+  totalOpenItems: z.number().int().nonnegative(),
+  thresholds: providerWebhookReviewAlertThresholdsSchema,
+  counts: z.object({
+    unresolvedOpen: z.number().int().nonnegative(),
+    readyForReview: z.number().int().nonnegative(),
+    readyForSkip: z.number().int().nonnegative(),
+    readyForLink: z.number().int().nonnegative(),
+    readyForLinkAndPersist: z.number().int().nonnegative(),
+    blocked: z.number().int().nonnegative(),
+    resolvedRecently: z.number().int().nonnegative(),
+    checklistIncompleteOpen: z.number().int().nonnegative()
+  }).strict(),
+  byResolutionStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byResolutionOutcome: z.array(providerWebhookReviewMetricsCountSchema),
+  byClosureReadiness: z.array(providerWebhookReviewMetricsCountSchema),
+  byChecklistStep: z.array(providerWebhookReviewMetricsCountSchema),
+  byProvider: z.array(providerWebhookReviewMetricsCountSchema),
+  byPlatform: z.array(providerWebhookReviewMetricsCountSchema),
+  byReviewStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byLinkStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byUnmatchedStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  topReadyItems: z.array(providerWebhookReviewResolutionSummaryItemSchema),
+  topBlockedItems: z.array(providerWebhookReviewResolutionSummaryItemSchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewResolutionSummary = z.infer<typeof providerWebhookReviewResolutionSummarySchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
@@ -2876,6 +3077,52 @@ export const providerWebhookUnmatchedInboundBulkEscalationResponseSchema = z.obj
 }).strict();
 export type ProviderWebhookUnmatchedInboundBulkEscalationResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkEscalationResponseSchema>;
 
+export const providerWebhookUnmatchedInboundBulkResolutionOperationSchema = z.enum([
+  "SET_RESOLUTION",
+  "CLEAR_RESOLUTION",
+  "COMPLETE_STEP",
+  "RESET_CHECKLIST"
+]);
+export type ProviderWebhookUnmatchedInboundBulkResolutionOperation = z.infer<typeof providerWebhookUnmatchedInboundBulkResolutionOperationSchema>;
+
+export const providerWebhookUnmatchedInboundBulkResolutionRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(50),
+  operation: providerWebhookUnmatchedInboundBulkResolutionOperationSchema,
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.optional(),
+  step: providerWebhookReviewClosureChecklistStepSchema.optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkResolutionRequest = z.infer<typeof providerWebhookUnmatchedInboundBulkResolutionRequestSchema>;
+
+export const providerWebhookUnmatchedInboundBulkResolutionItemResultSchema = z.object({
+  id: z.string().min(1),
+  ok: z.boolean(),
+  resultStatus: providerWebhookUnmatchedInboundBulkMetadataResultStatusSchema,
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.nullable(),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.nullable(),
+  checklistCompletedCount: z.number().int().nonnegative().nullable(),
+  checklistTotalCount: z.number().int().nonnegative().nullable(),
+  error: z.string().min(1).nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkResolutionItemResult = z.infer<typeof providerWebhookUnmatchedInboundBulkResolutionItemResultSchema>;
+
+export const providerWebhookUnmatchedInboundBulkResolutionResponseSchema = z.object({
+  operation: providerWebhookUnmatchedInboundBulkResolutionOperationSchema,
+  results: z.array(providerWebhookUnmatchedInboundBulkResolutionItemResultSchema),
+  summary: z.object({
+    requestedCount: z.number().int().nonnegative(),
+    dedupedCount: z.number().int().nonnegative(),
+    successCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    updatedCount: z.number().int().nonnegative(),
+    alreadyAppliedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkResolutionResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkResolutionResponseSchema>;
+
 export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
   "inbound_received",
   "normalized_routed",
@@ -2895,7 +3142,16 @@ export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
   "escalated",
   "escalation_cleared",
   "bulk_escalated",
-  "bulk_escalation_cleared"
+  "bulk_escalation_cleared",
+  "resolution_set",
+  "resolution_cleared",
+  "bulk_resolution_set",
+  "bulk_resolution_cleared",
+  "checklist_completed",
+  "checklist_uncompleted",
+  "checklist_reset",
+  "bulk_checklist_completed",
+  "bulk_checklist_reset"
 ]);
 export type ProviderWebhookUnmatchedInboundHistoryAction = z.infer<typeof providerWebhookUnmatchedInboundHistoryActionSchema>;
 
@@ -2961,6 +3217,16 @@ export const providerWebhookUnmatchedInboundDiagnosticsSchema = z.object({
   escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   escalatedAt: z.string().datetime().nullable(),
   escalatedByOperatorLabel: z.string().min(1).nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.default("unresolved"),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable().default(null),
+  resolvedAt: z.string().datetime().nullable().default(null),
+  resolvedByOperatorLabel: z.string().min(1).nullable().default(null),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.default("NOT_READY"),
+  closureChecklist: z.array(providerWebhookReviewClosureChecklistItemSchema).default([]),
+  checklistCompletedCount: z.number().int().nonnegative().default(0),
+  checklistTotalCount: z.number().int().nonnegative().default(0),
+  checklistIncompleteSteps: z.array(providerWebhookReviewClosureChecklistStepSchema).default([]),
+  recommendedNextActions: z.array(providerWebhookReviewRecommendedNextActionSchema).default([]),
   lastOperatorNoteAt: z.string().datetime().nullable(),
   routingOutcome: z.string().min(1),
   normalizedEventType: providerWebhookNormalizedEventTypeSchema,
@@ -3009,6 +3275,11 @@ export const providerWebhookUnmatchedInboundExportRowSchema = z.object({
   escalationStatus: providerWebhookReviewEscalationStatusSchema,
   escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   escalatedAt: z.string().datetime().nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema.default("unresolved"),
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable().default(null),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema.default("NOT_READY"),
+  checklistCompletedCount: z.number().int().nonnegative().default(0),
+  checklistTotalCount: z.number().int().nonnegative().default(0),
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookUnmatchedInboundExportRow = z.infer<typeof providerWebhookUnmatchedInboundExportRowSchema>;

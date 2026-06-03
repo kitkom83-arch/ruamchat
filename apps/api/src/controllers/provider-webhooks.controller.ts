@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookReviewWorkloadFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewResolutionSummaryFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookReviewWorkloadFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -45,6 +45,15 @@ export class ProviderWebhooksController {
     @Headers("x-user-id") userId?: string
   ) {
     return this.events.getReviewWorkload(requireTenantId(tenant), parseReviewWorkloadFilters(query), userId);
+  }
+
+  @Get("review-resolution-summary")
+  getReviewResolutionSummary(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewResolutionSummary(requireTenantId(tenant), parseReviewResolutionSummaryFilters(query), userId);
   }
 
   @Get("review-saved-views")
@@ -173,6 +182,26 @@ export class ProviderWebhooksController {
     return this.events.escalateUnmatchedInbound(requireTenantId(tenant), id, body, userId);
   }
 
+  @Patch("unmatched-inbound/:id/resolution")
+  resolveUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.resolveUnmatchedInbound(requireTenantId(tenant), id, body, userId);
+  }
+
+  @Patch("unmatched-inbound/:id/resolution-checklist")
+  updateUnmatchedInboundChecklist(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.updateUnmatchedInboundChecklist(requireTenantId(tenant), id, body, userId);
+  }
+
   @Patch("unmatched-inbound/bulk-review")
   bulkReviewUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
@@ -198,6 +227,15 @@ export class ProviderWebhooksController {
     @Body() body: unknown
   ) {
     return this.events.bulkEscalateUnmatchedInbound(requireTenantId(tenant), body, userId);
+  }
+
+  @Patch("unmatched-inbound/bulk-resolution")
+  bulkResolveUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.bulkResolveUnmatchedInbound(requireTenantId(tenant), body, userId);
   }
 
   @Post("unmatched-inbound/:id/link-conversation")
@@ -319,6 +357,21 @@ function parseReviewWorkloadFilters(query: unknown) {
   );
   const parsed = providerWebhookReviewWorkloadFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid provider webhook review workload filters");
+  return parsed.data;
+}
+
+function parseReviewResolutionSummaryFilters(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    return {};
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookReviewResolutionSummaryFiltersSchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid provider webhook review resolution summary filters");
   return parsed.data;
 }
 

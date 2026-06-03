@@ -8,6 +8,7 @@ import {
   loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewMetricsData,
+  loadSettingsProviderWebhookReviewResolutionSummaryData,
   loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderWebhookReviewWorkloadData,
   loadSettingsProviderWebhookSavedViewsData,
@@ -21,6 +22,7 @@ import {
   assignSettingsProviderWebhookUnmatchedInbound,
   bulkAssignSettingsProviderWebhookUnmatchedInbound,
   bulkEscalateSettingsProviderWebhookUnmatchedInbound,
+  bulkResolveSettingsProviderWebhookUnmatchedInbound,
   escalateSettingsProviderWebhookUnmatchedInbound,
   archiveSettingsProviderWebhookSavedView,
   createSettingsProviderWebhookOperatorNote,
@@ -29,12 +31,14 @@ import {
   loadSettingsTeamData,
   mapSettingsCannedReplyToCannedReply,
   reviewSettingsProviderWebhookUnmatchedInbound,
+  resolveSettingsProviderWebhookUnmatchedInbound,
   mockProviderReadiness,
   mockProviderWebhookEvents,
   mockProviderWebhookUnmatchedInbound,
   mockProviderWebhookOperatorNotes,
   resolveCannedReplyComposerDraft,
   mockSettingsChannels,
+  updateSettingsProviderWebhookUnmatchedInboundChecklist,
   searchCannedReplyList
 } from "./settings-data";
 
@@ -47,6 +51,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookReviewAlerts: vi.fn(),
   getProviderWebhookReviewMetrics: vi.fn(),
+  getProviderWebhookReviewResolutionSummary: vi.fn(),
   getProviderWebhookReviewTriage: vi.fn(),
   getProviderWebhookReviewWorkload: vi.fn(),
   getProviderWebhookReviewSavedViews: vi.fn(),
@@ -64,9 +69,12 @@ const api = vi.hoisted(() => ({
   reviewProviderWebhookUnmatchedInbound: vi.fn(),
   assignProviderWebhookUnmatchedInbound: vi.fn(),
   escalateProviderWebhookUnmatchedInbound: vi.fn(),
+  resolveProviderWebhookUnmatchedInbound: vi.fn(),
+  updateProviderWebhookUnmatchedInboundChecklist: vi.fn(),
   bulkReviewProviderWebhookUnmatchedInbound: vi.fn(),
   bulkAssignProviderWebhookUnmatchedInbound: vi.fn(),
   bulkEscalateProviderWebhookUnmatchedInbound: vi.fn(),
+  bulkResolveProviderWebhookUnmatchedInbound: vi.fn(),
   linkProviderWebhookUnmatchedInboundConversation: vi.fn()
 }));
 
@@ -79,6 +87,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookReviewAlerts: api.getProviderWebhookReviewAlerts,
   getProviderWebhookReviewMetrics: api.getProviderWebhookReviewMetrics,
+  getProviderWebhookReviewResolutionSummary: api.getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewTriage: api.getProviderWebhookReviewTriage,
   getProviderWebhookReviewWorkload: api.getProviderWebhookReviewWorkload,
   getProviderWebhookReviewSavedViews: api.getProviderWebhookReviewSavedViews,
@@ -96,9 +105,12 @@ vi.mock("./api-client", () => ({
   reviewProviderWebhookUnmatchedInbound: api.reviewProviderWebhookUnmatchedInbound,
   assignProviderWebhookUnmatchedInbound: api.assignProviderWebhookUnmatchedInbound,
   escalateProviderWebhookUnmatchedInbound: api.escalateProviderWebhookUnmatchedInbound,
+  resolveProviderWebhookUnmatchedInbound: api.resolveProviderWebhookUnmatchedInbound,
+  updateProviderWebhookUnmatchedInboundChecklist: api.updateProviderWebhookUnmatchedInboundChecklist,
   bulkReviewProviderWebhookUnmatchedInbound: api.bulkReviewProviderWebhookUnmatchedInbound,
   bulkAssignProviderWebhookUnmatchedInbound: api.bulkAssignProviderWebhookUnmatchedInbound,
   bulkEscalateProviderWebhookUnmatchedInbound: api.bulkEscalateProviderWebhookUnmatchedInbound,
+  bulkResolveProviderWebhookUnmatchedInbound: api.bulkResolveProviderWebhookUnmatchedInbound,
   linkProviderWebhookUnmatchedInboundConversation: api.linkProviderWebhookUnmatchedInboundConversation
 }));
 
@@ -111,6 +123,7 @@ beforeEach(() => {
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookReviewAlerts.mockReset();
   api.getProviderWebhookReviewMetrics.mockReset();
+  api.getProviderWebhookReviewResolutionSummary.mockReset();
   api.getProviderWebhookReviewTriage.mockReset();
   api.getProviderWebhookReviewWorkload.mockReset();
   api.getProviderWebhookReviewSavedViews.mockReset();
@@ -128,9 +141,12 @@ beforeEach(() => {
   api.reviewProviderWebhookUnmatchedInbound.mockReset();
   api.assignProviderWebhookUnmatchedInbound.mockReset();
   api.escalateProviderWebhookUnmatchedInbound.mockReset();
+  api.resolveProviderWebhookUnmatchedInbound.mockReset();
+  api.updateProviderWebhookUnmatchedInboundChecklist.mockReset();
   api.bulkReviewProviderWebhookUnmatchedInbound.mockReset();
   api.bulkAssignProviderWebhookUnmatchedInbound.mockReset();
   api.bulkEscalateProviderWebhookUnmatchedInbound.mockReset();
+  api.bulkResolveProviderWebhookUnmatchedInbound.mockReset();
   api.linkProviderWebhookUnmatchedInboundConversation.mockReset();
   mockProviderWebhookOperatorNotes.splice(0);
 });
@@ -335,6 +351,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewAlerts.mockResolvedValueOnce(providerWebhookReviewAlertsResponse());
     api.getProviderWebhookReviewTriage.mockResolvedValueOnce(providerWebhookReviewTriageResponse());
     api.getProviderWebhookReviewWorkload.mockResolvedValueOnce(providerWebhookReviewWorkloadResponse());
+    api.getProviderWebhookReviewResolutionSummary.mockResolvedValueOnce(providerWebhookReviewResolutionSummaryResponse());
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockResolvedValueOnce(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-api"));
 
     const metrics = await loadSettingsProviderWebhookReviewMetricsData("api", {
@@ -364,6 +381,13 @@ describe("settings API-mode data loaders", () => {
       escalationStatus: "escalated",
       escalationReason: "SLA_RISK"
     });
+    const resolutionSummary = await loadSettingsProviderWebhookReviewResolutionSummaryData("api", {
+      provider: "line",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true
+    });
     const diagnostics = await loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-api");
 
     expect(api.getProviderWebhookReviewMetrics).toHaveBeenCalledWith(expect.objectContaining({
@@ -392,6 +416,13 @@ describe("settings API-mode data loaders", () => {
       assignmentStatus: "assigned_to_me",
       escalationStatus: "escalated",
       escalationReason: "SLA_RISK"
+    }));
+    expect(api.getProviderWebhookReviewResolutionSummary).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true
     }));
     expect(api.getProviderWebhookUnmatchedInboundDiagnostics).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(metrics.mode).toBe("api");
@@ -427,6 +458,12 @@ describe("settings API-mode data loaders", () => {
       counts: { assignedToMeOpen: 1, escalatedOpen: 1 },
       externalCalls: 0
     });
+    expect(resolutionSummary.mode).toBe("api");
+    expect(resolutionSummary.summary).toMatchObject({
+      totalItems: 1,
+      counts: { unresolvedOpen: 1, checklistIncompleteOpen: 1 },
+      externalCalls: 0
+    });
     expect(diagnostics.mode).toBe("api");
     expect(diagnostics.diagnostics).toMatchObject({
       unmatchedId: "provider-webhook-unmatched-api",
@@ -435,7 +472,7 @@ describe("settings API-mode data loaders", () => {
       roomKeyDigest: "sha256:saferoomdigest",
       externalCalls: 0
     });
-    expect(JSON.stringify({ metrics, alerts, triage, workload, diagnostics })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+    expect(JSON.stringify({ metrics, alerts, triage, workload, resolutionSummary, diagnostics })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -532,6 +569,11 @@ describe("settings API-mode data loaders", () => {
 
     await expect(loadSettingsProviderWebhookReviewWorkloadData("api", { provider: "line" }))
       .rejects.toThrow("workload unavailable");
+
+    api.getProviderWebhookReviewResolutionSummary.mockRejectedValueOnce(new Error("API request failed (503): resolution summary unavailable"));
+
+    await expect(loadSettingsProviderWebhookReviewResolutionSummaryData("api", { provider: "line" }))
+      .rejects.toThrow("resolution summary unavailable");
 
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockRejectedValueOnce(new Error("API request failed (503): diagnostics unavailable"));
 
@@ -694,6 +736,69 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify({ assigned, escalated, bulkAssigned, bulkEscalated })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|senderId|roomId/i);
   });
 
+  it("runs resolution and checklist metadata actions through API mode without local fallback", async () => {
+    api.resolveProviderWebhookUnmatchedInbound.mockResolvedValueOnce({
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api"),
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      resolvedAt: "2026-05-31T00:09:00.000Z",
+      resolvedByOperatorLabel: "operator:current"
+    });
+    api.updateProviderWebhookUnmatchedInboundChecklist.mockResolvedValueOnce({
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-api"),
+      checklistCompletedCount: 2
+    });
+    api.bulkResolveProviderWebhookUnmatchedInbound.mockResolvedValueOnce(providerWebhookBulkResolutionResponse("RESET_CHECKLIST"));
+
+    const resolved = await resolveSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "safe resolution note"
+    });
+    const checklist = await updateSettingsProviderWebhookUnmatchedInboundChecklist("api", "provider-webhook-unmatched-api", {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    });
+    const bulk = await bulkResolveSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-api"],
+      operation: "RESET_CHECKLIST",
+      note: "safe bulk checklist reset"
+    });
+
+    expect(api.resolveProviderWebhookUnmatchedInbound).toHaveBeenCalledWith("provider-webhook-unmatched-api", {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "safe resolution note"
+    });
+    expect(api.updateProviderWebhookUnmatchedInboundChecklist).toHaveBeenCalledWith("provider-webhook-unmatched-api", {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    });
+    expect(api.bulkResolveProviderWebhookUnmatchedInbound).toHaveBeenCalledWith(expect.objectContaining({
+      ids: ["provider-webhook-unmatched-api"],
+      operation: "RESET_CHECKLIST"
+    }));
+    expect(resolved).toMatchObject({
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(checklist).toMatchObject({
+      checklistCompletedCount: 2,
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(bulk.summary.successCount).toBe(1);
+    expect(JSON.stringify({ resolved, checklist, bulk })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|senderId|roomId/i);
+  });
+
   it("does not fallback to mock provider webhook events when API mode fails", async () => {
     api.getProviderWebhookEvents.mockRejectedValueOnce(new Error("API request failed (503): webhook events unavailable"));
 
@@ -800,6 +905,27 @@ describe("settings API-mode data loaders", () => {
       escalationReason: "SLA_RISK"
     })).rejects.toThrow("bulk escalation unavailable");
 
+    api.resolveProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): resolution unavailable"));
+
+    await expect(resolveSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-api", {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW"
+    })).rejects.toThrow("resolution unavailable");
+
+    api.updateProviderWebhookUnmatchedInboundChecklist.mockRejectedValueOnce(new Error("API request failed (503): checklist unavailable"));
+
+    await expect(updateSettingsProviderWebhookUnmatchedInboundChecklist("api", "provider-webhook-unmatched-api", {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    })).rejects.toThrow("checklist unavailable");
+
+    api.bulkResolveProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): bulk resolution unavailable"));
+
+    await expect(bulkResolveSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-api"],
+      operation: "RESET_CHECKLIST"
+    })).rejects.toThrow("bulk resolution unavailable");
+
     api.linkProviderWebhookUnmatchedInboundConversation.mockRejectedValueOnce(new Error("API request failed (503): link unavailable"));
 
     await expect(linkSettingsProviderWebhookUnmatchedInboundConversation("api", "provider-webhook-unmatched-api", {
@@ -865,6 +991,32 @@ describe("settings API-mode data loaders", () => {
     expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
   });
 
+  it("keeps API-mode resolution and checklist failures from mutating local unmatched state", async () => {
+    const before = JSON.stringify(mockProviderWebhookUnmatchedInbound);
+    api.resolveProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): resolution unavailable"));
+
+    await expect(resolveSettingsProviderWebhookUnmatchedInbound("api", "provider-webhook-unmatched-local-1", {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW"
+    })).rejects.toThrow("resolution unavailable");
+
+    api.updateProviderWebhookUnmatchedInboundChecklist.mockRejectedValueOnce(new Error("API request failed (503): checklist unavailable"));
+
+    await expect(updateSettingsProviderWebhookUnmatchedInboundChecklist("api", "provider-webhook-unmatched-local-1", {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    })).rejects.toThrow("checklist unavailable");
+
+    api.bulkResolveProviderWebhookUnmatchedInbound.mockRejectedValueOnce(new Error("API request failed (503): bulk resolution unavailable"));
+
+    await expect(bulkResolveSettingsProviderWebhookUnmatchedInbound("api", {
+      ids: ["provider-webhook-unmatched-local-1"],
+      operation: "RESET_CHECKLIST"
+    })).rejects.toThrow("bulk resolution unavailable");
+
+    expect(JSON.stringify(mockProviderWebhookUnmatchedInbound)).toBe(before);
+  });
+
   it("does not fallback to mock team when API mode fails", async () => {
     api.getSettingsTeam.mockRejectedValueOnce(new Error("API request failed (503): team unavailable"));
     api.getSettingsSlaPolicies.mockResolvedValueOnce([settingsSlaPolicyResponse("sla-api")]);
@@ -896,6 +1048,11 @@ describe("settings API-mode data loaders", () => {
       provider: "line",
       assignmentStatus: "unassigned"
     });
+    const resolutionSummary = await loadSettingsProviderWebhookReviewResolutionSummaryData("mock", {
+      provider: "line",
+      resolutionStatus: "unresolved",
+      checklistIncomplete: true
+    });
     const savedViews = await loadSettingsProviderWebhookSavedViewsData("mock");
     const note = await createSettingsProviderWebhookOperatorNote("mock", "provider-webhook-unmatched-local-1", {
       note: "Safe local note"
@@ -916,6 +1073,8 @@ describe("settings API-mode data loaders", () => {
     expect(triage.triage.topItems.every((item) => item.triageLane === "critical_stale_open")).toBe(true);
     expect(workload.workload.externalCalls).toBe(0);
     expect(workload.workload.appliedFilters).toEqual({ provider: "line", assignmentStatus: "unassigned" });
+    expect(resolutionSummary.summary.externalCalls).toBe(0);
+    expect(resolutionSummary.summary.appliedFilters).toEqual({ provider: "line", resolutionStatus: "unresolved", checklistIncomplete: true });
     expect(savedViews.savedViews[0]).toMatchObject({
       name: "LINE pending manual review",
       externalCalls: 0
@@ -933,6 +1092,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewTriage).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewWorkload).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookReviewResolutionSummary).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewAlerts).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewMetrics).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewSavedViews).not.toHaveBeenCalled();
@@ -991,6 +1151,52 @@ describe("settings API-mode data loaders", () => {
       expect(api.bulkAssignProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
       expect(api.bulkEscalateProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
       expect(JSON.stringify({ assignedSnapshot, escalatedSnapshot, bulkAssigned, bulkEscalated })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|senderId|roomId/i);
+    } finally {
+      mockProviderWebhookUnmatchedInbound.splice(0, mockProviderWebhookUnmatchedInbound.length, ...beforeItems);
+      Object.assign(mockProviderReadiness, beforeReadiness);
+    }
+  });
+
+  it("keeps mock/local resolution and checklist metadata actions available safely", async () => {
+    const beforeItems = JSON.parse(JSON.stringify(mockProviderWebhookUnmatchedInbound));
+    const beforeReadiness = { ...mockProviderReadiness };
+    try {
+      const resolved = await resolveSettingsProviderWebhookUnmatchedInbound("mock", "provider-webhook-unmatched-local-1", {
+        operation: "SET_RESOLUTION",
+        resolutionOutcome: "NEEDS_REVIEW",
+        note: "safe local resolution"
+      });
+      const checked = await updateSettingsProviderWebhookUnmatchedInboundChecklist("mock", "provider-webhook-unmatched-local-1", {
+        operation: "COMPLETE_STEP",
+        step: "VIEWED_DIAGNOSTICS"
+      });
+      const bulkReset = await bulkResolveSettingsProviderWebhookUnmatchedInbound("mock", {
+        ids: ["provider-webhook-unmatched-local-1"],
+        operation: "RESET_CHECKLIST",
+        note: "safe local checklist reset"
+      });
+
+      expect(resolved).toMatchObject({
+        resolutionStatus: "resolved",
+        resolutionOutcome: "NEEDS_REVIEW",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        messagePersisted: false,
+        externalCalls: 0
+      });
+      expect(checked).toMatchObject({
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        messagePersisted: false,
+        externalCalls: 0
+      });
+      expect(bulkReset.summary.successCount).toBe(1);
+      expect(api.resolveProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
+      expect(api.updateProviderWebhookUnmatchedInboundChecklist).not.toHaveBeenCalled();
+      expect(api.bulkResolveProviderWebhookUnmatchedInbound).not.toHaveBeenCalled();
+      expect(JSON.stringify({ resolved, checked, bulkReset })).not.toMatch(/token|secret|authorization|cookie|providerRaw|rawPayload|payloadJson|replyToken|raw-room|raw-sender|senderId|roomId/i);
     } finally {
       mockProviderWebhookUnmatchedInbound.splice(0, mockProviderWebhookUnmatchedInbound.length, ...beforeItems);
       Object.assign(mockProviderReadiness, beforeReadiness);
@@ -1225,11 +1431,18 @@ function providerReadinessResponse() {
     reviewAssignmentEnabled: true,
     reviewEscalationEnabled: true,
     assignmentWorkloadEnabled: true,
+    reviewResolutionEnabled: true,
+    reviewClosureChecklistEnabled: true,
+    resolutionSummaryEnabled: true,
     savedViewCount: 1,
     operatorNoteCount: 1,
     unassignedOpenCount: 1,
     assignedOpenCount: 0,
     escalatedOpenCount: 0,
+    unresolvedOpenCount: 1,
+    readyForClosureCount: 0,
+    blockedResolutionCount: 0,
+    checklistIncompleteOpenCount: 1,
     reviewAlertCriticalCount: 1,
     criticalTriageCount: 1,
     openTriageCount: 1,
@@ -1325,6 +1538,65 @@ function providerWebhookEventResponse(id: string, provider: "line" | "telegram" 
   };
 }
 
+function providerWebhookClosureChecklistResponse() {
+  return [
+    {
+      step: "VIEWED_DIAGNOSTICS",
+      completed: true,
+      completedAt: "2026-05-31T00:03:00.000Z",
+      completedByOperatorLabel: "operator:current"
+    },
+    {
+      step: "REVIEWED_HISTORY",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_TRIAGE_GUIDANCE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "REVIEWED_CANDIDATES",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_RAW_LEAKAGE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_SAFE_LINK_TARGET",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    },
+    {
+      step: "CONFIRMED_OPERATOR_NOTE",
+      completed: false,
+      completedAt: null,
+      completedByOperatorLabel: null
+    }
+  ];
+}
+
 function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
   return {
     id,
@@ -1357,6 +1629,25 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY",
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"],
     lastOperatorNoteAt: null,
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -1484,6 +1775,35 @@ function providerWebhookBulkEscalationResponse(operation: "ESCALATE" | "CLEAR_ES
   };
 }
 
+function providerWebhookBulkResolutionResponse(operation: "SET_RESOLUTION" | "CLEAR_RESOLUTION" | "COMPLETE_STEP" | "RESET_CHECKLIST") {
+  return {
+    operation,
+    results: [
+      {
+        id: "provider-webhook-unmatched-api",
+        ok: true,
+        resultStatus: "updated",
+        resolutionStatus: operation === "CLEAR_RESOLUTION" ? "unresolved" : "resolved",
+        resolutionOutcome: operation === "CLEAR_RESOLUTION" ? null : "NEEDS_REVIEW",
+        closureReadiness: "NOT_READY",
+        checklistCompletedCount: operation === "RESET_CHECKLIST" ? 0 : 1,
+        checklistTotalCount: 9,
+        error: null,
+        externalCalls: 0
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookCandidateResponse(conversationId: string, provider: "line" | "telegram" | "facebook" | "instagram" = "line") {
   return {
     conversationId,
@@ -1519,6 +1839,10 @@ function providerWebhookReviewSavedViewResponse(id: string) {
       assignmentStatus: "assigned_to_me",
       escalationStatus: "escalated",
       escalationReason: "SLA_RISK",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
       receivedAtFrom: "2026-05-31T00:00:00.000Z",
       pageSize: 10
     },
@@ -1556,7 +1880,12 @@ function providerWebhookOperatorNoteResponse(id: string) {
       assignmentStatus: "unassigned",
       assignedToOperatorLabel: null,
       escalationStatus: "none",
-      escalationReason: null
+      escalationReason: null,
+      resolutionStatus: "unresolved",
+      resolutionOutcome: null,
+      closureReadiness: "NOT_READY",
+      checklistCompletedCount: 1,
+      checklistTotalCount: 9
     },
     createdAt: "2026-05-31T00:00:00.000Z",
     updatedAt: "2026-05-31T00:00:00.000Z",
@@ -1627,6 +1956,11 @@ function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundR
     escalationStatus: item.escalationStatus,
     escalationReason: item.escalationReason,
     escalatedAt: item.escalatedAt,
+    resolutionStatus: item.resolutionStatus,
+    resolutionOutcome: item.resolutionOutcome,
+    closureReadiness: item.closureReadiness,
+    checklistCompletedCount: item.checklistCompletedCount,
+    checklistTotalCount: item.checklistTotalCount,
     externalCalls: 0
   }));
   return {
@@ -1955,7 +2289,11 @@ function providerWebhookReviewWorkloadResponse() {
       overdueAssignedOpen: 0,
       recentlyAssigned: 1,
       recentlyEscalated: 1,
-      resolvedAssigned: 0
+      resolvedAssigned: 0,
+      unresolvedOpen: 1,
+      readyForClosure: 0,
+      blockedResolution: 0,
+      checklistIncompleteOpen: 1
     },
     byAssignee: [
       { key: "operator:current", label: "operator:current", count: 1 }
@@ -1993,6 +2331,85 @@ function providerWebhookReviewWorkloadResponse() {
   };
 }
 
+function providerWebhookReviewResolutionSummaryResponse() {
+  const {
+    assignedAt,
+    assignedByOperatorLabel,
+    escalatedAt,
+    escalatedByOperatorLabel,
+    ...baseItem
+  } = providerWebhookAssignmentSummaryItemResponse();
+  void assignedAt;
+  void assignedByOperatorLabel;
+  void escalatedAt;
+  void escalatedByOperatorLabel;
+  const item = {
+    ...baseItem,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"]
+  };
+  return {
+    generatedAt: "2026-05-31T00:09:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "unresolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      checklistIncomplete: true,
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    counts: {
+      unresolvedOpen: 1,
+      readyForReview: 0,
+      readyForSkip: 0,
+      readyForLink: 0,
+      readyForLinkAndPersist: 0,
+      blocked: 0,
+      resolvedRecently: 0,
+      checklistIncompleteOpen: 1
+    },
+    byResolutionStatus: [{ key: "unresolved", label: "unresolved", count: 1 }],
+    byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+    byClosureReadiness: [{ key: "NOT_READY", label: "NOT_READY", count: 1 }],
+    byChecklistStep: [{ key: "REVIEWED_HISTORY", label: "REVIEWED_HISTORY", count: 1 }],
+    byProvider: [{ key: "line", label: "line", count: 1 }],
+    byPlatform: [{ key: "line", label: "line", count: 1 }],
+    byReviewStatus: [{ key: "pending", label: "pending", count: 1 }],
+    byLinkStatus: [{ key: "none", label: "none", count: 1 }],
+    byUnmatchedStatus: [{ key: "review-needed", label: "review-needed", count: 1 }],
+    topReadyItems: [item],
+    topBlockedItems: [],
+    externalCalls: 0
+  };
+}
+
 function providerWebhookAssignmentSummaryItemResponse() {
   return {
     unmatchedId: "provider-webhook-unmatched-api",
@@ -2017,6 +2434,11 @@ function providerWebhookAssignmentSummaryItemResponse() {
     escalationReason: "SLA_RISK",
     escalatedAt: "2026-05-31T00:11:00.000Z",
     escalatedByOperatorLabel: "operator:current",
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    closureReadiness: "NOT_READY",
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
     lastOperatorNoteAt: "2026-05-31T00:12:00.000Z",
     historyAvailable: true,
     diagnosticsAvailable: true,
@@ -2046,6 +2468,25 @@ function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
     escalationReason: null,
     escalatedAt: null,
     escalatedByOperatorLabel: null,
+    resolutionStatus: "unresolved",
+    resolutionOutcome: null,
+    resolvedAt: null,
+    resolvedByOperatorLabel: null,
+    closureReadiness: "NOT_READY",
+    closureChecklist: providerWebhookClosureChecklistResponse(),
+    checklistCompletedCount: 1,
+    checklistTotalCount: 9,
+    checklistIncompleteSteps: [
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ],
+    recommendedNextActions: ["VIEW_HISTORY", "RUN_CANDIDATE_LOOKUP", "ADD_OPERATOR_NOTE"],
     lastOperatorNoteAt: null,
     routingOutcome: "dry-run-only/not-found",
     normalizedEventType: "message",

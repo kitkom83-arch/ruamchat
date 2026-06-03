@@ -1255,6 +1255,168 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toMatch(/raw-assignment-room-69|raw-sender-event-assignment-69|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("keeps resolution outcomes and closure checklist tenant-scoped as internal metadata only", async () => {
+    const { controller, audit } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-resolution-room-70", "event-resolution-70", "Safe resolution target");
+    const before = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
+
+    expect(() => controller.resolveUnmatchedInbound(undefined, "operator-current", item.id, { operation: "SET_RESOLUTION", resolutionOutcome: "NEEDS_REVIEW" }))
+      .toThrow(BadRequestException);
+    await expect(controller.resolveUnmatchedInbound("other-tenant", "operator-current", item.id, {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW"
+    })).rejects.toThrow("Unmatched inbound item not found");
+    await expect(controller.updateUnmatchedInboundChecklist("other-tenant", "operator-current", item.id, {
+      operation: "COMPLETE_STEP",
+      step: "VIEWED_DIAGNOSTICS"
+    })).rejects.toThrow("Unmatched inbound item not found");
+
+    const resolved = await controller.resolveUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "Safe resolution note"
+    });
+    let checked: ProviderWebhookUnmatchedInboundItem = resolved;
+    for (const step of [
+      "VIEWED_DIAGNOSTICS",
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ] as const) {
+      checked = await controller.updateUnmatchedInboundChecklist(tenantId, "operator-current", item.id, {
+        operation: "COMPLETE_STEP",
+        step
+      });
+    }
+    const summary = controller.getReviewResolutionSummary(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      checklistIncomplete: "false"
+    }, "operator-current");
+    const diagnostics = controller.getUnmatchedInboundDiagnostics(tenantId, item.id);
+    const history = controller.listUnmatchedInboundHistory(tenantId, item.id);
+    const notes = controller.listOperatorNotes(tenantId, item.id);
+    const bulkReset = await controller.bulkResolveUnmatchedInbound(tenantId, "operator-current", {
+      ids: [item.id],
+      operation: "RESET_CHECKLIST",
+      note: "Safe checklist reset"
+    });
+    const afterBulk = controller.listUnmatchedInbound(tenantId, { resolutionStatus: "resolved" })[0];
+    const serialized = JSON.stringify({ resolved, checked, summary, diagnostics, history, notes, bulkReset, afterBulk });
+
+    expect(before).toMatchObject({
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false
+    });
+    expect(resolved).toMatchObject({
+      id: item.id,
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      resolvedByOperatorLabel: "operator:operator-cur",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(checked).toMatchObject({
+      id: item.id,
+      checklistCompletedCount: 9,
+      checklistTotalCount: 9,
+      closureReadiness: "READY_FOR_REVIEW",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(summary).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        resolutionStatus: "resolved",
+        resolutionOutcome: "NEEDS_REVIEW",
+        checklistIncomplete: false
+      },
+      totalItems: 1,
+      counts: {
+        resolvedRecently: 1,
+        readyForReview: 1,
+        checklistIncompleteOpen: 0
+      },
+      externalCalls: 0
+    });
+    expect(summary.byResolutionOutcome.find((entry) => entry.key === "NEEDS_REVIEW")?.count).toBe(1);
+    expect(summary.topReadyItems[0]).toMatchObject({
+      unmatchedId: item.id,
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: expect.stringContaining("room digest"),
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      recommendedNextActions: expect.arrayContaining(["MARK_REVIEWED"]),
+      externalCalls: 0
+    });
+    expect(diagnostics).toMatchObject({
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistCompletedCount: 9,
+      checklistTotalCount: 9,
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      externalCalls: 0
+    });
+    expect(history.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining(["resolution_set", "checklist_completed"]));
+    expect(notes.map((note) => note.note)).toEqual(expect.arrayContaining([
+      "resolution updated: Safe resolution note",
+      "checklist updated: VIEWED_DIAGNOSTICS"
+    ]));
+    expect(bulkReset).toMatchObject({
+      operation: "RESET_CHECKLIST",
+      summary: {
+        successCount: 1,
+        updatedCount: 1
+      },
+      externalCalls: 0
+    });
+    expect(afterBulk).toMatchObject({
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      checklistCompletedCount: 0,
+      checklistTotalCount: 9,
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_resolution_set",
+      entityType: "provider_webhook_unmatched_inbound_metadata"
+    }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_checklist_completed",
+      entityType: "provider_webhook_unmatched_inbound_metadata"
+    }));
+    expect(serialized).not.toMatch(/raw-resolution-room-70|raw-sender-event-resolution-70|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
     const { controller } = buildController(noMatchConversations());
     const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");
