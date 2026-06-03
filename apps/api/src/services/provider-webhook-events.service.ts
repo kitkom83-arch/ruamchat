@@ -3,7 +3,11 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import {
   createProviderWebhookOperatorNoteRequestSchema,
   createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookUnmatchedInboundAssignmentRequestSchema,
+  providerWebhookUnmatchedInboundBulkAssignmentRequestSchema,
+  providerWebhookUnmatchedInboundBulkEscalationRequestSchema,
   providerWebhookReviewSavedViewFiltersSchema,
+  providerWebhookUnmatchedInboundEscalationRequestSchema,
   updateProviderWebhookReviewSavedViewRequestSchema,
   type ProviderWebhookOperatorNote,
   providerWebhookUnmatchedInboundBulkReviewRequestSchema,
@@ -22,8 +26,17 @@ import {
   type ProviderWebhookReviewTriage,
   type ProviderWebhookReviewTriageFilters,
   type ProviderWebhookReviewTriageLane,
+  type ProviderWebhookReviewWorkload,
+  type ProviderWebhookReviewWorkloadFilters,
   type ProviderWebhookTriageRecommendedAction,
+  type ProviderWebhookUnmatchedInboundAssignmentRequest,
+  type ProviderWebhookUnmatchedInboundBulkAssignmentResponse,
+  type ProviderWebhookUnmatchedInboundBulkEscalationResponse,
+  type ProviderWebhookUnmatchedInboundBulkMetadataItemResult,
+  type ProviderWebhookUnmatchedInboundBulkAssignmentRequest,
+  type ProviderWebhookUnmatchedInboundBulkEscalationRequest,
   type ProviderWebhookUnmatchedInboundBulkReviewItemResult,
+  type ProviderWebhookUnmatchedInboundEscalationRequest,
   type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
   type ProviderWebhookUnmatchedInboundExportQuery,
@@ -63,6 +76,15 @@ const triageLanes: ProviderWebhookReviewTriageLane[] = [
   "skipped_ignored",
   "failed_routing_missing_match"
 ];
+const escalationReasons = [
+  "none",
+  "SLA_RISK",
+  "NO_SAFE_CANDIDATE",
+  "ROUTING_FAILED",
+  "HIGH_PRIORITY_CUSTOMER",
+  "NEEDS_MANAGER_REVIEW",
+  "MANUAL_REVIEW_BLOCKED"
+] as const;
 const triageLaneDetails: Record<ProviderWebhookReviewTriageLane, {
   label: string;
   description: string;
@@ -127,13 +149,13 @@ export class ProviderWebhookEventsService {
     return events.filter((event) => event.tenantId === tenantId);
   }
 
-  listUnmatchedInbound(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}) {
+  listUnmatchedInbound(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}, actorUserId?: string) {
     const normalizedFilters = normalizeUnmatchedInboundFilters(filters);
-    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters, actorUserId);
     return normalizedFilters.limit ? filtered.slice(0, normalizedFilters.limit) : filtered;
   }
 
-  listUnmatchedInboundPage(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}) {
+  listUnmatchedInboundPage(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters | ProviderWebhookUnmatchedInboundStatusFilter = {}, actorUserId?: string) {
     const normalizedFilters = normalizeUnmatchedInboundFilters(filters);
     const limit = normalizedFilters.limit ?? 10;
     const offset = normalizedFilters.offset ?? 0;
@@ -141,7 +163,7 @@ export class ProviderWebhookEventsService {
       sortBy: normalizedFilters.sortBy ?? "receivedAt" as const,
       sortOrder: normalizedFilters.sortOrder ?? "desc" as const
     };
-    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const filtered = filterUnmatchedInboundItems(tenantId, normalizedFilters, actorUserId);
     const sorted = [...filtered].sort((left, right) => {
       const compared = left.receivedAt.localeCompare(right.receivedAt);
       return appliedSort.sortOrder === "asc" ? compared : -compared;
@@ -170,9 +192,9 @@ export class ProviderWebhookEventsService {
     };
   }
 
-  getReviewMetrics(tenantId: string, filters: ProviderWebhookReviewMetricsFilters = {}): ProviderWebhookReviewMetrics {
+  getReviewMetrics(tenantId: string, filters: ProviderWebhookReviewMetricsFilters = {}, actorUserId?: string): ProviderWebhookReviewMetrics {
     const normalizedFilters = cleanReviewMetricsFilters(filters);
-    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters, actorUserId);
     const filteredEvents = filterEventsForMetrics(tenantId, normalizedFilters);
     const openItems = filteredItems.filter(isOpenUnmatchedStatusItem);
     const sortedReceivedAt = [...filteredItems].map((item) => item.receivedAt).sort();
@@ -211,10 +233,10 @@ export class ProviderWebhookEventsService {
     };
   }
 
-  getReviewAlerts(tenantId: string, filters: ProviderWebhookReviewAlertsFilters = {}): ProviderWebhookReviewAlerts {
+  getReviewAlerts(tenantId: string, filters: ProviderWebhookReviewAlertsFilters = {}, actorUserId?: string): ProviderWebhookReviewAlerts {
     const generatedAt = new Date().toISOString();
     const normalizedFilters = cleanReviewAlertsFilters(filters);
-    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, normalizedFilters, actorUserId);
     const openItems = filteredItems.filter(isOpenUnmatchedStatusItem);
     const alertItems = openItems
       .map(reviewAlertItemFromUnmatched)
@@ -247,9 +269,9 @@ export class ProviderWebhookEventsService {
     };
   }
 
-  getReviewTriage(tenantId: string, filters: ProviderWebhookReviewTriageFilters = {}): ProviderWebhookReviewTriage {
+  getReviewTriage(tenantId: string, filters: ProviderWebhookReviewTriageFilters = {}, actorUserId?: string): ProviderWebhookReviewTriage {
     const normalizedFilters = cleanReviewTriageFilters(filters);
-    const baseItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters));
+    const baseItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId);
     const triageItems = baseItems
       .map(reviewTriageItemFromUnmatched)
       .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
@@ -285,6 +307,51 @@ export class ProviderWebhookEventsService {
       byUnmatchedStatus: countByStable(triageItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
       byLane: countByStable(triageItems, triageLanes, (item) => item.triageLane),
       topItems: triageItems.slice(0, 10),
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewWorkload(tenantId: string, filters: ProviderWebhookReviewWorkloadFilters = {}, actorUserId?: string): ProviderWebhookReviewWorkload {
+    const normalizedFilters = cleanReviewWorkloadFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
+      .map(assignmentSummaryItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
+      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    const actorLabel = safeActorLabel(actorUserId);
+    const openItems = filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus));
+    const assignedOpen = openItems.filter((item) => item.assignmentStatus === "assigned");
+    const nowMs = Date.now();
+    const recentWindowMs = 24 * 60 * 60 * 1000;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      totalItems: filteredItems.length,
+      totalOpenItems: openItems.length,
+      thresholds: reviewAlertThresholds,
+      counts: {
+        unassignedOpen: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
+        assignedToMeOpen: openItems.filter((item) => item.assignedToOperatorLabel === actorLabel).length,
+        assignedToOthersOpen: openItems.filter((item) => item.assignmentStatus === "assigned" && item.assignedToOperatorLabel !== actorLabel).length,
+        assignedOpen: assignedOpen.length,
+        escalatedOpen: openItems.filter((item) => item.escalationStatus === "escalated").length,
+        overdueAssignedOpen: assignedOpen.filter((item) => hoursSince(item.assignedAt ?? item.receivedAt) >= reviewAlertThresholds.overSlaHours).length,
+        recentlyAssigned: filteredItems.filter((item) => item.assignedAt && nowMs - new Date(item.assignedAt).getTime() <= recentWindowMs).length,
+        recentlyEscalated: filteredItems.filter((item) => item.escalatedAt && nowMs - new Date(item.escalatedAt).getTime() <= recentWindowMs).length,
+        resolvedAssigned: filteredItems.filter((item) => item.assignmentStatus === "assigned" && !isOpenUnmatchedStatus(item.unmatchedStatus)).length
+      },
+      byAssignee: countByDynamic(filteredItems, (item) => item.assignedToOperatorLabel ?? "unassigned"),
+      byAssignmentStatus: countByStable(filteredItems, ["unassigned", "assigned"], (item) => item.assignmentStatus),
+      byEscalationStatus: countByStable(filteredItems, ["none", "escalated"], (item) => item.escalationStatus),
+      byEscalationReason: countByStable(filteredItems, escalationReasons, (item) => item.escalationReason ?? "none"),
+      byProvider: countByStable(filteredItems, ["line", "telegram", "facebook", "instagram"], (item) => item.provider),
+      byPlatform: countByStable(filteredItems, ["line", "telegram", "facebook", "instagram"], (item) => item.platform),
+      byReviewStatus: countByStable(filteredItems, ["pending", "reviewed", "skipped", "linked"], (item) => item.reviewStatus),
+      byLinkStatus: countByStable(filteredItems, ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"], (item) => item.linkStatus),
+      byUnmatchedStatus: countByStable(filteredItems, ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"], (item) => item.unmatchedStatus),
+      topAssignedItems: filteredItems.filter((item) => item.assignmentStatus === "assigned").slice(0, 10),
+      topEscalatedItems: filteredItems.filter((item) => item.escalationStatus === "escalated").slice(0, 10),
       externalCalls: 0 as const
     };
   }
@@ -390,6 +457,8 @@ export class ProviderWebhookEventsService {
       externalCalls: 0 as const
     };
     operatorNotes.push(note);
+    item.lastOperatorNoteAt = now;
+    item.externalCalls = 0;
     addUnmatchedHistoryEntry(item, {
       action: "operator_note_created",
       actionStatus: "created",
@@ -403,6 +472,84 @@ export class ProviderWebhookEventsService {
     });
     await this.recordOperatorNoteAudit(tenantId, actorUserId, item, note);
     return note;
+  }
+
+  async assignUnmatchedInbound(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string) {
+    const parsed = providerWebhookUnmatchedInboundAssignmentRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook assignment request");
+    return this.applyAssignment(tenantId, unmatchedId, parsed.data, actorUserId, false);
+  }
+
+  async bulkAssignUnmatchedInbound(tenantId: string, body: unknown, actorUserId?: string): Promise<ProviderWebhookUnmatchedInboundBulkAssignmentResponse> {
+    const parsed = providerWebhookUnmatchedInboundBulkAssignmentRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook bulk assignment request");
+
+    const input = parsed.data;
+    const uniqueIds = Array.from(new Set(input.ids.map((id) => id.trim()).filter(Boolean)));
+    const results: ProviderWebhookUnmatchedInboundBulkMetadataItemResult[] = [];
+    for (const id of uniqueIds) {
+      const item = findUnmatchedInboundItem(tenantId, id);
+      if (!item) {
+        results.push(bulkMetadataResult(id, false, "not-found", null, null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+      const before = metadataFingerprint(item);
+      await this.applyAssignmentToItem(tenantId, item, input, actorUserId, true);
+      results.push(bulkMetadataResult(
+        item.id,
+        true,
+        before === metadataFingerprint(item) ? "already-applied" : "updated",
+        item.assignmentStatus,
+        item.escalationStatus,
+        item.escalationReason,
+        null
+      ));
+    }
+    return {
+      operation: input.operation,
+      results,
+      summary: bulkMetadataSummary(input.ids.length, uniqueIds.length, results),
+      externalCalls: 0 as const
+    };
+  }
+
+  async escalateUnmatchedInbound(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string) {
+    const parsed = providerWebhookUnmatchedInboundEscalationRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook escalation request");
+    return this.applyEscalation(tenantId, unmatchedId, parsed.data, actorUserId, false);
+  }
+
+  async bulkEscalateUnmatchedInbound(tenantId: string, body: unknown, actorUserId?: string): Promise<ProviderWebhookUnmatchedInboundBulkEscalationResponse> {
+    const parsed = providerWebhookUnmatchedInboundBulkEscalationRequestSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook bulk escalation request");
+
+    const input = parsed.data;
+    const uniqueIds = Array.from(new Set(input.ids.map((id) => id.trim()).filter(Boolean)));
+    const results: ProviderWebhookUnmatchedInboundBulkMetadataItemResult[] = [];
+    for (const id of uniqueIds) {
+      const item = findUnmatchedInboundItem(tenantId, id);
+      if (!item) {
+        results.push(bulkMetadataResult(id, false, "not-found", null, null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+      const before = metadataFingerprint(item);
+      await this.applyEscalationToItem(tenantId, item, input, actorUserId, true);
+      results.push(bulkMetadataResult(
+        item.id,
+        true,
+        before === metadataFingerprint(item) ? "already-applied" : "updated",
+        item.assignmentStatus,
+        item.escalationStatus,
+        item.escalationReason,
+        null
+      ));
+    }
+    return {
+      operation: input.operation,
+      results,
+      summary: bulkMetadataSummary(input.ids.length, uniqueIds.length, results),
+      externalCalls: 0 as const
+    };
   }
 
   async listUnmatchedInboundCandidates(tenantId: string, id: string) {
@@ -437,6 +584,15 @@ export class ProviderWebhookEventsService {
       reviewStatus: item.reviewStatus,
       linkStatus: item.linkStatus,
       unmatchedStatus: item.unmatchedStatus,
+      assignmentStatus: item.assignmentStatus,
+      assignedToOperatorLabel: item.assignedToOperatorLabel,
+      assignedAt: item.assignedAt,
+      assignedByOperatorLabel: item.assignedByOperatorLabel,
+      escalationStatus: item.escalationStatus,
+      escalationReason: item.escalationReason,
+      escalatedAt: item.escalatedAt,
+      escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+      lastOperatorNoteAt: item.lastOperatorNoteAt,
       routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
       normalizedEventType: item.normalizedEventType,
       persistenceOutcome: event?.inboundPersistenceStatus ?? (item.messagePersisted ? "persisted" : "not-persisted"),
@@ -530,6 +686,7 @@ export class ProviderWebhookEventsService {
     item.reviewReason = safeReviewReason(input.reason);
     item.unmatchedResolvedAt = now;
     item.externalCalls = 0;
+    item.candidatesAvailable = isSafeLinkableUnmatchedItem(item);
 
     const event = findEventForUnmatchedItem(item);
     if (event) {
@@ -595,6 +752,7 @@ export class ProviderWebhookEventsService {
       item.reviewReason = safeReviewReason(input.reason);
       item.unmatchedResolvedAt = now;
       item.externalCalls = 0;
+      item.candidatesAvailable = isSafeLinkableUnmatchedItem(item);
 
       const event = findEventForUnmatchedItem(item);
       if (event) {
@@ -724,6 +882,7 @@ export class ProviderWebhookEventsService {
     item.unmatchedResolvedAt = now;
     item.messagePersisted = messagePersisted || item.messagePersisted;
     item.externalCalls = 0;
+    item.candidatesAvailable = isSafeLinkableUnmatchedItem(item);
 
     const event = findEventForUnmatchedItem(item);
     if (event) {
@@ -776,6 +935,139 @@ export class ProviderWebhookEventsService {
       });
     }
     return item;
+  }
+
+  private async applyAssignment(
+    tenantId: string,
+    unmatchedId: string,
+    input: ProviderWebhookUnmatchedInboundAssignmentRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    await this.applyAssignmentToItem(tenantId, item, input, actorUserId, bulk);
+    return item;
+  }
+
+  private async applyAssignmentToItem(
+    tenantId: string,
+    item: ProviderWebhookUnmatchedInboundItem,
+    input: ProviderWebhookUnmatchedInboundAssignmentRequest | ProviderWebhookUnmatchedInboundBulkAssignmentRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const actorLabel = safeActorLabel(actorUserId);
+    const note = safeMetadataNote(input.note);
+    const beforeStatus = item.assignmentStatus;
+    const beforeLabel = item.assignedToOperatorLabel;
+    const now = new Date().toISOString();
+    let action: ProviderWebhookUnmatchedInboundHistoryAction;
+    let actionStatus: string;
+    let reason: string | null = note;
+
+    if (input.operation === "UNASSIGN") {
+      item.assignmentStatus = "unassigned";
+      item.assignedToOperatorLabel = null;
+      item.assignedAt = null;
+      item.assignedByOperatorLabel = actorLabel;
+      action = bulk ? "bulk_unassigned" : "unassigned";
+      actionStatus = "unassigned";
+      reason = note ?? "assignment cleared";
+    } else {
+      const assignedTo = input.operation === "ASSIGN_TO_ME"
+        ? actorLabel
+        : safeOperatorLabel(input.assignedToOperatorLabel);
+      if (!assignedTo) throw new BadRequestException("Safe assigned operator label is required");
+      item.assignmentStatus = "assigned";
+      item.assignedToOperatorLabel = assignedTo;
+      item.assignedAt = now;
+      item.assignedByOperatorLabel = actorLabel;
+      action = bulk ? "bulk_assigned" : "assigned";
+      actionStatus = "assigned";
+      reason = note ?? `assigned to ${assignedTo}`;
+    }
+    item.externalCalls = 0;
+
+    addUnmatchedHistoryEntry(item, {
+      action,
+      actionStatus,
+      statusBefore: assignmentStatusText(beforeStatus, beforeLabel),
+      statusAfter: assignmentStatusText(item.assignmentStatus, item.assignedToOperatorLabel),
+      actor: actorLabel,
+      reason,
+      message: input.operation === "UNASSIGN"
+        ? "Unmatched inbound assignment cleared"
+        : "Unmatched inbound assigned for internal review",
+      actionAt: now
+    });
+    addMetadataOperatorNote(tenantId, item, actorUserId, input.operation === "UNASSIGN" ? "assignment cleared" : "assignment updated", note, now);
+    await this.recordMetadataAudit(tenantId, actorUserId, item, action, actionStatus);
+  }
+
+  private async applyEscalation(
+    tenantId: string,
+    unmatchedId: string,
+    input: ProviderWebhookUnmatchedInboundEscalationRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const item = findUnmatchedInboundItem(tenantId, unmatchedId);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    await this.applyEscalationToItem(tenantId, item, input, actorUserId, bulk);
+    return item;
+  }
+
+  private async applyEscalationToItem(
+    tenantId: string,
+    item: ProviderWebhookUnmatchedInboundItem,
+    input: ProviderWebhookUnmatchedInboundEscalationRequest | ProviderWebhookUnmatchedInboundBulkEscalationRequest,
+    actorUserId: string | undefined,
+    bulk: boolean
+  ) {
+    const actorLabel = safeActorLabel(actorUserId);
+    const note = safeMetadataNote(input.note);
+    const beforeStatus = item.escalationStatus;
+    const beforeReason = item.escalationReason;
+    const now = new Date().toISOString();
+    let action: ProviderWebhookUnmatchedInboundHistoryAction;
+    let actionStatus: string;
+    let reason: string | null = note;
+
+    if (input.operation === "CLEAR_ESCALATION") {
+      item.escalationStatus = "none";
+      item.escalationReason = null;
+      item.escalatedAt = null;
+      item.escalatedByOperatorLabel = actorLabel;
+      action = bulk ? "bulk_escalation_cleared" : "escalation_cleared";
+      actionStatus = "cleared";
+      reason = note ?? "escalation cleared";
+    } else {
+      if (!input.escalationReason) throw new BadRequestException("Safe escalation reason is required");
+      item.escalationStatus = "escalated";
+      item.escalationReason = input.escalationReason;
+      item.escalatedAt = now;
+      item.escalatedByOperatorLabel = actorLabel;
+      action = bulk ? "bulk_escalated" : "escalated";
+      actionStatus = "escalated";
+      reason = note ?? input.escalationReason;
+    }
+    item.externalCalls = 0;
+
+    addUnmatchedHistoryEntry(item, {
+      action,
+      actionStatus,
+      statusBefore: escalationStatusText(beforeStatus, beforeReason),
+      statusAfter: escalationStatusText(item.escalationStatus, item.escalationReason),
+      actor: actorLabel,
+      reason,
+      message: input.operation === "CLEAR_ESCALATION"
+        ? "Unmatched inbound escalation cleared"
+        : "Unmatched inbound escalated for internal review",
+      actionAt: now
+    });
+    addMetadataOperatorNote(tenantId, item, actorUserId, input.operation === "CLEAR_ESCALATION" ? "escalation cleared" : "escalation updated", note ?? input.escalationReason ?? null, now);
+    await this.recordMetadataAudit(tenantId, actorUserId, item, action, actionStatus);
   }
 
   async create(tenantId: string, body: unknown, actorUserId?: string) {
@@ -934,6 +1226,18 @@ export class ProviderWebhookEventsService {
       linkedMessageId: null,
       unmatchedResolvedAt: null,
       messagePersisted: false,
+      assignmentStatus: "unassigned",
+      assignedToOperatorLabel: null,
+      assignedAt: null,
+      assignedByOperatorLabel: null,
+      escalationStatus: "none",
+      escalationReason: null,
+      escalatedAt: null,
+      escalatedByOperatorLabel: null,
+      lastOperatorNoteAt: null,
+      historyAvailable: true,
+      diagnosticsAvailable: true,
+      candidatesAvailable: normalization.roomKeyDigest !== null && channelAccountId !== null,
       externalCalls: 0
     };
 
@@ -1287,6 +1591,41 @@ export class ProviderWebhookEventsService {
       // Operator notes remain safe even when optional audit persistence is unavailable.
     }
   }
+
+  private async recordMetadataAudit(
+    tenantId: string,
+    actorUserId: string | undefined,
+    item: ProviderWebhookUnmatchedInboundItem,
+    action: ProviderWebhookUnmatchedInboundHistoryAction,
+    status: string
+  ) {
+    try {
+      await this.audit.record({
+        tenantId,
+        actorUserId,
+        action: `provider_webhook.unmatched_inbound_${action}`,
+        entityType: "provider_webhook_unmatched_inbound_metadata",
+        entityId: item.id,
+        metadata: {
+          tenantId,
+          unmatchedInboundId: item.id,
+          provider: item.provider,
+          channelAccountId: item.channelAccountId,
+          assignmentStatus: item.assignmentStatus,
+          assignedToOperatorLabel: item.assignedToOperatorLabel,
+          escalationStatus: item.escalationStatus,
+          escalationReason: item.escalationReason,
+          payloadDigest: item.payloadDigest,
+          senderKeyDigest: item.senderKeyDigest,
+          roomKeyDigest: item.roomKeyDigest,
+          status,
+          externalCalls: 0
+        }
+      });
+    } catch {
+      // Assignment and escalation metadata must not depend on optional audit persistence.
+    }
+  }
 }
 
 export function resetProviderWebhookEventStoreForTest() {
@@ -1306,6 +1645,7 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     .filter(isOpenUnmatchedStatusItem)
     .map(reviewAlertItemFromUnmatched);
   const triageItems = unmatchedInboundItems.map(reviewTriageItemFromUnmatched);
+  const openItems = unmatchedInboundItems.filter(isOpenUnmatchedStatusItem);
   return {
     webhookSignatureVerificationConfigured: true,
     webhookSignatureVerificationReady: true,
@@ -1343,8 +1683,14 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     triageGuidanceEnabled: true,
     reviewSavedViewsEnabled: true,
     operatorNotesEnabled: true,
+    reviewAssignmentEnabled: true,
+    reviewEscalationEnabled: true,
+    assignmentWorkloadEnabled: true,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
+    unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
+    assignedOpenCount: openItems.filter((item) => item.assignmentStatus === "assigned").length,
+    escalatedOpenCount: openItems.filter((item) => item.escalationStatus === "escalated").length,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
     openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
@@ -1445,7 +1791,11 @@ function operatorNoteContext(item: ProviderWebhookUnmatchedInboundItem): Provide
     eventType: item.eventType,
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
-    unmatchedStatus: item.unmatchedStatus
+    unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason
   };
 }
 
@@ -1464,9 +1814,11 @@ function normalizeUnmatchedInboundFilters(filters: ProviderWebhookUnmatchedInbou
   return filters ?? {};
 }
 
-function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters) {
+function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookUnmatchedInboundFilters, actorUserId?: string) {
   const receivedFrom = filters.receivedAtFrom ?? filters.receivedFrom;
   const receivedTo = filters.receivedAtTo ?? filters.receivedTo;
+  const actorLabel = safeActorLabel(actorUserId);
+  const assignedTo = filters.assignedTo === "me" ? actorLabel : safeFilterText(filters.assignedTo);
   return unmatchedInboundItems.filter((item) => {
     if (item.tenantId !== tenantId) return false;
     if (!matchesLegacyStatusFilter(item, filters.status)) return false;
@@ -1475,6 +1827,13 @@ function filterUnmatchedInboundItems(tenantId: string, filters: ProviderWebhookU
     if (filters.linkStatus && item.linkStatus !== filters.linkStatus) return false;
     if (filters.unmatchedStatus && item.unmatchedStatus !== filters.unmatchedStatus) return false;
     if (filters.eventType && item.eventType !== filters.eventType) return false;
+    if (assignedTo && item.assignedToOperatorLabel !== assignedTo) return false;
+    if (filters.assignmentStatus === "unassigned" && item.assignmentStatus !== "unassigned") return false;
+    if (filters.assignmentStatus === "assigned" && item.assignmentStatus !== "assigned") return false;
+    if (filters.assignmentStatus === "assigned_to_me" && item.assignedToOperatorLabel !== actorLabel) return false;
+    if (filters.assignmentStatus === "assigned_to_others" && (item.assignmentStatus !== "assigned" || item.assignedToOperatorLabel === actorLabel)) return false;
+    if (filters.escalationStatus && item.escalationStatus !== filters.escalationStatus) return false;
+    if (filters.escalationReason && item.escalationReason !== filters.escalationReason) return false;
     if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
     if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
     return true;
@@ -1518,6 +1877,12 @@ function cleanReviewTriageFilters(filters: ProviderWebhookReviewTriageFilters) {
   ) as ProviderWebhookReviewTriageFilters;
 }
 
+function cleanReviewWorkloadFilters(filters: ProviderWebhookReviewWorkloadFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ) as ProviderWebhookReviewWorkloadFilters;
+}
+
 function reviewTriageBaseFilters(filters: ProviderWebhookReviewTriageFilters): ProviderWebhookReviewMetricsFilters {
   const { severity: _severity, triageLane: _triageLane, ...baseFilters } = filters;
   return baseFilters;
@@ -1538,6 +1903,17 @@ function countByStable<T, K extends string>(items: T[], keys: readonly K[], getK
     label: key,
     count: items.filter((item) => getKey(item) === key).length
   }));
+}
+
+function countByDynamic<T>(items: T[], getKey: (item: T) => string) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = safeHistoryText(getKey(item)) ?? "unknown";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => ({ key, label: key, count }));
 }
 
 function ageBucketsForOpenItems(items: ProviderWebhookUnmatchedInboundItem[]) {
@@ -1575,6 +1951,10 @@ function reviewAlertItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem)
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
     unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     diagnosticsAvailable: true,
     historyAvailable: buildHistoryEntriesForItem(item).length > 0,
@@ -1614,12 +1994,49 @@ function reviewTriageItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
     unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     recommendedNextActions: triageActionsForLane(lane),
     diagnosticsAvailable: true,
     historyAvailable: buildHistoryEntriesForItem(item).length > 0,
     candidatesAvailable: isSafeLinkableUnmatchedItem(item),
     exportAvailable: true,
+    externalCalls: 0 as const
+  };
+}
+
+function assignmentSummaryItemFromUnmatched(item: ProviderWebhookUnmatchedInboundItem) {
+  const lane = triageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: safeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: ageBucketForReceivedAt(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: triageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    assignedByOperatorLabel: item.assignedByOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
+    escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    lastOperatorNoteAt: item.lastOperatorNoteAt,
+    historyAvailable: buildHistoryEntriesForItem(item).length > 0,
+    diagnosticsAvailable: true,
+    candidatesAvailable: isSafeLinkableUnmatchedItem(item),
     externalCalls: 0 as const
   };
 }
@@ -1849,6 +2266,12 @@ function exportRowFromItem(item: ProviderWebhookUnmatchedInboundItem): ProviderW
     safeMessagePreview: safeHistoryText(item.textPreview),
     safeReason: safeHistoryText(item.reviewReason ?? item.unmatchedReason),
     safeResultSummary: safeHistoryText(exportResultSummary(item)),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
     externalCalls: 0 as const
   };
 }
@@ -1857,6 +2280,85 @@ function exportResultSummary(item: ProviderWebhookUnmatchedInboundItem) {
   if (item.reviewStatus === "linked") return `linked:${item.linkStatus}`;
   if (item.reviewStatus === "reviewed" || item.reviewStatus === "skipped") return item.reviewStatus;
   return item.unmatchedStatus;
+}
+
+function assignmentStatusText(status: ProviderWebhookUnmatchedInboundItem["assignmentStatus"], label: string | null) {
+  return status === "assigned" ? `assigned:${label ?? "unknown"}` : "unassigned";
+}
+
+function escalationStatusText(status: ProviderWebhookUnmatchedInboundItem["escalationStatus"], reason: ProviderWebhookUnmatchedInboundItem["escalationReason"]) {
+  return status === "escalated" ? `escalated:${reason ?? "unspecified"}` : "none";
+}
+
+function metadataFingerprint(item: ProviderWebhookUnmatchedInboundItem) {
+  return [
+    item.assignmentStatus,
+    item.assignedToOperatorLabel ?? "",
+    item.assignedAt ?? "",
+    item.escalationStatus,
+    item.escalationReason ?? "",
+    item.escalatedAt ?? ""
+  ].join("|");
+}
+
+function bulkMetadataResult(
+  id: string,
+  ok: boolean,
+  resultStatus: ProviderWebhookUnmatchedInboundBulkMetadataItemResult["resultStatus"],
+  assignmentStatus: ProviderWebhookUnmatchedInboundBulkMetadataItemResult["assignmentStatus"],
+  escalationStatus: ProviderWebhookUnmatchedInboundBulkMetadataItemResult["escalationStatus"],
+  escalationReason: ProviderWebhookUnmatchedInboundBulkMetadataItemResult["escalationReason"],
+  error: string | null
+): ProviderWebhookUnmatchedInboundBulkMetadataItemResult {
+  return {
+    id,
+    ok,
+    resultStatus,
+    assignmentStatus,
+    escalationStatus,
+    escalationReason,
+    error,
+    externalCalls: 0 as const
+  };
+}
+
+function bulkMetadataSummary(requestedCount: number, dedupedCount: number, results: ProviderWebhookUnmatchedInboundBulkMetadataItemResult[]) {
+  return {
+    requestedCount,
+    dedupedCount,
+    successCount: results.filter((result) => result.ok).length,
+    errorCount: results.filter((result) => !result.ok).length,
+    updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+    alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+  };
+}
+
+function addMetadataOperatorNote(
+  tenantId: string,
+  item: ProviderWebhookUnmatchedInboundItem,
+  actorUserId: string | undefined,
+  eventLabel: string,
+  note: string | null,
+  now: string
+) {
+  const safeNote = safeMetadataNote(note ?? undefined);
+  const text = safeNote ? `${eventLabel}: ${safeNote}` : eventLabel;
+  if (hasUnsafeSecretPattern(text)) return;
+  const operatorNote: ProviderWebhookOperatorNote = {
+    id: `provider-webhook-operator-note-${crypto.randomUUID()}`,
+    unmatchedId: item.id,
+    tenantId,
+    authorId: safeActorId(actorUserId),
+    authorLabel: safeActorLabel(actorUserId),
+    note: text,
+    context: operatorNoteContext(item),
+    createdAt: now,
+    updatedAt: now,
+    externalCalls: 0 as const
+  };
+  operatorNotes.push(operatorNote);
+  item.lastOperatorNoteAt = now;
+  item.externalCalls = 0;
 }
 
 function rowsToCsv(rows: ProviderWebhookUnmatchedInboundExportRow[]) {
@@ -1877,6 +2379,12 @@ function rowsToCsv(rows: ProviderWebhookUnmatchedInboundExportRow[]) {
     "safeMessagePreview",
     "safeReason",
     "safeResultSummary",
+    "assignmentStatus",
+    "assignedToOperatorLabel",
+    "assignedAt",
+    "escalationStatus",
+    "escalationReason",
+    "escalatedAt",
     "externalCalls"
   ];
   const csvRows = [
@@ -1944,10 +2452,28 @@ function safeActorLabel(actorUserId: string | undefined) {
   return actor === "system" ? "system" : `operator:${actor.slice(0, 12)}`;
 }
 
+function safeOperatorLabel(label: string | undefined) {
+  const trimmed = label?.replace(/\s+/g, " ").trim();
+  if (!trimmed || isUnsafeText(trimmed) || hasUnsafeSecretPattern(trimmed)) return null;
+  return trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed;
+}
+
 function safeReviewReason(reason: ProviderWebhookUnmatchedInboundReviewRequest["reason"]) {
   const trimmed = reason?.replace(/\s+/g, " ").trim();
   if (!trimmed || isUnsafeText(trimmed)) return null;
   return trimmed.length > 120 ? `${trimmed.slice(0, 117)}...` : trimmed;
+}
+
+function safeMetadataNote(note: string | undefined) {
+  const trimmed = note?.replace(/\s+/g, " ").trim();
+  if (!trimmed || isUnsafeText(trimmed) || hasUnsafeSecretPattern(trimmed)) return null;
+  return trimmed.length > 240 ? `${trimmed.slice(0, 237)}...` : trimmed;
+}
+
+function safeFilterText(value: string | undefined) {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed || isUnsafeText(trimmed) || hasUnsafeSecretPattern(trimmed)) return null;
+  return trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed;
 }
 
 function safeHistoryText(value: string | null | undefined) {
@@ -1962,7 +2488,7 @@ function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
 }
 
 function latestItemActivityAt(item: ProviderWebhookUnmatchedInboundItem) {
-  return item.unmatchedResolvedAt ?? item.reviewedAt ?? item.receivedAt;
+  return item.lastOperatorNoteAt ?? item.escalatedAt ?? item.assignedAt ?? item.unmatchedResolvedAt ?? item.reviewedAt ?? item.receivedAt;
 }
 
 function isStaleOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {

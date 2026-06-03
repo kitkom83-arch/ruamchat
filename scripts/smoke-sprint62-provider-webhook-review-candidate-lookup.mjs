@@ -258,7 +258,10 @@ function safeUnmatchedItemShape(value) {
     "unmatchedReason", "reviewStatus", "reviewedAt", "reviewedBy", "reviewReason", "linkStatus",
     "linkedConversationId", "linkedMessageId", "unmatchedResolvedAt", "messagePersisted", "payloadDigest",
     "providerEventDigest", "deliveryDigest", "senderKeyDigest", "roomKeyDigest", "textPreview",
-    "textLength", "receivedAt", "externalCalls"
+    "textLength", "receivedAt", "assignmentStatus", "assignedToOperatorLabel", "assignedAt",
+    "assignedByOperatorLabel", "escalationStatus", "escalationReason", "escalatedAt",
+    "escalatedByOperatorLabel", "lastOperatorNoteAt", "historyAvailable", "diagnosticsAvailable",
+    "candidatesAvailable", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.mode === "sandbox"

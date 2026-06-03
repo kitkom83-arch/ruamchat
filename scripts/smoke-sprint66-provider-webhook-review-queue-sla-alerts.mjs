@@ -266,7 +266,8 @@ function safeAlertItemShape(value) {
   const allowed = new Set([
     "unmatchedId", "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "receivedAt", "ageBucket", "severity", "reviewStatus", "linkStatus",
-    "unmatchedStatus", "routingOutcome", "diagnosticsAvailable", "historyAvailable", "externalCalls"
+    "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus",
+    "escalationReason", "routingOutcome", "diagnosticsAvailable", "historyAvailable", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.provider === value.platform
@@ -284,6 +285,9 @@ function safeDiagnosticsShape(value) {
   const allowed = new Set([
     "unmatchedId", "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "receivedAt", "reviewStatus", "linkStatus", "unmatchedStatus",
+    "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "assignedByOperatorLabel",
+    "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
+    "lastOperatorNoteAt",
     "routingOutcome", "normalizedEventType", "persistenceOutcome", "candidateLookupAvailable",
     "historyAvailable", "exportAvailable", "lastActionAt", "safeWarnings", "externalCalls"
   ]);
@@ -325,7 +329,8 @@ function safeExportShape(value) {
     "id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType",
     "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt",
     "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason",
-    "safeResultSummary", "externalCalls"
+    "safeResultSummary", "assignmentStatus", "assignedToOperatorLabel", "assignedAt",
+    "escalationStatus", "escalationReason", "escalatedAt", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && ["json", "csv"].includes(value.format)
@@ -359,7 +364,10 @@ function safeUnmatchedItemShape(value) {
     "unmatchedReason", "reviewStatus", "reviewedAt", "reviewedBy", "reviewReason", "linkStatus",
     "linkedConversationId", "linkedMessageId", "unmatchedResolvedAt", "messagePersisted", "payloadDigest",
     "providerEventDigest", "deliveryDigest", "senderKeyDigest", "roomKeyDigest", "textPreview",
-    "textLength", "receivedAt", "externalCalls"
+    "textLength", "receivedAt", "assignmentStatus", "assignedToOperatorLabel", "assignedAt",
+    "assignedByOperatorLabel", "escalationStatus", "escalationReason", "escalatedAt",
+    "escalatedByOperatorLabel", "lastOperatorNoteAt", "historyAvailable", "diagnosticsAvailable",
+    "candidatesAvailable", "externalCalls"
   ]);
   return Object.keys(value).every((key) => allowed.has(key))
     && value.mode === "sandbox"

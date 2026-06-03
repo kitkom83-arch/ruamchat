@@ -75,6 +75,7 @@
     "smoke:sprint66": "node scripts/smoke-sprint66-provider-webhook-review-queue-sla-alerts.mjs",
     "smoke:sprint67": "node scripts/smoke-sprint67-provider-webhook-review-triage-guidance.mjs",
     "smoke:sprint68": "node scripts/smoke-sprint68-provider-webhook-review-saved-views-notes.mjs",
+    "smoke:sprint69": "node scripts/smoke-sprint69-provider-webhook-review-assignment-escalation.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

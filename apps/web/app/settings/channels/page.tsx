@@ -2,14 +2,18 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, ProviderWebhookReviewEscalationReason, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
+  bulkAssignSettingsProviderWebhookUnmatchedInbound,
+  bulkEscalateSettingsProviderWebhookUnmatchedInbound,
   archiveSettingsProviderWebhookSavedView,
+  assignSettingsProviderWebhookUnmatchedInbound,
   createSettingsProviderWebhookSandboxEvent,
   createSettingsProviderWebhookOperatorNote,
   createSettingsProviderWebhookSavedView,
+  escalateSettingsProviderWebhookUnmatchedInbound,
   exportSettingsProviderWebhookUnmatchedInboundData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
@@ -20,6 +24,7 @@ import {
   loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderWebhookReviewTriageData,
+  loadSettingsProviderWebhookReviewWorkloadData,
   loadSettingsProviderReadinessData,
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookSavedViewsData,
@@ -51,6 +56,8 @@ export default function ChannelSettingsPage() {
   const [selectedUnmatchedIds, setSelectedUnmatchedIds] = useState<string[]>([]);
   const [unmatchedBulkSavingStatus, setUnmatchedBulkSavingStatus] = useState<"" | "reviewed" | "skipped">("");
   const [unmatchedBulkResult, setUnmatchedBulkResult] = useState<ProviderWebhookUnmatchedInboundBulkReviewResponse | null>(null);
+  const [unmatchedBulkMetadataSavingStatus, setUnmatchedBulkMetadataSavingStatus] = useState("");
+  const [unmatchedBulkMetadataResult, setUnmatchedBulkMetadataResult] = useState<ProviderWebhookUnmatchedInboundBulkAssignmentResponse | ProviderWebhookUnmatchedInboundBulkEscalationResponse | null>(null);
   const [reviewMetrics, setReviewMetrics] = useState<ProviderWebhookReviewMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [metricsError, setMetricsError] = useState("");
@@ -61,6 +68,9 @@ export default function ChannelSettingsPage() {
   const [triageSavedViewFilters, setTriageSavedViewFilters] = useState<Pick<ProviderWebhookReviewTriageFilters, "severity" | "triageLane">>({});
   const [triageLoading, setTriageLoading] = useState(true);
   const [triageError, setTriageError] = useState("");
+  const [reviewWorkload, setReviewWorkload] = useState<ProviderWebhookReviewWorkload | null>(null);
+  const [workloadLoading, setWorkloadLoading] = useState(true);
+  const [workloadError, setWorkloadError] = useState("");
   const [reviewSavedViews, setReviewSavedViews] = useState<ProviderWebhookReviewSavedView[]>([]);
   const [savedViewsLoading, setSavedViewsLoading] = useState(true);
   const [savedViewsError, setSavedViewsError] = useState("");
@@ -220,6 +230,23 @@ export default function ChannelSettingsPage() {
     }
   }, [unmatchedFilters, triageSavedViewFilters]);
 
+  const refreshReviewWorkload = useCallback(async () => {
+    setWorkloadLoading(true);
+    setWorkloadError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewWorkloadData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewWorkload(result.workload);
+    } catch (reason) {
+      setReviewWorkload(null);
+      setWorkloadError(`Assignment / Escalation / Workload API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook review workload"}`);
+    } finally {
+      setWorkloadLoading(false);
+    }
+  }, [unmatchedFilters, triageSavedViewFilters]);
+
   const refreshSavedViews = useCallback(async () => {
     setSavedViewsLoading(true);
     setSavedViewsError("");
@@ -249,6 +276,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewTriage();
   }, [refreshReviewTriage]);
+
+  useEffect(() => {
+    void refreshReviewWorkload();
+  }, [refreshReviewWorkload]);
 
   useEffect(() => {
     void refreshSavedViews();
@@ -461,6 +492,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewMetrics();
       await refreshReviewAlerts();
       await refreshReviewTriage();
+      await refreshReviewWorkload();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -482,6 +514,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewMetrics();
       await refreshReviewAlerts();
       await refreshReviewTriage();
+      await refreshReviewWorkload();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -508,6 +541,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewMetrics();
       await refreshReviewAlerts();
       await refreshReviewTriage();
+      await refreshReviewWorkload();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
@@ -522,9 +556,72 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function refreshAfterMetadataMutation(ids: string[]) {
+    const refreshedItems = await refreshWebhookEvents();
+    await refreshReviewMetrics();
+    await refreshReviewAlerts();
+    await refreshReviewTriage();
+    await refreshReviewWorkload();
+    await refreshSavedViews();
+    const visibleIds = new Set(refreshedItems.map((item) => item.id));
+    for (const id of ids) {
+      if (candidateItemsById[id] && visibleIds.has(id)) {
+        await loadCandidates(id);
+      }
+    }
+    await refreshActiveHistory();
+    await refreshActiveDiagnostics();
+    await refreshActiveOperatorNotes();
+    const readiness = await loadSettingsProviderReadinessData(dataMode);
+    setProviderReadiness(readiness.providerReadiness);
+  }
+
+  async function assignUnmatchedInbound(unmatchedInboundId: string, operation: "ASSIGN_TO_ME" | "ASSIGN_TO_OPERATOR" | "UNASSIGN", assignedToOperatorLabel?: string) {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    setWorkloadError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkMetadataResult(null);
+    try {
+      const result = await assignSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, {
+        operation,
+        assignedToOperatorLabel,
+        note: operation === "UNASSIGN" ? "safe assignment cleared" : "safe assignment metadata updated"
+      });
+      setUnmatchedActionStatus(`Assignment ${result.id}: assignmentStatus=${result.assignmentStatus}; assignedTo=${result.assignedToOperatorLabel ?? "none"}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation([unmatchedInboundId]);
+    } catch (reason) {
+      setWorkloadError(`Assignment / Escalation / Workload API error: ${reason instanceof Error ? reason.message : "Unable to update assignment"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
+  async function escalateUnmatchedInbound(unmatchedInboundId: string, operation: "ESCALATE" | "CLEAR_ESCALATION", escalationReason?: ProviderWebhookReviewEscalationReason) {
+    setUnmatchedActionSavingId(unmatchedInboundId);
+    setUnmatchedInboundError("");
+    setWorkloadError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkMetadataResult(null);
+    try {
+      const result = await escalateSettingsProviderWebhookUnmatchedInbound(dataMode, unmatchedInboundId, {
+        operation,
+        escalationReason,
+        note: operation === "CLEAR_ESCALATION" ? "safe escalation cleared" : "safe escalation metadata updated"
+      });
+      setUnmatchedActionStatus(`Escalation ${result.id}: escalationStatus=${result.escalationStatus}; reason=${result.escalationReason ?? "none"}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation([unmatchedInboundId]);
+    } catch (reason) {
+      setWorkloadError(`Assignment / Escalation / Workload API error: ${reason instanceof Error ? reason.message : "Unable to update escalation"}`);
+    } finally {
+      setUnmatchedActionSavingId("");
+    }
+  }
+
   function updateUnmatchedFilters(filters: ProviderWebhookUnmatchedInboundFilters) {
     setSelectedUnmatchedIds([]);
     setUnmatchedBulkResult(null);
+    setUnmatchedBulkMetadataResult(null);
     setUnmatchedActionStatus("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
@@ -555,6 +652,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewMetrics();
       await refreshReviewAlerts();
       await refreshReviewTriage();
+      await refreshReviewWorkload();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -571,6 +669,53 @@ export default function ChannelSettingsPage() {
       setUnmatchedInboundError(`Unmatched Inbound API error: ${reason instanceof Error ? reason.message : "Unable to bulk update unmatched inbound review"}`);
     } finally {
       setUnmatchedBulkSavingStatus("");
+    }
+  }
+
+  async function bulkAssignUnmatchedInbound(operation: "ASSIGN_TO_ME" | "UNASSIGN") {
+    const ids = selectedUnmatchedIds;
+    setUnmatchedBulkMetadataSavingStatus(operation);
+    setUnmatchedInboundError("");
+    setWorkloadError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkMetadataResult(null);
+    try {
+      const result = await bulkAssignSettingsProviderWebhookUnmatchedInbound(dataMode, {
+        ids,
+        operation,
+        note: operation === "UNASSIGN" ? "safe bulk assignment cleared" : "safe bulk assignment metadata updated"
+      });
+      setUnmatchedBulkMetadataResult(result);
+      setUnmatchedActionStatus(`Bulk assignment ${operation}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation(ids);
+    } catch (reason) {
+      setWorkloadError(`Assignment / Escalation / Workload API error: ${reason instanceof Error ? reason.message : "Unable to bulk update assignment"}`);
+    } finally {
+      setUnmatchedBulkMetadataSavingStatus("");
+    }
+  }
+
+  async function bulkEscalateUnmatchedInbound(operation: "ESCALATE" | "CLEAR_ESCALATION") {
+    const ids = selectedUnmatchedIds;
+    setUnmatchedBulkMetadataSavingStatus(operation);
+    setUnmatchedInboundError("");
+    setWorkloadError("");
+    setUnmatchedActionStatus("");
+    setUnmatchedBulkMetadataResult(null);
+    try {
+      const result = await bulkEscalateSettingsProviderWebhookUnmatchedInbound(dataMode, {
+        ids,
+        operation,
+        escalationReason: operation === "ESCALATE" ? "SLA_RISK" : undefined,
+        note: operation === "CLEAR_ESCALATION" ? "safe bulk escalation cleared" : "safe bulk escalation metadata updated"
+      });
+      setUnmatchedBulkMetadataResult(result);
+      setUnmatchedActionStatus(`Bulk escalation ${operation}: success=${result.summary.successCount}, errors=${result.summary.errorCount}, deduped=${result.summary.dedupedCount}; externalCalls=${result.externalCalls}`);
+      await refreshAfterMetadataMutation(ids);
+    } catch (reason) {
+      setWorkloadError(`Assignment / Escalation / Workload API error: ${reason instanceof Error ? reason.message : "Unable to bulk update escalation"}`);
+    } finally {
+      setUnmatchedBulkMetadataSavingStatus("");
     }
   }
 
@@ -606,6 +751,8 @@ export default function ChannelSettingsPage() {
         unmatchedActionStatus={unmatchedActionStatus}
         unmatchedBulkSavingStatus={unmatchedBulkSavingStatus}
         unmatchedBulkResult={unmatchedBulkResult}
+        unmatchedBulkMetadataSavingStatus={unmatchedBulkMetadataSavingStatus}
+        unmatchedBulkMetadataResult={unmatchedBulkMetadataResult}
         reviewMetrics={reviewMetrics}
         reviewMetricsLoading={metricsLoading}
         reviewMetricsError={metricsError}
@@ -615,6 +762,9 @@ export default function ChannelSettingsPage() {
         reviewTriage={reviewTriage}
         reviewTriageLoading={triageLoading}
         reviewTriageError={triageError}
+        reviewWorkload={reviewWorkload}
+        reviewWorkloadLoading={workloadLoading}
+        reviewWorkloadError={workloadError}
         reviewSavedViews={reviewSavedViews}
         reviewSavedViewsLoading={savedViewsLoading}
         reviewSavedViewsError={savedViewsError}
@@ -644,6 +794,10 @@ export default function ChannelSettingsPage() {
         onCreateSandboxEvent={createSandboxEvent}
         onReviewUnmatchedInbound={reviewUnmatchedInbound}
         onBulkReviewUnmatchedInbound={bulkReviewUnmatchedInbound}
+        onAssignUnmatchedInbound={assignUnmatchedInbound}
+        onEscalateUnmatchedInbound={escalateUnmatchedInbound}
+        onBulkAssignUnmatchedInbound={bulkAssignUnmatchedInbound}
+        onBulkEscalateUnmatchedInbound={bulkEscalateUnmatchedInbound}
         onLinkUnmatchedInbound={linkUnmatchedInbound}
         onCreateSavedView={createSavedView}
         onApplySavedView={applySavedView}
@@ -747,6 +901,10 @@ function savedFiltersFromQueueFilters(filters: ProviderWebhookUnmatchedInboundFi
     ...(filters.linkStatus ? { linkStatus: filters.linkStatus } : {}),
     ...(filters.unmatchedStatus ? { unmatchedStatus: filters.unmatchedStatus } : {}),
     ...(filters.eventType ? { eventType: filters.eventType } : {}),
+    ...(filters.assignedTo ? { assignedTo: filters.assignedTo } : {}),
+    ...(filters.assignmentStatus ? { assignmentStatus: filters.assignmentStatus } : {}),
+    ...(filters.escalationStatus ? { escalationStatus: filters.escalationStatus } : {}),
+    ...(filters.escalationReason ? { escalationReason: filters.escalationReason } : {}),
     ...(filters.receivedAtFrom ? { receivedAtFrom: filters.receivedAtFrom } : {}),
     ...(filters.receivedAtTo ? { receivedAtTo: filters.receivedAtTo } : {}),
     ...(filters.limit ? { pageSize: filters.limit } : {})
@@ -761,6 +919,10 @@ function queueFiltersFromSavedView(savedView: ProviderWebhookReviewSavedView): P
     ...(savedView.filters.linkStatus ? { linkStatus: savedView.filters.linkStatus } : {}),
     ...(savedView.filters.unmatchedStatus ? { unmatchedStatus: savedView.filters.unmatchedStatus } : {}),
     ...(savedView.filters.eventType ? { eventType: savedView.filters.eventType } : {}),
+    ...(savedView.filters.assignedTo ? { assignedTo: savedView.filters.assignedTo } : {}),
+    ...(savedView.filters.assignmentStatus ? { assignmentStatus: savedView.filters.assignmentStatus } : {}),
+    ...(savedView.filters.escalationStatus ? { escalationStatus: savedView.filters.escalationStatus } : {}),
+    ...(savedView.filters.escalationReason ? { escalationReason: savedView.filters.escalationReason } : {}),
     ...(savedView.filters.receivedAtFrom ? { receivedAtFrom: savedView.filters.receivedAtFrom } : {}),
     ...(savedView.filters.receivedAtTo ? { receivedAtTo: savedView.filters.receivedAtTo } : {}),
     limit: savedView.filters.pageSize ?? defaultUnmatchedFilters.limit,

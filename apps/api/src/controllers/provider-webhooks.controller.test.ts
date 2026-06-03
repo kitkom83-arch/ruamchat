@@ -1123,6 +1123,138 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toMatch(/replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("keeps assignment, escalation, workload, history, and notes tenant-scoped as internal metadata only", async () => {
+    const { controller, audit } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-assignment-room-69", "event-assignment-69", "Safe assignment target");
+    const before = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
+
+    expect(() => controller.assignUnmatchedInbound(undefined, "operator-current", item.id, { operation: "ASSIGN_TO_ME" }))
+      .toThrow(BadRequestException);
+    await expect(controller.assignUnmatchedInbound("other-tenant", "operator-current", item.id, { operation: "ASSIGN_TO_ME" }))
+      .rejects.toThrow("Unmatched inbound item not found");
+    await expect(controller.escalateUnmatchedInbound("other-tenant", "operator-current", item.id, {
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK"
+    })).rejects.toThrow("Unmatched inbound item not found");
+
+    const assigned = await controller.assignUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ASSIGN_TO_ME",
+      note: "Safe assignment note"
+    });
+    const assignedSnapshot = JSON.parse(JSON.stringify(assigned));
+    const assignedToOperator = await controller.assignUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ASSIGN_TO_OPERATOR",
+      assignedToOperatorLabel: "queue lead",
+      note: "Safe queue lead handoff"
+    });
+    const assignedToOperatorSnapshot = JSON.parse(JSON.stringify(assignedToOperator));
+    const escalated = await controller.escalateUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "Safe escalation note"
+    });
+    const workload = controller.getReviewWorkload(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "assigned_to_others",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK"
+    }, "operator-current");
+    const diagnostics = controller.getUnmatchedInboundDiagnostics(tenantId, item.id);
+    const history = controller.listUnmatchedInboundHistory(tenantId, item.id);
+    const notes = controller.listOperatorNotes(tenantId, item.id);
+    const serialized = JSON.stringify({ assigned, assignedToOperator, escalated, workload, diagnostics, history, notes });
+
+    expect(before).toMatchObject({
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false
+    });
+    expect(assignedSnapshot).toMatchObject({
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "operator:operator-cur",
+      assignedByOperatorLabel: "operator:operator-cur",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(assignedToOperatorSnapshot).toMatchObject({
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "queue lead",
+      assignedByOperatorLabel: "operator:operator-cur",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(escalated).toMatchObject({
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      escalatedByOperatorLabel: "operator:operator-cur",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(workload).toMatchObject({
+      totalItems: 1,
+      counts: {
+        assignedToOthersOpen: 1,
+        escalatedOpen: 1
+      },
+      externalCalls: 0
+    });
+    expect(workload.appliedFilters).toMatchObject({
+      assignmentStatus: "assigned_to_others",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK"
+    });
+    expect(workload.topAssignedItems[0]).toMatchObject({
+      unmatchedId: item.id,
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      assignmentStatus: "assigned",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      historyAvailable: true,
+      diagnosticsAvailable: true,
+      candidatesAvailable: true,
+      externalCalls: 0
+    });
+    expect(diagnostics).toMatchObject({
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "queue lead",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      externalCalls: 0
+    });
+    expect(history.entries.map((entry) => entry.action)).toEqual(expect.arrayContaining(["assigned", "escalated"]));
+    expect(notes.map((note) => note.note)).toEqual(expect.arrayContaining([
+      "assignment updated: Safe assignment note",
+      "assignment updated: Safe queue lead handoff",
+      "escalation updated: Safe escalation note"
+    ]));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_assigned",
+      entityType: "provider_webhook_unmatched_inbound_metadata"
+    }));
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: "provider_webhook.unmatched_inbound_escalated",
+      entityType: "provider_webhook_unmatched_inbound_metadata"
+    }));
+    expect(serialized).not.toMatch(/raw-assignment-room-69|raw-sender-event-assignment-69|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
     const { controller } = buildController(noMatchConversations());
     const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");
@@ -1353,6 +1485,10 @@ describe("ProviderWebhooksController sandbox events", () => {
         eventType: "message.created",
         severity: "info",
         triageLane: "safe_link_candidate_available",
+        assignedTo: "me",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
         receivedAtFrom: "2026-05-31T00:00:00.000Z",
         pageSize: 10
       },
@@ -1371,6 +1507,9 @@ describe("ProviderWebhooksController sandbox events", () => {
       filters: {
         provider: "line",
         reviewStatus: "pending",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
         pageSize: 25
       },
       sort: {
@@ -1395,7 +1534,14 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(refetchedSnapshot.map((view: { id: string }) => view.id)).toContain(created.id);
     expect(updated).toMatchObject({
       name: "LINE pending queue updated",
-      filters: { provider: "line", reviewStatus: "pending", pageSize: 25 },
+      filters: {
+        provider: "line",
+        reviewStatus: "pending",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
+        pageSize: 25
+      },
       sort: { sortBy: "receivedAt", sortDirection: "asc" },
       pinned: false,
       externalCalls: 0

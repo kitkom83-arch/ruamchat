@@ -2029,6 +2029,31 @@ export type ProviderWebhookUnmatchedReviewActionStatus = z.infer<typeof provider
 export const providerWebhookUnmatchedLinkStatusSchema = z.enum(["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"]);
 export type ProviderWebhookUnmatchedLinkStatus = z.infer<typeof providerWebhookUnmatchedLinkStatusSchema>;
 
+export const providerWebhookReviewAssignmentOperationSchema = z.enum(["ASSIGN_TO_ME", "ASSIGN_TO_OPERATOR", "UNASSIGN"]);
+export type ProviderWebhookReviewAssignmentOperation = z.infer<typeof providerWebhookReviewAssignmentOperationSchema>;
+
+export const providerWebhookReviewAssignmentStatusSchema = z.enum(["unassigned", "assigned"]);
+export type ProviderWebhookReviewAssignmentStatus = z.infer<typeof providerWebhookReviewAssignmentStatusSchema>;
+
+export const providerWebhookReviewAssignmentStatusFilterSchema = z.enum(["unassigned", "assigned", "assigned_to_me", "assigned_to_others"]);
+export type ProviderWebhookReviewAssignmentStatusFilter = z.infer<typeof providerWebhookReviewAssignmentStatusFilterSchema>;
+
+export const providerWebhookReviewEscalationOperationSchema = z.enum(["ESCALATE", "CLEAR_ESCALATION"]);
+export type ProviderWebhookReviewEscalationOperation = z.infer<typeof providerWebhookReviewEscalationOperationSchema>;
+
+export const providerWebhookReviewEscalationStatusSchema = z.enum(["none", "escalated"]);
+export type ProviderWebhookReviewEscalationStatus = z.infer<typeof providerWebhookReviewEscalationStatusSchema>;
+
+export const providerWebhookReviewEscalationReasonSchema = z.enum([
+  "SLA_RISK",
+  "NO_SAFE_CANDIDATE",
+  "ROUTING_FAILED",
+  "HIGH_PRIORITY_CUSTOMER",
+  "NEEDS_MANAGER_REVIEW",
+  "MANUAL_REVIEW_BLOCKED"
+]);
+export type ProviderWebhookReviewEscalationReason = z.infer<typeof providerWebhookReviewEscalationReasonSchema>;
+
 export const providerWebhookEventTypeSchema = z.enum(["message.created", "webhook.verified", "webhook.failed"]);
 export type ProviderWebhookEventType = z.infer<typeof providerWebhookEventTypeSchema>;
 
@@ -2049,6 +2074,10 @@ export const providerWebhookUnmatchedInboundFiltersSchema = z.object({
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema.optional(),
   status: providerWebhookUnmatchedInboundStatusFilterSchema,
   eventType: providerWebhookEventTypeSchema.optional(),
+  assignedTo: z.string().trim().min(1).max(80).optional(),
+  assignmentStatus: providerWebhookReviewAssignmentStatusFilterSchema.optional(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
+  escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
   receivedFrom: providerWebhookReceivedAtFilterSchema.optional(),
   receivedTo: providerWebhookReceivedAtFilterSchema.optional(),
   receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
@@ -2068,6 +2097,10 @@ export const providerWebhookReviewMetricsFiltersSchema = providerWebhookUnmatche
     unmatchedStatus: true,
     status: true,
     eventType: true,
+    assignedTo: true,
+    assignmentStatus: true,
+    escalationStatus: true,
+    escalationReason: true,
     receivedFrom: true,
     receivedTo: true,
     receivedAtFrom: true,
@@ -2125,6 +2158,10 @@ export const providerWebhookReviewSavedViewFiltersSchema = z.object({
   eventType: providerWebhookEventTypeSchema.optional(),
   severity: providerWebhookReviewAlertSeveritySchema.optional(),
   triageLane: providerWebhookReviewTriageLaneSchema.optional(),
+  assignedTo: z.string().trim().min(1).max(80).optional(),
+  assignmentStatus: providerWebhookReviewAssignmentStatusFilterSchema.optional(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
+  escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
   receivedAtFrom: providerWebhookReceivedAtFilterSchema.optional(),
   receivedAtTo: providerWebhookReceivedAtFilterSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional()
@@ -2189,7 +2226,11 @@ export const providerWebhookOperatorNoteContextSchema = z.object({
   eventType: providerWebhookEventTypeSchema,
   reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
   linkStatus: providerWebhookUnmatchedLinkStatusSchema,
-  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema.optional(),
+  assignedToOperatorLabel: z.string().min(1).nullable().optional(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema.optional(),
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable().optional()
 }).strict();
 export type ProviderWebhookOperatorNoteContext = z.infer<typeof providerWebhookOperatorNoteContextSchema>;
 
@@ -2267,8 +2308,14 @@ export const providerReadinessSchema = z.object({
   triageGuidanceEnabled: z.boolean(),
   reviewSavedViewsEnabled: z.boolean(),
   operatorNotesEnabled: z.boolean(),
+  reviewAssignmentEnabled: z.boolean(),
+  reviewEscalationEnabled: z.boolean(),
+  assignmentWorkloadEnabled: z.boolean(),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
+  unassignedOpenCount: z.number().int().nonnegative(),
+  assignedOpenCount: z.number().int().nonnegative(),
+  escalatedOpenCount: z.number().int().nonnegative(),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
   criticalTriageCount: z.number().int().nonnegative(),
   openTriageCount: z.number().int().nonnegative(),
@@ -2377,6 +2424,20 @@ export const providerWebhookUnmatchedInboundLinkRequestSchema = z.object({
 }).strict();
 export type ProviderWebhookUnmatchedInboundLinkRequest = z.infer<typeof providerWebhookUnmatchedInboundLinkRequestSchema>;
 
+export const providerWebhookUnmatchedInboundAssignmentRequestSchema = z.object({
+  operation: providerWebhookReviewAssignmentOperationSchema,
+  assignedToOperatorLabel: z.string().trim().min(1).max(80).optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundAssignmentRequest = z.infer<typeof providerWebhookUnmatchedInboundAssignmentRequestSchema>;
+
+export const providerWebhookUnmatchedInboundEscalationRequestSchema = z.object({
+  operation: providerWebhookReviewEscalationOperationSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundEscalationRequest = z.infer<typeof providerWebhookUnmatchedInboundEscalationRequestSchema>;
+
 export const providerWebhookCandidateConversationSchema = z.object({
   conversationId: z.string().min(1),
   platform: providerSandboxProviderSchema,
@@ -2414,6 +2475,18 @@ export const providerWebhookUnmatchedInboundItemSchema = z.object({
   linkedMessageId: z.string().min(1).nullable(),
   unmatchedResolvedAt: z.string().datetime().nullable(),
   messagePersisted: z.boolean(),
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  assignedAt: z.string().datetime().nullable(),
+  assignedByOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  escalatedAt: z.string().datetime().nullable(),
+  escalatedByOperatorLabel: z.string().min(1).nullable(),
+  lastOperatorNoteAt: z.string().datetime().nullable(),
+  historyAvailable: z.boolean(),
+  diagnosticsAvailable: z.boolean(),
+  candidatesAvailable: z.boolean(),
   payloadDigest: z.string().min(1),
   providerEventDigest: z.string().min(1).nullable(),
   deliveryDigest: z.string().min(1).nullable(),
@@ -2496,6 +2569,37 @@ export type ProviderWebhookReviewAlertThresholds = z.infer<typeof providerWebhoo
 export const providerWebhookReviewAlertAgeBucketSchema = z.enum(["under1Hour", "oneTo24Hours", "oneTo3Days", "over3Days"]);
 export type ProviderWebhookReviewAlertAgeBucket = z.infer<typeof providerWebhookReviewAlertAgeBucketSchema>;
 
+export const providerWebhookReviewAssignmentSummaryItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  ageBucket: providerWebhookReviewAlertAgeBucketSchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  triageLane: providerWebhookReviewTriageLaneSchema,
+  severity: providerWebhookReviewAlertSeveritySchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  assignedAt: z.string().datetime().nullable(),
+  assignedByOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  escalatedAt: z.string().datetime().nullable(),
+  escalatedByOperatorLabel: z.string().min(1).nullable(),
+  lastOperatorNoteAt: z.string().datetime().nullable(),
+  historyAvailable: z.boolean(),
+  diagnosticsAvailable: z.boolean(),
+  candidatesAvailable: z.boolean(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewAssignmentSummaryItem = z.infer<typeof providerWebhookReviewAssignmentSummaryItemSchema>;
+
 export const providerWebhookReviewAlertItemSchema = z.object({
   unmatchedId: z.string().min(1),
   provider: providerSandboxProviderSchema,
@@ -2510,6 +2614,10 @@ export const providerWebhookReviewAlertItemSchema = z.object({
   reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
   linkStatus: providerWebhookUnmatchedLinkStatusSchema,
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   routingOutcome: z.string().min(1),
   diagnosticsAvailable: z.boolean(),
   historyAvailable: z.boolean(),
@@ -2567,6 +2675,10 @@ export const providerWebhookReviewTriageItemSchema = z.object({
   reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
   linkStatus: providerWebhookUnmatchedLinkStatusSchema,
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
   routingOutcome: z.string().min(1),
   recommendedNextActions: z.array(providerWebhookTriageRecommendedActionSchema),
   diagnosticsAvailable: z.boolean(),
@@ -2622,6 +2734,41 @@ export const providerWebhookReviewMetricsSchema = z.object({
 }).strict();
 export type ProviderWebhookReviewMetrics = z.infer<typeof providerWebhookReviewMetricsSchema>;
 
+export const providerWebhookReviewWorkloadFiltersSchema = providerWebhookReviewTriageFiltersSchema.strip();
+export type ProviderWebhookReviewWorkloadFilters = z.infer<typeof providerWebhookReviewWorkloadFiltersSchema>;
+
+export const providerWebhookReviewWorkloadSchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewWorkloadFiltersSchema,
+  totalItems: z.number().int().nonnegative(),
+  totalOpenItems: z.number().int().nonnegative(),
+  thresholds: providerWebhookReviewAlertThresholdsSchema,
+  counts: z.object({
+    unassignedOpen: z.number().int().nonnegative(),
+    assignedToMeOpen: z.number().int().nonnegative(),
+    assignedToOthersOpen: z.number().int().nonnegative(),
+    assignedOpen: z.number().int().nonnegative(),
+    escalatedOpen: z.number().int().nonnegative(),
+    overdueAssignedOpen: z.number().int().nonnegative(),
+    recentlyAssigned: z.number().int().nonnegative(),
+    recentlyEscalated: z.number().int().nonnegative(),
+    resolvedAssigned: z.number().int().nonnegative()
+  }).strict(),
+  byAssignee: z.array(providerWebhookReviewMetricsCountSchema),
+  byAssignmentStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byEscalationStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byEscalationReason: z.array(providerWebhookReviewMetricsCountSchema),
+  byProvider: z.array(providerWebhookReviewMetricsCountSchema),
+  byPlatform: z.array(providerWebhookReviewMetricsCountSchema),
+  byReviewStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byLinkStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byUnmatchedStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  topAssignedItems: z.array(providerWebhookReviewAssignmentSummaryItemSchema),
+  topEscalatedItems: z.array(providerWebhookReviewAssignmentSummaryItemSchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewWorkload = z.infer<typeof providerWebhookReviewWorkloadSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
@@ -2663,6 +2810,72 @@ export const providerWebhookUnmatchedInboundBulkReviewResponseSchema = z.object(
 }).strict();
 export type ProviderWebhookUnmatchedInboundBulkReviewResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkReviewResponseSchema>;
 
+export const providerWebhookUnmatchedInboundBulkAssignmentRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(50),
+  operation: providerWebhookReviewAssignmentOperationSchema,
+  assignedToOperatorLabel: z.string().trim().min(1).max(80).optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkAssignmentRequest = z.infer<typeof providerWebhookUnmatchedInboundBulkAssignmentRequestSchema>;
+
+export const providerWebhookUnmatchedInboundBulkEscalationRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(50),
+  operation: providerWebhookReviewEscalationOperationSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.optional(),
+  note: z.string().trim().max(240).optional()
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkEscalationRequest = z.infer<typeof providerWebhookUnmatchedInboundBulkEscalationRequestSchema>;
+
+export const providerWebhookUnmatchedInboundBulkMetadataResultStatusSchema = z.enum([
+  "updated",
+  "already-applied",
+  "not-found",
+  "conflict"
+]);
+export type ProviderWebhookUnmatchedInboundBulkMetadataResultStatus = z.infer<typeof providerWebhookUnmatchedInboundBulkMetadataResultStatusSchema>;
+
+export const providerWebhookUnmatchedInboundBulkMetadataItemResultSchema = z.object({
+  id: z.string().min(1),
+  ok: z.boolean(),
+  resultStatus: providerWebhookUnmatchedInboundBulkMetadataResultStatusSchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema.nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema.nullable(),
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  error: z.string().min(1).nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkMetadataItemResult = z.infer<typeof providerWebhookUnmatchedInboundBulkMetadataItemResultSchema>;
+
+export const providerWebhookUnmatchedInboundBulkAssignmentResponseSchema = z.object({
+  operation: providerWebhookReviewAssignmentOperationSchema,
+  results: z.array(providerWebhookUnmatchedInboundBulkMetadataItemResultSchema),
+  summary: z.object({
+    requestedCount: z.number().int().nonnegative(),
+    dedupedCount: z.number().int().nonnegative(),
+    successCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    updatedCount: z.number().int().nonnegative(),
+    alreadyAppliedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkAssignmentResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkAssignmentResponseSchema>;
+
+export const providerWebhookUnmatchedInboundBulkEscalationResponseSchema = z.object({
+  operation: providerWebhookReviewEscalationOperationSchema,
+  results: z.array(providerWebhookUnmatchedInboundBulkMetadataItemResultSchema),
+  summary: z.object({
+    requestedCount: z.number().int().nonnegative(),
+    dedupedCount: z.number().int().nonnegative(),
+    successCount: z.number().int().nonnegative(),
+    errorCount: z.number().int().nonnegative(),
+    updatedCount: z.number().int().nonnegative(),
+    alreadyAppliedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookUnmatchedInboundBulkEscalationResponse = z.infer<typeof providerWebhookUnmatchedInboundBulkEscalationResponseSchema>;
+
 export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
   "inbound_received",
   "normalized_routed",
@@ -2674,7 +2887,15 @@ export const providerWebhookUnmatchedInboundHistoryActionSchema = z.enum([
   "bulk_reviewed",
   "bulk_skipped",
   "link_rejected",
-  "operator_note_created"
+  "operator_note_created",
+  "assigned",
+  "unassigned",
+  "bulk_assigned",
+  "bulk_unassigned",
+  "escalated",
+  "escalation_cleared",
+  "bulk_escalated",
+  "bulk_escalation_cleared"
 ]);
 export type ProviderWebhookUnmatchedInboundHistoryAction = z.infer<typeof providerWebhookUnmatchedInboundHistoryActionSchema>;
 
@@ -2732,6 +2953,15 @@ export const providerWebhookUnmatchedInboundDiagnosticsSchema = z.object({
   reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
   linkStatus: providerWebhookUnmatchedLinkStatusSchema,
   unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  assignedAt: z.string().datetime().nullable(),
+  assignedByOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  escalatedAt: z.string().datetime().nullable(),
+  escalatedByOperatorLabel: z.string().min(1).nullable(),
+  lastOperatorNoteAt: z.string().datetime().nullable(),
   routingOutcome: z.string().min(1),
   normalizedEventType: providerWebhookNormalizedEventTypeSchema,
   persistenceOutcome: z.string().min(1),
@@ -2773,6 +3003,12 @@ export const providerWebhookUnmatchedInboundExportRowSchema = z.object({
   safeMessagePreview: z.string().min(1).nullable(),
   safeReason: z.string().min(1).nullable(),
   safeResultSummary: z.string().min(1).nullable(),
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  assignedAt: z.string().datetime().nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  escalatedAt: z.string().datetime().nullable(),
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookUnmatchedInboundExportRow = z.infer<typeof providerWebhookUnmatchedInboundExportRowSchema>;

@@ -251,7 +251,7 @@ function unmatchedItems(value) {
 
 function safeSavedViewShape(value) {
   const allowed = new Set(["id", "name", "description", "tenantId", "ownerId", "createdBy", "filters", "sort", "pinned", "isDefault", "archived", "createdAt", "updatedAt", "externalCalls"]);
-  const filterAllowed = new Set(["provider", "reviewStatus", "linkStatus", "unmatchedStatus", "eventType", "severity", "triageLane", "receivedAtFrom", "receivedAtTo", "pageSize"]);
+  const filterAllowed = new Set(["provider", "reviewStatus", "linkStatus", "unmatchedStatus", "eventType", "severity", "triageLane", "assignedTo", "assignmentStatus", "escalationStatus", "escalationReason", "receivedAtFrom", "receivedAtTo", "pageSize"]);
   const sortAllowed = new Set(["sortBy", "sortDirection"]);
   return value && typeof value === "object"
     && Object.keys(value).every((key) => allowed.has(key))
@@ -262,7 +262,7 @@ function safeSavedViewShape(value) {
 
 function safeOperatorNoteShape(value) {
   const allowed = new Set(["id", "unmatchedId", "tenantId", "authorId", "authorLabel", "note", "context", "createdAt", "updatedAt", "externalCalls"]);
-  const contextAllowed = new Set(["provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus"]);
+  const contextAllowed = new Set(["provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "assignmentStatus", "assignedToOperatorLabel", "escalationStatus", "escalationReason"]);
   return value && typeof value === "object"
     && Object.keys(value).every((key) => allowed.has(key))
     && Object.keys(value.context ?? {}).every((key) => contextAllowed.has(key))
@@ -309,6 +309,9 @@ function safeDiagnosticsShape(value) {
   const allowed = new Set([
     "unmatchedId", "provider", "platform", "channelAccountId", "safeRoomLabel", "roomKeyDigest",
     "eventType", "receivedAt", "reviewStatus", "linkStatus", "unmatchedStatus",
+    "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "assignedByOperatorLabel",
+    "escalationStatus", "escalationReason", "escalatedAt", "escalatedByOperatorLabel",
+    "lastOperatorNoteAt",
     "routingOutcome", "normalizedEventType", "persistenceOutcome", "candidateLookupAvailable",
     "historyAvailable", "exportAvailable", "lastActionAt", "safeWarnings", "externalCalls"
   ]);
