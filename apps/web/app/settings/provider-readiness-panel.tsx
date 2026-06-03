@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Link2, ListChecks, NotebookPen, Pin, RadioTower, Search, Send, ShieldCheck, SkipForward, Star, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Flag, Link2, ListChecks, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -21,6 +21,8 @@ type ProviderReadinessPanelProps = {
   unmatchedActionStatus?: string;
   unmatchedBulkSavingStatus?: "" | "reviewed" | "skipped";
   unmatchedBulkResult?: ProviderWebhookUnmatchedInboundBulkReviewResponse | null;
+  unmatchedBulkMetadataSavingStatus?: string;
+  unmatchedBulkMetadataResult?: ProviderWebhookUnmatchedInboundBulkAssignmentResponse | ProviderWebhookUnmatchedInboundBulkEscalationResponse | null;
   reviewMetrics?: ProviderWebhookReviewMetrics | null;
   reviewMetricsLoading?: boolean;
   reviewMetricsError?: string;
@@ -30,6 +32,9 @@ type ProviderReadinessPanelProps = {
   reviewTriage?: ProviderWebhookReviewTriage | null;
   reviewTriageLoading?: boolean;
   reviewTriageError?: string;
+  reviewWorkload?: ProviderWebhookReviewWorkload | null;
+  reviewWorkloadLoading?: boolean;
+  reviewWorkloadError?: string;
   reviewSavedViews?: ProviderWebhookReviewSavedView[];
   reviewSavedViewsLoading?: boolean;
   reviewSavedViewsError?: string;
@@ -59,6 +64,10 @@ type ProviderReadinessPanelProps = {
   onCreateSandboxEvent?: (payload: ProviderWebhookSandboxEventRequest) => Promise<void>;
   onReviewUnmatchedInbound?: (unmatchedInboundId: string, status: "reviewed" | "skipped") => Promise<void>;
   onBulkReviewUnmatchedInbound?: (status: "reviewed" | "skipped") => Promise<void>;
+  onAssignUnmatchedInbound?: (unmatchedInboundId: string, operation: "ASSIGN_TO_ME" | "ASSIGN_TO_OPERATOR" | "UNASSIGN", assignedToOperatorLabel?: string) => Promise<void>;
+  onEscalateUnmatchedInbound?: (unmatchedInboundId: string, operation: "ESCALATE" | "CLEAR_ESCALATION", escalationReason?: ProviderWebhookReviewEscalationReason) => Promise<void>;
+  onBulkAssignUnmatchedInbound?: (operation: "ASSIGN_TO_ME" | "UNASSIGN") => Promise<void>;
+  onBulkEscalateUnmatchedInbound?: (operation: "ESCALATE" | "CLEAR_ESCALATION") => Promise<void>;
   onLinkUnmatchedInbound?: (unmatchedInboundId: string, conversationId: string, actionMode: "link-only" | "link-and-persist-safe-message") => Promise<void>;
   onCreateSavedView?: (name: string, description: string, pinned: boolean, isDefault: boolean) => Promise<void>;
   onApplySavedView?: (savedView: ProviderWebhookReviewSavedView) => void;
@@ -78,6 +87,9 @@ const reviewStatuses = ["pending", "reviewed", "skipped", "linked"] as const;
 const linkStatuses = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
 const unmatchedStatuses = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
 const queueStatuses = ["open", "reviewed", "blocked", "skipped", "linked"] as const;
+const assignmentStatuses = ["unassigned", "assigned", "assigned_to_me", "assigned_to_others"] as const;
+const escalationStatuses = ["none", "escalated"] as const;
+const escalationReasons: ProviderWebhookReviewEscalationReason[] = ["SLA_RISK", "NO_SAFE_CANDIDATE", "ROUTING_FAILED", "HIGH_PRIORITY_CUSTOMER", "NEEDS_MANAGER_REVIEW", "MANUAL_REVIEW_BLOCKED"];
 const pageSizes = [5, 10, 25, 50] as const;
 
 export function ProviderReadinessPanel({
@@ -99,6 +111,8 @@ export function ProviderReadinessPanel({
   unmatchedActionStatus = "",
   unmatchedBulkSavingStatus = "",
   unmatchedBulkResult = null,
+  unmatchedBulkMetadataSavingStatus = "",
+  unmatchedBulkMetadataResult = null,
   reviewMetrics = null,
   reviewMetricsLoading = false,
   reviewMetricsError = "",
@@ -108,6 +122,9 @@ export function ProviderReadinessPanel({
   reviewTriage = null,
   reviewTriageLoading = false,
   reviewTriageError = "",
+  reviewWorkload = null,
+  reviewWorkloadLoading = false,
+  reviewWorkloadError = "",
   reviewSavedViews = [],
   reviewSavedViewsLoading = false,
   reviewSavedViewsError = "",
@@ -137,6 +154,10 @@ export function ProviderReadinessPanel({
   onCreateSandboxEvent,
   onReviewUnmatchedInbound,
   onBulkReviewUnmatchedInbound,
+  onAssignUnmatchedInbound,
+  onEscalateUnmatchedInbound,
+  onBulkAssignUnmatchedInbound,
+  onBulkEscalateUnmatchedInbound,
   onLinkUnmatchedInbound,
   onCreateSavedView,
   onApplySavedView,
@@ -371,8 +392,14 @@ export function ProviderReadinessPanel({
         e("span", null, `triage guidance=${readiness.triageGuidanceEnabled ? "enabled" : "disabled"}`),
         e("span", null, `saved views=${readiness.reviewSavedViewsEnabled ? "enabled" : "disabled"}`),
         e("span", null, `operator notes=${readiness.operatorNotesEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `assignment=${readiness.reviewAssignmentEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `escalation=${readiness.reviewEscalationEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `assignment workload=${readiness.assignmentWorkloadEnabled ? "enabled" : "disabled"}`),
         e("span", null, `saved view count=${readiness.savedViewCount}`),
         e("span", null, `operator note count=${readiness.operatorNoteCount}`),
+        e("span", null, `unassigned open count=${readiness.unassignedOpenCount}`),
+        e("span", null, `assigned open count=${readiness.assignedOpenCount}`),
+        e("span", null, `escalated open count=${readiness.escalatedOpenCount}`),
         e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
         e("span", null, `critical triage count=${readiness.criticalTriageCount}`),
         e("span", null, `open triage count=${readiness.openTriageCount}`),
@@ -748,6 +775,66 @@ export function ProviderReadinessPanel({
         ))
       ) : !webhookEventsLoading && !webhookEventsError ? e("div", { className: "providerEmptyState" }, "No webhook sandbox events received.") : null
     ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook assignment workload" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(UserCheck, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Assignment workload"),
+            e("p", null, "Internal assignment and escalation metadata only.")
+          )
+        ),
+        reviewWorkload ? e("div", { className: "webhookLastEvent", "aria-label": "Assignment workload status" },
+          e("span", null, "workload generated"),
+          e("strong", null, formatDate(reviewWorkload.generatedAt)),
+          e("span", null, `externalCalls=${reviewWorkload.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewWorkload.appliedFilters)}`)
+        ) : null
+      ),
+      reviewWorkloadError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewWorkloadError) : null,
+      reviewWorkloadLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook assignment workload...") : null,
+      reviewWorkload ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total workload items", reviewWorkload.totalItems, {}),
+        metricFilterButton("open workload items", reviewWorkload.totalOpenItems, { status: "open" }),
+        metricFilterButton("unassigned open", reviewWorkload.counts.unassignedOpen, { assignmentStatus: "unassigned", status: "open" }),
+        metricFilterButton("assigned to me", reviewWorkload.counts.assignedToMeOpen, { assignmentStatus: "assigned_to_me", status: "open" }),
+        metricFilterButton("assigned to others", reviewWorkload.counts.assignedToOthersOpen, { assignmentStatus: "assigned_to_others", status: "open" }),
+        metricFilterButton("escalated open", reviewWorkload.counts.escalatedOpen, { escalationStatus: "escalated", status: "open" }),
+        metricFilterButton("overdue assigned", reviewWorkload.counts.overdueAssignedOpen, { assignmentStatus: "assigned", status: "open" }),
+        metricFilterButton("resolved assigned", reviewWorkload.counts.resolvedAssigned, { assignmentStatus: "assigned" })
+      ) : !reviewWorkloadLoading && !reviewWorkloadError ? e("div", { className: "providerEmptyState" }, "No assignment workload returned.") : null,
+      reviewWorkload ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By assignee", reviewWorkload.byAssignee, (key) => ({ assignedTo: key === "unassigned" ? undefined : key })),
+        metricCountGroup("By assignment status", reviewWorkload.byAssignmentStatus, (key) => ({ assignmentStatus: key as ProviderWebhookUnmatchedInboundFilters["assignmentStatus"] })),
+        metricCountGroup("By escalation status", reviewWorkload.byEscalationStatus, (key) => ({ escalationStatus: key as ProviderWebhookUnmatchedInboundFilters["escalationStatus"] })),
+        metricCountGroup("By escalation reason", reviewWorkload.byEscalationReason, (key) => key === "none" ? { escalationStatus: "none" } : { escalationReason: key as ProviderWebhookReviewEscalationReason })
+      ) : null,
+      reviewWorkload ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", null,
+          e("strong", null, "Workload thresholds"),
+          e("span", null, `staleWarningHours=${reviewWorkload.thresholds.staleWarningHours}`),
+          e("span", null, `staleCriticalHours=${reviewWorkload.thresholds.staleCriticalHours}`),
+          e("span", null, `overSlaHours=${reviewWorkload.thresholds.overSlaHours}`),
+          e("span", null, `recentlyAssigned=${reviewWorkload.counts.recentlyAssigned}`),
+          e("span", null, `recentlyEscalated=${reviewWorkload.counts.recentlyEscalated}`)
+        )
+      ) : null,
+      reviewWorkload && (reviewWorkload.topAssignedItems.length > 0 || reviewWorkload.topEscalatedItems.length > 0) ? e("div", { className: "webhookEventList compact", "aria-label": "Top assignment escalation summaries" },
+        ...[...reviewWorkload.topAssignedItems, ...reviewWorkload.topEscalatedItems].slice(0, 10).map((item) => e("article", { key: `${item.unmatchedId}-${item.assignmentStatus}-${item.escalationStatus}`, className: "webhookHistoryRow" },
+          e("strong", null, `${item.assignmentStatus} / ${item.escalationStatus} / ${providerLabel(item.provider)}`),
+          e("span", null, `unmatchedId=${item.unmatchedId}`),
+          e("span", null, `assignedTo=${item.assignedToOperatorLabel ?? "none"}`),
+          e("span", null, `assignedAt=${item.assignedAt ? formatDate(item.assignedAt) : "none"}`),
+          e("span", null, `escalationReason=${item.escalationReason ?? "none"}`),
+          e("span", null, `escalatedAt=${item.escalatedAt ? formatDate(item.escalatedAt) : "none"}`),
+          e("span", null, `reviewStatus=${item.reviewStatus}`),
+          e("span", null, `linkStatus=${item.linkStatus}`),
+          e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
+          e("span", null, `externalCalls=${item.externalCalls}`)
+        ))
+      ) : reviewWorkload && !reviewWorkloadLoading ? e("div", { className: "providerEmptyState" }, "No top assignment or escalation summaries.") : null
+    ),
     e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review saved views" },
       e("div", { className: "webhookEventHeader" },
         e("div", { className: "channelPanelTop" },
@@ -926,6 +1013,44 @@ export function ProviderReadinessPanel({
           )
         ),
         e("label", { className: "settingsInlineField" },
+          e("span", null, "Assigned to"),
+          e("input", {
+            value: unmatchedFilters.assignedTo ?? "",
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => updateQueueFilters({ assignedTo: event.target.value.trim() || undefined }),
+            placeholder: "me or safe label"
+          })
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Assignment status"),
+          e("select", {
+            value: unmatchedFilters.assignmentStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ assignmentStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["assignmentStatus"] })
+          },
+            e("option", { value: "all" }, "All assignment"),
+            ...assignmentStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Escalation status"),
+          e("select", {
+            value: unmatchedFilters.escalationStatus ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ escalationStatus: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookUnmatchedInboundFilters["escalationStatus"] })
+          },
+            e("option", { value: "all" }, "All escalation"),
+            ...escalationStatuses.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
+          e("span", null, "Escalation reason"),
+          e("select", {
+            value: unmatchedFilters.escalationReason ?? "all",
+            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => updateQueueFilters({ escalationReason: event.target.value === "all" ? undefined : event.target.value as ProviderWebhookReviewEscalationReason })
+          },
+            e("option", { value: "all" }, "All reasons"),
+            ...escalationReasons.map((item) => e("option", { key: item, value: item }, item))
+          )
+        ),
+        e("label", { className: "settingsInlineField" },
           e("span", null, "Received from"),
           e("input", {
             type: "datetime-local",
@@ -1028,6 +1153,42 @@ export function ProviderReadinessPanel({
         e("button", {
           className: "webhookEventButton",
           type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkAssignUnmatchedInbound,
+          onClick: () => void onBulkAssignUnmatchedInbound?.("ASSIGN_TO_ME")
+        },
+          e(UserCheck, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "ASSIGN_TO_ME" ? "Bulk assigning..." : "Bulk Assign to me"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkAssignUnmatchedInbound,
+          onClick: () => void onBulkAssignUnmatchedInbound?.("UNASSIGN")
+        },
+          e(UserMinus, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "UNASSIGN" ? "Bulk unassigning..." : "Bulk Unassign"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkEscalateUnmatchedInbound,
+          onClick: () => void onBulkEscalateUnmatchedInbound?.("ESCALATE")
+        },
+          e(Flag, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "ESCALATE" ? "Bulk escalating..." : "Bulk Escalate"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: selectedUnmatchedIds.length === 0 || Boolean(unmatchedBulkMetadataSavingStatus) || !onBulkEscalateUnmatchedInbound,
+          onClick: () => void onBulkEscalateUnmatchedInbound?.("CLEAR_ESCALATION")
+        },
+          e(RotateCcw, { size: 15 }),
+          unmatchedBulkMetadataSavingStatus === "CLEAR_ESCALATION" ? "Bulk clearing..." : "Bulk Clear escalation"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
           disabled: Boolean(unmatchedExportLoadingFormat) || !onExportUnmatchedInbound,
           onClick: () => void onExportUnmatchedInbound?.("json")
         },
@@ -1053,6 +1214,11 @@ export function ProviderReadinessPanel({
       unmatchedBulkResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk unmatched review result" },
         ...unmatchedBulkResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
           `${result.id}: ${result.resultStatus}; reviewStatus=${result.reviewStatus ?? "none"}; unmatchedStatus=${result.unmatchedStatus ?? "none"}; error=${result.error ?? "none"}; externalCalls=${result.externalCalls}`
+        ))
+      ) : null,
+      unmatchedBulkMetadataResult ? e("div", { className: "webhookEventList compact", "aria-label": "Bulk assignment escalation result" },
+        ...unmatchedBulkMetadataResult.results.map((result) => e("div", { key: `${result.id}-${result.resultStatus}-${result.assignmentStatus ?? "none"}-${result.escalationStatus ?? "none"}`, className: "webhookActionStatus", role: result.ok ? "status" : "alert" },
+          `${result.id}: ${result.resultStatus}; assignmentStatus=${result.assignmentStatus ?? "none"}; escalationStatus=${result.escalationStatus ?? "none"}; escalationReason=${result.escalationReason ?? "none"}; error=${result.error ?? "none"}; externalCalls=${result.externalCalls}`
         ))
       ) : null,
       unmatchedInboundLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading unmatched inbound review items...") : null,
@@ -1081,6 +1247,15 @@ export function ProviderReadinessPanel({
             e("span", null, `reason=${item.unmatchedReason}`),
             e("span", null, `reviewStatus=${item.reviewStatus}`),
             e("span", null, `linkStatus=${item.linkStatus}`),
+            e("span", { className: item.assignmentStatus === "assigned" ? "webhookWarningPill" : undefined }, `assignmentStatus=${item.assignmentStatus}`),
+            e("span", null, `assignedTo=${item.assignedToOperatorLabel ?? "none"}`),
+            e("span", null, `assignedAt=${item.assignedAt ? formatDate(item.assignedAt) : "none"}`),
+            e("span", null, `assignedBy=${item.assignedByOperatorLabel ?? "none"}`),
+            e("span", { className: item.escalationStatus === "escalated" ? "webhookWarningPill" : undefined }, `escalationStatus=${item.escalationStatus}`),
+            e("span", null, `escalationReason=${item.escalationReason ?? "none"}`),
+            e("span", null, `escalatedAt=${item.escalatedAt ? formatDate(item.escalatedAt) : "none"}`),
+            e("span", null, `escalatedBy=${item.escalatedByOperatorLabel ?? "none"}`),
+            e("span", null, `lastOperatorNoteAt=${item.lastOperatorNoteAt ? formatDate(item.lastOperatorNoteAt) : "none"}`),
             e("span", null, `messagePersisted=${String(item.messagePersisted)}`),
             e("span", null, `linkedConversationId=${item.linkedConversationId ?? "none"}`),
             e("span", null, `linkedMessageId=${item.linkedMessageId ?? "none"}`),
@@ -1112,6 +1287,53 @@ export function ProviderReadinessPanel({
             activeDiagnosticsId === item.id && activeDiagnostics ? e("span", null, `diagnostics warnings=${warningLabels(activeDiagnostics).length}`) : null,
             activeHistoryId === item.id && activeHistory ? e("span", null, `history entries=${activeHistory.entries.length}`) : null
           ),
+          isOpenUnmatchedItem(item) ? e("div", { className: "webhookEventActions", "aria-label": `Assignment escalation controls for ${item.id}` },
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onAssignUnmatchedInbound,
+              onClick: () => void onAssignUnmatchedInbound?.(item.id, "ASSIGN_TO_ME")
+            },
+              e(UserCheck, { size: 15 }),
+              unmatchedActionSavingId === item.id ? "Saving..." : "Assign to me"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onAssignUnmatchedInbound,
+              onClick: () => void onAssignUnmatchedInbound?.(item.id, "ASSIGN_TO_OPERATOR", "operator:queue-lead")
+            },
+              e(UserCheck, { size: 15 }),
+              "Assign queue lead"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onAssignUnmatchedInbound,
+              onClick: () => void onAssignUnmatchedInbound?.(item.id, "UNASSIGN")
+            },
+              e(UserMinus, { size: 15 }),
+              "Unassign"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onEscalateUnmatchedInbound,
+              onClick: () => void onEscalateUnmatchedInbound?.(item.id, "ESCALATE", "SLA_RISK")
+            },
+              e(Flag, { size: 15 }),
+              "Escalate SLA risk"
+            ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: unmatchedActionSavingId === item.id || Boolean(unmatchedBulkMetadataSavingStatus) || !onEscalateUnmatchedInbound,
+              onClick: () => void onEscalateUnmatchedInbound?.(item.id, "CLEAR_ESCALATION")
+            },
+              e(RotateCcw, { size: 15 }),
+              "Clear escalation"
+            )
+          ) : null,
           activeDiagnosticsId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe diagnostics for ${item.id}` },
             diagnosticsErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, diagnosticsErrorById[item.id]) : null,
             diagnosticsLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading safe diagnostics...") : null,
@@ -1131,6 +1353,13 @@ export function ProviderReadinessPanel({
                 e("span", null, `reviewStatus=${activeDiagnostics.reviewStatus}`),
                 e("span", null, `linkStatus=${activeDiagnostics.linkStatus}`),
                 e("span", null, `unmatchedStatus=${activeDiagnostics.unmatchedStatus}`),
+                e("span", null, `assignmentStatus=${activeDiagnostics.assignmentStatus}`),
+                e("span", null, `assignedTo=${activeDiagnostics.assignedToOperatorLabel ?? "none"}`),
+                e("span", null, `assignedAt=${activeDiagnostics.assignedAt ? formatDate(activeDiagnostics.assignedAt) : "none"}`),
+                e("span", null, `escalationStatus=${activeDiagnostics.escalationStatus}`),
+                e("span", null, `escalationReason=${activeDiagnostics.escalationReason ?? "none"}`),
+                e("span", null, `escalatedAt=${activeDiagnostics.escalatedAt ? formatDate(activeDiagnostics.escalatedAt) : "none"}`),
+                e("span", null, `lastOperatorNoteAt=${activeDiagnostics.lastOperatorNoteAt ? formatDate(activeDiagnostics.lastOperatorNoteAt) : "none"}`),
                 e("span", null, `persistenceOutcome=${activeDiagnostics.persistenceOutcome}`),
                 e("span", null, `lastActionAt=${activeDiagnostics.lastActionAt ? formatDate(activeDiagnostics.lastActionAt) : "none"}`)
               ),
@@ -1220,6 +1449,10 @@ export function ProviderReadinessPanel({
                 e("span", null, `reviewStatus=${note.context.reviewStatus}`),
                 e("span", null, `linkStatus=${note.context.linkStatus}`),
                 e("span", null, `unmatchedStatus=${note.context.unmatchedStatus}`),
+                e("span", null, `assignmentStatus=${note.context.assignmentStatus ?? "unassigned"}`),
+                e("span", null, `assignedTo=${note.context.assignedToOperatorLabel ?? "none"}`),
+                e("span", null, `escalationStatus=${note.context.escalationStatus ?? "none"}`),
+                e("span", null, `escalationReason=${note.context.escalationReason ?? "none"}`),
                 e("p", null, note.note),
                 e("span", null, `externalCalls=${note.externalCalls}`)
               ))
@@ -1357,7 +1590,7 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString("th-TH");
 }
 
-function formatAppliedFilters(filters: ProviderWebhookReviewMetrics["appliedFilters"]) {
+function formatAppliedFilters(filters: Record<string, unknown>) {
   const entries = Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== "");
   return entries.length > 0 ? entries.map(([key, value]) => `${key}=${String(value)}`).join(";") : "none";
 }
@@ -1371,6 +1604,10 @@ function formatSavedViewFilters(view: ProviderWebhookReviewSavedView) {
     "eventType",
     "severity",
     "triageLane",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedAtFrom",
     "receivedAtTo",
     "pageSize"

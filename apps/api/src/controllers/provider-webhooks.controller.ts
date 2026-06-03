@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common";
-import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
+import { providerWebhookReviewAlertsFiltersSchema, providerWebhookReviewMetricsFiltersSchema, providerWebhookReviewTriageFiltersSchema, providerWebhookReviewWorkloadFiltersSchema, providerWebhookUnmatchedInboundExportQuerySchema, providerWebhookUnmatchedInboundFiltersSchema, providerWebhookUnmatchedInboundStatusFilterSchema } from "@ai-omni/shared";
 import { ProviderWebhookEventsService } from "../services/provider-webhook-events.service.js";
 
 @Controller("provider-webhooks")
@@ -14,25 +14,37 @@ export class ProviderWebhooksController {
   @Get("review-metrics")
   getReviewMetrics(
     @Headers("x-tenant-id") tenant: string | undefined,
-    @Query() query: unknown
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.events.getReviewMetrics(requireTenantId(tenant), parseReviewMetricsFilters(query));
+    return this.events.getReviewMetrics(requireTenantId(tenant), parseReviewMetricsFilters(query), userId);
   }
 
   @Get("review-alerts")
   getReviewAlerts(
     @Headers("x-tenant-id") tenant: string | undefined,
-    @Query() query: unknown
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.events.getReviewAlerts(requireTenantId(tenant), parseReviewAlertsFilters(query));
+    return this.events.getReviewAlerts(requireTenantId(tenant), parseReviewAlertsFilters(query), userId);
   }
 
   @Get("review-triage")
   getReviewTriage(
     @Headers("x-tenant-id") tenant: string | undefined,
-    @Query() query: unknown
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
   ) {
-    return this.events.getReviewTriage(requireTenantId(tenant), parseReviewTriageFilters(query));
+    return this.events.getReviewTriage(requireTenantId(tenant), parseReviewTriageFilters(query), userId);
+  }
+
+  @Get("review-workload")
+  getReviewWorkload(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewWorkload(requireTenantId(tenant), parseReviewWorkloadFilters(query), userId);
   }
 
   @Get("review-saved-views")
@@ -71,12 +83,13 @@ export class ProviderWebhooksController {
   @Get("unmatched-inbound")
   listUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
-    @Query() query: unknown
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
   ): any {
     const filters = parseUnmatchedInboundFilters(query);
     return shouldReturnPagedUnmatchedInbound(query)
-      ? this.events.listUnmatchedInboundPage(requireTenantId(tenant), filters)
-      : this.events.listUnmatchedInbound(requireTenantId(tenant), filters);
+      ? this.events.listUnmatchedInboundPage(requireTenantId(tenant), filters, userId)
+      : this.events.listUnmatchedInbound(requireTenantId(tenant), filters, userId);
   }
 
   @Get("unmatched-inbound/export")
@@ -140,6 +153,26 @@ export class ProviderWebhooksController {
     return this.events.reviewUnmatchedInbound(requireTenantId(tenant), id, body, userId);
   }
 
+  @Patch("unmatched-inbound/:id/assignment")
+  assignUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.assignUnmatchedInbound(requireTenantId(tenant), id, body, userId);
+  }
+
+  @Patch("unmatched-inbound/:id/escalation")
+  escalateUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    return this.events.escalateUnmatchedInbound(requireTenantId(tenant), id, body, userId);
+  }
+
   @Patch("unmatched-inbound/bulk-review")
   bulkReviewUnmatchedInbound(
     @Headers("x-tenant-id") tenant: string | undefined,
@@ -147,6 +180,24 @@ export class ProviderWebhooksController {
     @Body() body: unknown
   ) {
     return this.events.bulkReviewUnmatchedInbound(requireTenantId(tenant), body, userId);
+  }
+
+  @Patch("unmatched-inbound/bulk-assignment")
+  bulkAssignUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.bulkAssignUnmatchedInbound(requireTenantId(tenant), body, userId);
+  }
+
+  @Patch("unmatched-inbound/bulk-escalation")
+  bulkEscalateUnmatchedInbound(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.bulkEscalateUnmatchedInbound(requireTenantId(tenant), body, userId);
   }
 
   @Post("unmatched-inbound/:id/link-conversation")
@@ -253,6 +304,21 @@ function parseReviewTriageFilters(query: unknown) {
   );
   const parsed = providerWebhookReviewTriageFiltersSchema.safeParse(cleaned);
   if (!parsed.success) throw new BadRequestException("Invalid provider webhook review triage filters");
+  return parsed.data;
+}
+
+function parseReviewWorkloadFilters(query: unknown) {
+  if (!query || typeof query !== "object" || Array.isArray(query)) {
+    return {};
+  }
+
+  const cleaned = Object.fromEntries(
+    Object.entries(query as Record<string, unknown>).filter(([, value]) =>
+      typeof value === "string" && value.trim().length > 0
+    )
+  );
+  const parsed = providerWebhookReviewWorkloadFiltersSchema.safeParse(cleaned);
+  if (!parsed.success) throw new BadRequestException("Invalid provider webhook review workload filters");
   return parsed.data;
 }
 

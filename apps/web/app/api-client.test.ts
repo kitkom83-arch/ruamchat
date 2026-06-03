@@ -13,6 +13,9 @@ import {
   createProviderWebhookReviewSavedView,
   createProviderWebhookSandboxEvent,
   archiveProviderWebhookReviewSavedView,
+  assignProviderWebhookUnmatchedInbound,
+  bulkAssignProviderWebhookUnmatchedInbound,
+  bulkEscalateProviderWebhookUnmatchedInbound,
   bulkReviewProviderWebhookUnmatchedInbound,
   deleteKnowledgeBase,
   createWebchatMessage,
@@ -25,6 +28,7 @@ import {
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewTriage,
+  getProviderWebhookReviewWorkload,
   getProviderWebhookOperatorNotes,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
@@ -33,6 +37,7 @@ import {
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
+  escalateProviderWebhookUnmatchedInbound,
   updateProviderWebhookReviewSavedView,
   getKnowledgeBases,
   getKnowledgeChunks,
@@ -474,6 +479,119 @@ describe("frontend API client", () => {
     expect(JSON.stringify(triage)).not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("sends x-tenant-id for assignment, escalation, bulk metadata, and workload filters", async () => {
+    const assignedItem = {
+      ...providerWebhookUnmatchedInboundResponse("provider-webhook-unmatched-1"),
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "operator:current",
+      assignedAt: "2026-05-31T00:10:00.000Z",
+      assignedByOperatorLabel: "operator:current"
+    };
+    const escalatedItem = {
+      ...assignedItem,
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      escalatedAt: "2026-05-31T00:11:00.000Z",
+      escalatedByOperatorLabel: "operator:current"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewWorkloadResponse()))
+      .mockResolvedValueOnce(jsonResponse(assignedItem))
+      .mockResolvedValueOnce(jsonResponse(escalatedItem))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookBulkAssignmentResponse("ASSIGN_TO_ME")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookBulkEscalationResponse("ESCALATE")));
+
+    const workload = await getProviderWebhookReviewWorkload({
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    });
+    const assigned = await assignProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", {
+      operation: "ASSIGN_TO_ME",
+      note: "safe assignment note"
+    });
+    const escalated = await escalateProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", {
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "safe escalation note"
+    });
+    const bulkAssigned = await bulkAssignProviderWebhookUnmatchedInbound({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "ASSIGN_TO_ME",
+      note: "safe bulk assignment"
+    });
+    const bulkEscalated = await bulkEscalateProviderWebhookUnmatchedInbound({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "safe bulk escalation"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-workload?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=critical&triageLane=critical_stale_open", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/assignment", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/escalation", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/bulk-assignment", expect.objectContaining({ method: "PATCH" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/bulk-escalation", expect.objectContaining({ method: "PATCH" }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      operation: "ASSIGN_TO_ME",
+      note: "safe assignment note"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "safe escalation note"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "ASSIGN_TO_ME",
+      note: "safe bulk assignment"
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({
+      ids: ["provider-webhook-unmatched-1"],
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "safe bulk escalation"
+    });
+    expect(workload).toMatchObject({
+      totalItems: 1,
+      counts: { assignedToMeOpen: 1, escalatedOpen: 1 },
+      externalCalls: 0
+    });
+    expect(assigned).toMatchObject({
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "operator:current",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(escalated).toMatchObject({
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      messagePersisted: false,
+      externalCalls: 0
+    });
+    expect(bulkAssigned.summary.successCount).toBe(1);
+    expect(bulkEscalated.summary.successCount).toBe(1);
+    expect(JSON.stringify({ workload, assigned, escalated, bulkAssigned, bulkEscalated }))
+      .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("sends x-tenant-id and safe bodies for review saved views and operator notes", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse([providerWebhookReviewSavedViewResponse("provider-webhook-review-view-1")]))
@@ -495,6 +613,10 @@ describe("frontend API client", () => {
         eventType: "message.created",
         severity: "info",
         triageLane: "safe_link_candidate_available",
+        assignedTo: "me",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
         receivedAtFrom: "2026-05-31T00:00:00.000Z",
         pageSize: 10
       },
@@ -540,6 +662,10 @@ describe("frontend API client", () => {
         eventType: "message.created",
         severity: "info",
         triageLane: "safe_link_candidate_available",
+        assignedTo: "me",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
         receivedAtFrom: "2026-05-31T00:00:00.000Z",
         pageSize: 10
       },
@@ -590,9 +716,21 @@ describe("frontend API client", () => {
     await expect(getProviderWebhookReviewTriage({ provider: "line" }))
       .rejects.toThrow("API request failed (503): triage unavailable");
 
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "workload unavailable" }, 503));
+    await expect(getProviderWebhookReviewWorkload({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): workload unavailable");
+
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "diagnostics unavailable" }, 503));
     await expect(getProviderWebhookUnmatchedInboundDiagnostics("provider-webhook-unmatched-1"))
       .rejects.toThrow("API request failed (503): diagnostics unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "assignment unavailable" }, 503));
+    await expect(assignProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", { operation: "ASSIGN_TO_ME" }))
+      .rejects.toThrow("API request failed (503): assignment unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "escalation unavailable" }, 503));
+    await expect(escalateProviderWebhookUnmatchedInbound("provider-webhook-unmatched-1", { operation: "ESCALATE", escalationReason: "SLA_RISK" }))
+      .rejects.toThrow("API request failed (503): escalation unavailable");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "saved views unavailable" }, 503));
     await expect(getProviderWebhookReviewSavedViews())
@@ -1455,8 +1593,14 @@ function providerReadinessResponse() {
       triageGuidanceEnabled: true,
       reviewSavedViewsEnabled: true,
       operatorNotesEnabled: true,
+      reviewAssignmentEnabled: true,
+      reviewEscalationEnabled: true,
+      assignmentWorkloadEnabled: true,
       savedViewCount: 1,
       operatorNoteCount: 1,
+      unassignedOpenCount: 1,
+      assignedOpenCount: 0,
+      escalatedOpenCount: 0,
       reviewAlertCriticalCount: 1,
       criticalTriageCount: 1,
       openTriageCount: 1,
@@ -1585,6 +1729,18 @@ function providerWebhookUnmatchedInboundResponse(id: string, provider: "line" | 
     linkedMessageId: null,
     unmatchedResolvedAt: null,
     messagePersisted: false,
+    assignmentStatus: "unassigned",
+    assignedToOperatorLabel: null,
+    assignedAt: null,
+    assignedByOperatorLabel: null,
+    escalationStatus: "none",
+    escalationReason: null,
+    escalatedAt: null,
+    escalatedByOperatorLabel: null,
+    lastOperatorNoteAt: null,
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: true,
     payloadDigest: "sha256:safeeventdigest",
     providerEventDigest: "sha256:safededupdigest",
     deliveryDigest: "sha256:safededupdigest",
@@ -1692,7 +1848,11 @@ function providerWebhookOperatorNoteResponse(id: string) {
       eventType: "message.created",
       reviewStatus: "pending",
       linkStatus: "none",
-      unmatchedStatus: "review-needed"
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "unassigned",
+      assignedToOperatorLabel: null,
+      escalationStatus: "none",
+      escalationReason: null
     },
     createdAt: "2026-05-31T00:00:00.000Z",
     updatedAt: "2026-05-31T00:00:00.000Z",
@@ -1757,6 +1917,12 @@ function providerWebhookExportResponse(items = [providerWebhookUnmatchedInboundR
     safeMessagePreview: item.textPreview,
     safeReason: item.unmatchedReason,
     safeResultSummary: item.reviewStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
     externalCalls: 0
   }));
   return {
@@ -1945,6 +2111,10 @@ function providerWebhookReviewAlertsResponse() {
       reviewStatus: "pending",
       linkStatus: "none",
       unmatchedStatus: "review-needed",
+      assignmentStatus: "unassigned",
+      assignedToOperatorLabel: null,
+      escalationStatus: "none",
+      escalationReason: null,
       routingOutcome: "dry-run-only/not-found",
       diagnosticsAvailable: true,
       historyAvailable: true,
@@ -2060,6 +2230,10 @@ function providerWebhookReviewTriageResponse() {
       reviewStatus: "pending",
       linkStatus: "none",
       unmatchedStatus: "review-needed",
+      assignmentStatus: "unassigned",
+      assignedToOperatorLabel: null,
+      escalationStatus: "none",
+      escalationReason: null,
       routingOutcome: "dry-run-only/not-found",
       recommendedNextActions: ["OPEN_DIAGNOSTICS", "VIEW_HISTORY", "APPLY_FILTER", "MARK_REVIEWED", "SKIP"],
       diagnosticsAvailable: true,
@@ -2068,6 +2242,165 @@ function providerWebhookReviewTriageResponse() {
       exportAvailable: true,
       externalCalls: 0
     }],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewWorkloadResponse() {
+  const topItem = providerWebhookAssignmentSummaryItemResponse();
+  return {
+    generatedAt: "2026-05-31T00:08:00.000Z",
+    appliedFilters: {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      eventType: "message.created",
+      assignedTo: "me",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      receivedAtFrom: "2026-05-31T00:00:00.000Z",
+      receivedAtTo: "2026-06-01T00:00:00.000Z",
+      severity: "critical",
+      triageLane: "critical_stale_open"
+    },
+    totalItems: 1,
+    totalOpenItems: 1,
+    thresholds: {
+      staleWarningHours: 24,
+      staleCriticalHours: 72,
+      overSlaHours: 48
+    },
+    counts: {
+      unassignedOpen: 0,
+      assignedToMeOpen: 1,
+      assignedToOthersOpen: 0,
+      assignedOpen: 1,
+      escalatedOpen: 1,
+      overdueAssignedOpen: 0,
+      recentlyAssigned: 1,
+      recentlyEscalated: 1,
+      resolvedAssigned: 0
+    },
+    byAssignee: [
+      { key: "operator:current", label: "operator:current", count: 1 }
+    ],
+    byAssignmentStatus: [
+      { key: "unassigned", label: "unassigned", count: 0 },
+      { key: "assigned", label: "assigned", count: 1 }
+    ],
+    byEscalationStatus: [
+      { key: "none", label: "none", count: 0 },
+      { key: "escalated", label: "escalated", count: 1 }
+    ],
+    byEscalationReason: [
+      { key: "none", label: "none", count: 0 },
+      { key: "SLA_RISK", label: "SLA_RISK", count: 1 }
+    ],
+    byProvider: [
+      { key: "line", label: "line", count: 1 }
+    ],
+    byPlatform: [
+      { key: "line", label: "line", count: 1 }
+    ],
+    byReviewStatus: [
+      { key: "pending", label: "pending", count: 1 }
+    ],
+    byLinkStatus: [
+      { key: "none", label: "none", count: 1 }
+    ],
+    byUnmatchedStatus: [
+      { key: "review-needed", label: "review-needed", count: 1 }
+    ],
+    topAssignedItems: [topItem],
+    topEscalatedItems: [topItem],
+    externalCalls: 0
+  };
+}
+
+function providerWebhookAssignmentSummaryItemResponse() {
+  return {
+    unmatchedId: "provider-webhook-unmatched-1",
+    provider: "line",
+    platform: "line",
+    channelAccountId: "sandbox:line",
+    safeRoomLabel: "line room digest saferoomdige",
+    roomKeyDigest: "sha256:saferoomdigest",
+    eventType: "message.created",
+    receivedAt: "2026-05-31T00:00:00.000Z",
+    ageBucket: "over3Days",
+    reviewStatus: "pending",
+    linkStatus: "none",
+    unmatchedStatus: "review-needed",
+    triageLane: "critical_stale_open",
+    severity: "critical",
+    assignmentStatus: "assigned",
+    assignedToOperatorLabel: "operator:current",
+    assignedAt: "2026-05-31T00:10:00.000Z",
+    assignedByOperatorLabel: "operator:current",
+    escalationStatus: "escalated",
+    escalationReason: "SLA_RISK",
+    escalatedAt: "2026-05-31T00:11:00.000Z",
+    escalatedByOperatorLabel: "operator:current",
+    lastOperatorNoteAt: "2026-05-31T00:12:00.000Z",
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: true,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookBulkAssignmentResponse(operation: "ASSIGN_TO_ME" | "ASSIGN_TO_OPERATOR" | "UNASSIGN") {
+  return {
+    operation,
+    results: [
+      {
+        id: "provider-webhook-unmatched-1",
+        ok: true,
+        resultStatus: "updated",
+        assignmentStatus: "assigned",
+        escalationStatus: "none",
+        escalationReason: null,
+        error: null,
+        externalCalls: 0
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookBulkEscalationResponse(operation: "ESCALATE" | "CLEAR_ESCALATION") {
+  return {
+    operation,
+    results: [
+      {
+        id: "provider-webhook-unmatched-1",
+        ok: true,
+        resultStatus: "updated",
+        assignmentStatus: "assigned",
+        escalationStatus: operation === "ESCALATE" ? "escalated" : "none",
+        escalationReason: operation === "ESCALATE" ? "SLA_RISK" : null,
+        error: null,
+        externalCalls: 0
+      }
+    ],
+    summary: {
+      requestedCount: 1,
+      dedupedCount: 1,
+      successCount: 1,
+      errorCount: 0,
+      updatedCount: 1,
+      alreadyAppliedCount: 0
+    },
     externalCalls: 0
   };
 }
@@ -2085,6 +2418,15 @@ function providerWebhookDiagnosticsResponse(unmatchedInboundId: string) {
     reviewStatus: "pending",
     linkStatus: "none",
     unmatchedStatus: "review-needed",
+    assignmentStatus: "unassigned",
+    assignedToOperatorLabel: null,
+    assignedAt: null,
+    assignedByOperatorLabel: null,
+    escalationStatus: "none",
+    escalationReason: null,
+    escalatedAt: null,
+    escalatedByOperatorLabel: null,
+    lastOperatorNoteAt: null,
     routingOutcome: "dry-run-only/not-found",
     normalizedEventType: "message",
     persistenceOutcome: "skipped-no-match",

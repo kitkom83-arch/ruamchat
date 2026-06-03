@@ -16,14 +16,22 @@ import type {
   ProviderWebhookReviewTriage,
   ProviderWebhookReviewTriageFilters,
   ProviderWebhookReviewTriageLane,
+  ProviderWebhookReviewWorkload,
+  ProviderWebhookReviewWorkloadFilters,
   ProviderWebhookReviewSavedView,
+  ProviderWebhookUnmatchedInboundAssignmentRequest,
   UpdateProviderWebhookReviewSavedViewRequest,
   ProviderWebhookTriageRecommendedAction,
   ProviderWebhookUnmatchedInboundDiagnostics,
   ProviderWebhookUnmatchedInboundExport,
   ProviderWebhookUnmatchedInboundExportQuery,
+  ProviderWebhookUnmatchedInboundBulkAssignmentRequest,
+  ProviderWebhookUnmatchedInboundBulkAssignmentResponse,
+  ProviderWebhookUnmatchedInboundBulkEscalationRequest,
+  ProviderWebhookUnmatchedInboundBulkEscalationResponse,
   ProviderWebhookUnmatchedInboundBulkReviewRequest,
   ProviderWebhookUnmatchedInboundBulkReviewResponse,
+  ProviderWebhookUnmatchedInboundEscalationRequest,
   ProviderWebhookUnmatchedInboundFilters,
   ProviderWebhookUnmatchedInboundHistory,
   ProviderWebhookUnmatchedInboundLinkRequest,
@@ -47,6 +55,7 @@ import {
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewTriage,
+  getProviderWebhookReviewWorkload,
   getProviderReadiness,
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
@@ -56,6 +65,10 @@ import {
   getProviderWebhookUnmatchedInboundHistory,
   linkProviderWebhookUnmatchedInboundConversation,
   reviewProviderWebhookUnmatchedInbound,
+  assignProviderWebhookUnmatchedInbound,
+  bulkAssignProviderWebhookUnmatchedInbound,
+  escalateProviderWebhookUnmatchedInbound,
+  bulkEscalateProviderWebhookUnmatchedInbound,
   updateProviderWebhookReviewSavedView,
   getSettingsCannedReplies,
   getSettingsChannels,
@@ -111,6 +124,11 @@ export type SettingsProviderWebhookReviewAlertsData = {
 export type SettingsProviderWebhookReviewTriageData = {
   mode: DataMode;
   triage: ProviderWebhookReviewTriage;
+};
+
+export type SettingsProviderWebhookReviewWorkloadData = {
+  mode: DataMode;
+  workload: ProviderWebhookReviewWorkload;
 };
 
 export type SettingsProviderWebhookSavedViewsData = {
@@ -256,6 +274,23 @@ export async function loadSettingsProviderWebhookReviewTriageData(
   return {
     mode,
     triage: createMockReviewTriage(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewWorkloadData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewWorkloadFilters = {}
+): Promise<SettingsProviderWebhookReviewWorkloadData> {
+  if (mode === "api") {
+    return {
+      mode,
+      workload: await getProviderWebhookReviewWorkload(filters)
+    };
+  }
+
+  return {
+    mode,
+    workload: createMockReviewWorkload(filters)
   };
 }
 
@@ -408,13 +443,18 @@ export async function createSettingsProviderWebhookOperatorNote(
       eventType: item.eventType,
       reviewStatus: item.reviewStatus,
       linkStatus: item.linkStatus,
-      unmatchedStatus: item.unmatchedStatus
+      unmatchedStatus: item.unmatchedStatus,
+      assignmentStatus: item.assignmentStatus,
+      assignedToOperatorLabel: item.assignedToOperatorLabel,
+      escalationStatus: item.escalationStatus,
+      escalationReason: item.escalationReason
     },
     createdAt: nowIso,
     updatedAt: nowIso,
     externalCalls: 0
   };
   mockProviderWebhookOperatorNotes.push(note);
+  item.lastOperatorNoteAt = nowIso;
   return note;
 }
 
@@ -509,8 +549,41 @@ export async function reviewSettingsProviderWebhookUnmatchedInbound(
   item.reviewReason = safeMockReason(payload.reason);
   item.unmatchedResolvedAt = nowIso;
   item.externalCalls = 0;
+  item.candidatesAvailable = false;
   mockProviderReadiness.latestUnmatchedReviewActionStatus = payload.status;
   mockProviderReadiness.latestUnmatchedInboundStatus = payload.status;
+  refreshMockUnmatchedCounts();
+  return item;
+}
+
+export async function assignSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundAssignmentRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return assignProviderWebhookUnmatchedInbound(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  applyMockAssignment(item, payload);
+  refreshMockUnmatchedCounts();
+  return item;
+}
+
+export async function escalateSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundEscalationRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  if (mode === "api") {
+    return escalateProviderWebhookUnmatchedInbound(unmatchedInboundId, payload);
+  }
+
+  const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
+  if (!item) throw new Error("Unmatched inbound item not found");
+  applyMockEscalation(item, payload);
   refreshMockUnmatchedCounts();
   return item;
 }
@@ -558,6 +631,7 @@ export async function bulkReviewSettingsProviderWebhookUnmatchedInbound(
     item.reviewReason = safeMockReason(payload.reason);
     item.unmatchedResolvedAt = nowIso;
     item.externalCalls = 0;
+    item.candidatesAvailable = false;
     results.push({ id, ok: true, resultStatus: "updated", reviewStatus: payload.reviewStatus, unmatchedStatus: item.unmatchedStatus, error: null, externalCalls: 0 });
   }
 
@@ -575,6 +649,66 @@ export async function bulkReviewSettingsProviderWebhookUnmatchedInbound(
       updatedCount: results.filter((result) => result.resultStatus === "updated").length,
       alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
     },
+    externalCalls: 0
+  };
+}
+
+export async function bulkAssignSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  payload: ProviderWebhookUnmatchedInboundBulkAssignmentRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkAssignmentResponse> {
+  if (mode === "api") {
+    return bulkAssignProviderWebhookUnmatchedInbound(payload);
+  }
+
+  const uniqueIds = Array.from(new Set(payload.ids.map((id) => id.trim()).filter(Boolean)));
+  const results: ProviderWebhookUnmatchedInboundBulkAssignmentResponse["results"] = [];
+  for (const id of uniqueIds) {
+    const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === id);
+    if (!item) {
+      results.push({ id, ok: false, resultStatus: "not-found", assignmentStatus: null, escalationStatus: null, escalationReason: null, error: "Unmatched inbound item not found", externalCalls: 0 });
+      continue;
+    }
+    const before = `${item.assignmentStatus}:${item.assignedToOperatorLabel ?? ""}:${item.assignedAt ?? ""}`;
+    applyMockAssignment(item, payload);
+    const after = `${item.assignmentStatus}:${item.assignedToOperatorLabel ?? ""}:${item.assignedAt ?? ""}`;
+    results.push({ id, ok: true, resultStatus: before === after ? "already-applied" : "updated", assignmentStatus: item.assignmentStatus, escalationStatus: item.escalationStatus, escalationReason: item.escalationReason, error: null, externalCalls: 0 });
+  }
+  refreshMockUnmatchedCounts();
+  return {
+    operation: payload.operation,
+    results,
+    summary: mockBulkMetadataSummary(payload.ids.length, uniqueIds.length, results),
+    externalCalls: 0
+  };
+}
+
+export async function bulkEscalateSettingsProviderWebhookUnmatchedInbound(
+  mode: DataMode,
+  payload: ProviderWebhookUnmatchedInboundBulkEscalationRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkEscalationResponse> {
+  if (mode === "api") {
+    return bulkEscalateProviderWebhookUnmatchedInbound(payload);
+  }
+
+  const uniqueIds = Array.from(new Set(payload.ids.map((id) => id.trim()).filter(Boolean)));
+  const results: ProviderWebhookUnmatchedInboundBulkEscalationResponse["results"] = [];
+  for (const id of uniqueIds) {
+    const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === id);
+    if (!item) {
+      results.push({ id, ok: false, resultStatus: "not-found", assignmentStatus: null, escalationStatus: null, escalationReason: null, error: "Unmatched inbound item not found", externalCalls: 0 });
+      continue;
+    }
+    const before = `${item.escalationStatus}:${item.escalationReason ?? ""}:${item.escalatedAt ?? ""}`;
+    applyMockEscalation(item, payload);
+    const after = `${item.escalationStatus}:${item.escalationReason ?? ""}:${item.escalatedAt ?? ""}`;
+    results.push({ id, ok: true, resultStatus: before === after ? "already-applied" : "updated", assignmentStatus: item.assignmentStatus, escalationStatus: item.escalationStatus, escalationReason: item.escalationReason, error: null, externalCalls: 0 });
+  }
+  refreshMockUnmatchedCounts();
+  return {
+    operation: payload.operation,
+    results,
+    summary: mockBulkMetadataSummary(payload.ids.length, uniqueIds.length, results),
     externalCalls: 0
   };
 }
@@ -599,6 +733,7 @@ export async function linkSettingsProviderWebhookUnmatchedInboundConversation(
   item.messagePersisted = payload.actionMode === "link-and-persist-safe-message";
   item.unmatchedResolvedAt = nowIso;
   item.externalCalls = 0;
+  item.candidatesAvailable = false;
   mockProviderReadiness.latestUnmatchedLinkStatus = item.linkStatus;
   mockProviderReadiness.latestUnmatchedInboundStatus = "linked";
   refreshMockUnmatchedCounts();
@@ -782,6 +917,13 @@ function filterMockUnmatchedInbound(filters: ProviderWebhookUnmatchedInboundFilt
     if (filters.linkStatus && item.linkStatus !== filters.linkStatus) return false;
     if (filters.unmatchedStatus && item.unmatchedStatus !== filters.unmatchedStatus) return false;
     if (filters.eventType && item.eventType !== filters.eventType) return false;
+    if (filters.assignedTo && item.assignedToOperatorLabel !== (filters.assignedTo === "me" ? "operator:current" : filters.assignedTo)) return false;
+    if (filters.assignmentStatus === "unassigned" && item.assignmentStatus !== "unassigned") return false;
+    if (filters.assignmentStatus === "assigned" && item.assignmentStatus !== "assigned") return false;
+    if (filters.assignmentStatus === "assigned_to_me" && item.assignedToOperatorLabel !== "operator:current") return false;
+    if (filters.assignmentStatus === "assigned_to_others" && (item.assignmentStatus !== "assigned" || item.assignedToOperatorLabel === "operator:current")) return false;
+    if (filters.escalationStatus && item.escalationStatus !== filters.escalationStatus) return false;
+    if (filters.escalationReason && item.escalationReason !== filters.escalationReason) return false;
     if (receivedFrom && item.receivedAt < new Date(receivedFrom).toISOString()) return false;
     if (receivedTo && item.receivedAt > new Date(receivedTo).toISOString()) return false;
     return true;
@@ -911,6 +1053,46 @@ function createMockReviewTriage(filters: ProviderWebhookReviewTriageFilters): Pr
   };
 }
 
+function createMockReviewWorkload(filters: ProviderWebhookReviewWorkloadFilters): ProviderWebhookReviewWorkload {
+  const appliedFilters = cleanMockReviewTriageFilters(filters);
+  const items = filterMockUnmatchedInbound(mockTriageBaseFilters(appliedFilters))
+    .map(mockAssignmentSummaryItem)
+    .filter((item) => !appliedFilters.severity || item.severity === appliedFilters.severity)
+    .filter((item) => !appliedFilters.triageLane || item.triageLane === appliedFilters.triageLane);
+  const openItems = items.filter((item) => item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed");
+  const assignedOpen = openItems.filter((item) => item.assignmentStatus === "assigned");
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters,
+    totalItems: items.length,
+    totalOpenItems: openItems.length,
+    thresholds: mockReviewAlertThresholds,
+    counts: {
+      unassignedOpen: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
+      assignedToMeOpen: openItems.filter((item) => item.assignedToOperatorLabel === "operator:current").length,
+      assignedToOthersOpen: openItems.filter((item) => item.assignmentStatus === "assigned" && item.assignedToOperatorLabel !== "operator:current").length,
+      assignedOpen: assignedOpen.length,
+      escalatedOpen: openItems.filter((item) => item.escalationStatus === "escalated").length,
+      overdueAssignedOpen: assignedOpen.filter((item) => mockHoursSince(item.assignedAt ?? item.receivedAt) >= mockReviewAlertThresholds.overSlaHours).length,
+      recentlyAssigned: items.filter((item) => item.assignedAt).length,
+      recentlyEscalated: items.filter((item) => item.escalatedAt).length,
+      resolvedAssigned: items.filter((item) => item.assignmentStatus === "assigned" && item.unmatchedStatus !== "open" && item.unmatchedStatus !== "review-needed").length
+    },
+    byAssignee: countMockByDynamic(items, (item) => item.assignedToOperatorLabel ?? "unassigned"),
+    byAssignmentStatus: countMockBy(items, ["unassigned", "assigned"], (item) => item.assignmentStatus),
+    byEscalationStatus: countMockBy(items, ["none", "escalated"], (item) => item.escalationStatus),
+    byEscalationReason: countMockBy(items, mockEscalationReasons, (item) => item.escalationReason ?? "none"),
+    byProvider: countMockBy(items, providersForMetrics, (item) => item.provider),
+    byPlatform: countMockBy(items, providersForMetrics, (item) => item.platform),
+    byReviewStatus: countMockBy(items, reviewStatusesForMetrics, (item) => item.reviewStatus),
+    byLinkStatus: countMockBy(items, linkStatusesForMetrics, (item) => item.linkStatus),
+    byUnmatchedStatus: countMockBy(items, unmatchedStatusesForMetrics, (item) => item.unmatchedStatus),
+    topAssignedItems: items.filter((item) => item.assignmentStatus === "assigned").slice(0, 10),
+    topEscalatedItems: items.filter((item) => item.escalationStatus === "escalated").slice(0, 10),
+    externalCalls: 0
+  };
+}
+
 function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
   return {
     unmatchedId: item.id,
@@ -926,9 +1108,46 @@ function mockReviewAlertItem(item: ProviderWebhookUnmatchedInboundItem) {
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
     unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     diagnosticsAvailable: true,
     historyAvailable: true,
+    externalCalls: 0 as const
+  };
+}
+
+function mockAssignmentSummaryItem(item: ProviderWebhookUnmatchedInboundItem) {
+  const lane = mockTriageLaneForItem(item);
+  return {
+    unmatchedId: item.id,
+    provider: item.provider,
+    platform: item.provider,
+    channelAccountId: item.channelAccountId,
+    safeRoomLabel: mockSafeRoomLabel(item),
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    ageBucket: mockAgeBucket(item.receivedAt),
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    triageLane: lane,
+    severity: mockTriageSeverityForItem(item, lane),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    assignedByOperatorLabel: item.assignedByOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
+    escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    lastOperatorNoteAt: item.lastOperatorNoteAt,
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: isMockLinkableUnmatchedItem(item),
     externalCalls: 0 as const
   };
 }
@@ -950,6 +1169,10 @@ function mockReviewTriageItem(item: ProviderWebhookUnmatchedInboundItem) {
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
     unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     recommendedNextActions: mockTriageActionsForLane(lane),
     diagnosticsAvailable: true,
@@ -980,6 +1203,10 @@ function cleanMockReviewMetricsFilters(filters: ProviderWebhookReviewMetricsFilt
     "unmatchedStatus",
     "status",
     "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -1016,6 +1243,10 @@ function cleanMockSavedViewFilters(filters: CreateProviderWebhookReviewSavedView
     "eventType",
     "severity",
     "triageLane",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedAtFrom",
     "receivedAtTo",
     "pageSize"
@@ -1038,6 +1269,7 @@ const reviewStatusesForMetrics = ["pending", "reviewed", "skipped", "linked"] as
 const linkStatusesForMetrics = ["none", "rejected", "linked", "linked-message-persisted", "duplicate-noop"] as const;
 const unmatchedStatusesForMetrics = ["open", "review-needed", "reviewed", "blocked", "skipped", "linked", "duplicate-skipped"] as const;
 const alertSeveritiesForMetrics = ["info", "warning", "critical"] as const;
+const mockEscalationReasons = ["none", "SLA_RISK", "NO_SAFE_CANDIDATE", "ROUTING_FAILED", "HIGH_PRIORITY_CUSTOMER", "NEEDS_MANAGER_REVIEW", "MANUAL_REVIEW_BLOCKED"] as const;
 const mockTriageLanes: ProviderWebhookReviewTriageLane[] = [
   "critical_stale_open",
   "warning_stale_open",
@@ -1106,6 +1338,17 @@ function countMockBy<T, K extends string>(items: T[], keys: readonly K[], getKey
     label: key,
     count: items.filter((item) => getKey(item) === key).length
   }));
+}
+
+function countMockByDynamic<T>(items: T[], getKey: (item: T) => string) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = getKey(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => ({ key, label: key, count }));
 }
 
 function mockAgeBuckets(items: ProviderWebhookUnmatchedInboundItem[]) {
@@ -1216,6 +1459,15 @@ function createMockUnmatchedDiagnostics(unmatchedInboundId: string): ProviderWeb
     reviewStatus: item.reviewStatus,
     linkStatus: item.linkStatus,
     unmatchedStatus: item.unmatchedStatus,
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    assignedByOperatorLabel: item.assignedByOperatorLabel,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
+    escalatedByOperatorLabel: item.escalatedByOperatorLabel,
+    lastOperatorNoteAt: item.lastOperatorNoteAt,
     routingOutcome: `${item.routingStatus}/${item.conversationLookupStatus}`,
     normalizedEventType: item.normalizedEventType,
     persistenceOutcome: event?.inboundPersistenceStatus ?? (item.messagePersisted ? "persisted" : "not-persisted"),
@@ -1360,6 +1612,40 @@ function createMockUnmatchedHistory(unmatchedInboundId: string): ProviderWebhook
       });
     }
   }
+  if (item.assignmentStatus === "assigned") {
+    entries.push({
+      id: `${item.id}-history-assigned`,
+      ...base,
+      action: "assigned",
+      actionStatus: "assigned",
+      statusBefore: "unassigned",
+      statusAfter: `assigned:${item.assignedToOperatorLabel ?? "unknown"}`,
+      actor: item.assignedByOperatorLabel ?? "operator:current",
+      reason: `assigned to ${item.assignedToOperatorLabel ?? "operator"}`,
+      message: "Unmatched inbound assigned for internal review",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.assignedAt ?? item.receivedAt
+    });
+  }
+  if (item.escalationStatus === "escalated") {
+    entries.push({
+      id: `${item.id}-history-escalated`,
+      ...base,
+      action: "escalated",
+      actionStatus: "escalated",
+      statusBefore: "none",
+      statusAfter: `escalated:${item.escalationReason ?? "unspecified"}`,
+      actor: item.escalatedByOperatorLabel ?? "operator:current",
+      reason: item.escalationReason,
+      message: "Unmatched inbound escalated for internal review",
+      linkedConversationId: null,
+      linkedMessageId: null,
+      receivedAt: item.receivedAt,
+      actionAt: item.escalatedAt ?? item.receivedAt
+    });
+  }
   return {
     unmatchedInboundId: item.id,
     provider: item.provider,
@@ -1399,6 +1685,12 @@ function createMockUnmatchedExport(filters: ProviderWebhookUnmatchedInboundExpor
     safeMessagePreview: safeMockText(item.textPreview),
     safeReason: safeMockText(item.reviewReason ?? item.unmatchedReason),
     safeResultSummary: safeMockText(item.reviewStatus === "linked" ? `linked:${item.linkStatus}` : item.reviewStatus),
+    assignmentStatus: item.assignmentStatus,
+    assignedToOperatorLabel: item.assignedToOperatorLabel,
+    assignedAt: item.assignedAt,
+    escalationStatus: item.escalationStatus,
+    escalationReason: item.escalationReason,
+    escalatedAt: item.escalatedAt,
     externalCalls: 0 as const
   }));
   return {
@@ -1429,11 +1721,66 @@ function mockSafeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
 }
 
 function mockRowsToCsv(rows: ProviderWebhookUnmatchedInboundExport["rows"]) {
-  const columns: (keyof ProviderWebhookUnmatchedInboundExport["rows"][number])[] = ["id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt", "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason", "safeResultSummary", "externalCalls"];
+  const columns: (keyof ProviderWebhookUnmatchedInboundExport["rows"][number])[] = ["id", "provider", "channelAccountId", "safeRoomLabel", "roomKeyDigest", "eventType", "reviewStatus", "linkStatus", "unmatchedStatus", "receivedAt", "reviewedAt", "linkedConversationId", "candidateCount", "safeMessagePreview", "safeReason", "safeResultSummary", "assignmentStatus", "assignedToOperatorLabel", "assignedAt", "escalationStatus", "escalationReason", "escalatedAt", "externalCalls"];
   return [
     columns.join(","),
     ...rows.map((row) => columns.map((column) => mockCsvCell(row[column])).join(","))
   ].join("\n");
+}
+
+function applyMockAssignment(
+  item: ProviderWebhookUnmatchedInboundItem,
+  payload: ProviderWebhookUnmatchedInboundAssignmentRequest | ProviderWebhookUnmatchedInboundBulkAssignmentRequest
+) {
+  const nowIso = new Date().toISOString();
+  if (payload.operation === "UNASSIGN") {
+    item.assignmentStatus = "unassigned";
+    item.assignedToOperatorLabel = null;
+    item.assignedAt = null;
+    item.assignedByOperatorLabel = "operator:current";
+  } else {
+    item.assignmentStatus = "assigned";
+    item.assignedToOperatorLabel = payload.operation === "ASSIGN_TO_ME" ? "operator:current" : safeMockText(payload.assignedToOperatorLabel) ?? "operator:queue-lead";
+    item.assignedAt = nowIso;
+    item.assignedByOperatorLabel = "operator:current";
+  }
+  item.lastOperatorNoteAt = payload.note ? nowIso : item.lastOperatorNoteAt;
+  item.externalCalls = 0;
+}
+
+function applyMockEscalation(
+  item: ProviderWebhookUnmatchedInboundItem,
+  payload: ProviderWebhookUnmatchedInboundEscalationRequest | ProviderWebhookUnmatchedInboundBulkEscalationRequest
+) {
+  const nowIso = new Date().toISOString();
+  if (payload.operation === "CLEAR_ESCALATION") {
+    item.escalationStatus = "none";
+    item.escalationReason = null;
+    item.escalatedAt = null;
+    item.escalatedByOperatorLabel = "operator:current";
+  } else {
+    item.escalationStatus = "escalated";
+    item.escalationReason = payload.escalationReason ?? "MANUAL_REVIEW_BLOCKED";
+    item.escalatedAt = nowIso;
+    item.escalatedByOperatorLabel = "operator:current";
+  }
+  item.lastOperatorNoteAt = payload.note ? nowIso : item.lastOperatorNoteAt;
+  item.externalCalls = 0;
+}
+
+function mockBulkMetadataSummary(
+  requestedCount: number,
+  dedupedCount: number,
+  results: ProviderWebhookUnmatchedInboundBulkAssignmentResponse["results"] | ProviderWebhookUnmatchedInboundBulkEscalationResponse["results"]
+) {
+  return {
+    requestedCount,
+    dedupedCount,
+    successCount: results.filter((result) => result.ok).length,
+    errorCount: results.filter((result) => !result.ok).length,
+    updatedCount: results.filter((result) => result.resultStatus === "updated").length,
+    alreadyAppliedCount: results.filter((result) => result.resultStatus === "already-applied").length
+  };
 }
 
 function mockCsvCell(value: ProviderWebhookUnmatchedInboundExport["rows"][number][keyof ProviderWebhookUnmatchedInboundExport["rows"][number]]) {
@@ -1453,6 +1800,15 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.unmatchedInboundLinkedCount = summary.linkedCount;
   mockProviderReadiness.savedViewCount = mockProviderWebhookReviewSavedViews.filter((view) => !view.archived).length;
   mockProviderReadiness.operatorNoteCount = mockProviderWebhookOperatorNotes.length;
+  mockProviderReadiness.unassignedOpenCount = mockProviderWebhookUnmatchedInbound.filter((item) =>
+    (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed") && item.assignmentStatus === "unassigned"
+  ).length;
+  mockProviderReadiness.assignedOpenCount = mockProviderWebhookUnmatchedInbound.filter((item) =>
+    (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed") && item.assignmentStatus === "assigned"
+  ).length;
+  mockProviderReadiness.escalatedOpenCount = mockProviderWebhookUnmatchedInbound.filter((item) =>
+    (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed") && item.escalationStatus === "escalated"
+  ).length;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -1500,8 +1856,14 @@ export const mockProviderReadiness: ProviderReadiness = {
   triageGuidanceEnabled: true,
   reviewSavedViewsEnabled: true,
   operatorNotesEnabled: true,
+  reviewAssignmentEnabled: true,
+  reviewEscalationEnabled: true,
+  assignmentWorkloadEnabled: true,
   savedViewCount: 1,
   operatorNoteCount: 0,
+  unassignedOpenCount: 1,
+  assignedOpenCount: 0,
+  escalatedOpenCount: 0,
   reviewAlertCriticalCount: 1,
   criticalTriageCount: 1,
   openTriageCount: 1,
@@ -1606,6 +1968,18 @@ export let mockProviderWebhookUnmatchedInbound: ProviderWebhookUnmatchedInboundI
     linkedMessageId: null,
     unmatchedResolvedAt: null,
     messagePersisted: false,
+    assignmentStatus: "unassigned",
+    assignedToOperatorLabel: null,
+    assignedAt: null,
+    assignedByOperatorLabel: null,
+    escalationStatus: "none",
+    escalationReason: null,
+    escalatedAt: null,
+    escalatedByOperatorLabel: null,
+    lastOperatorNoteAt: null,
+    historyAvailable: true,
+    diagnosticsAvailable: true,
+    candidatesAvailable: true,
     payloadDigest: "sha256:localdryrunsample",
     providerEventDigest: "sha256:localdedupsample",
     deliveryDigest: "sha256:localdedupsample",

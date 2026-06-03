@@ -16,6 +16,8 @@ import {
   apiHealthSchema,
   createProviderWebhookOperatorNoteRequestSchema,
   createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookReviewWorkloadFiltersSchema,
+  providerWebhookReviewWorkloadSchema,
   providerWebhookEventSchema,
   providerWebhookCandidateConversationSchema,
   providerWebhookOperatorNoteSchema,
@@ -29,8 +31,14 @@ import {
   providerWebhookUnmatchedInboundDiagnosticsSchema,
   providerWebhookUnmatchedInboundExportQuerySchema,
   providerWebhookUnmatchedInboundExportSchema,
+  providerWebhookUnmatchedInboundAssignmentRequestSchema,
+  providerWebhookUnmatchedInboundBulkAssignmentRequestSchema,
+  providerWebhookUnmatchedInboundBulkAssignmentResponseSchema,
+  providerWebhookUnmatchedInboundBulkEscalationRequestSchema,
+  providerWebhookUnmatchedInboundBulkEscalationResponseSchema,
   providerWebhookUnmatchedInboundBulkReviewRequestSchema,
   providerWebhookUnmatchedInboundBulkReviewResponseSchema,
+  providerWebhookUnmatchedInboundEscalationRequestSchema,
   providerWebhookUnmatchedInboundFiltersSchema,
   providerWebhookUnmatchedInboundHistorySchema,
   providerWebhookUnmatchedInboundLinkRequestSchema,
@@ -191,11 +199,19 @@ import {
   type ProviderWebhookReviewSavedView,
   type ProviderWebhookReviewTriage,
   type ProviderWebhookReviewTriageFilters,
+  type ProviderWebhookReviewWorkload,
+  type ProviderWebhookReviewWorkloadFilters,
+  type ProviderWebhookUnmatchedInboundAssignmentRequest,
   type ProviderWebhookUnmatchedInboundDiagnostics,
   type ProviderWebhookUnmatchedInboundExport,
   type ProviderWebhookUnmatchedInboundExportQuery,
+  type ProviderWebhookUnmatchedInboundBulkAssignmentRequest,
+  type ProviderWebhookUnmatchedInboundBulkAssignmentResponse,
+  type ProviderWebhookUnmatchedInboundBulkEscalationRequest,
+  type ProviderWebhookUnmatchedInboundBulkEscalationResponse,
   type ProviderWebhookUnmatchedInboundBulkReviewRequest,
   type ProviderWebhookUnmatchedInboundBulkReviewResponse,
+  type ProviderWebhookUnmatchedInboundEscalationRequest,
   type ProviderWebhookUnmatchedInboundFilters,
   type ProviderWebhookUnmatchedInboundHistory,
   type ProviderWebhookUnmatchedInboundLinkRequest,
@@ -308,6 +324,10 @@ export async function getProviderWebhookReviewMetrics(filters: ProviderWebhookRe
     "unmatchedStatus",
     "status",
     "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -331,6 +351,10 @@ export async function getProviderWebhookReviewAlerts(filters: ProviderWebhookRev
     "unmatchedStatus",
     "status",
     "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -355,6 +379,10 @@ export async function getProviderWebhookReviewTriage(filters: ProviderWebhookRev
     "unmatchedStatus",
     "status",
     "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -368,6 +396,35 @@ export async function getProviderWebhookReviewTriage(filters: ProviderWebhookRev
   }
   const search = params.toString();
   return request(`/provider-webhooks/review-triage${search ? `?${search}` : ""}`, providerWebhookReviewTriageSchema);
+}
+
+export async function getProviderWebhookReviewWorkload(filters: ProviderWebhookReviewWorkloadFilters = {}): Promise<ProviderWebhookReviewWorkload> {
+  const parsed = providerWebhookReviewWorkloadFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  const orderedKeys: (keyof ProviderWebhookReviewWorkloadFilters)[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "severity",
+    "triageLane"
+  ];
+  for (const key of orderedKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const search = params.toString();
+  return request(`/provider-webhooks/review-workload${search ? `?${search}` : ""}`, providerWebhookReviewWorkloadSchema);
 }
 
 export async function getProviderWebhookReviewSavedViews(): Promise<ProviderWebhookReviewSavedView[]> {
@@ -453,6 +510,10 @@ export async function getProviderWebhookUnmatchedInboundExport(filters: Provider
     "unmatchedStatus",
     "status",
     "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
     "receivedFrom",
     "receivedTo",
     "receivedAtFrom",
@@ -490,11 +551,53 @@ export async function reviewProviderWebhookUnmatchedInbound(
   });
 }
 
+export async function assignProviderWebhookUnmatchedInbound(
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundAssignmentRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  const body = providerWebhookUnmatchedInboundAssignmentRequestSchema.parse(payload);
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/assignment`, providerWebhookUnmatchedInboundItemSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function escalateProviderWebhookUnmatchedInbound(
+  unmatchedInboundId: string,
+  payload: ProviderWebhookUnmatchedInboundEscalationRequest
+): Promise<ProviderWebhookUnmatchedInboundItem> {
+  const body = providerWebhookUnmatchedInboundEscalationRequestSchema.parse(payload);
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/escalation`, providerWebhookUnmatchedInboundItemSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
 export async function bulkReviewProviderWebhookUnmatchedInbound(
   payload: ProviderWebhookUnmatchedInboundBulkReviewRequest
 ): Promise<ProviderWebhookUnmatchedInboundBulkReviewResponse> {
   const body = providerWebhookUnmatchedInboundBulkReviewRequestSchema.parse(payload);
   return request("/provider-webhooks/unmatched-inbound/bulk-review", providerWebhookUnmatchedInboundBulkReviewResponseSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function bulkAssignProviderWebhookUnmatchedInbound(
+  payload: ProviderWebhookUnmatchedInboundBulkAssignmentRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkAssignmentResponse> {
+  const body = providerWebhookUnmatchedInboundBulkAssignmentRequestSchema.parse(payload);
+  return request("/provider-webhooks/unmatched-inbound/bulk-assignment", providerWebhookUnmatchedInboundBulkAssignmentResponseSchema, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function bulkEscalateProviderWebhookUnmatchedInbound(
+  payload: ProviderWebhookUnmatchedInboundBulkEscalationRequest
+): Promise<ProviderWebhookUnmatchedInboundBulkEscalationResponse> {
+  const body = providerWebhookUnmatchedInboundBulkEscalationRequestSchema.parse(payload);
+  return request("/provider-webhooks/unmatched-inbound/bulk-escalation", providerWebhookUnmatchedInboundBulkEscalationResponseSchema, {
     method: "PATCH",
     body: JSON.stringify(body)
   });
