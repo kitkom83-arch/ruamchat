@@ -2403,9 +2403,15 @@ export const providerReadinessSchema = z.object({
   reviewClosureReportExportEnabled: z.boolean().default(false),
   reviewExportRedactionAuditEnabled: z.boolean().default(false),
   reviewExportIntegrityChecksEnabled: z.boolean().default(false),
+  reviewExportManifestEnabled: z.boolean().default(false),
+  reviewExportQaHandoffEnabled: z.boolean().default(false),
   exportRedactionPassedCount: z.number().int().nonnegative().default(0),
   exportRedactionWarningCount: z.number().int().nonnegative().default(0),
   exportRedactionBlockedCount: z.number().int().nonnegative().default(0),
+  exportManifestReadyCount: z.number().int().nonnegative().default(0),
+  exportManifestNeedsReviewCount: z.number().int().nonnegative().default(0),
+  exportManifestBlockedCount: z.number().int().nonnegative().default(0),
+  latestExportManifestStatus: z.enum(["ready", "needs_review", "blocked"]).nullable().default(null),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
   unassignedOpenCount: z.number().int().nonnegative(),
@@ -3141,6 +3147,58 @@ export const providerWebhookReviewExportIntegritySchema = z.object({
   safeReportDigest: z.string().min(1)
 }).strict();
 export type ProviderWebhookReviewExportIntegrity = z.infer<typeof providerWebhookReviewExportIntegritySchema>;
+
+export const providerWebhookReviewExportManifestTargetSchema = z.enum(["closure-evidence-export", "closure-report-export"]);
+export type ProviderWebhookReviewExportManifestTarget = z.infer<typeof providerWebhookReviewExportManifestTargetSchema>;
+
+export const providerWebhookReviewExportManifestIntegrityStatusSchema = z.enum(["confirmed", "warning", "blocked"]);
+export type ProviderWebhookReviewExportManifestIntegrityStatus = z.infer<typeof providerWebhookReviewExportManifestIntegrityStatusSchema>;
+
+export const providerWebhookReviewExportManifestQaReadinessSchema = z.enum(["ready", "needs_review", "blocked"]);
+export type ProviderWebhookReviewExportManifestQaReadiness = z.infer<typeof providerWebhookReviewExportManifestQaReadinessSchema>;
+
+export const providerWebhookReviewExportManifestChecksSchema = z.object({
+  safeFilenamePresent: z.boolean(),
+  safeDigestPresent: z.boolean(),
+  redactionPassedOrWarned: z.boolean(),
+  redactionBlockedAbsent: z.boolean(),
+  deterministicExportConfirmed: z.boolean(),
+  externalCallsZero: z.boolean(),
+  manualQaReady: z.boolean()
+}).strict();
+export type ProviderWebhookReviewExportManifestChecks = z.infer<typeof providerWebhookReviewExportManifestChecksSchema>;
+
+export const providerWebhookReviewExportManifestSchema = z.object({
+  generatedAt: z.string().datetime(),
+  manifestKind: z.literal("provider-webhook-review-export-manifest"),
+  manifestTarget: providerWebhookReviewExportManifestTargetSchema,
+  exportKind: z.enum(["closure-evidence", "closure-report"]),
+  format: z.literal("json"),
+  contentType: z.literal("application/json"),
+  safeFilename: z.string().min(1),
+  exportedAt: z.string().datetime(),
+  exportShapeVersion: z.string().min(1),
+  unmatchedId: z.string().min(1).optional(),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema.optional(),
+  totalItems: z.number().int().nonnegative(),
+  totalOpenItems: z.number().int().nonnegative(),
+  evidenceReadyCount: z.number().int().nonnegative(),
+  evidenceBlockedCount: z.number().int().nonnegative(),
+  evidenceIncompleteCount: z.number().int().nonnegative(),
+  redactionStatus: providerWebhookReviewExportRedactionAuditStatusSchema,
+  redactionIssueCount: z.number().int().nonnegative(),
+  redactionPassedCount: z.number().int().nonnegative(),
+  redactionWarningCount: z.number().int().nonnegative(),
+  redactionBlockedCount: z.number().int().nonnegative(),
+  integrityStatus: providerWebhookReviewExportManifestIntegrityStatusSchema,
+  deterministicExportConfirmed: z.boolean(),
+  safeDigest: z.string().min(1),
+  safeReportDigest: z.string().min(1).optional(),
+  manualQaReadiness: providerWebhookReviewExportManifestQaReadinessSchema,
+  manualQaChecks: providerWebhookReviewExportManifestChecksSchema,
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewExportManifest = z.infer<typeof providerWebhookReviewExportManifestSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

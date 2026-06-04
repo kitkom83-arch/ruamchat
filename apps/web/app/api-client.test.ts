@@ -27,6 +27,7 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureReportExport,
+  getProviderWebhookReviewClosureReportExportManifest,
   getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewClosureExportIntegrity,
   getProviderWebhookReviewClosureReportRedactionAudit,
@@ -39,6 +40,7 @@ import {
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundClosureEvidenceExport,
+  getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest,
   getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit,
   getProviderWebhookUnmatchedInboundDiagnostics,
@@ -721,6 +723,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-1")))
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewClosureReportExportResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceExportResponse("provider-webhook-unmatched-1")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportManifestResponse("closure-report-export")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportManifestResponse("closure-evidence-export", "provider-webhook-unmatched-1")))
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportRedactionAuditResponse("closure-report-export")))
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportIntegrityResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportRedactionAuditResponse("closure-evidence-export", "provider-webhook-unmatched-1")));
@@ -748,6 +752,8 @@ describe("frontend API client", () => {
     const evidence = await getProviderWebhookUnmatchedInboundClosureEvidence("provider-webhook-unmatched-1");
     const reportExport = await getProviderWebhookReviewClosureReportExport(closureFilters);
     const evidenceExport = await getProviderWebhookUnmatchedInboundClosureEvidenceExport("provider-webhook-unmatched-1");
+    const reportManifest = await getProviderWebhookReviewClosureReportExportManifest(closureFilters);
+    const evidenceManifest = await getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest("provider-webhook-unmatched-1");
     const reportAudit = await getProviderWebhookReviewClosureReportRedactionAudit(closureFilters);
     const integrity = await getProviderWebhookReviewClosureExportIntegrity(closureFilters);
     const evidenceAudit = await getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit("provider-webhook-unmatched-1");
@@ -756,6 +762,8 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report/export?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence/export", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report/export/manifest?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence/export/manifest", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report/redaction-audit?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-export-integrity?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence/redaction-audit", expect.any(Object));
@@ -797,6 +805,18 @@ describe("frontend API client", () => {
       },
       externalCalls: 0
     });
+    expect(reportManifest).toMatchObject({
+      manifestTarget: "closure-report-export",
+      manualQaReadiness: "ready",
+      safeFilename: "provider-webhook-review-closure-report.json",
+      externalCalls: 0
+    });
+    expect(evidenceManifest).toMatchObject({
+      manifestTarget: "closure-evidence-export",
+      unmatchedId: "provider-webhook-unmatched-1",
+      manualQaReadiness: "ready",
+      externalCalls: 0
+    });
     expect(reportAudit).toMatchObject({
       auditTarget: "closure-report-export",
       status: "passed",
@@ -817,7 +837,7 @@ describe("frontend API client", () => {
       status: "passed",
       externalCalls: 0
     });
-    expect(JSON.stringify({ report, evidence, reportExport, evidenceExport, reportAudit, integrity, evidenceAudit }))
+    expect(JSON.stringify({ report, evidence, reportExport, evidenceExport, reportManifest, evidenceManifest, reportAudit, integrity, evidenceAudit }))
       .not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
   });
 
@@ -938,6 +958,14 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure report export unavailable" }, 503));
     await expect(getProviderWebhookReviewClosureReportExport({ provider: "line" }))
       .rejects.toThrow("API request failed (503): closure report export unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure evidence manifest unavailable" }, 503));
+    await expect(getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest("provider-webhook-unmatched-1"))
+      .rejects.toThrow("API request failed (503): closure evidence manifest unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure report manifest unavailable" }, 503));
+    await expect(getProviderWebhookReviewClosureReportExportManifest({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): closure report manifest unavailable");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure report audit unavailable" }, 503));
     await expect(getProviderWebhookReviewClosureReportRedactionAudit({ provider: "line" }))
@@ -2898,6 +2926,49 @@ function providerWebhookReviewExportIntegrityResponse() {
     deterministicExportConfirmed: true,
     exportShapeVersion: "provider-webhook-closure-export-v1",
     safeReportDigest: "sha256:safereportdigest"
+  };
+}
+
+function providerWebhookReviewExportManifestResponse(auditTarget: "closure-report-export" | "closure-evidence-export", unmatchedId?: string) {
+  return {
+    generatedAt: "2026-06-04T00:05:00.000Z",
+    manifestKind: "provider-webhook-review-export-manifest",
+    manifestTarget: auditTarget,
+    exportKind: auditTarget === "closure-report-export" ? "closure-report" : "closure-evidence",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: auditTarget === "closure-report-export"
+      ? "provider-webhook-review-closure-report.json"
+      : `provider-webhook-closure-evidence-line-${unmatchedId ?? "provider-webhook-unmatched-1"}.json`,
+    exportedAt: "2026-06-04T00:02:00.000Z",
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    ...(unmatchedId ? { unmatchedId } : {}),
+    ...(auditTarget === "closure-report-export" ? { appliedFilters: { provider: "line", checklistIncomplete: false } } : {}),
+    totalItems: 1,
+    totalOpenItems: 1,
+    evidenceReadyCount: 1,
+    evidenceBlockedCount: 0,
+    evidenceIncompleteCount: 0,
+    redactionStatus: "passed",
+    redactionIssueCount: 0,
+    redactionPassedCount: 1,
+    redactionWarningCount: 0,
+    redactionBlockedCount: 0,
+    integrityStatus: "confirmed",
+    deterministicExportConfirmed: true,
+    safeDigest: "sha256:safeauditdigest",
+    ...(auditTarget === "closure-report-export" ? { safeReportDigest: "sha256:safereportdigest" } : {}),
+    manualQaReadiness: "ready",
+    manualQaChecks: {
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      redactionPassedOrWarned: true,
+      redactionBlockedAbsent: true,
+      deterministicExportConfirmed: true,
+      externalCallsZero: true,
+      manualQaReady: true
+    },
+    externalCalls: 0
   };
 }
 

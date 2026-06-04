@@ -17,6 +17,7 @@ import type {
   ProviderWebhookReviewClosureEvidenceExport,
   ProviderWebhookReviewClosureEvidenceStatus,
   ProviderWebhookReviewExportIntegrity,
+  ProviderWebhookReviewExportManifest,
   ProviderWebhookReviewExportRedactionAudit,
   ProviderWebhookReviewClosureReport,
   ProviderWebhookReviewClosureReportExport,
@@ -69,6 +70,7 @@ import {
   getProviderWebhookOperatorNotes,
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureReportExport,
+  getProviderWebhookReviewClosureReportExportManifest,
   getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewClosureExportIntegrity,
   getProviderWebhookReviewClosureReportRedactionAudit,
@@ -82,6 +84,7 @@ import {
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundClosureEvidenceExport,
+  getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest,
   getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit,
   getProviderWebhookUnmatchedInboundDiagnostics,
@@ -173,6 +176,11 @@ export type SettingsProviderWebhookReviewClosureReportExportData = {
   exportResult: ProviderWebhookReviewClosureReportExport;
 };
 
+export type SettingsProviderWebhookReviewClosureReportExportManifestData = {
+  mode: DataMode;
+  manifest: ProviderWebhookReviewExportManifest;
+};
+
 export type SettingsProviderWebhookReviewClosureReportRedactionAuditData = {
   mode: DataMode;
   audit: ProviderWebhookReviewExportRedactionAudit;
@@ -191,6 +199,11 @@ export type SettingsProviderWebhookClosureEvidenceData = {
 export type SettingsProviderWebhookClosureEvidenceExportData = {
   mode: DataMode;
   exportResult: ProviderWebhookReviewClosureEvidenceExport;
+};
+
+export type SettingsProviderWebhookClosureEvidenceExportManifestData = {
+  mode: DataMode;
+  manifest: ProviderWebhookReviewExportManifest;
 };
 
 export type SettingsProviderWebhookClosureEvidenceRedactionAuditData = {
@@ -409,6 +422,23 @@ export async function exportSettingsProviderWebhookReviewClosureReportData(
   return {
     mode,
     exportResult: createMockReviewClosureReportExport(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewClosureReportExportManifestData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewClosureReportExportManifestData> {
+  if (mode === "api") {
+    return {
+      mode,
+      manifest: await getProviderWebhookReviewClosureReportExportManifest(filters)
+    };
+  }
+
+  return {
+    mode,
+    manifest: createMockReviewClosureReportExportManifest(filters)
   };
 }
 
@@ -671,6 +701,23 @@ export async function exportSettingsProviderWebhookClosureEvidenceData(
   return {
     mode,
     exportResult: createMockClosureEvidenceExport(unmatchedInboundId)
+  };
+}
+
+export async function loadSettingsProviderWebhookClosureEvidenceExportManifestData(
+  mode: DataMode,
+  unmatchedInboundId: string
+): Promise<SettingsProviderWebhookClosureEvidenceExportManifestData> {
+  if (mode === "api") {
+    return {
+      mode,
+      manifest: await getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    manifest: createMockClosureEvidenceExportManifest(unmatchedInboundId)
   };
 }
 
@@ -1505,6 +1552,32 @@ function createMockReviewClosureExportIntegrity(filters: ProviderWebhookReviewCl
   };
 }
 
+function createMockReviewClosureReportExportManifest(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewExportManifest {
+  const exportResult = createMockReviewClosureReportExport(filters);
+  const audit = createMockReviewClosureReportRedactionAudit(filters);
+  const integrity = createMockReviewClosureExportIntegrity(filters);
+  return createMockExportManifest({
+    manifestTarget: "closure-report-export",
+    exportKind: exportResult.exportKind,
+    safeFilename: exportResult.safeFilename,
+    exportedAt: exportResult.exportedAt,
+    appliedFilters: exportResult.appliedFilters,
+    totalItems: exportResult.totalItems,
+    totalOpenItems: exportResult.totalOpenItems,
+    evidenceReadyCount: exportResult.evidenceReadyCount,
+    evidenceBlockedCount: exportResult.evidenceBlockedCount,
+    evidenceIncompleteCount: exportResult.evidenceIncompleteCount,
+    redactionStatus: audit.status,
+    redactionIssueCount: audit.issues.length,
+    redactionPassedCount: integrity.redactionPassedCount,
+    redactionWarningCount: integrity.redactionWarningCount,
+    redactionBlockedCount: integrity.redactionBlockedCount,
+    deterministicExportConfirmed: integrity.deterministicExportConfirmed,
+    safeDigest: audit.safeDigest,
+    safeReportDigest: integrity.safeReportDigest
+  });
+}
+
 function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
@@ -1533,6 +1606,33 @@ function createMockClosureEvidenceRedactionAudit(unmatchedInboundId: string): Pr
     unmatchedId: exportResult.unmatchedId,
     safeRoomDigestPresent: Boolean(exportResult.roomKeyDigest),
     safeDigest: "sha256:mockclosureevidenceredactionaudit"
+  });
+}
+
+function createMockClosureEvidenceExportManifest(unmatchedInboundId: string): ProviderWebhookReviewExportManifest {
+  const exportResult = createMockClosureEvidenceExport(unmatchedInboundId);
+  const audit = createMockClosureEvidenceRedactionAudit(unmatchedInboundId);
+  const redactionPassedCount = audit.status === "passed" ? 1 : 0;
+  const redactionWarningCount = audit.status === "warning" ? 1 : 0;
+  const redactionBlockedCount = audit.status === "blocked" ? 1 : 0;
+  return createMockExportManifest({
+    manifestTarget: "closure-evidence-export",
+    exportKind: exportResult.exportKind,
+    safeFilename: exportResult.safeFilename,
+    exportedAt: exportResult.exportedAt,
+    unmatchedId: exportResult.unmatchedId,
+    totalItems: 1,
+    totalOpenItems: exportResult.unmatchedStatus === "open" || exportResult.unmatchedStatus === "review-needed" ? 1 : 0,
+    evidenceReadyCount: exportResult.evidenceStatus === "ready" ? 1 : 0,
+    evidenceBlockedCount: exportResult.evidenceStatus === "blocked" ? 1 : 0,
+    evidenceIncompleteCount: exportResult.evidenceStatus === "incomplete" ? 1 : 0,
+    redactionStatus: audit.status,
+    redactionIssueCount: audit.issues.length,
+    redactionPassedCount,
+    redactionWarningCount,
+    redactionBlockedCount,
+    deterministicExportConfirmed: audit.checks.exportDeterministic,
+    safeDigest: audit.safeDigest
   });
 }
 
@@ -1577,6 +1677,77 @@ function createMockExportRedactionAudit(input: {
     ...(input.appliedFilters ? { appliedFilters: input.appliedFilters } : {}),
     exportShapeVersion: "provider-webhook-closure-export-v1",
     safeDigest: input.safeDigest,
+    externalCalls: 0
+  };
+}
+
+function createMockExportManifest(input: {
+  manifestTarget: ProviderWebhookReviewExportManifest["manifestTarget"];
+  exportKind: ProviderWebhookReviewExportManifest["exportKind"];
+  safeFilename: string;
+  exportedAt: string;
+  unmatchedId?: string;
+  appliedFilters?: ProviderWebhookReviewClosureReportFilters;
+  totalItems: number;
+  totalOpenItems: number;
+  evidenceReadyCount: number;
+  evidenceBlockedCount: number;
+  evidenceIncompleteCount: number;
+  redactionStatus: ProviderWebhookReviewExportRedactionAudit["status"];
+  redactionIssueCount: number;
+  redactionPassedCount: number;
+  redactionWarningCount: number;
+  redactionBlockedCount: number;
+  deterministicExportConfirmed: boolean;
+  safeDigest: string;
+  safeReportDigest?: string;
+}): ProviderWebhookReviewExportManifest {
+  const integrityStatus = input.redactionBlockedCount > 0 || !input.deterministicExportConfirmed
+    ? "blocked"
+    : input.redactionWarningCount > 0
+      ? "warning"
+      : "confirmed";
+  const manualQaReadiness = integrityStatus === "blocked"
+    ? "blocked"
+    : integrityStatus === "warning" || input.evidenceBlockedCount > 0 || input.evidenceIncompleteCount > 0
+      ? "needs_review"
+      : "ready";
+  return {
+    generatedAt: new Date().toISOString(),
+    manifestKind: "provider-webhook-review-export-manifest",
+    manifestTarget: input.manifestTarget,
+    exportKind: input.exportKind,
+    format: "json",
+    contentType: "application/json",
+    safeFilename: input.safeFilename,
+    exportedAt: input.exportedAt,
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    ...(input.unmatchedId ? { unmatchedId: input.unmatchedId } : {}),
+    ...(input.appliedFilters ? { appliedFilters: input.appliedFilters } : {}),
+    totalItems: input.totalItems,
+    totalOpenItems: input.totalOpenItems,
+    evidenceReadyCount: input.evidenceReadyCount,
+    evidenceBlockedCount: input.evidenceBlockedCount,
+    evidenceIncompleteCount: input.evidenceIncompleteCount,
+    redactionStatus: input.redactionStatus,
+    redactionIssueCount: input.redactionIssueCount,
+    redactionPassedCount: input.redactionPassedCount,
+    redactionWarningCount: input.redactionWarningCount,
+    redactionBlockedCount: input.redactionBlockedCount,
+    integrityStatus,
+    deterministicExportConfirmed: input.deterministicExportConfirmed,
+    safeDigest: input.safeDigest,
+    ...(input.safeReportDigest ? { safeReportDigest: input.safeReportDigest } : {}),
+    manualQaReadiness,
+    manualQaChecks: {
+      safeFilenamePresent: input.safeFilename.length > 0,
+      safeDigestPresent: input.safeDigest.startsWith("sha256:"),
+      redactionPassedOrWarned: input.redactionStatus === "passed" || input.redactionStatus === "warning",
+      redactionBlockedAbsent: input.redactionBlockedCount === 0,
+      deterministicExportConfirmed: input.deterministicExportConfirmed,
+      externalCallsZero: true,
+      manualQaReady: manualQaReadiness === "ready"
+    },
     externalCalls: 0
   };
 }
@@ -1746,6 +1917,11 @@ function mockClosureEvidenceStatusForItem(item: ProviderWebhookUnmatchedInboundI
     return "ready";
   }
   return "incomplete";
+}
+
+function mockExportManifestQaReadinessForItem(item: ProviderWebhookUnmatchedInboundItem): ProviderWebhookReviewExportManifest["manualQaReadiness"] {
+  if (!item.roomKeyDigest || item.externalCalls !== 0) return "blocked";
+  return mockClosureEvidenceStatusForItem(item) === "ready" ? "ready" : "needs_review";
 }
 
 function mockChecklistStepCompleted(item: ProviderWebhookUnmatchedInboundItem, step: ProviderWebhookReviewClosureChecklistStep) {
@@ -2644,6 +2820,11 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.exportRedactionPassedCount = mockProviderWebhookUnmatchedInbound.filter((item) => Boolean(item.roomKeyDigest)).length;
   mockProviderReadiness.exportRedactionWarningCount = mockProviderWebhookUnmatchedInbound.filter((item) => !item.roomKeyDigest).length;
   mockProviderReadiness.exportRedactionBlockedCount = 0;
+  const manifestStatuses = mockProviderWebhookUnmatchedInbound.map(mockExportManifestQaReadinessForItem);
+  mockProviderReadiness.exportManifestReadyCount = manifestStatuses.filter((status) => status === "ready").length;
+  mockProviderReadiness.exportManifestNeedsReviewCount = manifestStatuses.filter((status) => status === "needs_review").length;
+  mockProviderReadiness.exportManifestBlockedCount = manifestStatuses.filter((status) => status === "blocked").length;
+  mockProviderReadiness.latestExportManifestStatus = manifestStatuses[0] ?? null;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -2703,9 +2884,15 @@ export const mockProviderReadiness: ProviderReadiness = {
   reviewClosureReportExportEnabled: true,
   reviewExportRedactionAuditEnabled: true,
   reviewExportIntegrityChecksEnabled: true,
+  reviewExportManifestEnabled: true,
+  reviewExportQaHandoffEnabled: true,
   exportRedactionPassedCount: 1,
   exportRedactionWarningCount: 0,
   exportRedactionBlockedCount: 0,
+  exportManifestReadyCount: 0,
+  exportManifestNeedsReviewCount: 1,
+  exportManifestBlockedCount: 0,
+  latestExportManifestStatus: "needs_review",
   savedViewCount: 1,
   operatorNoteCount: 0,
   unassignedOpenCount: 1,

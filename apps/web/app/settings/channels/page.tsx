@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -18,6 +18,8 @@ import {
   exportSettingsProviderWebhookUnmatchedInboundData,
   exportSettingsProviderWebhookClosureEvidenceData,
   exportSettingsProviderWebhookReviewClosureReportData,
+  loadSettingsProviderWebhookReviewClosureReportExportManifestData,
+  loadSettingsProviderWebhookClosureEvidenceExportManifestData,
   loadSettingsProviderWebhookClosureEvidenceRedactionAuditData,
   loadSettingsProviderWebhookReviewClosureExportIntegrityData,
   loadSettingsProviderWebhookReviewClosureReportRedactionAuditData,
@@ -91,6 +93,9 @@ export default function ChannelSettingsPage() {
   const [reviewClosureReportExport, setReviewClosureReportExport] = useState<ProviderWebhookReviewClosureReportExport | null>(null);
   const [closureReportExportLoading, setClosureReportExportLoading] = useState(false);
   const [closureReportExportError, setClosureReportExportError] = useState("");
+  const [reviewClosureReportExportManifest, setReviewClosureReportExportManifest] = useState<ProviderWebhookReviewExportManifest | null>(null);
+  const [closureReportExportManifestLoading, setClosureReportExportManifestLoading] = useState(false);
+  const [closureReportExportManifestError, setClosureReportExportManifestError] = useState("");
   const [reviewClosureReportRedactionAudit, setReviewClosureReportRedactionAudit] = useState<ProviderWebhookReviewExportRedactionAudit | null>(null);
   const [closureReportRedactionAuditLoading, setClosureReportRedactionAuditLoading] = useState(false);
   const [closureReportRedactionAuditError, setClosureReportRedactionAuditError] = useState("");
@@ -115,6 +120,10 @@ export default function ChannelSettingsPage() {
   const [activeClosureEvidenceExport, setActiveClosureEvidenceExport] = useState<ProviderWebhookReviewClosureEvidenceExport | null>(null);
   const [closureEvidenceExportLoadingId, setClosureEvidenceExportLoadingId] = useState("");
   const [closureEvidenceExportErrorById, setClosureEvidenceExportErrorById] = useState<Record<string, string>>({});
+  const [activeClosureEvidenceExportManifestId, setActiveClosureEvidenceExportManifestId] = useState("");
+  const [activeClosureEvidenceExportManifest, setActiveClosureEvidenceExportManifest] = useState<ProviderWebhookReviewExportManifest | null>(null);
+  const [closureEvidenceExportManifestLoadingId, setClosureEvidenceExportManifestLoadingId] = useState("");
+  const [closureEvidenceExportManifestErrorById, setClosureEvidenceExportManifestErrorById] = useState<Record<string, string>>({});
   const [activeClosureEvidenceRedactionAuditId, setActiveClosureEvidenceRedactionAuditId] = useState("");
   const [activeClosureEvidenceRedactionAudit, setActiveClosureEvidenceRedactionAudit] = useState<ProviderWebhookReviewExportRedactionAudit | null>(null);
   const [closureEvidenceRedactionAuditLoadingId, setClosureEvidenceRedactionAuditLoadingId] = useState("");
@@ -457,6 +466,26 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadClosureEvidenceExportManifest(unmatchedInboundId: string) {
+    setActiveClosureEvidenceId(unmatchedInboundId);
+    setActiveClosureEvidenceExportManifestId(unmatchedInboundId);
+    setClosureEvidenceExportManifestLoadingId(unmatchedInboundId);
+    setClosureEvidenceExportManifestErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    setActiveClosureEvidenceExportManifest(null);
+    try {
+      const result = await loadSettingsProviderWebhookClosureEvidenceExportManifestData(dataMode, unmatchedInboundId);
+      setActiveClosureEvidenceExportManifest(result.manifest);
+    } catch (reason) {
+      setActiveClosureEvidenceExportManifest(null);
+      setClosureEvidenceExportManifestErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Closure Evidence Export Manifest API error: ${reason instanceof Error ? reason.message : "Unable to load safe closure evidence export manifest"}`
+      }));
+    } finally {
+      setClosureEvidenceExportManifestLoadingId("");
+    }
+  }
+
   async function loadClosureEvidenceRedactionAudit(unmatchedInboundId: string) {
     setActiveClosureEvidenceId(unmatchedInboundId);
     setActiveClosureEvidenceRedactionAuditId(unmatchedInboundId);
@@ -492,6 +521,24 @@ export default function ChannelSettingsPage() {
       setClosureReportExportError(`Closure Report Export API error: ${reason instanceof Error ? reason.message : "Unable to export provider webhook closure report"}`);
     } finally {
       setClosureReportExportLoading(false);
+    }
+  }
+
+  async function loadClosureReportExportManifest() {
+    setClosureReportExportManifestLoading(true);
+    setClosureReportExportManifestError("");
+    setReviewClosureReportExportManifest(null);
+    try {
+      const result = await loadSettingsProviderWebhookReviewClosureReportExportManifestData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewClosureReportExportManifest(result.manifest);
+    } catch (reason) {
+      setReviewClosureReportExportManifest(null);
+      setClosureReportExportManifestError(`Closure Report Export Manifest API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook closure report export manifest"}`);
+    } finally {
+      setClosureReportExportManifestLoading(false);
     }
   }
 
@@ -899,6 +946,8 @@ export default function ChannelSettingsPage() {
     setUnmatchedActionStatus("");
     setReviewClosureReportExport(null);
     setClosureReportExportError("");
+    setReviewClosureReportExportManifest(null);
+    setClosureReportExportManifestError("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
       ...defaultUnmatchedFilters,
@@ -1054,6 +1103,9 @@ export default function ChannelSettingsPage() {
         reviewClosureReportExport={reviewClosureReportExport}
         reviewClosureReportExportLoading={closureReportExportLoading}
         reviewClosureReportExportError={closureReportExportError}
+        reviewClosureReportExportManifest={reviewClosureReportExportManifest}
+        reviewClosureReportExportManifestLoading={closureReportExportManifestLoading}
+        reviewClosureReportExportManifestError={closureReportExportManifestError}
         reviewClosureReportRedactionAudit={reviewClosureReportRedactionAudit}
         reviewClosureReportRedactionAuditLoading={closureReportRedactionAuditLoading}
         reviewClosureReportRedactionAuditError={closureReportRedactionAuditError}
@@ -1077,6 +1129,10 @@ export default function ChannelSettingsPage() {
         activeClosureEvidenceExport={activeClosureEvidenceExport}
         closureEvidenceExportLoadingId={closureEvidenceExportLoadingId}
         closureEvidenceExportErrorById={closureEvidenceExportErrorById}
+        activeClosureEvidenceExportManifestId={activeClosureEvidenceExportManifestId}
+        activeClosureEvidenceExportManifest={activeClosureEvidenceExportManifest}
+        closureEvidenceExportManifestLoadingId={closureEvidenceExportManifestLoadingId}
+        closureEvidenceExportManifestErrorById={closureEvidenceExportManifestErrorById}
         activeClosureEvidenceRedactionAuditId={activeClosureEvidenceRedactionAuditId}
         activeClosureEvidenceRedactionAudit={activeClosureEvidenceRedactionAudit}
         closureEvidenceRedactionAuditLoadingId={closureEvidenceRedactionAuditLoadingId}
@@ -1116,8 +1172,10 @@ export default function ChannelSettingsPage() {
         onLoadDiagnostics={loadDiagnostics}
         onLoadClosureEvidence={loadClosureEvidence}
         onExportClosureEvidence={exportClosureEvidence}
+        onLoadClosureEvidenceExportManifest={loadClosureEvidenceExportManifest}
         onLoadClosureEvidenceRedactionAudit={loadClosureEvidenceRedactionAudit}
         onExportClosureReport={exportClosureReport}
+        onLoadClosureReportExportManifest={loadClosureReportExportManifest}
         onLoadClosureReportRedactionAudit={loadClosureReportRedactionAudit}
         onLoadClosureExportIntegrity={loadClosureExportIntegrity}
         onLoadHistory={loadHistory}
