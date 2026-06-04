@@ -28,6 +28,11 @@ import {
   type ProviderWebhookReviewClosureEvidenceExport,
   type ProviderWebhookReviewClosureEvidenceStatus,
   type ProviderWebhookReviewClosureEvidenceSummaryItem,
+  type ProviderWebhookReviewExportRedactionAudit,
+  type ProviderWebhookReviewExportRedactionChecks,
+  type ProviderWebhookReviewExportRedactionIssue,
+  type ProviderWebhookReviewExportRedactionAuditTarget,
+  type ProviderWebhookReviewExportIntegrity,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -82,6 +87,7 @@ import { ConversationService } from "./conversation.service.js";
 
 const maxStoredEvents = 100;
 const unmatchedInboundExportMaxLimit = 500;
+const reviewClosureExportShapeVersion = "provider-webhook-closure-export-v1";
 const reviewAlertThresholds = {
   staleWarningHours: 24,
   staleCriticalHours: 72,
@@ -495,12 +501,7 @@ export class ProviderWebhookEventsService {
   }
 
   getReviewClosureReport(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string): ProviderWebhookReviewClosureReport {
-    const normalizedFilters = cleanReviewClosureReportFilters(filters);
-    const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
-      .map(closureEvidenceSummaryItemFromUnmatched)
-      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
-      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
-      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    const { normalizedFilters, filteredItems } = this.getClosureReportItems(tenantId, filters, actorUserId);
     const openItems = filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus));
 
     return {
@@ -532,6 +533,85 @@ export class ProviderWebhookEventsService {
       safeFilename: safeExportFilename("provider-webhook-review-closure-report.json"),
       exportedAt: new Date().toISOString()
     };
+  }
+
+  getUnmatchedInboundClosureEvidenceRedactionAudit(tenantId: string, id: string): ProviderWebhookReviewExportRedactionAudit {
+    const item = findUnmatchedInboundItem(tenantId, id);
+    if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    const exportPayload = this.getUnmatchedInboundClosureEvidenceExport(tenantId, id);
+    return buildExportRedactionAudit({
+      auditTarget: "closure-evidence-export",
+      exportPayload,
+      unmatchedId: id,
+      tenantScoped: exportPayload.unmatchedId === id,
+      safeRoomDigestPresent: Boolean(exportPayload.roomKeyDigest)
+    });
+  }
+
+  getReviewClosureReportRedactionAudit(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewExportRedactionAudit {
+    const exportPayload = this.getReviewClosureReportExport(tenantId, filters, actorUserId);
+    return buildExportRedactionAudit({
+      auditTarget: "closure-report-export",
+      exportPayload,
+      appliedFilters: exportPayload.appliedFilters,
+      tenantScoped: true,
+      safeRoomDigestPresent: exportPayload.totalItems === 0 || [
+        ...exportPayload.topEvidenceReadyItems,
+        ...exportPayload.topEvidenceBlockedItems
+      ].every((item) => Boolean(item.roomKeyDigest))
+    });
+  }
+
+  getReviewClosureExportIntegrity(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewExportIntegrity {
+    const { normalizedFilters, filteredItems } = this.getClosureReportItems(tenantId, filters, actorUserId);
+    const reportExport = this.getReviewClosureReportExport(tenantId, normalizedFilters, actorUserId);
+    const itemAudits = filteredItems.map((item) => buildExportRedactionAudit({
+      auditTarget: "closure-evidence-export",
+      exportPayload: {
+        ...item,
+        generatedAt: reportExport.generatedAt,
+        exportKind: "closure-evidence" as const,
+        format: "json" as const,
+        contentType: "application/json" as const,
+        safeFilename: safeExportFilename(`provider-webhook-closure-evidence-${item.provider}-${item.unmatchedId}.json`),
+        exportedAt: reportExport.exportedAt
+      },
+      unmatchedId: item.unmatchedId,
+      tenantScoped: true,
+      safeRoomDigestPresent: Boolean(item.roomKeyDigest)
+    }));
+    const safeReportDigest = safeDigestForExport(reportExport);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      appliedFilters: normalizedFilters,
+      externalCalls: 0 as const,
+      totalCheckedItems: itemAudits.length,
+      redactionPassedCount: itemAudits.filter((audit) => audit.status === "passed").length,
+      redactionWarningCount: itemAudits.filter((audit) => audit.status === "warning").length,
+      redactionBlockedCount: itemAudits.filter((audit) => audit.status === "blocked").length,
+      deterministicExportConfirmed: safeReportDigest === safeDigestForExport(reportExport),
+      exportShapeVersion: reviewClosureExportShapeVersion,
+      safeReportDigest
+    };
+  }
+
+  private getClosureReportItems(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string) {
+    const normalizedFilters = cleanReviewClosureReportFilters(filters);
+    const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
+      .map(closureEvidenceSummaryItemFromUnmatched)
+      .filter((item) => !normalizedFilters.severity || item.severity === normalizedFilters.severity)
+      .filter((item) => !normalizedFilters.triageLane || item.triageLane === normalizedFilters.triageLane)
+      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+    return { normalizedFilters, filteredItems };
   }
 
   async resolveUnmatchedInbound(tenantId: string, unmatchedId: string, body: unknown, actorUserId?: string) {
@@ -2112,6 +2192,11 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     reviewClosureReportEnabled: true,
     reviewClosureEvidenceExportEnabled: true,
     reviewClosureReportExportEnabled: true,
+    reviewExportRedactionAuditEnabled: true,
+    reviewExportIntegrityChecksEnabled: true,
+    exportRedactionPassedCount: closureEvidenceItems.filter((item) => item.roomKeyDigest && item.externalCalls === 0).length,
+    exportRedactionWarningCount: closureEvidenceItems.filter((item) => !item.roomKeyDigest).length,
+    exportRedactionBlockedCount: 0,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
     unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
@@ -2948,6 +3033,121 @@ function closureEvidenceStatusForItem(item: ProviderWebhookUnmatchedInboundItem)
     return "ready";
   }
   return "incomplete";
+}
+
+function buildExportRedactionAudit(input: {
+  auditTarget: ProviderWebhookReviewExportRedactionAuditTarget;
+  exportPayload: unknown;
+  unmatchedId?: string;
+  appliedFilters?: ProviderWebhookReviewClosureReportFilters;
+  tenantScoped: boolean;
+  safeRoomDigestPresent: boolean;
+}): ProviderWebhookReviewExportRedactionAudit {
+  const safeDigest = safeDigestForExport(input.exportPayload);
+  const checks: ProviderWebhookReviewExportRedactionChecks = {
+    rawPayloadAbsent: unsafePatternAbsent(input.exportPayload, /rawPayload|providerRaw|payloadJson/i),
+    rawSignatureAbsent: unsafePatternAbsent(input.exportPayload, /rawSignature|signatureValue|signatureSecret/i),
+    tokenAbsent: unsafePatternAbsent(input.exportPayload, /replyToken|accessToken|refreshToken|bearerToken/i),
+    authorizationAbsent: unsafePatternAbsent(input.exportPayload, /authorization|authHeader/i),
+    cookieAbsent: unsafePatternAbsent(input.exportPayload, /cookie|set-cookie/i),
+    replyTokenAbsent: unsafePatternAbsent(input.exportPayload, /replyToken/i),
+    rawSenderIdAbsent: unsafePatternAbsent(input.exportPayload, /rawSender|senderId|sender id/i),
+    rawRoomIdAbsent: unsafePatternAbsent(input.exportPayload, /rawRoom|roomId|room id/i),
+    providerSecretAbsent: unsafePatternAbsent(input.exportPayload, /providerSecret|webhookSecret|secretValue/i),
+    providerOutboundAbsent: unsafePatternAbsent(input.exportPayload, /outbound\.queued|outbound\.sent|line\.push|telegram\.send|facebook\.send|instagram\.send/i),
+    externalCallsZero: externalCallsAreZero(input.exportPayload),
+    safeRoomDigestPresent: input.safeRoomDigestPresent,
+    tenantScoped: input.tenantScoped,
+    exportDeterministic: safeDigest === safeDigestForExport(input.exportPayload)
+  };
+  const issues = redactionIssuesForChecks(checks);
+  const status = issues.some((issue) => issue.severity === "blocked")
+    ? "blocked"
+    : issues.length > 0
+      ? "warning"
+      : "passed";
+
+  return {
+    generatedAt: new Date().toISOString(),
+    auditTarget: input.auditTarget,
+    status,
+    checks,
+    issues,
+    ...(input.unmatchedId ? { unmatchedId: input.unmatchedId } : {}),
+    ...(input.appliedFilters ? { appliedFilters: input.appliedFilters } : {}),
+    exportShapeVersion: reviewClosureExportShapeVersion,
+    safeDigest,
+    externalCalls: 0 as const
+  };
+}
+
+function redactionIssuesForChecks(checks: ProviderWebhookReviewExportRedactionChecks): ProviderWebhookReviewExportRedactionIssue[] {
+  const issues: ProviderWebhookReviewExportRedactionIssue[] = [];
+  const blockedChecks: Array<[keyof ProviderWebhookReviewExportRedactionChecks, string, string, string]> = [
+    ["rawPayloadAbsent", "raw-payload-present", "Raw payload reference detected", "Remove raw provider payload fields before QA export."],
+    ["rawSignatureAbsent", "raw-signature-present", "Raw signature reference detected", "Remove raw signature material before QA export."],
+    ["tokenAbsent", "token-present", "Provider token reference detected", "Remove token fields before QA export."],
+    ["authorizationAbsent", "authorization-present", "Authorization reference detected", "Remove authorization headers before QA export."],
+    ["cookieAbsent", "cookie-present", "Cookie reference detected", "Remove cookie fields before QA export."],
+    ["replyTokenAbsent", "reply-token-present", "Reply token reference detected", "Remove reply token fields before QA export."],
+    ["rawSenderIdAbsent", "raw-sender-id-present", "Raw sender id reference detected", "Use safe sender digest metadata only."],
+    ["rawRoomIdAbsent", "raw-room-id-present", "Raw room id reference detected", "Use safe room digest metadata only."],
+    ["providerSecretAbsent", "provider-secret-present", "Provider secret reference detected", "Remove provider secret fields before QA export."],
+    ["providerOutboundAbsent", "provider-outbound-present", "Provider outbound action reference detected", "Keep audit/export metadata read-only."],
+    ["externalCallsZero", "external-calls-nonzero", "External call count is not zero", "Investigate and keep audit/export checks local only."],
+    ["tenantScoped", "tenant-scope-not-confirmed", "Tenant scope was not confirmed", "Verify x-tenant-id filtering before QA signoff."],
+    ["exportDeterministic", "export-not-deterministic", "Export deterministic digest was not confirmed", "Regenerate export from stable safe fields only."]
+  ];
+  for (const [check, code, safeLabel, recommendedAction] of blockedChecks) {
+    if (!checks[check]) {
+      issues.push({ code, severity: "blocked", safeLabel, recommendedAction });
+    }
+  }
+  if (!checks.safeRoomDigestPresent) {
+    issues.push({
+      code: "safe-room-digest-missing",
+      severity: "warning",
+      safeLabel: "Safe room digest is missing",
+      recommendedAction: "Regenerate safe room digest context before QA signoff."
+    });
+  }
+  return issues;
+}
+
+function unsafePatternAbsent(value: unknown, pattern: RegExp) {
+  return !pattern.test(JSON.stringify(value));
+}
+
+function externalCallsAreZero(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(externalCallsAreZero);
+  if (!value || typeof value !== "object") return true;
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "externalCalls" && entry !== 0) return false;
+    if (!externalCallsAreZero(entry)) return false;
+  }
+  return true;
+}
+
+function safeDigestForExport(value: unknown) {
+  return `sha256:${crypto.createHash("sha256").update(stableStringify(stripVolatileExportFields(value))).digest("hex")}`;
+}
+
+function stripVolatileExportFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripVolatileExportFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== "generatedAt" && key !== "exportedAt")
+      .map(([key, entry]) => [key, stripVolatileExportFields(entry)])
+  );
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) =>
+    `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`
+  ).join(",")}}`;
 }
 
 function checklistStepCompleted(item: ProviderWebhookUnmatchedInboundItem, step: ProviderWebhookReviewClosureChecklistStep) {

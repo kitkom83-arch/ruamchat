@@ -16,6 +16,8 @@ import type {
   ProviderWebhookReviewClosureEvidence,
   ProviderWebhookReviewClosureEvidenceExport,
   ProviderWebhookReviewClosureEvidenceStatus,
+  ProviderWebhookReviewExportIntegrity,
+  ProviderWebhookReviewExportRedactionAudit,
   ProviderWebhookReviewClosureReport,
   ProviderWebhookReviewClosureReportExport,
   ProviderWebhookReviewClosureReportFilters,
@@ -68,6 +70,8 @@ import {
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReport,
+  getProviderWebhookReviewClosureExportIntegrity,
+  getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewResolutionSummary,
@@ -79,6 +83,7 @@ import {
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundClosureEvidenceExport,
   getProviderWebhookUnmatchedInboundClosureEvidence,
+  getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit,
   getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
@@ -168,6 +173,16 @@ export type SettingsProviderWebhookReviewClosureReportExportData = {
   exportResult: ProviderWebhookReviewClosureReportExport;
 };
 
+export type SettingsProviderWebhookReviewClosureReportRedactionAuditData = {
+  mode: DataMode;
+  audit: ProviderWebhookReviewExportRedactionAudit;
+};
+
+export type SettingsProviderWebhookReviewClosureExportIntegrityData = {
+  mode: DataMode;
+  integrity: ProviderWebhookReviewExportIntegrity;
+};
+
 export type SettingsProviderWebhookClosureEvidenceData = {
   mode: DataMode;
   evidence: ProviderWebhookReviewClosureEvidence;
@@ -176,6 +191,11 @@ export type SettingsProviderWebhookClosureEvidenceData = {
 export type SettingsProviderWebhookClosureEvidenceExportData = {
   mode: DataMode;
   exportResult: ProviderWebhookReviewClosureEvidenceExport;
+};
+
+export type SettingsProviderWebhookClosureEvidenceRedactionAuditData = {
+  mode: DataMode;
+  audit: ProviderWebhookReviewExportRedactionAudit;
 };
 
 export type SettingsProviderWebhookSavedViewsData = {
@@ -389,6 +409,40 @@ export async function exportSettingsProviderWebhookReviewClosureReportData(
   return {
     mode,
     exportResult: createMockReviewClosureReportExport(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewClosureReportRedactionAuditData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewClosureReportRedactionAuditData> {
+  if (mode === "api") {
+    return {
+      mode,
+      audit: await getProviderWebhookReviewClosureReportRedactionAudit(filters)
+    };
+  }
+
+  return {
+    mode,
+    audit: createMockReviewClosureReportRedactionAudit(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewClosureExportIntegrityData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewClosureExportIntegrityData> {
+  if (mode === "api") {
+    return {
+      mode,
+      integrity: await getProviderWebhookReviewClosureExportIntegrity(filters)
+    };
+  }
+
+  return {
+    mode,
+    integrity: createMockReviewClosureExportIntegrity(filters)
   };
 }
 
@@ -617,6 +671,23 @@ export async function exportSettingsProviderWebhookClosureEvidenceData(
   return {
     mode,
     exportResult: createMockClosureEvidenceExport(unmatchedInboundId)
+  };
+}
+
+export async function loadSettingsProviderWebhookClosureEvidenceRedactionAuditData(
+  mode: DataMode,
+  unmatchedInboundId: string
+): Promise<SettingsProviderWebhookClosureEvidenceRedactionAuditData> {
+  if (mode === "api") {
+    return {
+      mode,
+      audit: await getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    audit: createMockClosureEvidenceRedactionAudit(unmatchedInboundId)
   };
 }
 
@@ -1400,6 +1471,40 @@ function createMockReviewClosureReportExport(filters: ProviderWebhookReviewClosu
   };
 }
 
+function createMockReviewClosureReportRedactionAudit(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewExportRedactionAudit {
+  const exportResult = createMockReviewClosureReportExport(filters);
+  const safeRoomDigestPresent = [
+    ...exportResult.topEvidenceReadyItems,
+    ...exportResult.topEvidenceBlockedItems
+  ].every((item) => Boolean(item.roomKeyDigest));
+  return createMockExportRedactionAudit({
+    auditTarget: "closure-report-export",
+    appliedFilters: exportResult.appliedFilters,
+    safeRoomDigestPresent,
+    safeDigest: "sha256:mockclosurereportredactionaudit"
+  });
+}
+
+function createMockReviewClosureExportIntegrity(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewExportIntegrity {
+  const report = createMockReviewClosureReport(filters);
+  const warningCount = [
+    ...report.topEvidenceReadyItems,
+    ...report.topEvidenceBlockedItems
+  ].filter((item) => !item.roomKeyDigest).length;
+  return {
+    generatedAt: new Date().toISOString(),
+    appliedFilters: report.appliedFilters,
+    externalCalls: 0,
+    totalCheckedItems: report.totalItems,
+    redactionPassedCount: Math.max(report.totalItems - warningCount, 0),
+    redactionWarningCount: warningCount,
+    redactionBlockedCount: 0,
+    deterministicExportConfirmed: true,
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    safeReportDigest: "sha256:mockclosurereportintegrity"
+  };
+}
+
 function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
@@ -1418,6 +1523,61 @@ function createMockClosureEvidenceExport(unmatchedInboundId: string): ProviderWe
     contentType: "application/json",
     safeFilename: `provider-webhook-closure-evidence-${evidence.provider}-${evidence.unmatchedId}.json`,
     exportedAt: new Date().toISOString()
+  };
+}
+
+function createMockClosureEvidenceRedactionAudit(unmatchedInboundId: string): ProviderWebhookReviewExportRedactionAudit {
+  const exportResult = createMockClosureEvidenceExport(unmatchedInboundId);
+  return createMockExportRedactionAudit({
+    auditTarget: "closure-evidence-export",
+    unmatchedId: exportResult.unmatchedId,
+    safeRoomDigestPresent: Boolean(exportResult.roomKeyDigest),
+    safeDigest: "sha256:mockclosureevidenceredactionaudit"
+  });
+}
+
+function createMockExportRedactionAudit(input: {
+  auditTarget: ProviderWebhookReviewExportRedactionAudit["auditTarget"];
+  unmatchedId?: string;
+  appliedFilters?: ProviderWebhookReviewClosureReportFilters;
+  safeRoomDigestPresent: boolean;
+  safeDigest: string;
+}): ProviderWebhookReviewExportRedactionAudit {
+  const checks = {
+    rawPayloadAbsent: true,
+    rawSignatureAbsent: true,
+    tokenAbsent: true,
+    authorizationAbsent: true,
+    cookieAbsent: true,
+    replyTokenAbsent: true,
+    rawSenderIdAbsent: true,
+    rawRoomIdAbsent: true,
+    providerSecretAbsent: true,
+    providerOutboundAbsent: true,
+    externalCallsZero: true,
+    safeRoomDigestPresent: input.safeRoomDigestPresent,
+    tenantScoped: true,
+    exportDeterministic: true
+  };
+  const issues = input.safeRoomDigestPresent
+    ? []
+    : [{
+      code: "safe-room-digest-missing",
+      severity: "warning" as const,
+      safeLabel: "Safe room digest is missing",
+      recommendedAction: "Regenerate safe room digest context before QA signoff."
+    }];
+  return {
+    generatedAt: new Date().toISOString(),
+    auditTarget: input.auditTarget,
+    status: issues.length > 0 ? "warning" : "passed",
+    checks,
+    issues,
+    ...(input.unmatchedId ? { unmatchedId: input.unmatchedId } : {}),
+    ...(input.appliedFilters ? { appliedFilters: input.appliedFilters } : {}),
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    safeDigest: input.safeDigest,
+    externalCalls: 0
   };
 }
 
@@ -2481,6 +2641,9 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.closureEvidenceIncompleteCount = closureReport.evidenceIncompleteCount;
   mockProviderReadiness.closureEvidenceExportCount = mockProviderWebhookUnmatchedInbound.length;
   mockProviderReadiness.closureReportExportCount = mockProviderWebhookUnmatchedInbound.length > 0 ? 1 : 0;
+  mockProviderReadiness.exportRedactionPassedCount = mockProviderWebhookUnmatchedInbound.filter((item) => Boolean(item.roomKeyDigest)).length;
+  mockProviderReadiness.exportRedactionWarningCount = mockProviderWebhookUnmatchedInbound.filter((item) => !item.roomKeyDigest).length;
+  mockProviderReadiness.exportRedactionBlockedCount = 0;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -2538,6 +2701,11 @@ export const mockProviderReadiness: ProviderReadiness = {
   reviewClosureReportEnabled: true,
   reviewClosureEvidenceExportEnabled: true,
   reviewClosureReportExportEnabled: true,
+  reviewExportRedactionAuditEnabled: true,
+  reviewExportIntegrityChecksEnabled: true,
+  exportRedactionPassedCount: 1,
+  exportRedactionWarningCount: 0,
+  exportRedactionBlockedCount: 0,
   savedViewCount: 1,
   operatorNoteCount: 0,
   unassignedOpenCount: 1,

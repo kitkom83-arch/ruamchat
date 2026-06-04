@@ -1456,8 +1456,12 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewClosureReport(undefined, {}, "operator-current")).toThrow(BadRequestException);
     expect(() => controller.exportUnmatchedInboundClosureEvidence(undefined, item.id)).toThrow(BadRequestException);
     expect(() => controller.exportReviewClosureReport(undefined, {}, "operator-current")).toThrow(BadRequestException);
+    expect(() => controller.getUnmatchedInboundClosureEvidenceRedactionAudit(undefined, item.id)).toThrow(BadRequestException);
+    expect(() => controller.getReviewClosureReportRedactionAudit(undefined, {}, "operator-current")).toThrow(BadRequestException);
+    expect(() => controller.getReviewClosureExportIntegrity(undefined, {}, "operator-current")).toThrow(BadRequestException);
     expect(() => controller.getUnmatchedInboundClosureEvidence("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
     expect(() => controller.exportUnmatchedInboundClosureEvidence("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
+    expect(() => controller.getUnmatchedInboundClosureEvidenceRedactionAudit("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
 
     const evidence = controller.getUnmatchedInboundClosureEvidence(tenantId, item.id);
     const report = controller.getReviewClosureReport(tenantId, {
@@ -1489,8 +1493,37 @@ describe("ProviderWebhooksController sandbox events", () => {
       checklistIncomplete: "false",
       eventType: "message.created"
     }, "operator-current");
+    const evidenceRedactionAudit = controller.getUnmatchedInboundClosureEvidenceRedactionAudit(tenantId, item.id);
+    const reportRedactionAudit = controller.getReviewClosureReportRedactionAudit(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: "false",
+      eventType: "message.created"
+    }, "operator-current");
+    const exportIntegrity = controller.getReviewClosureExportIntegrity(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: "false",
+      eventType: "message.created"
+    }, "operator-current");
     const stateAfterEvidence = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ evidence, report, evidenceExport, reportExport });
+    const serialized = JSON.stringify({ evidence, report, evidenceExport, reportExport, evidenceRedactionAudit, reportRedactionAudit, exportIntegrity });
 
     expect(evidence).toMatchObject({
       unmatchedId: item.id,
@@ -1577,13 +1610,63 @@ describe("ProviderWebhooksController sandbox events", () => {
       provider: "line",
       checklistIncomplete: false
     });
+    expect(evidenceRedactionAudit).toMatchObject({
+      auditTarget: "closure-evidence-export",
+      status: "passed",
+      unmatchedId: item.id,
+      exportShapeVersion: "provider-webhook-closure-export-v1",
+      externalCalls: 0,
+      checks: {
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        authorizationAbsent: true,
+        cookieAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerSecretAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true,
+        safeRoomDigestPresent: true,
+        tenantScoped: true,
+        exportDeterministic: true
+      }
+    });
+    expect(evidenceRedactionAudit.issues).toEqual([]);
+    expect(evidenceRedactionAudit.safeDigest).toMatch(/^sha256:/);
+    expect(reportRedactionAudit).toMatchObject({
+      auditTarget: "closure-report-export",
+      status: "passed",
+      appliedFilters: {
+        provider: "line",
+        checklistIncomplete: false
+      },
+      externalCalls: 0
+    });
+    expect(reportRedactionAudit.checks.rawPayloadAbsent).toBe(true);
+    expect(reportRedactionAudit.checks.replyTokenAbsent).toBe(true);
+    expect(exportIntegrity).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        checklistIncomplete: false
+      },
+      totalCheckedItems: 1,
+      redactionPassedCount: 1,
+      redactionWarningCount: 0,
+      redactionBlockedCount: 0,
+      deterministicExportConfirmed: true,
+      exportShapeVersion: "provider-webhook-closure-export-v1",
+      externalCalls: 0
+    });
+    expect(exportIntegrity.safeReportDigest).toMatch(/^sha256:/);
     expect(stateAfterEvidence).toMatchObject({
       reviewStatus: stateBeforeEvidence?.reviewStatus,
       linkStatus: stateBeforeEvidence?.linkStatus,
       unmatchedStatus: stateBeforeEvidence?.unmatchedStatus,
       messagePersisted: stateBeforeEvidence?.messagePersisted
     });
-    expect(serialized).not.toMatch(/raw-evidence-room-71|raw-sender-event-evidence-71|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+    expect(serialized).not.toMatch(/raw-evidence-room-71|raw-sender-event-evidence-71|raw-message-id|providerRaw|payloadJson|accessToken|webhookSecret|raw room|raw sender|bearer/i);
   });
 
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {

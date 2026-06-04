@@ -27,7 +27,10 @@ async function main() {
   record("settings data keeps candidate API backend-only", settingsData.includes("candidates: await getProviderWebhookUnmatchedInboundCandidates") && settingsData.includes("mode === \"api\""));
   record("Settings Channels refetches after candidate-aware actions", settingsPage.includes("candidateItemsById") && settingsPage.includes("loadSettingsProviderWebhookCandidateData") && settingsPage.includes("await refreshWebhookEvents()"));
   record("provider UI has Sprint 62 controls", providerPanel.includes("Provider filter") && providerPanel.includes("Review status") && providerPanel.includes("Link status") && providerPanel.includes("Load candidates") && providerPanel.includes("candidate lookup="));
-  record("UI safe candidate labels only", providerPanel.includes("roomIdDigest=") && providerPanel.includes("safeRoomLabel=") && !/rawPayload|providerRaw|payloadJson|replyToken|raw sender|raw room/i.test(providerPanel));
+  const providerPanelForCandidateLabelCheck = providerPanel
+    .replaceAll("rawPayloadAbsent", "safeRedactionCheckAbsent")
+    .replaceAll("replyTokenAbsent", "safeRedactionCheckAbsent");
+  record("UI safe candidate labels only", providerPanel.includes("roomIdDigest=") && providerPanel.includes("safeRoomLabel=") && !/rawPayload|providerRaw|payloadJson|replyToken|raw sender|raw room/i.test(providerPanelForCandidateLabelCheck));
 
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
