@@ -16,6 +16,9 @@ import {
   apiHealthSchema,
   createProviderWebhookOperatorNoteRequestSchema,
   createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewClosureReportFiltersSchema,
+  providerWebhookReviewClosureReportSchema,
   providerWebhookReviewResolutionSummaryFiltersSchema,
   providerWebhookReviewResolutionSummarySchema,
   providerWebhookReviewWorkloadFiltersSchema,
@@ -200,6 +203,9 @@ import {
   type ProviderWebhookOperatorNote,
   type ProviderWebhookReviewAlerts,
   type ProviderWebhookReviewAlertsFilters,
+  type ProviderWebhookReviewClosureEvidence,
+  type ProviderWebhookReviewClosureReport,
+  type ProviderWebhookReviewClosureReportFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
   type ProviderWebhookReviewResolutionSummary,
@@ -488,6 +494,39 @@ export async function getProviderWebhookReviewResolutionSummary(filters: Provide
   return request(`/provider-webhooks/review-resolution-summary${search ? `?${search}` : ""}`, providerWebhookReviewResolutionSummarySchema);
 }
 
+export async function getProviderWebhookReviewClosureReport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReport> {
+  const parsed = providerWebhookReviewClosureReportFiltersSchema.parse(filters);
+  const params = new URLSearchParams();
+  const orderedKeys: (keyof ProviderWebhookReviewClosureReportFilters)[] = [
+    "provider",
+    "reviewStatus",
+    "linkStatus",
+    "unmatchedStatus",
+    "status",
+    "eventType",
+    "assignedTo",
+    "assignmentStatus",
+    "escalationStatus",
+    "escalationReason",
+    "resolutionStatus",
+    "resolutionOutcome",
+    "closureReadiness",
+    "checklistIncomplete",
+    "receivedFrom",
+    "receivedTo",
+    "receivedAtFrom",
+    "receivedAtTo",
+    "severity",
+    "triageLane"
+  ];
+  for (const key of orderedKeys) {
+    const value = parsed[key];
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  const search = params.toString();
+  return request(`/provider-webhooks/review-closure-report${search ? `?${search}` : ""}`, providerWebhookReviewClosureReportSchema);
+}
+
 export async function getProviderWebhookReviewSavedViews(): Promise<ProviderWebhookReviewSavedView[]> {
   return request("/provider-webhooks/review-saved-views", providerWebhookReviewSavedViewSchema.array());
 }
@@ -540,6 +579,10 @@ export async function getProviderWebhookUnmatchedInboundCandidates(unmatchedInbo
 
 export async function getProviderWebhookUnmatchedInboundHistory(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundHistory> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/history`, providerWebhookUnmatchedInboundHistorySchema);
+}
+
+export async function getProviderWebhookUnmatchedInboundClosureEvidence(unmatchedInboundId: string): Promise<ProviderWebhookReviewClosureEvidence> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence`, providerWebhookReviewClosureEvidenceSchema);
 }
 
 export async function getProviderWebhookUnmatchedInboundDiagnostics(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundDiagnostics> {

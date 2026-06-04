@@ -2397,6 +2397,8 @@ export const providerReadinessSchema = z.object({
   reviewResolutionEnabled: z.boolean().default(false),
   reviewClosureChecklistEnabled: z.boolean().default(false),
   resolutionSummaryEnabled: z.boolean().default(false),
+  reviewClosureEvidenceEnabled: z.boolean().default(false),
+  reviewClosureReportEnabled: z.boolean().default(false),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
   unassignedOpenCount: z.number().int().nonnegative(),
@@ -2406,6 +2408,9 @@ export const providerReadinessSchema = z.object({
   readyForClosureCount: z.number().int().nonnegative().default(0),
   blockedResolutionCount: z.number().int().nonnegative().default(0),
   checklistIncompleteOpenCount: z.number().int().nonnegative().default(0),
+  closureEvidenceReadyCount: z.number().int().nonnegative().default(0),
+  closureEvidenceBlockedCount: z.number().int().nonnegative().default(0),
+  closureEvidenceIncompleteCount: z.number().int().nonnegative().default(0),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
   criticalTriageCount: z.number().int().nonnegative(),
   openTriageCount: z.number().int().nonnegative(),
@@ -2969,6 +2974,83 @@ export const providerWebhookReviewResolutionSummarySchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewResolutionSummary = z.infer<typeof providerWebhookReviewResolutionSummarySchema>;
+
+export const providerWebhookReviewClosureEvidenceStatusSchema = z.enum(["ready", "blocked", "incomplete"]);
+export type ProviderWebhookReviewClosureEvidenceStatus = z.infer<typeof providerWebhookReviewClosureEvidenceStatusSchema>;
+
+export const providerWebhookReviewClosureEvidenceFlagsSchema = z.object({
+  diagnosticsViewedOrAvailable: z.boolean(),
+  historyAvailable: z.boolean(),
+  operatorNotesAvailable: z.boolean(),
+  candidatesAvailable: z.boolean(),
+  assignmentOrEscalationPresent: z.boolean(),
+  noProviderOutboundConfirmed: z.boolean(),
+  noRawLeakageConfirmed: z.boolean(),
+  safeLinkTargetConfirmed: z.boolean()
+}).strict();
+export type ProviderWebhookReviewClosureEvidenceFlags = z.infer<typeof providerWebhookReviewClosureEvidenceFlagsSchema>;
+
+export const providerWebhookReviewClosureEvidenceSummaryItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  channelAccountId: z.string().min(1).nullable(),
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  ageBucket: providerWebhookReviewAlertAgeBucketSchema,
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  triageLane: providerWebhookReviewTriageLaneSchema,
+  severity: providerWebhookReviewAlertSeveritySchema,
+  assignmentStatus: providerWebhookReviewAssignmentStatusSchema,
+  assignedToOperatorLabel: z.string().min(1).nullable(),
+  escalationStatus: providerWebhookReviewEscalationStatusSchema,
+  escalationReason: providerWebhookReviewEscalationReasonSchema.nullable(),
+  resolutionStatus: providerWebhookReviewResolutionStatusSchema,
+  resolutionOutcome: providerWebhookReviewResolutionOutcomeSchema.nullable(),
+  closureReadiness: providerWebhookReviewClosureReadinessSchema,
+  evidenceStatus: providerWebhookReviewClosureEvidenceStatusSchema,
+  checklistCompletedCount: z.number().int().nonnegative(),
+  checklistTotalCount: z.number().int().nonnegative(),
+  checklistIncompleteSteps: z.array(providerWebhookReviewClosureChecklistStepSchema),
+  recommendedNextActions: z.array(providerWebhookReviewRecommendedNextActionSchema),
+  evidenceFlags: providerWebhookReviewClosureEvidenceFlagsSchema,
+  historyEntryCount: z.number().int().nonnegative(),
+  operatorNoteCount: z.number().int().nonnegative(),
+  candidateSummaryCount: z.number().int().nonnegative(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewClosureEvidenceSummaryItem = z.infer<typeof providerWebhookReviewClosureEvidenceSummaryItemSchema>;
+
+export const providerWebhookReviewClosureEvidenceSchema = providerWebhookReviewClosureEvidenceSummaryItemSchema.extend({
+  generatedAt: z.string().datetime()
+}).strict();
+export type ProviderWebhookReviewClosureEvidence = z.infer<typeof providerWebhookReviewClosureEvidenceSchema>;
+
+export const providerWebhookReviewClosureReportFiltersSchema = providerWebhookReviewResolutionSummaryFiltersSchema.strip();
+export type ProviderWebhookReviewClosureReportFilters = z.infer<typeof providerWebhookReviewClosureReportFiltersSchema>;
+
+export const providerWebhookReviewClosureReportSchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema,
+  totalItems: z.number().int().nonnegative(),
+  totalOpenItems: z.number().int().nonnegative(),
+  evidenceReadyCount: z.number().int().nonnegative(),
+  evidenceBlockedCount: z.number().int().nonnegative(),
+  evidenceIncompleteCount: z.number().int().nonnegative(),
+  byClosureReadiness: z.array(providerWebhookReviewMetricsCountSchema),
+  byResolutionOutcome: z.array(providerWebhookReviewMetricsCountSchema),
+  byChecklistStep: z.array(providerWebhookReviewMetricsCountSchema),
+  byAssignmentStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  byEscalationStatus: z.array(providerWebhookReviewMetricsCountSchema),
+  topEvidenceReadyItems: z.array(providerWebhookReviewClosureEvidenceSummaryItemSchema),
+  topEvidenceBlockedItems: z.array(providerWebhookReviewClosureEvidenceSummaryItemSchema),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewClosureReport = z.infer<typeof providerWebhookReviewClosureReportSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

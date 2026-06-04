@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, Flag, Link2, ListChecks, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureReport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -39,6 +39,9 @@ type ProviderReadinessPanelProps = {
   reviewResolutionSummary?: ProviderWebhookReviewResolutionSummary | null;
   reviewResolutionSummaryLoading?: boolean;
   reviewResolutionSummaryError?: string;
+  reviewClosureReport?: ProviderWebhookReviewClosureReport | null;
+  reviewClosureReportLoading?: boolean;
+  reviewClosureReportError?: string;
   reviewSavedViews?: ProviderWebhookReviewSavedView[];
   reviewSavedViewsLoading?: boolean;
   reviewSavedViewsError?: string;
@@ -48,6 +51,10 @@ type ProviderReadinessPanelProps = {
   activeDiagnostics?: ProviderWebhookUnmatchedInboundDiagnostics | null;
   diagnosticsLoadingId?: string;
   diagnosticsErrorById?: Record<string, string>;
+  activeClosureEvidenceId?: string;
+  activeClosureEvidence?: ProviderWebhookReviewClosureEvidence | null;
+  closureEvidenceLoadingId?: string;
+  closureEvidenceErrorById?: Record<string, string>;
   activeHistoryId?: string;
   activeHistory?: ProviderWebhookUnmatchedInboundHistory | null;
   historyLoadingId?: string;
@@ -81,6 +88,7 @@ type ProviderReadinessPanelProps = {
   onArchiveSavedView?: (savedViewId: string) => Promise<void>;
   onLoadCandidates?: (unmatchedInboundId: string) => Promise<void>;
   onLoadDiagnostics?: (unmatchedInboundId: string) => Promise<void>;
+  onLoadClosureEvidence?: (unmatchedInboundId: string) => Promise<void>;
   onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
   onLoadOperatorNotes?: (unmatchedInboundId: string) => Promise<void>;
   onCreateOperatorNote?: (unmatchedInboundId: string, note: string) => Promise<void>;
@@ -163,6 +171,9 @@ export function ProviderReadinessPanel({
   reviewResolutionSummary = null,
   reviewResolutionSummaryLoading = false,
   reviewResolutionSummaryError = "",
+  reviewClosureReport = null,
+  reviewClosureReportLoading = false,
+  reviewClosureReportError = "",
   reviewSavedViews = [],
   reviewSavedViewsLoading = false,
   reviewSavedViewsError = "",
@@ -172,6 +183,10 @@ export function ProviderReadinessPanel({
   activeDiagnostics = null,
   diagnosticsLoadingId = "",
   diagnosticsErrorById = {},
+  activeClosureEvidenceId = "",
+  activeClosureEvidence = null,
+  closureEvidenceLoadingId = "",
+  closureEvidenceErrorById = {},
   activeHistoryId = "",
   activeHistory = null,
   historyLoadingId = "",
@@ -205,6 +220,7 @@ export function ProviderReadinessPanel({
   onArchiveSavedView,
   onLoadCandidates,
   onLoadDiagnostics,
+  onLoadClosureEvidence,
   onLoadHistory,
   onLoadOperatorNotes,
   onCreateOperatorNote,
@@ -439,6 +455,8 @@ export function ProviderReadinessPanel({
         e("span", null, `review resolution=${readiness.reviewResolutionEnabled ? "enabled" : "disabled"}`),
         e("span", null, `closure checklist=${readiness.reviewClosureChecklistEnabled ? "enabled" : "disabled"}`),
         e("span", null, `resolution summary=${readiness.resolutionSummaryEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `closure evidence=${readiness.reviewClosureEvidenceEnabled ? "enabled" : "disabled"}`),
+        e("span", null, `closure report=${readiness.reviewClosureReportEnabled ? "enabled" : "disabled"}`),
         e("span", null, `saved view count=${readiness.savedViewCount}`),
         e("span", null, `operator note count=${readiness.operatorNoteCount}`),
         e("span", null, `unassigned open count=${readiness.unassignedOpenCount}`),
@@ -448,6 +466,9 @@ export function ProviderReadinessPanel({
         e("span", null, `ready for closure count=${readiness.readyForClosureCount}`),
         e("span", null, `blocked resolution count=${readiness.blockedResolutionCount}`),
         e("span", null, `checklist incomplete open count=${readiness.checklistIncompleteOpenCount}`),
+        e("span", null, `closure evidence ready count=${readiness.closureEvidenceReadyCount}`),
+        e("span", null, `closure evidence blocked count=${readiness.closureEvidenceBlockedCount}`),
+        e("span", null, `closure evidence incomplete count=${readiness.closureEvidenceIncompleteCount}`),
         e("span", null, `critical alert count=${readiness.reviewAlertCriticalCount}`),
         e("span", null, `critical triage count=${readiness.criticalTriageCount}`),
         e("span", null, `open triage count=${readiness.openTriageCount}`),
@@ -969,6 +990,68 @@ export function ProviderReadinessPanel({
           e("span", null, `externalCalls=${item.externalCalls}`)
         ))
       ) : reviewResolutionSummary && !reviewResolutionSummaryLoading ? e("div", { className: "providerEmptyState" }, "No top ready or blocked resolution summaries.") : null
+    ),
+    e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook closure evidence report" },
+      e("div", { className: "webhookEventHeader" },
+        e("div", { className: "channelPanelTop" },
+          e(ShieldCheck, { size: 18 }),
+          e("div", null,
+            e("h3", null, "Closure evidence report"),
+            e("p", null, "Deterministic safe closure evidence summaries only. No review, skip, link, assignment, notification, provider, or AI action runs automatically.")
+          )
+        ),
+        reviewClosureReport ? e("div", { className: "webhookLastEvent", "aria-label": "Closure evidence report status" },
+          e("span", null, "closure report generated"),
+          e("strong", null, formatDate(reviewClosureReport.generatedAt)),
+          e("span", null, `externalCalls=${reviewClosureReport.externalCalls}`),
+          e("span", null, `applied filters=${formatAppliedFilters(reviewClosureReport.appliedFilters)}`)
+        ) : null
+      ),
+      reviewClosureReportError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewClosureReportError) : null,
+      reviewClosureReportLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook closure evidence report...") : null,
+      reviewClosureReport ? e("div", { className: "webhookMetricsGrid" },
+        metricFilterButton("total evidence items", reviewClosureReport.totalItems, {}),
+        metricFilterButton("open evidence items", reviewClosureReport.totalOpenItems, { status: "open" }),
+        metricFilterButton("evidence ready", reviewClosureReport.evidenceReadyCount, {}),
+        metricFilterButton("evidence blocked", reviewClosureReport.evidenceBlockedCount, { closureReadiness: "BLOCKED" }),
+        metricFilterButton("evidence incomplete", reviewClosureReport.evidenceIncompleteCount, { checklistIncomplete: true })
+      ) : !reviewClosureReportLoading && !reviewClosureReportError ? e("div", { className: "providerEmptyState" }, "No closure evidence report returned.") : null,
+      reviewClosureReport ? e("div", { className: "webhookMetricGroups" },
+        metricCountGroup("By closure readiness", reviewClosureReport.byClosureReadiness, (key) => ({ closureReadiness: key as ProviderWebhookUnmatchedInboundFilters["closureReadiness"] })),
+        metricCountGroup("By resolution outcome", reviewClosureReport.byResolutionOutcome, (key) => key === "none" ? { resolutionStatus: "unresolved" } : { resolutionOutcome: key as ProviderWebhookReviewResolutionOutcome }),
+        metricCountGroup("By incomplete checklist step", reviewClosureReport.byChecklistStep, () => ({ checklistIncomplete: true })),
+        metricCountGroup("By assignment status", reviewClosureReport.byAssignmentStatus, (key) => ({ assignmentStatus: key as ProviderWebhookUnmatchedInboundFilters["assignmentStatus"] })),
+        metricCountGroup("By escalation status", reviewClosureReport.byEscalationStatus, (key) => ({ escalationStatus: key as ProviderWebhookUnmatchedInboundFilters["escalationStatus"] }))
+      ) : null,
+      reviewClosureReport && (reviewClosureReport.topEvidenceReadyItems.length > 0 || reviewClosureReport.topEvidenceBlockedItems.length > 0) ? e("div", { className: "webhookEventList compact", "aria-label": "Top closure evidence summaries" },
+        ...[...reviewClosureReport.topEvidenceReadyItems, ...reviewClosureReport.topEvidenceBlockedItems].slice(0, 10).map((item) => e("article", { key: `${item.unmatchedId}-${item.evidenceStatus}-${item.closureReadiness}`, className: "webhookHistoryRow" },
+          e("strong", null, `${item.evidenceStatus} / ${item.closureReadiness} / ${providerLabel(item.provider)}`),
+          e("span", null, `unmatchedId=${item.unmatchedId}`),
+          e("span", null, `platform=${item.platform}`),
+          e("span", null, `channelAccountId=${item.channelAccountId ?? "none"}`),
+          e("span", null, `safeRoomLabel=${item.safeRoomLabel}`),
+          e("span", null, `roomKeyDigest=${item.roomKeyDigest ?? "none"}`),
+          e("span", null, `eventType=${item.eventType}`),
+          e("span", null, `ageBucket=${item.ageBucket}`),
+          e("span", null, `reviewStatus=${item.reviewStatus}`),
+          e("span", null, `linkStatus=${item.linkStatus}`),
+          e("span", null, `unmatchedStatus=${item.unmatchedStatus}`),
+          e("span", null, `assignmentStatus=${item.assignmentStatus}`),
+          e("span", null, `assignedTo=${item.assignedToOperatorLabel ?? "none"}`),
+          e("span", null, `escalationStatus=${item.escalationStatus}`),
+          e("span", null, `escalationReason=${item.escalationReason ?? "none"}`),
+          e("span", null, `resolutionStatus=${item.resolutionStatus}`),
+          e("span", null, `resolutionOutcome=${item.resolutionOutcome ?? "none"}`),
+          e("span", null, `checklist=${item.checklistCompletedCount}/${item.checklistTotalCount}`),
+          e("span", null, `incompleteSteps=${item.checklistIncompleteSteps.join("|") || "none"}`),
+          e("span", null, `historyEntryCount=${item.historyEntryCount}`),
+          e("span", null, `operatorNoteCount=${item.operatorNoteCount}`),
+          e("span", null, `candidateSummaryCount=${item.candidateSummaryCount}`),
+          ...Object.entries(item.evidenceFlags).map(([key, value]) => e("span", { key }, `${key}=${String(value)}`)),
+          e("span", null, `recommendedNextActions=${item.recommendedNextActions.join("|") || "none"}`),
+          e("span", null, `externalCalls=${item.externalCalls}`)
+        ))
+      ) : reviewClosureReport && !reviewClosureReportLoading ? e("div", { className: "providerEmptyState" }, "No top ready or blocked closure evidence summaries.") : null
     ),
     e("div", { className: "webhookEventSurface", "aria-label": "Provider webhook review saved views" },
       e("div", { className: "webhookEventHeader" },
@@ -1509,7 +1592,17 @@ export function ProviderReadinessPanel({
               e(FileClock, { size: 15 }),
               historyLoadingId === item.id ? "Loading history..." : "View history"
             ),
+            e("button", {
+              className: "webhookEventButton",
+              type: "button",
+              disabled: closureEvidenceLoadingId === item.id || !onLoadClosureEvidence,
+              onClick: () => void onLoadClosureEvidence?.(item.id)
+            },
+              e(ShieldCheck, { size: 15 }),
+              closureEvidenceLoadingId === item.id ? "Loading evidence..." : "View closure evidence"
+            ),
             activeDiagnosticsId === item.id && activeDiagnostics ? e("span", null, `diagnostics warnings=${warningLabels(activeDiagnostics).length}`) : null,
+            activeClosureEvidenceId === item.id && activeClosureEvidence ? e("span", null, `evidenceStatus=${activeClosureEvidence.evidenceStatus}`) : null,
             activeHistoryId === item.id && activeHistory ? e("span", null, `history entries=${activeHistory.entries.length}`) : null
           ),
           isOpenUnmatchedItem(item) ? e("div", { className: "webhookEventActions", "aria-label": `Assignment escalation controls for ${item.id}` },
@@ -1689,6 +1782,54 @@ export function ProviderReadinessPanel({
                 warningLabels(activeDiagnostics).length === 0 ? e("span", null, "none") : null
               )
             ) : !diagnosticsLoadingId && !diagnosticsErrorById[item.id] ? e("div", { className: "providerEmptyState" }, "No safe diagnostics returned for this unmatched item.") : null
+          ) : null,
+          activeClosureEvidenceId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe closure evidence for ${item.id}` },
+            closureEvidenceErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, closureEvidenceErrorById[item.id]) : null,
+            closureEvidenceLoadingId === item.id ? e("div", { className: "apiLoadingBox compact" }, "Loading safe closure evidence...") : null,
+            activeClosureEvidence && activeClosureEvidence.unmatchedId === item.id ? e("div", { className: "webhookDiagnosticsGrid" },
+              e("div", null,
+                e("strong", null, "Closure evidence"),
+                e("span", null, `generatedAt=${formatDate(activeClosureEvidence.generatedAt)}`),
+                e("span", null, `evidenceStatus=${activeClosureEvidence.evidenceStatus}`),
+                e("span", null, `closureReadiness=${activeClosureEvidence.closureReadiness}`),
+                e("span", null, `resolutionStatus=${activeClosureEvidence.resolutionStatus}`),
+                e("span", null, `resolutionOutcome=${activeClosureEvidence.resolutionOutcome ?? "none"}`),
+                e("span", null, `reviewStatus=${activeClosureEvidence.reviewStatus}`),
+                e("span", null, `linkStatus=${activeClosureEvidence.linkStatus}`),
+                e("span", null, `unmatchedStatus=${activeClosureEvidence.unmatchedStatus}`)
+              ),
+              e("div", null,
+                e("strong", null, "Safe identifiers"),
+                e("span", null, `platform=${activeClosureEvidence.platform}`),
+                e("span", null, `channelAccountId=${activeClosureEvidence.channelAccountId ?? "none"}`),
+                e("span", null, `safeRoomLabel=${activeClosureEvidence.safeRoomLabel}`),
+                e("span", null, `roomKeyDigest=${activeClosureEvidence.roomKeyDigest ?? "none"}`),
+                e("span", null, `eventType=${activeClosureEvidence.eventType}`),
+                e("span", null, `ageBucket=${activeClosureEvidence.ageBucket}`),
+                e("span", null, `receivedAt=${formatDate(activeClosureEvidence.receivedAt)}`)
+              ),
+              e("div", null,
+                e("strong", null, "Assignment"),
+                e("span", null, `assignmentStatus=${activeClosureEvidence.assignmentStatus}`),
+                e("span", null, `assignedTo=${activeClosureEvidence.assignedToOperatorLabel ?? "none"}`),
+                e("span", null, `escalationStatus=${activeClosureEvidence.escalationStatus}`),
+                e("span", null, `escalationReason=${activeClosureEvidence.escalationReason ?? "none"}`)
+              ),
+              e("div", null,
+                e("strong", null, "Checklist"),
+                e("span", null, `checklist=${activeClosureEvidence.checklistCompletedCount}/${activeClosureEvidence.checklistTotalCount}`),
+                e("span", null, `incompleteSteps=${activeClosureEvidence.checklistIncompleteSteps.join("|") || "none"}`),
+                e("span", null, `recommendedNextActions=${activeClosureEvidence.recommendedNextActions.join("|") || "none"}`),
+                e("span", null, `historyEntryCount=${activeClosureEvidence.historyEntryCount}`),
+                e("span", null, `operatorNoteCount=${activeClosureEvidence.operatorNoteCount}`),
+                e("span", null, `candidateSummaryCount=${activeClosureEvidence.candidateSummaryCount}`),
+                e("span", null, `externalCalls=${activeClosureEvidence.externalCalls}`)
+              ),
+              e("div", null,
+                e("strong", null, "Evidence flags"),
+                ...Object.entries(activeClosureEvidence.evidenceFlags).map(([key, value]) => e("span", { key }, `${key}=${String(value)}`))
+              )
+            ) : !closureEvidenceLoadingId && !closureEvidenceErrorById[item.id] ? e("div", { className: "providerEmptyState" }, "No safe closure evidence returned for this unmatched item.") : null
           ) : null,
           activeHistoryId === item.id ? e("div", { className: "webhookHistorySurface", "aria-label": `Safe history for ${item.id}` },
             historyErrorById[item.id] ? e("div", { className: "apiErrorBox compact", role: "alert" }, historyErrorById[item.id]) : null,

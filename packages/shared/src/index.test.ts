@@ -42,6 +42,8 @@ import {
   metricTrendSchema,
   normalizedInboundMessageSchema,
   parseAiDecisionWithFallback,
+  providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewClosureReportSchema,
   sampleKnowledgeItems,
   shouldAutoSend,
   shouldHandoff,
@@ -68,6 +70,77 @@ describe("shared contracts", () => {
     });
 
     expect(parsed.platform).toBe("telegram");
+  });
+
+  it("validates provider webhook closure evidence and report DTOs", () => {
+    const evidence = providerWebhookReviewClosureEvidenceSchema.parse({
+      generatedAt: "2026-06-04T00:00:00.000Z",
+      unmatchedId: "provider-webhook-unmatched-1",
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      safeRoomLabel: "line room digest safe",
+      roomKeyDigest: "sha256:saferoomdigest",
+      eventType: "message.created",
+      receivedAt: "2026-06-04T00:00:00.000Z",
+      ageBucket: "under1Hour",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      triageLane: "safe_link_candidate_available",
+      severity: "info",
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "operator:current",
+      escalationStatus: "none",
+      escalationReason: null,
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "NOT_READY",
+      evidenceStatus: "incomplete",
+      checklistCompletedCount: 1,
+      checklistTotalCount: 9,
+      checklistIncompleteSteps: ["CONFIRMED_NO_RAW_LEAKAGE"],
+      recommendedNextActions: ["OPEN_DIAGNOSTICS"],
+      evidenceFlags: {
+        diagnosticsViewedOrAvailable: true,
+        historyAvailable: true,
+        operatorNotesAvailable: false,
+        candidatesAvailable: true,
+        assignmentOrEscalationPresent: true,
+        noProviderOutboundConfirmed: false,
+        noRawLeakageConfirmed: false,
+        safeLinkTargetConfirmed: false
+      },
+      historyEntryCount: 2,
+      operatorNoteCount: 0,
+      candidateSummaryCount: 1,
+      externalCalls: 0
+    });
+
+    const { generatedAt: _generatedAt, ...evidenceSummary } = evidence;
+    const report = providerWebhookReviewClosureReportSchema.parse({
+      generatedAt: "2026-06-04T00:00:00.000Z",
+      appliedFilters: {
+        provider: "line",
+        checklistIncomplete: true
+      },
+      totalItems: 1,
+      totalOpenItems: 1,
+      evidenceReadyCount: 0,
+      evidenceBlockedCount: 0,
+      evidenceIncompleteCount: 1,
+      byClosureReadiness: [{ key: "NOT_READY", label: "NOT_READY", count: 1 }],
+      byResolutionOutcome: [{ key: "NEEDS_REVIEW", label: "NEEDS_REVIEW", count: 1 }],
+      byChecklistStep: [{ key: "CONFIRMED_NO_RAW_LEAKAGE", label: "CONFIRMED_NO_RAW_LEAKAGE", count: 1 }],
+      byAssignmentStatus: [{ key: "assigned", label: "assigned", count: 1 }],
+      byEscalationStatus: [{ key: "none", label: "none", count: 1 }],
+      topEvidenceReadyItems: [],
+      topEvidenceBlockedItems: [evidenceSummary],
+      externalCalls: 0
+    });
+
+    expect(evidence.externalCalls).toBe(0);
+    expect(report.appliedFilters.checklistIncomplete).toBe(true);
   });
 
   it("validates structured AI decisions", () => {

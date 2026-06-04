@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureReport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -21,8 +21,10 @@ import {
   loadSettingsProviderWebhookOperatorNotesData,
   loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderWebhookDiagnosticsData,
+  loadSettingsProviderWebhookClosureEvidenceData,
   loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderWebhookReviewAlertsData,
+  loadSettingsProviderWebhookReviewClosureReportData,
   loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderWebhookReviewTriageData,
   loadSettingsProviderWebhookReviewWorkloadData,
@@ -78,6 +80,9 @@ export default function ChannelSettingsPage() {
   const [reviewResolutionSummary, setReviewResolutionSummary] = useState<ProviderWebhookReviewResolutionSummary | null>(null);
   const [resolutionSummaryLoading, setResolutionSummaryLoading] = useState(true);
   const [resolutionSummaryError, setResolutionSummaryError] = useState("");
+  const [reviewClosureReport, setReviewClosureReport] = useState<ProviderWebhookReviewClosureReport | null>(null);
+  const [closureReportLoading, setClosureReportLoading] = useState(true);
+  const [closureReportError, setClosureReportError] = useState("");
   const [unmatchedBulkResolutionResult, setUnmatchedBulkResolutionResult] = useState<ProviderWebhookUnmatchedInboundBulkResolutionResponse | null>(null);
   const [reviewSavedViews, setReviewSavedViews] = useState<ProviderWebhookReviewSavedView[]>([]);
   const [savedViewsLoading, setSavedViewsLoading] = useState(true);
@@ -88,6 +93,10 @@ export default function ChannelSettingsPage() {
   const [activeDiagnostics, setActiveDiagnostics] = useState<ProviderWebhookUnmatchedInboundDiagnostics | null>(null);
   const [diagnosticsLoadingId, setDiagnosticsLoadingId] = useState("");
   const [diagnosticsErrorById, setDiagnosticsErrorById] = useState<Record<string, string>>({});
+  const [activeClosureEvidenceId, setActiveClosureEvidenceId] = useState("");
+  const [activeClosureEvidence, setActiveClosureEvidence] = useState<ProviderWebhookReviewClosureEvidence | null>(null);
+  const [closureEvidenceLoadingId, setClosureEvidenceLoadingId] = useState("");
+  const [closureEvidenceErrorById, setClosureEvidenceErrorById] = useState<Record<string, string>>({});
   const [activeHistoryId, setActiveHistoryId] = useState("");
   const [activeHistory, setActiveHistory] = useState<ProviderWebhookUnmatchedInboundHistory | null>(null);
   const [historyLoadingId, setHistoryLoadingId] = useState("");
@@ -272,6 +281,23 @@ export default function ChannelSettingsPage() {
     }
   }, [unmatchedFilters, triageSavedViewFilters]);
 
+  const refreshReviewClosureReport = useCallback(async () => {
+    setClosureReportLoading(true);
+    setClosureReportError("");
+    try {
+      const result = await loadSettingsProviderWebhookReviewClosureReportData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewClosureReport(result.report);
+    } catch (reason) {
+      setReviewClosureReport(null);
+      setClosureReportError(`Closure Evidence / Report API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook closure report"}`);
+    } finally {
+      setClosureReportLoading(false);
+    }
+  }, [unmatchedFilters, triageSavedViewFilters]);
+
   const refreshSavedViews = useCallback(async () => {
     setSavedViewsLoading(true);
     setSavedViewsError("");
@@ -309,6 +335,10 @@ export default function ChannelSettingsPage() {
   useEffect(() => {
     void refreshReviewResolutionSummary();
   }, [refreshReviewResolutionSummary]);
+
+  useEffect(() => {
+    void refreshReviewClosureReport();
+  }, [refreshReviewClosureReport]);
 
   useEffect(() => {
     void refreshSavedViews();
@@ -367,6 +397,24 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadClosureEvidence(unmatchedInboundId: string) {
+    setActiveClosureEvidenceId(unmatchedInboundId);
+    setClosureEvidenceLoadingId(unmatchedInboundId);
+    setClosureEvidenceErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
+    try {
+      const result = await loadSettingsProviderWebhookClosureEvidenceData(dataMode, unmatchedInboundId);
+      setActiveClosureEvidence(result.evidence);
+    } catch (reason) {
+      setActiveClosureEvidence(null);
+      setClosureEvidenceErrorById((current) => ({
+        ...current,
+        [unmatchedInboundId]: `Closure Evidence / Report API error: ${reason instanceof Error ? reason.message : "Unable to load safe closure evidence"}`
+      }));
+    } finally {
+      setClosureEvidenceLoadingId("");
+    }
+  }
+
   async function loadOperatorNotes(unmatchedInboundId: string) {
     setOperatorNotesLoadingId(unmatchedInboundId);
     setOperatorNotesErrorById((current) => ({ ...current, [unmatchedInboundId]: "" }));
@@ -390,6 +438,10 @@ export default function ChannelSettingsPage() {
 
   async function refreshActiveDiagnostics() {
     if (activeDiagnosticsId) await loadDiagnostics(activeDiagnosticsId);
+  }
+
+  async function refreshActiveClosureEvidence() {
+    if (activeClosureEvidenceId) await loadClosureEvidence(activeClosureEvidenceId);
   }
 
   async function refreshActiveOperatorNotes() {
@@ -462,6 +514,8 @@ export default function ChannelSettingsPage() {
       await loadOperatorNotes(unmatchedInboundId);
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveClosureEvidence();
+      await refreshReviewClosureReport();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -523,6 +577,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewTriage();
       await refreshReviewWorkload();
       await refreshReviewResolutionSummary();
+      await refreshReviewClosureReport();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
     } catch (reason) {
@@ -546,10 +601,12 @@ export default function ChannelSettingsPage() {
       await refreshReviewTriage();
       await refreshReviewWorkload();
       await refreshReviewResolutionSummary();
+      await refreshReviewClosureReport();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveClosureEvidence();
       await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -574,10 +631,12 @@ export default function ChannelSettingsPage() {
       await refreshReviewTriage();
       await refreshReviewWorkload();
       await refreshReviewResolutionSummary();
+      await refreshReviewClosureReport();
       setSelectedUnmatchedIds((current) => current.filter((id) => id !== unmatchedInboundId));
       if (candidateItemsById[unmatchedInboundId]) await loadCandidates(unmatchedInboundId);
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveClosureEvidence();
       await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -595,6 +654,7 @@ export default function ChannelSettingsPage() {
     await refreshReviewTriage();
     await refreshReviewWorkload();
     await refreshReviewResolutionSummary();
+    await refreshReviewClosureReport();
     await refreshSavedViews();
     const visibleIds = new Set(refreshedItems.map((item) => item.id));
     for (const id of ids) {
@@ -604,6 +664,7 @@ export default function ChannelSettingsPage() {
     }
     await refreshActiveHistory();
     await refreshActiveDiagnostics();
+    await refreshActiveClosureEvidence();
     await refreshActiveOperatorNotes();
     const readiness = await loadSettingsProviderReadinessData(dataMode);
     setProviderReadiness(readiness.providerReadiness);
@@ -751,6 +812,7 @@ export default function ChannelSettingsPage() {
       await refreshReviewTriage();
       await refreshReviewWorkload();
       await refreshReviewResolutionSummary();
+      await refreshReviewClosureReport();
       const selectableIds = new Set(refreshedItems.filter(isOpenUnmatchedItem).map((item) => item.id));
       setSelectedUnmatchedIds((current) => current.filter((id) => selectableIds.has(id)));
       for (const id of ids) {
@@ -760,6 +822,7 @@ export default function ChannelSettingsPage() {
       }
       await refreshActiveHistory();
       await refreshActiveDiagnostics();
+      await refreshActiveClosureEvidence();
       await refreshActiveOperatorNotes();
       const readiness = await loadSettingsProviderReadinessData(dataMode);
       setProviderReadiness(readiness.providerReadiness);
@@ -867,6 +930,9 @@ export default function ChannelSettingsPage() {
         reviewResolutionSummary={reviewResolutionSummary}
         reviewResolutionSummaryLoading={resolutionSummaryLoading}
         reviewResolutionSummaryError={resolutionSummaryError}
+        reviewClosureReport={reviewClosureReport}
+        reviewClosureReportLoading={closureReportLoading}
+        reviewClosureReportError={closureReportError}
         reviewSavedViews={reviewSavedViews}
         reviewSavedViewsLoading={savedViewsLoading}
         reviewSavedViewsError={savedViewsError}
@@ -876,6 +942,10 @@ export default function ChannelSettingsPage() {
         activeDiagnostics={activeDiagnostics}
         diagnosticsLoadingId={diagnosticsLoadingId}
         diagnosticsErrorById={diagnosticsErrorById}
+        activeClosureEvidenceId={activeClosureEvidenceId}
+        activeClosureEvidence={activeClosureEvidence}
+        closureEvidenceLoadingId={closureEvidenceLoadingId}
+        closureEvidenceErrorById={closureEvidenceErrorById}
         activeHistoryId={activeHistoryId}
         activeHistory={activeHistory}
         historyLoadingId={historyLoadingId}
@@ -909,6 +979,7 @@ export default function ChannelSettingsPage() {
         onArchiveSavedView={archiveSavedView}
         onLoadCandidates={loadCandidates}
         onLoadDiagnostics={loadDiagnostics}
+        onLoadClosureEvidence={loadClosureEvidence}
         onLoadHistory={loadHistory}
         onLoadOperatorNotes={loadOperatorNotes}
         onCreateOperatorNote={createOperatorNote}

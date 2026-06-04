@@ -1417,6 +1417,136 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(serialized).not.toMatch(/raw-resolution-room-70|raw-sender-event-resolution-70|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
   });
 
+  it("returns tenant-scoped closure evidence and aggregate report without mutating review/link/message state", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-evidence-room-71", "event-evidence-71", "Safe evidence target");
+    await controller.assignUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ASSIGN_TO_ME",
+      note: "Safe closure evidence assignment"
+    });
+    await controller.escalateUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ESCALATE",
+      escalationReason: "SLA_RISK",
+      note: "Safe closure evidence escalation"
+    });
+    await controller.resolveUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "SET_RESOLUTION",
+      resolutionOutcome: "NEEDS_REVIEW",
+      note: "Safe closure evidence resolution"
+    });
+    for (const step of [
+      "VIEWED_DIAGNOSTICS",
+      "REVIEWED_HISTORY",
+      "REVIEWED_TRIAGE_GUIDANCE",
+      "REVIEWED_CANDIDATES",
+      "CONFIRMED_NO_RAW_LEAKAGE",
+      "CONFIRMED_NO_PROVIDER_OUTBOUND",
+      "CONFIRMED_ASSIGNMENT_OR_ESCALATION",
+      "CONFIRMED_SAFE_LINK_TARGET",
+      "CONFIRMED_OPERATOR_NOTE"
+    ] as const) {
+      await controller.updateUnmatchedInboundChecklist(tenantId, "operator-current", item.id, {
+        operation: "COMPLETE_STEP",
+        step
+      });
+    }
+    const stateBeforeEvidence = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
+
+    expect(() => controller.getUnmatchedInboundClosureEvidence(undefined, item.id)).toThrow(BadRequestException);
+    expect(() => controller.getReviewClosureReport(undefined, {}, "operator-current")).toThrow(BadRequestException);
+    expect(() => controller.getUnmatchedInboundClosureEvidence("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
+
+    const evidence = controller.getUnmatchedInboundClosureEvidence(tenantId, item.id);
+    const report = controller.getReviewClosureReport(tenantId, {
+      provider: "line",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "assigned_to_me",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: "false",
+      eventType: "message.created"
+    }, "operator-current");
+    const stateAfterEvidence = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
+    const serialized = JSON.stringify({ evidence, report });
+
+    expect(evidence).toMatchObject({
+      unmatchedId: item.id,
+      provider: "line",
+      platform: "line",
+      channelAccountId: "sandbox:line",
+      eventType: "message.created",
+      reviewStatus: "pending",
+      linkStatus: "none",
+      unmatchedStatus: "review-needed",
+      assignmentStatus: "assigned",
+      assignedToOperatorLabel: "operator:operator-cur",
+      escalationStatus: "escalated",
+      escalationReason: "SLA_RISK",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      evidenceStatus: "ready",
+      checklistCompletedCount: 9,
+      checklistTotalCount: 9,
+      checklistIncompleteSteps: [],
+      evidenceFlags: {
+        diagnosticsViewedOrAvailable: true,
+        historyAvailable: true,
+        operatorNotesAvailable: true,
+        candidatesAvailable: true,
+        assignmentOrEscalationPresent: true,
+        noProviderOutboundConfirmed: true,
+        noRawLeakageConfirmed: true,
+        safeLinkTargetConfirmed: true
+      },
+      externalCalls: 0
+    });
+    expect(evidence.historyEntryCount).toBeGreaterThan(0);
+    expect(evidence.operatorNoteCount).toBeGreaterThan(0);
+    expect(report).toMatchObject({
+      appliedFilters: {
+        provider: "line",
+        reviewStatus: "pending",
+        linkStatus: "none",
+        unmatchedStatus: "review-needed",
+        assignmentStatus: "assigned_to_me",
+        escalationStatus: "escalated",
+        escalationReason: "SLA_RISK",
+        resolutionStatus: "resolved",
+        resolutionOutcome: "NEEDS_REVIEW",
+        closureReadiness: "READY_FOR_REVIEW",
+        checklistIncomplete: false,
+        eventType: "message.created"
+      },
+      totalItems: 1,
+      totalOpenItems: 1,
+      evidenceReadyCount: 1,
+      evidenceBlockedCount: 0,
+      evidenceIncompleteCount: 0,
+      externalCalls: 0
+    });
+    expect(report.byClosureReadiness.find((entry) => entry.key === "READY_FOR_REVIEW")?.count).toBe(1);
+    expect(report.byResolutionOutcome.find((entry) => entry.key === "NEEDS_REVIEW")?.count).toBe(1);
+    expect(report.byChecklistStep.find((entry) => entry.key === "CONFIRMED_NO_RAW_LEAKAGE")?.count).toBe(0);
+    expect(report.topEvidenceReadyItems[0]).toMatchObject({
+      unmatchedId: item.id,
+      evidenceStatus: "ready",
+      externalCalls: 0
+    });
+    expect(stateAfterEvidence).toMatchObject({
+      reviewStatus: stateBeforeEvidence?.reviewStatus,
+      linkStatus: stateBeforeEvidence?.linkStatus,
+      unmatchedStatus: stateBeforeEvidence?.unmatchedStatus,
+      messagePersisted: stateBeforeEvidence?.messagePersisted
+    });
+    expect(serialized).not.toMatch(/raw-evidence-room-71|raw-sender-event-evidence-71|raw-message-id|replyToken|rawPayload|providerRaw|payloadJson|authorization|cookie|token|secret|raw room|raw sender|senderId|roomId/i);
+  });
+
   it("returns safe diagnostics for tenant-owned unmatched items only", async () => {
     const { controller } = buildController(noMatchConversations());
     const item = await createUnmatched(controller, "raw-diagnostics-room-65", "event-diagnostics-65", "Safe diagnostics");
