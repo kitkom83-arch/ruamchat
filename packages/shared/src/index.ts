@@ -2401,6 +2401,11 @@ export const providerReadinessSchema = z.object({
   reviewClosureReportEnabled: z.boolean().default(false),
   reviewClosureEvidenceExportEnabled: z.boolean().default(false),
   reviewClosureReportExportEnabled: z.boolean().default(false),
+  reviewExportRedactionAuditEnabled: z.boolean().default(false),
+  reviewExportIntegrityChecksEnabled: z.boolean().default(false),
+  exportRedactionPassedCount: z.number().int().nonnegative().default(0),
+  exportRedactionWarningCount: z.number().int().nonnegative().default(0),
+  exportRedactionBlockedCount: z.number().int().nonnegative().default(0),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
   unassignedOpenCount: z.number().int().nonnegative(),
@@ -3073,6 +3078,69 @@ export const providerWebhookReviewClosureReportExportSchema = providerWebhookRev
   exportedAt: z.string().datetime()
 }).strict();
 export type ProviderWebhookReviewClosureReportExport = z.infer<typeof providerWebhookReviewClosureReportExportSchema>;
+
+export const providerWebhookReviewExportRedactionAuditStatusSchema = z.enum(["passed", "blocked", "warning"]);
+export type ProviderWebhookReviewExportRedactionAuditStatus = z.infer<typeof providerWebhookReviewExportRedactionAuditStatusSchema>;
+
+export const providerWebhookReviewExportRedactionAuditTargetSchema = z.enum(["closure-evidence-export", "closure-report-export"]);
+export type ProviderWebhookReviewExportRedactionAuditTarget = z.infer<typeof providerWebhookReviewExportRedactionAuditTargetSchema>;
+
+export const providerWebhookReviewExportRedactionIssueSeveritySchema = z.enum(["warning", "blocked"]);
+export type ProviderWebhookReviewExportRedactionIssueSeverity = z.infer<typeof providerWebhookReviewExportRedactionIssueSeveritySchema>;
+
+export const providerWebhookReviewExportRedactionChecksSchema = z.object({
+  rawPayloadAbsent: z.boolean(),
+  rawSignatureAbsent: z.boolean(),
+  tokenAbsent: z.boolean(),
+  authorizationAbsent: z.boolean(),
+  cookieAbsent: z.boolean(),
+  replyTokenAbsent: z.boolean(),
+  rawSenderIdAbsent: z.boolean(),
+  rawRoomIdAbsent: z.boolean(),
+  providerSecretAbsent: z.boolean(),
+  providerOutboundAbsent: z.boolean(),
+  externalCallsZero: z.boolean(),
+  safeRoomDigestPresent: z.boolean(),
+  tenantScoped: z.boolean(),
+  exportDeterministic: z.boolean()
+}).strict();
+export type ProviderWebhookReviewExportRedactionChecks = z.infer<typeof providerWebhookReviewExportRedactionChecksSchema>;
+
+export const providerWebhookReviewExportRedactionIssueSchema = z.object({
+  code: z.string().min(1),
+  severity: providerWebhookReviewExportRedactionIssueSeveritySchema,
+  safeLabel: z.string().min(1),
+  recommendedAction: z.string().min(1)
+}).strict();
+export type ProviderWebhookReviewExportRedactionIssue = z.infer<typeof providerWebhookReviewExportRedactionIssueSchema>;
+
+export const providerWebhookReviewExportRedactionAuditSchema = z.object({
+  generatedAt: z.string().datetime(),
+  auditTarget: providerWebhookReviewExportRedactionAuditTargetSchema,
+  status: providerWebhookReviewExportRedactionAuditStatusSchema,
+  checks: providerWebhookReviewExportRedactionChecksSchema,
+  issues: z.array(providerWebhookReviewExportRedactionIssueSchema),
+  unmatchedId: z.string().min(1).optional(),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema.optional(),
+  exportShapeVersion: z.string().min(1),
+  safeDigest: z.string().min(1),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewExportRedactionAudit = z.infer<typeof providerWebhookReviewExportRedactionAuditSchema>;
+
+export const providerWebhookReviewExportIntegritySchema = z.object({
+  generatedAt: z.string().datetime(),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema,
+  externalCalls: z.literal(0),
+  totalCheckedItems: z.number().int().nonnegative(),
+  redactionPassedCount: z.number().int().nonnegative(),
+  redactionWarningCount: z.number().int().nonnegative(),
+  redactionBlockedCount: z.number().int().nonnegative(),
+  deterministicExportConfirmed: z.boolean(),
+  exportShapeVersion: z.string().min(1),
+  safeReportDigest: z.string().min(1)
+}).strict();
+export type ProviderWebhookReviewExportIntegrity = z.infer<typeof providerWebhookReviewExportIntegritySchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

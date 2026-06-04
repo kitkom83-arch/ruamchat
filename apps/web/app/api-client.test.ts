@@ -28,6 +28,8 @@ import {
   getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReport,
+  getProviderWebhookReviewClosureExportIntegrity,
+  getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewSavedViews,
@@ -38,6 +40,7 @@ import {
   getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundClosureEvidenceExport,
   getProviderWebhookUnmatchedInboundClosureEvidence,
+  getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit,
   getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
   getProviderWebhookUnmatchedInboundHistory,
@@ -717,7 +720,10 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewClosureReportResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-1")))
       .mockResolvedValueOnce(jsonResponse(providerWebhookReviewClosureReportExportResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceExportResponse("provider-webhook-unmatched-1")));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookClosureEvidenceExportResponse("provider-webhook-unmatched-1")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportRedactionAuditResponse("closure-report-export")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportIntegrityResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewExportRedactionAuditResponse("closure-evidence-export", "provider-webhook-unmatched-1")));
 
     const closureFilters = {
       provider: "line",
@@ -742,11 +748,17 @@ describe("frontend API client", () => {
     const evidence = await getProviderWebhookUnmatchedInboundClosureEvidence("provider-webhook-unmatched-1");
     const reportExport = await getProviderWebhookReviewClosureReportExport(closureFilters);
     const evidenceExport = await getProviderWebhookUnmatchedInboundClosureEvidenceExport("provider-webhook-unmatched-1");
+    const reportAudit = await getProviderWebhookReviewClosureReportRedactionAudit(closureFilters);
+    const integrity = await getProviderWebhookReviewClosureExportIntegrity(closureFilters);
+    const evidenceAudit = await getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit("provider-webhook-unmatched-1");
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report/export?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence/export", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-report/redaction-audit?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-closure-export-integrity?provider=line&reviewStatus=pending&linkStatus=none&unmatchedStatus=review-needed&eventType=message.created&assignedTo=me&assignmentStatus=assigned_to_me&escalationStatus=escalated&escalationReason=SLA_RISK&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW&closureReadiness=READY_FOR_REVIEW&checklistIncomplete=false&receivedAtFrom=2026-05-31T00%3A00%3A00.000Z&receivedAtTo=2026-06-01T00%3A00%3A00.000Z&severity=info&triageLane=safe_link_candidate_available", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/unmatched-inbound/provider-webhook-unmatched-1/closure-evidence/redaction-audit", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(report).toMatchObject({
       totalItems: 1,
@@ -785,8 +797,28 @@ describe("frontend API client", () => {
       },
       externalCalls: 0
     });
-    expect(JSON.stringify({ report, evidence, reportExport, evidenceExport }))
-      .not.toMatch(/token|secret|authorization|cookie|rawPayload|providerRaw|payloadJson|replyToken|raw-room|raw-sender|raw room|raw sender|senderId|roomId/i);
+    expect(reportAudit).toMatchObject({
+      auditTarget: "closure-report-export",
+      status: "passed",
+      checks: { rawPayloadAbsent: true, tokenAbsent: true, replyTokenAbsent: true },
+      externalCalls: 0
+    });
+    expect(integrity).toMatchObject({
+      totalCheckedItems: 1,
+      redactionPassedCount: 1,
+      redactionWarningCount: 0,
+      redactionBlockedCount: 0,
+      deterministicExportConfirmed: true,
+      externalCalls: 0
+    });
+    expect(evidenceAudit).toMatchObject({
+      auditTarget: "closure-evidence-export",
+      unmatchedId: "provider-webhook-unmatched-1",
+      status: "passed",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ report, evidence, reportExport, evidenceExport, reportAudit, integrity, evidenceAudit }))
+      .not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
   });
 
   it("sends x-tenant-id and safe bodies for review saved views and operator notes", async () => {
@@ -906,6 +938,18 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure report export unavailable" }, 503));
     await expect(getProviderWebhookReviewClosureReportExport({ provider: "line" }))
       .rejects.toThrow("API request failed (503): closure report export unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure report audit unavailable" }, 503));
+    await expect(getProviderWebhookReviewClosureReportRedactionAudit({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): closure report audit unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure export integrity unavailable" }, 503));
+    await expect(getProviderWebhookReviewClosureExportIntegrity({ provider: "line" }))
+      .rejects.toThrow("API request failed (503): closure export integrity unavailable");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "closure evidence audit unavailable" }, 503));
+    await expect(getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit("provider-webhook-unmatched-1"))
+      .rejects.toThrow("API request failed (503): closure evidence audit unavailable");
   });
 
   it("surfaces review metrics and diagnostics API errors without local fallback", async () => {
@@ -2809,6 +2853,51 @@ function providerWebhookClosureEvidenceExportResponse(unmatchedId: string) {
     contentType: "application/json",
     safeFilename: `provider-webhook-closure-evidence-line-${unmatchedId}.json`,
     exportedAt: "2026-06-04T00:02:00.000Z"
+  };
+}
+
+function providerWebhookReviewExportRedactionAuditResponse(auditTarget: "closure-report-export" | "closure-evidence-export", unmatchedId?: string) {
+  return {
+    generatedAt: "2026-06-04T00:03:00.000Z",
+    auditTarget,
+    status: "passed",
+    checks: {
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      authorizationAbsent: true,
+      cookieAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerSecretAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      safeRoomDigestPresent: true,
+      tenantScoped: true,
+      exportDeterministic: true
+    },
+    issues: [],
+    ...(unmatchedId ? { unmatchedId } : {}),
+    ...(auditTarget === "closure-report-export" ? { appliedFilters: { provider: "line", checklistIncomplete: false } } : {}),
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    safeDigest: "sha256:safeauditdigest",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewExportIntegrityResponse() {
+  return {
+    generatedAt: "2026-06-04T00:04:00.000Z",
+    appliedFilters: { provider: "line", checklistIncomplete: false },
+    externalCalls: 0,
+    totalCheckedItems: 1,
+    redactionPassedCount: 1,
+    redactionWarningCount: 0,
+    redactionBlockedCount: 0,
+    deterministicExportConfirmed: true,
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    safeReportDigest: "sha256:safereportdigest"
   };
 }
 

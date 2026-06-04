@@ -44,6 +44,8 @@ import {
   parseAiDecisionWithFallback,
   providerWebhookReviewClosureEvidenceExportSchema,
   providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewExportIntegritySchema,
+  providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportSchema,
   sampleKnowledgeItems,
@@ -159,10 +161,55 @@ describe("shared contracts", () => {
       exportedAt: "2026-06-04T00:01:00.000Z"
     });
 
+    const redactionAudit = providerWebhookReviewExportRedactionAuditSchema.parse({
+      generatedAt: "2026-06-04T00:02:00.000Z",
+      auditTarget: "closure-evidence-export",
+      status: "passed",
+      checks: {
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        authorizationAbsent: true,
+        cookieAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerSecretAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true,
+        safeRoomDigestPresent: true,
+        tenantScoped: true,
+        exportDeterministic: true
+      },
+      issues: [],
+      unmatchedId: "provider-webhook-unmatched-1",
+      exportShapeVersion: "provider-webhook-closure-export-v1",
+      safeDigest: "sha256:safeauditdigest",
+      externalCalls: 0
+    });
+
+    const integrity = providerWebhookReviewExportIntegritySchema.parse({
+      generatedAt: "2026-06-04T00:03:00.000Z",
+      appliedFilters: {
+        provider: "line",
+        checklistIncomplete: true
+      },
+      externalCalls: 0,
+      totalCheckedItems: 1,
+      redactionPassedCount: 1,
+      redactionWarningCount: 0,
+      redactionBlockedCount: 0,
+      deterministicExportConfirmed: true,
+      exportShapeVersion: "provider-webhook-closure-export-v1",
+      safeReportDigest: "sha256:safereportdigest"
+    });
+
     expect(evidence.externalCalls).toBe(0);
     expect(report.appliedFilters.checklistIncomplete).toBe(true);
     expect(evidenceExport.exportKind).toBe("closure-evidence");
     expect(reportExport.externalCalls).toBe(0);
+    expect(redactionAudit.checks.rawPayloadAbsent).toBe(true);
+    expect(integrity.redactionPassedCount).toBe(1);
   });
 
   it("validates structured AI decisions", () => {

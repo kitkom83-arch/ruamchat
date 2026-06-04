@@ -74,6 +74,24 @@ export class ProviderWebhooksController {
     return this.events.getReviewClosureReportExport(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-closure-report/redaction-audit")
+  getReviewClosureReportRedactionAudit(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewClosureReportRedactionAudit(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
+  @Get("review-closure-export-integrity")
+  getReviewClosureExportIntegrity(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewClosureExportIntegrity(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-saved-views")
   listReviewSavedViews(@Headers("x-tenant-id") tenant: string | undefined) {
     return this.events.listReviewSavedViews(requireTenantId(tenant));
@@ -142,6 +160,14 @@ export class ProviderWebhooksController {
     @Param("id") id: string
   ) {
     return this.events.getUnmatchedInboundClosureEvidenceExport(requireTenantId(tenant), id);
+  }
+
+  @Get("unmatched-inbound/:id/closure-evidence/redaction-audit")
+  getUnmatchedInboundClosureEvidenceRedactionAudit(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.getUnmatchedInboundClosureEvidenceRedactionAudit(requireTenantId(tenant), id);
   }
 
   @Get("unmatched-inbound/:id/operator-notes")

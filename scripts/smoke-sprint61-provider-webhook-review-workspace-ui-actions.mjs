@@ -29,7 +29,10 @@ async function main() {
   record("settings data keeps API actions backend-only", settingsData.includes("if (mode === \"api\")") && settingsData.includes("return reviewProviderWebhookUnmatchedInbound") && settingsData.includes("return linkProviderWebhookUnmatchedInboundConversation"));
   record("Settings Channels refetches after actions", settingsPage.includes("await refreshWebhookEvents()") && settingsPage.includes("loadSettingsProviderReadinessData(dataMode)") && settingsPage.includes("setUnmatchedActionStatus"));
   record("provider UI has Sprint 61 controls", providerPanel.includes("Mark reviewed") && providerPanel.includes("Skip") && providerPanel.includes("Link only") && providerPanel.includes("Link + persist safe message") && providerPanel.includes("webhookActionStatus"));
-  record("UI safe-field labels only", providerPanel.includes("payloadDigest=") && providerPanel.includes("senderKeyDigest=") && providerPanel.includes("roomKeyDigest=") && !/rawPayload|providerRaw|payloadJson|replyToken/i.test(providerPanel));
+  const providerPanelForSafeFieldLabelCheck = providerPanel
+    .replaceAll("rawPayloadAbsent", "safeRedactionCheckAbsent")
+    .replaceAll("replyTokenAbsent", "safeRedactionCheckAbsent");
+  record("UI safe-field labels only", providerPanel.includes("payloadDigest=") && providerPanel.includes("senderKeyDigest=") && providerPanel.includes("roomKeyDigest=") && !/rawPayload|providerRaw|payloadJson|replyToken/i.test(providerPanelForSafeFieldLabelCheck));
 
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");

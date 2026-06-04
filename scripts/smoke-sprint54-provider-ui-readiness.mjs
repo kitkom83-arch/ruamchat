@@ -30,7 +30,10 @@ async function main() {
     "allowlist count="
   ].every((term) => providerPanel.includes(term)));
   record("provider readiness UI has API error state", providerPanel.includes("role: \"alert\"") && channelSettings.includes("Provider Readiness API error"));
-  record("provider readiness UI does not render forbidden raw field names", !/accessToken|botToken|apiKey|authorization|providerRaw|rawPayload|payloadJson/i.test(providerPanel));
+  const providerPanelForForbiddenFieldCheck = providerPanel
+    .replaceAll("authorizationAbsent", "safeRedactionCheckAbsent")
+    .replaceAll("rawPayloadAbsent", "safeRedactionCheckAbsent");
+  record("provider readiness UI does not render forbidden raw field names", !/accessToken|botToken|apiKey|authorization|providerRaw|rawPayload|payloadJson/i.test(providerPanelForForbiddenFieldCheck));
 
   const health = await request("GET", "/health");
   record("GET /health reachable", health.status === 200);

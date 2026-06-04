@@ -18,6 +18,8 @@ import {
   createProviderWebhookReviewSavedViewRequestSchema,
   providerWebhookReviewClosureEvidenceExportSchema,
   providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewExportIntegritySchema,
+  providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportFiltersSchema,
   providerWebhookReviewClosureReportSchema,
@@ -207,6 +209,8 @@ import {
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewClosureEvidence,
   type ProviderWebhookReviewClosureEvidenceExport,
+  type ProviderWebhookReviewExportIntegrity,
+  type ProviderWebhookReviewExportRedactionAudit,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -508,6 +512,16 @@ export async function getProviderWebhookReviewClosureReportExport(filters: Provi
   return request(`/provider-webhooks/review-closure-report/export${search}`, providerWebhookReviewClosureReportExportSchema);
 }
 
+export async function getProviderWebhookReviewClosureReportRedactionAudit(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewExportRedactionAudit> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-closure-report/redaction-audit${search}`, providerWebhookReviewExportRedactionAuditSchema);
+}
+
+export async function getProviderWebhookReviewClosureExportIntegrity(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewExportIntegrity> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-closure-export-integrity${search}`, providerWebhookReviewExportIntegritySchema);
+}
+
 function providerWebhookReviewClosureReportSearch(filters: ProviderWebhookReviewClosureReportFilters = {}) {
   const parsed = providerWebhookReviewClosureReportFiltersSchema.parse(filters);
   const params = new URLSearchParams();
@@ -601,6 +615,10 @@ export async function getProviderWebhookUnmatchedInboundClosureEvidence(unmatche
 
 export async function getProviderWebhookUnmatchedInboundClosureEvidenceExport(unmatchedInboundId: string): Promise<ProviderWebhookReviewClosureEvidenceExport> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence/export`, providerWebhookReviewClosureEvidenceExportSchema);
+}
+
+export async function getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit(unmatchedInboundId: string): Promise<ProviderWebhookReviewExportRedactionAudit> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence/redaction-audit`, providerWebhookReviewExportRedactionAuditSchema);
 }
 
 export async function getProviderWebhookUnmatchedInboundDiagnostics(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundDiagnostics> {
