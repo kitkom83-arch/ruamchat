@@ -20,6 +20,7 @@ import {
   providerWebhookReviewClosureEvidenceSchema,
   providerWebhookReviewExportIntegritySchema,
   providerWebhookReviewExportManifestSchema,
+  providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportFiltersSchema,
@@ -212,6 +213,7 @@ import {
   type ProviderWebhookReviewClosureEvidenceExport,
   type ProviderWebhookReviewExportIntegrity,
   type ProviderWebhookReviewExportManifest,
+  type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewExportRedactionAudit,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
@@ -507,6 +509,11 @@ export async function getProviderWebhookReviewResolutionSummary(filters: Provide
 export async function getProviderWebhookReviewClosureReport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReport> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-closure-report${search}`, providerWebhookReviewClosureReportSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffBundle(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffBundle> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle${search}`, providerWebhookReviewQaHandoffBundleSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

@@ -12,6 +12,7 @@ import {
   loadSettingsProviderWebhookReviewClosureReportExportManifestData,
   loadSettingsProviderWebhookReviewClosureReportData,
   loadSettingsProviderWebhookReviewClosureReportRedactionAuditData,
+  loadSettingsProviderWebhookReviewQaHandoffBundleData,
   loadSettingsProviderWebhookReviewMetricsData,
   loadSettingsProviderWebhookReviewResolutionSummaryData,
   loadSettingsProviderWebhookReviewTriageData,
@@ -61,6 +62,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewAlerts: vi.fn(),
   getProviderWebhookReviewClosureExportIntegrity: vi.fn(),
   getProviderWebhookReviewClosureReportExportManifest: vi.fn(),
+  getProviderWebhookReviewQaHandoffBundle: vi.fn(),
   getProviderWebhookReviewClosureReportExport: vi.fn(),
   getProviderWebhookReviewClosureReportRedactionAudit: vi.fn(),
   getProviderWebhookReviewClosureReport: vi.fn(),
@@ -106,6 +108,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewAlerts: api.getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureExportIntegrity: api.getProviderWebhookReviewClosureExportIntegrity,
   getProviderWebhookReviewClosureReportExportManifest: api.getProviderWebhookReviewClosureReportExportManifest,
+  getProviderWebhookReviewQaHandoffBundle: api.getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewClosureReportExport: api.getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReportRedactionAudit: api.getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewClosureReport: api.getProviderWebhookReviewClosureReport,
@@ -151,6 +154,7 @@ beforeEach(() => {
   api.getProviderWebhookReviewAlerts.mockReset();
   api.getProviderWebhookReviewClosureExportIntegrity.mockReset();
   api.getProviderWebhookReviewClosureReportExportManifest.mockReset();
+  api.getProviderWebhookReviewQaHandoffBundle.mockReset();
   api.getProviderWebhookReviewClosureReportExport.mockReset();
   api.getProviderWebhookReviewClosureReportRedactionAudit.mockReset();
   api.getProviderWebhookReviewClosureReport.mockReset();
@@ -391,6 +395,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewClosureReport.mockResolvedValueOnce(providerWebhookReviewClosureReportResponse());
     api.getProviderWebhookReviewClosureReportExport.mockResolvedValueOnce(providerWebhookReviewClosureReportExportResponse());
     api.getProviderWebhookReviewClosureReportExportManifest.mockResolvedValueOnce(providerWebhookReviewExportManifestResponse("closure-report-export"));
+    api.getProviderWebhookReviewQaHandoffBundle.mockResolvedValueOnce(providerWebhookReviewQaHandoffBundleResponse());
     api.getProviderWebhookReviewClosureReportRedactionAudit.mockResolvedValueOnce(providerWebhookReviewExportRedactionAuditResponse("closure-report-export"));
     api.getProviderWebhookReviewClosureExportIntegrity.mockResolvedValueOnce(providerWebhookReviewExportIntegrityResponse());
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockResolvedValueOnce(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-api"));
@@ -444,6 +449,7 @@ describe("settings API-mode data loaders", () => {
     const closureReport = await loadSettingsProviderWebhookReviewClosureReportData("api", closureFilters);
     const closureReportExport = await exportSettingsProviderWebhookReviewClosureReportData("api", closureFilters);
     const closureReportManifest = await loadSettingsProviderWebhookReviewClosureReportExportManifestData("api", closureFilters);
+    const qaHandoffBundle = await loadSettingsProviderWebhookReviewQaHandoffBundleData("api", closureFilters);
     const closureReportAudit = await loadSettingsProviderWebhookReviewClosureReportRedactionAuditData("api", closureFilters);
     const closureExportIntegrity = await loadSettingsProviderWebhookReviewClosureExportIntegrityData("api", closureFilters);
     const diagnostics = await loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-api");
@@ -503,6 +509,14 @@ describe("settings API-mode data loaders", () => {
       assignmentStatus: "assigned_to_me"
     }));
     expect(api.getProviderWebhookReviewClosureReportExportManifest).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: false,
+      assignmentStatus: "assigned_to_me"
+    }));
+    expect(api.getProviderWebhookReviewQaHandoffBundle).toHaveBeenCalledWith(expect.objectContaining({
       provider: "line",
       resolutionStatus: "resolved",
       resolutionOutcome: "NEEDS_REVIEW",
@@ -592,6 +606,29 @@ describe("settings API-mode data loaders", () => {
       safeFilename: "provider-webhook-review-closure-report.json",
       externalCalls: 0
     });
+    expect(qaHandoffBundle.mode).toBe("api");
+    expect(qaHandoffBundle.bundle).toMatchObject({
+      bundleKind: "provider-webhook-review-qa-handoff-bundle",
+      manualQaReadiness: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
+      readiness: {
+        reviewExportQaHandoffEnabled: true,
+        externalCalls: 0
+      },
+      manualQaChecks: {
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true
+      },
+      externalCalls: 0
+    });
+    expect(qaHandoffBundle.bundle.safeDigest).toMatch(/^sha256:/);
+    expect(qaHandoffBundle.bundle.evidenceManifests[0]?.safeDigest).toMatch(/^sha256:/);
     expect(closureReportAudit.mode).toBe("api");
     expect(closureReportAudit.audit).toMatchObject({
       auditTarget: "closure-report-export",
@@ -643,7 +680,7 @@ describe("settings API-mode data loaders", () => {
       status: "passed",
       externalCalls: 0
     });
-    expect(JSON.stringify({ metrics, alerts, triage, workload, resolutionSummary, closureReport, closureReportExport, closureReportManifest, closureReportAudit, closureExportIntegrity, diagnostics, closureEvidence, closureEvidenceExport, closureEvidenceManifest, closureEvidenceAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
+    expect(JSON.stringify({ metrics, alerts, triage, workload, resolutionSummary, closureReport, closureReportExport, closureReportManifest, qaHandoffBundle, closureReportAudit, closureExportIntegrity, diagnostics, closureEvidence, closureEvidenceExport, closureEvidenceManifest, closureEvidenceAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
   });
 
   it("does not fallback to mock closure evidence or report data when API mode fails", async () => {
@@ -652,6 +689,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewClosureReportExport.mockRejectedValueOnce(new Error("API request failed (503): closure report export unavailable"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceExport.mockRejectedValueOnce(new Error("API request failed (503): closure evidence export unavailable"));
     api.getProviderWebhookReviewClosureReportExportManifest.mockRejectedValueOnce(new Error("API request failed (503): closure report manifest unavailable"));
+    api.getProviderWebhookReviewQaHandoffBundle.mockRejectedValueOnce(new Error("API request failed (503): qa handoff unavailable"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest.mockRejectedValueOnce(new Error("API request failed (503): closure evidence manifest unavailable"));
     api.getProviderWebhookReviewClosureReportRedactionAudit.mockRejectedValueOnce(new Error("API request failed (503): closure report audit unavailable"));
     api.getProviderWebhookReviewClosureExportIntegrity.mockRejectedValueOnce(new Error("API request failed (503): closure export integrity unavailable"));
@@ -667,6 +705,8 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("closure evidence export unavailable");
     await expect(loadSettingsProviderWebhookReviewClosureReportExportManifestData("api", { provider: "line" }))
       .rejects.toThrow("closure report manifest unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffBundleData("api", { provider: "line" }))
+      .rejects.toThrow("qa handoff unavailable");
     await expect(loadSettingsProviderWebhookClosureEvidenceExportManifestData("api", "provider-webhook-unmatched-api"))
       .rejects.toThrow("closure evidence manifest unavailable");
     await expect(loadSettingsProviderWebhookReviewClosureReportRedactionAuditData("api", { provider: "line" }))
@@ -1255,6 +1295,10 @@ describe("settings API-mode data loaders", () => {
       resolutionStatus: "unresolved",
       checklistIncomplete: true
     });
+    const qaHandoffBundle = await loadSettingsProviderWebhookReviewQaHandoffBundleData("mock", {
+      provider: "line",
+      checklistIncomplete: true
+    });
     const savedViews = await loadSettingsProviderWebhookSavedViewsData("mock");
     const note = await createSettingsProviderWebhookOperatorNote("mock", "provider-webhook-unmatched-local-1", {
       note: "Safe local note"
@@ -1277,6 +1321,14 @@ describe("settings API-mode data loaders", () => {
     expect(workload.workload.appliedFilters).toEqual({ provider: "line", assignmentStatus: "unassigned" });
     expect(resolutionSummary.summary.externalCalls).toBe(0);
     expect(resolutionSummary.summary.appliedFilters).toEqual({ provider: "line", resolutionStatus: "unresolved", checklistIncomplete: true });
+    expect(qaHandoffBundle.bundle).toMatchObject({
+      bundleKind: "provider-webhook-review-qa-handoff-bundle",
+      externalCalls: 0,
+      manualQaChecks: {
+        externalCallsZero: true,
+        providerOutboundAbsent: true
+      }
+    });
     expect(savedViews.savedViews[0]).toMatchObject({
       name: "LINE pending manual review",
       externalCalls: 0
@@ -1292,6 +1344,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getSettingsSlaPolicies).not.toHaveBeenCalled();
     expect(api.getSettingsCannedReplies).not.toHaveBeenCalled();
     expect(api.getProviderReadiness).not.toHaveBeenCalled();
+    expect(api.getProviderWebhookReviewQaHandoffBundle).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewTriage).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewWorkload).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewResolutionSummary).not.toHaveBeenCalled();
@@ -2802,6 +2855,86 @@ function providerWebhookReviewExportManifestResponse(auditTarget: "closure-repor
       externalCallsZero: true,
       manualQaReady: true
     },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffBundleResponse() {
+  const evidence = providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-api");
+  const evidenceManifest = providerWebhookReviewExportManifestResponse("closure-evidence-export", evidence.unmatchedId);
+  return {
+    generatedAt: "2026-06-04T00:06:00.000Z",
+    bundleKind: "provider-webhook-review-qa-handoff-bundle",
+    appliedFilters: { provider: "line", checklistIncomplete: false },
+    readiness: {
+      reviewClosureEvidenceEnabled: true,
+      reviewClosureReportEnabled: true,
+      reviewClosureEvidenceExportEnabled: true,
+      reviewClosureReportExportEnabled: true,
+      reviewExportRedactionAuditEnabled: true,
+      reviewExportIntegrityChecksEnabled: true,
+      reviewExportManifestEnabled: true,
+      reviewExportQaHandoffEnabled: true,
+      closureEvidenceReadyCount: 1,
+      closureEvidenceBlockedCount: 0,
+      closureEvidenceIncompleteCount: 0,
+      closureEvidenceExportCount: 1,
+      closureReportExportCount: 1,
+      exportRedactionPassedCount: 1,
+      exportRedactionWarningCount: 0,
+      exportRedactionBlockedCount: 0,
+      exportManifestReadyCount: 1,
+      exportManifestNeedsReviewCount: 0,
+      exportManifestBlockedCount: 0,
+      latestExportManifestStatus: "ready",
+      externalCalls: 0
+    },
+    closureReportExport: providerWebhookReviewClosureReportExportResponse(),
+    closureReportManifest: providerWebhookReviewExportManifestResponse("closure-report-export"),
+    closureReportRedactionAudit: providerWebhookReviewExportRedactionAuditResponse("closure-report-export"),
+    closureExportIntegrity: providerWebhookReviewExportIntegrityResponse(),
+    evidenceManifests: [{
+      unmatchedId: evidence.unmatchedId,
+      provider: evidence.provider,
+      platform: evidence.platform,
+      safeRoomLabel: evidence.safeRoomLabel,
+      roomKeyDigest: evidence.roomKeyDigest,
+      eventType: evidence.eventType,
+      receivedAt: evidence.receivedAt,
+      reviewStatus: evidence.reviewStatus,
+      linkStatus: evidence.linkStatus,
+      unmatchedStatus: evidence.unmatchedStatus,
+      closureReadiness: evidence.closureReadiness,
+      evidenceStatus: evidence.evidenceStatus,
+      safeFilename: evidenceManifest.safeFilename,
+      safeDigest: evidenceManifest.safeDigest,
+      redactionStatus: evidenceManifest.redactionStatus,
+      integrityStatus: evidenceManifest.integrityStatus,
+      deterministicExportConfirmed: evidenceManifest.deterministicExportConfirmed,
+      manualQaReadiness: evidenceManifest.manualQaReadiness,
+      manualQaChecks: evidenceManifest.manualQaChecks,
+      externalCalls: 0
+    }],
+    manualQaReadiness: "ready",
+    manualQaChecks: {
+      reportManifestReady: true,
+      reportRedactionPassedOrWarned: true,
+      reportIntegrityConfirmed: true,
+      evidenceManifestsReadyOrNeedsReview: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      readinessFlagsPresent: true
+    },
+    safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
+    safeDigest: "sha256:safeqahandoffbundle",
     externalCalls: 0
   };
 }
