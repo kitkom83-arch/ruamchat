@@ -16,7 +16,9 @@ import {
   apiHealthSchema,
   createProviderWebhookOperatorNoteRequestSchema,
   createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookReviewClosureEvidenceExportSchema,
   providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportFiltersSchema,
   providerWebhookReviewClosureReportSchema,
   providerWebhookReviewResolutionSummaryFiltersSchema,
@@ -204,7 +206,9 @@ import {
   type ProviderWebhookReviewAlerts,
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewClosureEvidence,
+  type ProviderWebhookReviewClosureEvidenceExport,
   type ProviderWebhookReviewClosureReport,
+  type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
@@ -495,6 +499,16 @@ export async function getProviderWebhookReviewResolutionSummary(filters: Provide
 }
 
 export async function getProviderWebhookReviewClosureReport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReport> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-closure-report${search}`, providerWebhookReviewClosureReportSchema);
+}
+
+export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-closure-report/export${search}`, providerWebhookReviewClosureReportExportSchema);
+}
+
+function providerWebhookReviewClosureReportSearch(filters: ProviderWebhookReviewClosureReportFilters = {}) {
   const parsed = providerWebhookReviewClosureReportFiltersSchema.parse(filters);
   const params = new URLSearchParams();
   const orderedKeys: (keyof ProviderWebhookReviewClosureReportFilters)[] = [
@@ -524,7 +538,7 @@ export async function getProviderWebhookReviewClosureReport(filters: ProviderWeb
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
   }
   const search = params.toString();
-  return request(`/provider-webhooks/review-closure-report${search ? `?${search}` : ""}`, providerWebhookReviewClosureReportSchema);
+  return search ? `?${search}` : "";
 }
 
 export async function getProviderWebhookReviewSavedViews(): Promise<ProviderWebhookReviewSavedView[]> {
@@ -583,6 +597,10 @@ export async function getProviderWebhookUnmatchedInboundHistory(unmatchedInbound
 
 export async function getProviderWebhookUnmatchedInboundClosureEvidence(unmatchedInboundId: string): Promise<ProviderWebhookReviewClosureEvidence> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence`, providerWebhookReviewClosureEvidenceSchema);
+}
+
+export async function getProviderWebhookUnmatchedInboundClosureEvidenceExport(unmatchedInboundId: string): Promise<ProviderWebhookReviewClosureEvidenceExport> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence/export`, providerWebhookReviewClosureEvidenceExportSchema);
 }
 
 export async function getProviderWebhookUnmatchedInboundDiagnostics(unmatchedInboundId: string): Promise<ProviderWebhookUnmatchedInboundDiagnostics> {

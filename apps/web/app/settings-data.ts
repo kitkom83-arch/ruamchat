@@ -14,8 +14,10 @@ import type {
   ProviderWebhookReviewAlertAgeBucket,
   ProviderWebhookReviewAlertSeverity,
   ProviderWebhookReviewClosureEvidence,
+  ProviderWebhookReviewClosureEvidenceExport,
   ProviderWebhookReviewClosureEvidenceStatus,
   ProviderWebhookReviewClosureReport,
+  ProviderWebhookReviewClosureReportExport,
   ProviderWebhookReviewClosureReportFilters,
   ProviderWebhookReviewMetrics,
   ProviderWebhookReviewMetricsFilters,
@@ -64,6 +66,7 @@ import {
   bulkReviewProviderWebhookUnmatchedInbound,
   getProviderWebhookOperatorNotes,
   getProviderWebhookReviewAlerts,
+  getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
@@ -74,6 +77,7 @@ import {
   getProviderWebhookEvents,
   getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates,
+  getProviderWebhookUnmatchedInboundClosureEvidenceExport,
   getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundDiagnostics,
   getProviderWebhookUnmatchedInboundExport,
@@ -159,9 +163,19 @@ export type SettingsProviderWebhookReviewClosureReportData = {
   report: ProviderWebhookReviewClosureReport;
 };
 
+export type SettingsProviderWebhookReviewClosureReportExportData = {
+  mode: DataMode;
+  exportResult: ProviderWebhookReviewClosureReportExport;
+};
+
 export type SettingsProviderWebhookClosureEvidenceData = {
   mode: DataMode;
   evidence: ProviderWebhookReviewClosureEvidence;
+};
+
+export type SettingsProviderWebhookClosureEvidenceExportData = {
+  mode: DataMode;
+  exportResult: ProviderWebhookReviewClosureEvidenceExport;
 };
 
 export type SettingsProviderWebhookSavedViewsData = {
@@ -358,6 +372,23 @@ export async function loadSettingsProviderWebhookReviewClosureReportData(
   return {
     mode,
     report: createMockReviewClosureReport(filters)
+  };
+}
+
+export async function exportSettingsProviderWebhookReviewClosureReportData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewClosureReportExportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      exportResult: await getProviderWebhookReviewClosureReportExport(filters)
+    };
+  }
+
+  return {
+    mode,
+    exportResult: createMockReviewClosureReportExport(filters)
   };
 }
 
@@ -569,6 +600,23 @@ export async function loadSettingsProviderWebhookClosureEvidenceData(mode: DataM
   return {
     mode,
     evidence: createMockClosureEvidence(unmatchedInboundId)
+  };
+}
+
+export async function exportSettingsProviderWebhookClosureEvidenceData(
+  mode: DataMode,
+  unmatchedInboundId: string
+): Promise<SettingsProviderWebhookClosureEvidenceExportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      exportResult: await getProviderWebhookUnmatchedInboundClosureEvidenceExport(unmatchedInboundId)
+    };
+  }
+
+  return {
+    mode,
+    exportResult: createMockClosureEvidenceExport(unmatchedInboundId)
   };
 }
 
@@ -1341,12 +1389,35 @@ function createMockReviewClosureReport(filters: ProviderWebhookReviewClosureRepo
   };
 }
 
+function createMockReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewClosureReportExport {
+  return {
+    ...createMockReviewClosureReport(filters),
+    exportKind: "closure-report",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: "provider-webhook-review-closure-report.json",
+    exportedAt: new Date().toISOString()
+  };
+}
+
 function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
   return {
     generatedAt: new Date().toISOString(),
     ...mockClosureEvidenceSummaryItem(item)
+  };
+}
+
+function createMockClosureEvidenceExport(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidenceExport {
+  const evidence = createMockClosureEvidence(unmatchedInboundId);
+  return {
+    ...evidence,
+    exportKind: "closure-evidence",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: `provider-webhook-closure-evidence-${evidence.provider}-${evidence.unmatchedId}.json`,
+    exportedAt: new Date().toISOString()
   };
 }
 
@@ -2408,6 +2479,8 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.closureEvidenceReadyCount = closureReport.evidenceReadyCount;
   mockProviderReadiness.closureEvidenceBlockedCount = closureReport.evidenceBlockedCount;
   mockProviderReadiness.closureEvidenceIncompleteCount = closureReport.evidenceIncompleteCount;
+  mockProviderReadiness.closureEvidenceExportCount = mockProviderWebhookUnmatchedInbound.length;
+  mockProviderReadiness.closureReportExportCount = mockProviderWebhookUnmatchedInbound.length > 0 ? 1 : 0;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -2463,6 +2536,8 @@ export const mockProviderReadiness: ProviderReadiness = {
   resolutionSummaryEnabled: true,
   reviewClosureEvidenceEnabled: true,
   reviewClosureReportEnabled: true,
+  reviewClosureEvidenceExportEnabled: true,
+  reviewClosureReportExportEnabled: true,
   savedViewCount: 1,
   operatorNoteCount: 0,
   unassignedOpenCount: 1,
@@ -2475,6 +2550,8 @@ export const mockProviderReadiness: ProviderReadiness = {
   closureEvidenceReadyCount: 0,
   closureEvidenceBlockedCount: 0,
   closureEvidenceIncompleteCount: 1,
+  closureEvidenceExportCount: 1,
+  closureReportExportCount: 1,
   reviewAlertCriticalCount: 1,
   criticalTriageCount: 1,
   openTriageCount: 1,

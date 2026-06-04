@@ -42,7 +42,9 @@ import {
   metricTrendSchema,
   normalizedInboundMessageSchema,
   parseAiDecisionWithFallback,
+  providerWebhookReviewClosureEvidenceExportSchema,
   providerWebhookReviewClosureEvidenceSchema,
+  providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportSchema,
   sampleKnowledgeItems,
   shouldAutoSend,
@@ -139,8 +141,28 @@ describe("shared contracts", () => {
       externalCalls: 0
     });
 
+    const evidenceExport = providerWebhookReviewClosureEvidenceExportSchema.parse({
+      ...evidence,
+      exportKind: "closure-evidence",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: "provider-webhook-closure-evidence-line-provider-webhook-unmatched-1.json",
+      exportedAt: "2026-06-04T00:01:00.000Z"
+    });
+
+    const reportExport = providerWebhookReviewClosureReportExportSchema.parse({
+      ...report,
+      exportKind: "closure-report",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: "provider-webhook-review-closure-report.json",
+      exportedAt: "2026-06-04T00:01:00.000Z"
+    });
+
     expect(evidence.externalCalls).toBe(0);
     expect(report.appliedFilters.checklistIncomplete).toBe(true);
+    expect(evidenceExport.exportKind).toBe("closure-evidence");
+    expect(reportExport.externalCalls).toBe(0);
   });
 
   it("validates structured AI decisions", () => {

@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureReport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -37,12 +37,15 @@ describe("ProviderReadinessPanel", () => {
       reviewWorkload: providerWebhookReviewWorkload(),
       reviewResolutionSummary: providerWebhookReviewResolutionSummary(),
       reviewClosureReport: providerWebhookReviewClosureReport(),
+      reviewClosureReportExport: providerWebhookReviewClosureReportExport(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
       reviewSavedViewActionStatus: "Saved view Safe queue view; externalCalls=0",
       activeDiagnosticsId: "provider-webhook-unmatched-1",
       activeDiagnostics: providerWebhookDiagnostics(),
       activeClosureEvidenceId: "provider-webhook-unmatched-1",
       activeClosureEvidence: providerWebhookClosureEvidence(),
+      activeClosureEvidenceExportId: "provider-webhook-unmatched-1",
+      activeClosureEvidenceExport: providerWebhookClosureEvidenceExport(),
       activeHistoryId: "provider-webhook-unmatched-1",
       activeHistory: providerWebhookHistory(),
       operatorNotesById: { "provider-webhook-unmatched-1": [providerWebhookOperatorNote()] },
@@ -94,6 +97,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("resolution summary=enabled");
     expect(html).toContain("closure evidence=enabled");
     expect(html).toContain("closure report=enabled");
+    expect(html).toContain("closure evidence export=enabled");
+    expect(html).toContain("closure report export=enabled");
     expect(html).toContain("saved view count=1");
     expect(html).toContain("operator note count=1");
     expect(html).toContain("unassigned open count=1");
@@ -106,6 +111,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("closure evidence ready count=1");
     expect(html).toContain("closure evidence blocked count=0");
     expect(html).toContain("closure evidence incomplete count=1");
+    expect(html).toContain("closure evidence export count=2");
+    expect(html).toContain("closure report export count=1");
     expect(html).toContain("critical alert count=1");
     expect(html).toContain("critical triage count=1");
     expect(html).toContain("open triage count=1");
@@ -239,6 +246,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("By closure readiness");
     expect(html).toContain("Closure evidence report");
     expect(html).toContain("closure report generated");
+    expect(html).toContain("Export closure report");
+    expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("total evidence items");
     expect(html).toContain("evidence ready");
     expect(html).toContain("evidence blocked");
@@ -287,7 +296,12 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Load candidates");
     expect(html).toContain("View diagnostics");
     expect(html).toContain("View closure evidence");
+    expect(html).toContain("Export closure evidence");
+    expect(html).toContain("evidenceExport=closure-evidence; externalCalls=0");
     expect(html).toContain("Safe closure evidence");
+    expect(html).toContain("Safe closure evidence export");
+    expect(html).toContain("exportKind=closure-evidence");
+    expect(html).toContain("safeFilename=provider-webhook-closure-evidence-line-provider-webhook-unmatched-1.json");
     expect(html).toContain("Closure evidence");
     expect(html).toContain("historyEntryCount=3");
     expect(html).toContain("operatorNoteCount=2");
@@ -408,6 +422,9 @@ describe("ProviderReadinessPanel", () => {
       reviewClosureReport: null,
       reviewClosureReportLoading: false,
       reviewClosureReportError: "Closure Evidence / Report API error: Failed to fetch",
+      reviewClosureReportExport: null,
+      reviewClosureReportExportLoading: false,
+      reviewClosureReportExportError: "Closure Report Export API error: Failed to fetch",
       reviewSavedViews: [],
       reviewSavedViewsLoading: false,
       reviewSavedViewsError: "Saved Views API error: Failed to fetch",
@@ -418,6 +435,8 @@ describe("ProviderReadinessPanel", () => {
       diagnosticsErrorById: { "provider-webhook-unmatched-1": "Diagnostics API error: Failed to fetch" },
       activeClosureEvidenceId: "provider-webhook-unmatched-1",
       closureEvidenceErrorById: { "provider-webhook-unmatched-1": "Closure Evidence / Report API error: Failed to fetch" },
+      activeClosureEvidenceExportId: "provider-webhook-unmatched-1",
+      closureEvidenceExportErrorById: { "provider-webhook-unmatched-1": "Closure Evidence Export API error: Failed to fetch" },
       activeHistoryId: "provider-webhook-unmatched-1",
       historyErrorById: { "provider-webhook-unmatched-1": "History API error: Failed to fetch" },
       operatorNotesById: { "provider-webhook-unmatched-1": [] },
@@ -430,6 +449,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Review Alerts API error: Failed to fetch");
     expect(html).toContain("Triage Guidance API error: Failed to fetch");
     expect(html).toContain("Closure Evidence / Report API error: Failed to fetch");
+    expect(html).toContain("Closure Report Export API error: Failed to fetch");
+    expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
     expect(html).toContain("Saved Views API error: Failed to fetch");
     expect(html).toContain("Unmatched Inbound API error: Failed to fetch");
     expect(html).toContain("Diagnostics API error: Failed to fetch");
@@ -495,6 +516,8 @@ function providerReadiness(): ProviderReadiness {
     resolutionSummaryEnabled: true,
     reviewClosureEvidenceEnabled: true,
     reviewClosureReportEnabled: true,
+    reviewClosureEvidenceExportEnabled: true,
+    reviewClosureReportExportEnabled: true,
     savedViewCount: 1,
     operatorNoteCount: 1,
     unassignedOpenCount: 1,
@@ -507,6 +530,8 @@ function providerReadiness(): ProviderReadiness {
     closureEvidenceReadyCount: 1,
     closureEvidenceBlockedCount: 0,
     closureEvidenceIncompleteCount: 1,
+    closureEvidenceExportCount: 2,
+    closureReportExportCount: 1,
     reviewAlertCriticalCount: 1,
     criticalTriageCount: 1,
     openTriageCount: 1,
@@ -1231,6 +1256,17 @@ function providerWebhookClosureEvidence(): ProviderWebhookReviewClosureEvidence 
   };
 }
 
+function providerWebhookClosureEvidenceExport(): ProviderWebhookReviewClosureEvidenceExport {
+  return {
+    ...providerWebhookClosureEvidence(),
+    exportKind: "closure-evidence",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: "provider-webhook-closure-evidence-line-provider-webhook-unmatched-1.json",
+    exportedAt: "2026-06-04T00:02:00.000Z"
+  };
+}
+
 function providerWebhookReviewClosureReport(): ProviderWebhookReviewClosureReport {
   const { generatedAt: _generatedAt, ...item } = providerWebhookClosureEvidence();
   void _generatedAt;
@@ -1256,6 +1292,17 @@ function providerWebhookReviewClosureReport(): ProviderWebhookReviewClosureRepor
     topEvidenceReadyItems: [item],
     topEvidenceBlockedItems: [],
     externalCalls: 0
+  };
+}
+
+function providerWebhookReviewClosureReportExport(): ProviderWebhookReviewClosureReportExport {
+  return {
+    ...providerWebhookReviewClosureReport(),
+    exportKind: "closure-report",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: "provider-webhook-review-closure-report.json",
+    exportedAt: "2026-06-04T00:02:00.000Z"
   };
 }
 
