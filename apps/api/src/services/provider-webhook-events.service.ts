@@ -36,6 +36,7 @@ import {
   type ProviderWebhookReviewExportManifest,
   type ProviderWebhookReviewExportManifestIntegrityStatus,
   type ProviderWebhookReviewExportManifestQaReadiness,
+  type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -692,6 +693,62 @@ export class ProviderWebhookEventsService {
       safeReportDigest: integrity.safeReportDigest,
       manualQaReadiness
     });
+  }
+
+  getReviewQaHandoffBundle(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffBundle {
+    const reportExport = this.getReviewClosureReportExport(tenantId, filters, actorUserId);
+    const appliedFilters = reportExport.appliedFilters;
+    const closureReportManifest = this.getReviewClosureReportExportManifest(tenantId, appliedFilters, actorUserId);
+    const closureReportRedactionAudit = this.getReviewClosureReportRedactionAudit(tenantId, appliedFilters, actorUserId);
+    const closureExportIntegrity = this.getReviewClosureExportIntegrity(tenantId, appliedFilters, actorUserId);
+    const evidenceManifests = [
+      ...reportExport.topEvidenceReadyItems,
+      ...reportExport.topEvidenceBlockedItems
+    ].slice(0, 10).map((item) => qaHandoffEvidenceItemFromManifest(
+      item,
+      this.getUnmatchedInboundClosureEvidenceExportManifest(tenantId, item.unmatchedId)
+    ));
+    const readiness = qaHandoffReadinessFromSnapshot(getProviderWebhookGuardrailReadinessSnapshot());
+    const manualQaChecks = qaHandoffManualQaChecks({
+      readiness,
+      closureReportManifest,
+      closureReportRedactionAudit,
+      closureExportIntegrity,
+      evidenceManifests
+    });
+    const manualQaReadiness = qaHandoffBundleReadiness({
+      closureReportManifest,
+      closureExportIntegrity,
+      evidenceManifests,
+      manualQaChecks
+    });
+    const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-bundle.json");
+    const digestPayload = {
+      bundleKind: "provider-webhook-review-qa-handoff-bundle",
+      appliedFilters,
+      readiness,
+      closureReportExport: reportExport,
+      closureReportManifest,
+      closureReportRedactionAudit,
+      closureExportIntegrity,
+      evidenceManifests,
+      manualQaReadiness,
+      manualQaChecks,
+      safeFilename,
+      externalCalls: 0
+    };
+
+    return {
+      generatedAt: new Date().toISOString(),
+      ...digestPayload,
+      bundleKind: "provider-webhook-review-qa-handoff-bundle",
+      safeDigest: safeDigestForExport(digestPayload),
+      externalCalls: 0 as const
+    };
   }
 
   private getClosureReportItems(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string) {
@@ -3298,6 +3355,123 @@ function exportManifestQaReadinessForEvidenceSummary(item: ProviderWebhookReview
     evidenceBlockedCount: item.evidenceStatus === "blocked" ? 1 : 0,
     evidenceIncompleteCount: item.evidenceStatus === "incomplete" ? 1 : 0
   });
+}
+
+function qaHandoffEvidenceItemFromManifest(
+  item: ProviderWebhookReviewClosureEvidenceSummaryItem,
+  manifest: ProviderWebhookReviewExportManifest
+): ProviderWebhookReviewQaHandoffBundle["evidenceManifests"][number] {
+  return {
+    unmatchedId: item.unmatchedId,
+    provider: item.provider,
+    platform: item.platform,
+    safeRoomLabel: item.safeRoomLabel,
+    roomKeyDigest: item.roomKeyDigest,
+    eventType: item.eventType,
+    receivedAt: item.receivedAt,
+    reviewStatus: item.reviewStatus,
+    linkStatus: item.linkStatus,
+    unmatchedStatus: item.unmatchedStatus,
+    closureReadiness: item.closureReadiness,
+    evidenceStatus: item.evidenceStatus,
+    safeFilename: manifest.safeFilename,
+    safeDigest: manifest.safeDigest,
+    redactionStatus: manifest.redactionStatus,
+    integrityStatus: manifest.integrityStatus,
+    deterministicExportConfirmed: manifest.deterministicExportConfirmed,
+    manualQaReadiness: manifest.manualQaReadiness,
+    manualQaChecks: manifest.manualQaChecks,
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffReadinessFromSnapshot(
+  snapshot: ReturnType<typeof getProviderWebhookGuardrailReadinessSnapshot>
+): ProviderWebhookReviewQaHandoffBundle["readiness"] {
+  return {
+    reviewClosureEvidenceEnabled: snapshot.reviewClosureEvidenceEnabled,
+    reviewClosureReportEnabled: snapshot.reviewClosureReportEnabled,
+    reviewClosureEvidenceExportEnabled: snapshot.reviewClosureEvidenceExportEnabled,
+    reviewClosureReportExportEnabled: snapshot.reviewClosureReportExportEnabled,
+    reviewExportRedactionAuditEnabled: snapshot.reviewExportRedactionAuditEnabled,
+    reviewExportIntegrityChecksEnabled: snapshot.reviewExportIntegrityChecksEnabled,
+    reviewExportManifestEnabled: snapshot.reviewExportManifestEnabled,
+    reviewExportQaHandoffEnabled: snapshot.reviewExportQaHandoffEnabled,
+    closureEvidenceReadyCount: snapshot.closureEvidenceReadyCount,
+    closureEvidenceBlockedCount: snapshot.closureEvidenceBlockedCount,
+    closureEvidenceIncompleteCount: snapshot.closureEvidenceIncompleteCount,
+    closureEvidenceExportCount: snapshot.closureEvidenceExportCount,
+    closureReportExportCount: snapshot.closureReportExportCount,
+    exportRedactionPassedCount: snapshot.exportRedactionPassedCount,
+    exportRedactionWarningCount: snapshot.exportRedactionWarningCount,
+    exportRedactionBlockedCount: snapshot.exportRedactionBlockedCount,
+    exportManifestReadyCount: snapshot.exportManifestReadyCount,
+    exportManifestNeedsReviewCount: snapshot.exportManifestNeedsReviewCount,
+    exportManifestBlockedCount: snapshot.exportManifestBlockedCount,
+    latestExportManifestStatus: snapshot.latestExportManifestStatus,
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffManualQaChecks(input: {
+  readiness: ProviderWebhookReviewQaHandoffBundle["readiness"];
+  closureReportManifest: ProviderWebhookReviewExportManifest;
+  closureReportRedactionAudit: ProviderWebhookReviewExportRedactionAudit;
+  closureExportIntegrity: ProviderWebhookReviewExportIntegrity;
+  evidenceManifests: ProviderWebhookReviewQaHandoffBundle["evidenceManifests"];
+}): ProviderWebhookReviewQaHandoffBundle["manualQaChecks"] {
+  const allManifestChecks = [input.closureReportManifest, ...input.evidenceManifests];
+  return {
+    reportManifestReady: input.closureReportManifest.manualQaReadiness === "ready",
+    reportRedactionPassedOrWarned: input.closureReportRedactionAudit.status === "passed" || input.closureReportRedactionAudit.status === "warning",
+    reportIntegrityConfirmed: input.closureReportManifest.integrityStatus === "confirmed" && input.closureExportIntegrity.deterministicExportConfirmed,
+    evidenceManifestsReadyOrNeedsReview: input.evidenceManifests.every((manifest) => manifest.manualQaReadiness !== "blocked"),
+    safeFilenamePresent: allManifestChecks.every((manifest) => manifest.safeFilename.length > 0),
+    safeDigestPresent: allManifestChecks.every((manifest) => manifest.safeDigest.startsWith("sha256:")),
+    rawPayloadAbsent: input.closureReportRedactionAudit.checks.rawPayloadAbsent,
+    rawSignatureAbsent: input.closureReportRedactionAudit.checks.rawSignatureAbsent,
+    tokenAbsent: input.closureReportRedactionAudit.checks.tokenAbsent,
+    replyTokenAbsent: input.closureReportRedactionAudit.checks.replyTokenAbsent,
+    rawSenderIdAbsent: input.closureReportRedactionAudit.checks.rawSenderIdAbsent,
+    rawRoomIdAbsent: input.closureReportRedactionAudit.checks.rawRoomIdAbsent,
+    providerOutboundAbsent: input.closureReportRedactionAudit.checks.providerOutboundAbsent,
+    externalCallsZero: externalCallsAreZero(input),
+    readinessFlagsPresent: input.readiness.reviewClosureEvidenceEnabled &&
+      input.readiness.reviewClosureReportEnabled &&
+      input.readiness.reviewClosureEvidenceExportEnabled &&
+      input.readiness.reviewClosureReportExportEnabled &&
+      input.readiness.reviewExportRedactionAuditEnabled &&
+      input.readiness.reviewExportIntegrityChecksEnabled &&
+      input.readiness.reviewExportManifestEnabled &&
+      input.readiness.reviewExportQaHandoffEnabled
+  };
+}
+
+function qaHandoffBundleReadiness(input: {
+  closureReportManifest: ProviderWebhookReviewExportManifest;
+  closureExportIntegrity: ProviderWebhookReviewExportIntegrity;
+  evidenceManifests: ProviderWebhookReviewQaHandoffBundle["evidenceManifests"];
+  manualQaChecks: ProviderWebhookReviewQaHandoffBundle["manualQaChecks"];
+}): ProviderWebhookReviewExportManifestQaReadiness {
+  if (
+    !input.manualQaChecks.externalCallsZero ||
+    !input.manualQaChecks.providerOutboundAbsent ||
+    input.closureReportManifest.manualQaReadiness === "blocked" ||
+    input.closureReportManifest.redactionBlockedCount > 0 ||
+    input.closureExportIntegrity.redactionBlockedCount > 0 ||
+    input.evidenceManifests.some((manifest) => manifest.manualQaReadiness === "blocked")
+  ) {
+    return "blocked";
+  }
+  if (
+    input.closureReportManifest.manualQaReadiness === "needs_review" ||
+    input.closureReportManifest.redactionWarningCount > 0 ||
+    input.closureExportIntegrity.redactionWarningCount > 0 ||
+    input.evidenceManifests.some((manifest) => manifest.manualQaReadiness === "needs_review")
+  ) {
+    return "needs_review";
+  }
+  return "ready";
 }
 
 function redactionIssuesForChecks(checks: ProviderWebhookReviewExportRedactionChecks): ProviderWebhookReviewExportRedactionIssue[] {

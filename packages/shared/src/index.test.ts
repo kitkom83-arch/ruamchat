@@ -46,6 +46,7 @@ import {
   providerWebhookReviewClosureEvidenceSchema,
   providerWebhookReviewExportIntegritySchema,
   providerWebhookReviewExportManifestSchema,
+  providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportSchema,
@@ -205,6 +206,17 @@ describe("shared contracts", () => {
       safeReportDigest: "sha256:safereportdigest"
     });
 
+    const reportRedactionAudit = providerWebhookReviewExportRedactionAuditSchema.parse({
+      ...redactionAudit,
+      auditTarget: "closure-report-export",
+      unmatchedId: undefined,
+      appliedFilters: {
+        provider: "line",
+        checklistIncomplete: true
+      },
+      safeDigest: "sha256:safereportauditdigest"
+    });
+
     const manifest = providerWebhookReviewExportManifestSchema.parse({
       generatedAt: "2026-06-04T00:04:00.000Z",
       manifestKind: "provider-webhook-review-export-manifest",
@@ -246,6 +258,82 @@ describe("shared contracts", () => {
       externalCalls: 0
     });
 
+    const qaBundle = providerWebhookReviewQaHandoffBundleSchema.parse({
+      generatedAt: "2026-06-04T00:05:00.000Z",
+      bundleKind: "provider-webhook-review-qa-handoff-bundle",
+      appliedFilters: report.appliedFilters,
+      readiness: {
+        reviewClosureEvidenceEnabled: true,
+        reviewClosureReportEnabled: true,
+        reviewClosureEvidenceExportEnabled: true,
+        reviewClosureReportExportEnabled: true,
+        reviewExportRedactionAuditEnabled: true,
+        reviewExportIntegrityChecksEnabled: true,
+        reviewExportManifestEnabled: true,
+        reviewExportQaHandoffEnabled: true,
+        closureEvidenceReadyCount: 1,
+        closureEvidenceBlockedCount: 0,
+        closureEvidenceIncompleteCount: 0,
+        closureEvidenceExportCount: 1,
+        closureReportExportCount: 1,
+        exportRedactionPassedCount: 1,
+        exportRedactionWarningCount: 0,
+        exportRedactionBlockedCount: 0,
+        exportManifestReadyCount: 1,
+        exportManifestNeedsReviewCount: 0,
+        exportManifestBlockedCount: 0,
+        latestExportManifestStatus: "ready",
+        externalCalls: 0
+      },
+      closureReportExport: reportExport,
+      closureReportManifest: manifest,
+      closureReportRedactionAudit: reportRedactionAudit,
+      closureExportIntegrity: integrity,
+      evidenceManifests: [{
+        unmatchedId: evidence.unmatchedId,
+        provider: evidence.provider,
+        platform: evidence.platform,
+        safeRoomLabel: evidence.safeRoomLabel,
+        roomKeyDigest: evidence.roomKeyDigest,
+        eventType: evidence.eventType,
+        receivedAt: evidence.receivedAt,
+        reviewStatus: evidence.reviewStatus,
+        linkStatus: evidence.linkStatus,
+        unmatchedStatus: evidence.unmatchedStatus,
+        closureReadiness: evidence.closureReadiness,
+        evidenceStatus: evidence.evidenceStatus,
+        safeFilename: evidenceExport.safeFilename,
+        safeDigest: "sha256:safeevidencedigest",
+        redactionStatus: "passed",
+        integrityStatus: "confirmed",
+        deterministicExportConfirmed: true,
+        manualQaReadiness: "ready",
+        manualQaChecks: manifest.manualQaChecks,
+        externalCalls: 0
+      }],
+      manualQaReadiness: "ready",
+      manualQaChecks: {
+        reportManifestReady: true,
+        reportRedactionPassedOrWarned: true,
+        reportIntegrityConfirmed: true,
+        evidenceManifestsReadyOrNeedsReview: true,
+        safeFilenamePresent: true,
+        safeDigestPresent: true,
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true,
+        readinessFlagsPresent: true
+      },
+      safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
+      safeDigest: "sha256:safebundledigest",
+      externalCalls: 0
+    });
+
     expect(evidence.externalCalls).toBe(0);
     expect(report.appliedFilters.checklistIncomplete).toBe(true);
     expect(evidenceExport.exportKind).toBe("closure-evidence");
@@ -253,6 +341,12 @@ describe("shared contracts", () => {
     expect(redactionAudit.checks.rawPayloadAbsent).toBe(true);
     expect(integrity.redactionPassedCount).toBe(1);
     expect(manifest.manualQaReadiness).toBe("ready");
+    expect(qaBundle.manualQaChecks.externalCallsZero).toBe(true);
+    expect(qaBundle.evidenceManifests[0]?.safeDigest).toMatch(/^sha256:/);
+    expect(() => providerWebhookReviewQaHandoffBundleSchema.parse({
+      ...qaBundle,
+      rawPayload: {}
+    })).toThrow();
   });
 
   it("validates structured AI decisions", () => {

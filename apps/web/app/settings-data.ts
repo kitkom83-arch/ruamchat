@@ -18,6 +18,7 @@ import type {
   ProviderWebhookReviewClosureEvidenceStatus,
   ProviderWebhookReviewExportIntegrity,
   ProviderWebhookReviewExportManifest,
+  ProviderWebhookReviewQaHandoffBundle,
   ProviderWebhookReviewExportRedactionAudit,
   ProviderWebhookReviewClosureReport,
   ProviderWebhookReviewClosureReportExport,
@@ -74,6 +75,7 @@ import {
   getProviderWebhookReviewClosureReport,
   getProviderWebhookReviewClosureExportIntegrity,
   getProviderWebhookReviewClosureReportRedactionAudit,
+  getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewResolutionSummary,
@@ -179,6 +181,11 @@ export type SettingsProviderWebhookReviewClosureReportExportData = {
 export type SettingsProviderWebhookReviewClosureReportExportManifestData = {
   mode: DataMode;
   manifest: ProviderWebhookReviewExportManifest;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffBundleData = {
+  mode: DataMode;
+  bundle: ProviderWebhookReviewQaHandoffBundle;
 };
 
 export type SettingsProviderWebhookReviewClosureReportRedactionAuditData = {
@@ -439,6 +446,23 @@ export async function loadSettingsProviderWebhookReviewClosureReportExportManife
   return {
     mode,
     manifest: createMockReviewClosureReportExportManifest(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffBundleData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffBundleData> {
+  if (mode === "api") {
+    return {
+      mode,
+      bundle: await getProviderWebhookReviewQaHandoffBundle(filters)
+    };
+  }
+
+  return {
+    mode,
+    bundle: createMockReviewQaHandoffBundle(filters)
   };
 }
 
@@ -1576,6 +1600,112 @@ function createMockReviewClosureReportExportManifest(filters: ProviderWebhookRev
     safeDigest: audit.safeDigest,
     safeReportDigest: integrity.safeReportDigest
   });
+}
+
+function createMockReviewQaHandoffBundle(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffBundle {
+  const closureReportExport = createMockReviewClosureReportExport(filters);
+  const closureReportManifest = createMockReviewClosureReportExportManifest(filters);
+  const closureReportRedactionAudit = createMockReviewClosureReportRedactionAudit(filters);
+  const closureExportIntegrity = createMockReviewClosureExportIntegrity(filters);
+  const evidenceManifests = [
+    ...closureReportExport.topEvidenceReadyItems,
+    ...closureReportExport.topEvidenceBlockedItems
+  ].slice(0, 10).map((item) => {
+    const manifest = createMockClosureEvidenceExportManifest(item.unmatchedId);
+    return {
+      unmatchedId: item.unmatchedId,
+      provider: item.provider,
+      platform: item.platform,
+      safeRoomLabel: item.safeRoomLabel,
+      roomKeyDigest: item.roomKeyDigest,
+      eventType: item.eventType,
+      receivedAt: item.receivedAt,
+      reviewStatus: item.reviewStatus,
+      linkStatus: item.linkStatus,
+      unmatchedStatus: item.unmatchedStatus,
+      closureReadiness: item.closureReadiness,
+      evidenceStatus: item.evidenceStatus,
+      safeFilename: manifest.safeFilename,
+      safeDigest: manifest.safeDigest,
+      redactionStatus: manifest.redactionStatus,
+      integrityStatus: manifest.integrityStatus,
+      deterministicExportConfirmed: manifest.deterministicExportConfirmed,
+      manualQaReadiness: manifest.manualQaReadiness,
+      manualQaChecks: manifest.manualQaChecks,
+      externalCalls: 0 as const
+    };
+  });
+  const readiness: ProviderWebhookReviewQaHandoffBundle["readiness"] = {
+    reviewClosureEvidenceEnabled: mockProviderReadiness.reviewClosureEvidenceEnabled,
+    reviewClosureReportEnabled: mockProviderReadiness.reviewClosureReportEnabled,
+    reviewClosureEvidenceExportEnabled: mockProviderReadiness.reviewClosureEvidenceExportEnabled,
+    reviewClosureReportExportEnabled: mockProviderReadiness.reviewClosureReportExportEnabled,
+    reviewExportRedactionAuditEnabled: mockProviderReadiness.reviewExportRedactionAuditEnabled,
+    reviewExportIntegrityChecksEnabled: mockProviderReadiness.reviewExportIntegrityChecksEnabled,
+    reviewExportManifestEnabled: mockProviderReadiness.reviewExportManifestEnabled,
+    reviewExportQaHandoffEnabled: mockProviderReadiness.reviewExportQaHandoffEnabled,
+    closureEvidenceReadyCount: mockProviderReadiness.closureEvidenceReadyCount,
+    closureEvidenceBlockedCount: mockProviderReadiness.closureEvidenceBlockedCount,
+    closureEvidenceIncompleteCount: mockProviderReadiness.closureEvidenceIncompleteCount,
+    closureEvidenceExportCount: mockProviderReadiness.closureEvidenceExportCount,
+    closureReportExportCount: mockProviderReadiness.closureReportExportCount,
+    exportRedactionPassedCount: mockProviderReadiness.exportRedactionPassedCount,
+    exportRedactionWarningCount: mockProviderReadiness.exportRedactionWarningCount,
+    exportRedactionBlockedCount: mockProviderReadiness.exportRedactionBlockedCount,
+    exportManifestReadyCount: mockProviderReadiness.exportManifestReadyCount,
+    exportManifestNeedsReviewCount: mockProviderReadiness.exportManifestNeedsReviewCount,
+    exportManifestBlockedCount: mockProviderReadiness.exportManifestBlockedCount,
+    latestExportManifestStatus: mockProviderReadiness.latestExportManifestStatus,
+    externalCalls: 0
+  };
+  const allManifests = [closureReportManifest, ...evidenceManifests];
+  const manualQaChecks: ProviderWebhookReviewQaHandoffBundle["manualQaChecks"] = {
+    reportManifestReady: closureReportManifest.manualQaReadiness === "ready",
+    reportRedactionPassedOrWarned: closureReportRedactionAudit.status === "passed" || closureReportRedactionAudit.status === "warning",
+    reportIntegrityConfirmed: closureReportManifest.integrityStatus === "confirmed" && closureExportIntegrity.deterministicExportConfirmed,
+    evidenceManifestsReadyOrNeedsReview: evidenceManifests.every((manifest) => manifest.manualQaReadiness !== "blocked"),
+    safeFilenamePresent: allManifests.every((manifest) => manifest.safeFilename.length > 0),
+    safeDigestPresent: allManifests.every((manifest) => manifest.safeDigest.startsWith("sha256:")),
+    rawPayloadAbsent: closureReportRedactionAudit.checks.rawPayloadAbsent,
+    rawSignatureAbsent: closureReportRedactionAudit.checks.rawSignatureAbsent,
+    tokenAbsent: closureReportRedactionAudit.checks.tokenAbsent,
+    replyTokenAbsent: closureReportRedactionAudit.checks.replyTokenAbsent,
+    rawSenderIdAbsent: closureReportRedactionAudit.checks.rawSenderIdAbsent,
+    rawRoomIdAbsent: closureReportRedactionAudit.checks.rawRoomIdAbsent,
+    providerOutboundAbsent: closureReportRedactionAudit.checks.providerOutboundAbsent,
+    externalCallsZero: true,
+    readinessFlagsPresent: readiness.reviewClosureEvidenceEnabled &&
+      readiness.reviewClosureReportEnabled &&
+      readiness.reviewClosureEvidenceExportEnabled &&
+      readiness.reviewClosureReportExportEnabled &&
+      readiness.reviewExportRedactionAuditEnabled &&
+      readiness.reviewExportIntegrityChecksEnabled &&
+      readiness.reviewExportManifestEnabled &&
+      readiness.reviewExportQaHandoffEnabled
+  };
+  const manualQaReadiness: ProviderWebhookReviewQaHandoffBundle["manualQaReadiness"] =
+    closureReportManifest.manualQaReadiness === "blocked" || evidenceManifests.some((manifest) => manifest.manualQaReadiness === "blocked")
+      ? "blocked"
+      : closureReportManifest.manualQaReadiness === "needs_review" || evidenceManifests.some((manifest) => manifest.manualQaReadiness === "needs_review")
+        ? "needs_review"
+        : "ready";
+
+  return {
+    generatedAt: new Date().toISOString(),
+    bundleKind: "provider-webhook-review-qa-handoff-bundle",
+    appliedFilters: closureReportExport.appliedFilters,
+    readiness,
+    closureReportExport,
+    closureReportManifest,
+    closureReportRedactionAudit,
+    closureExportIntegrity,
+    evidenceManifests,
+    manualQaReadiness,
+    manualQaChecks,
+    safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
+    safeDigest: "sha256:mockqahandoffbundle",
+    externalCalls: 0
+  };
 }
 
 function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {

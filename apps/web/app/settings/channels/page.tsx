@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -19,6 +19,7 @@ import {
   exportSettingsProviderWebhookClosureEvidenceData,
   exportSettingsProviderWebhookReviewClosureReportData,
   loadSettingsProviderWebhookReviewClosureReportExportManifestData,
+  loadSettingsProviderWebhookReviewQaHandoffBundleData,
   loadSettingsProviderWebhookClosureEvidenceExportManifestData,
   loadSettingsProviderWebhookClosureEvidenceRedactionAuditData,
   loadSettingsProviderWebhookReviewClosureExportIntegrityData,
@@ -96,6 +97,9 @@ export default function ChannelSettingsPage() {
   const [reviewClosureReportExportManifest, setReviewClosureReportExportManifest] = useState<ProviderWebhookReviewExportManifest | null>(null);
   const [closureReportExportManifestLoading, setClosureReportExportManifestLoading] = useState(false);
   const [closureReportExportManifestError, setClosureReportExportManifestError] = useState("");
+  const [reviewQaHandoffBundle, setReviewQaHandoffBundle] = useState<ProviderWebhookReviewQaHandoffBundle | null>(null);
+  const [qaHandoffBundleLoading, setQaHandoffBundleLoading] = useState(false);
+  const [qaHandoffBundleError, setQaHandoffBundleError] = useState("");
   const [reviewClosureReportRedactionAudit, setReviewClosureReportRedactionAudit] = useState<ProviderWebhookReviewExportRedactionAudit | null>(null);
   const [closureReportRedactionAuditLoading, setClosureReportRedactionAuditLoading] = useState(false);
   const [closureReportRedactionAuditError, setClosureReportRedactionAuditError] = useState("");
@@ -542,6 +546,24 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadReviewQaHandoffBundle() {
+    setQaHandoffBundleLoading(true);
+    setQaHandoffBundleError("");
+    setReviewQaHandoffBundle(null);
+    try {
+      const result = await loadSettingsProviderWebhookReviewQaHandoffBundleData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewQaHandoffBundle(result.bundle);
+    } catch (reason) {
+      setReviewQaHandoffBundle(null);
+      setQaHandoffBundleError(`QA Handoff Bundle API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook QA handoff bundle"}`);
+    } finally {
+      setQaHandoffBundleLoading(false);
+    }
+  }
+
   async function loadClosureReportRedactionAudit() {
     setClosureReportRedactionAuditLoading(true);
     setClosureReportRedactionAuditError("");
@@ -948,6 +970,8 @@ export default function ChannelSettingsPage() {
     setClosureReportExportError("");
     setReviewClosureReportExportManifest(null);
     setClosureReportExportManifestError("");
+    setReviewQaHandoffBundle(null);
+    setQaHandoffBundleError("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
       ...defaultUnmatchedFilters,
@@ -1106,6 +1130,9 @@ export default function ChannelSettingsPage() {
         reviewClosureReportExportManifest={reviewClosureReportExportManifest}
         reviewClosureReportExportManifestLoading={closureReportExportManifestLoading}
         reviewClosureReportExportManifestError={closureReportExportManifestError}
+        reviewQaHandoffBundle={reviewQaHandoffBundle}
+        reviewQaHandoffBundleLoading={qaHandoffBundleLoading}
+        reviewQaHandoffBundleError={qaHandoffBundleError}
         reviewClosureReportRedactionAudit={reviewClosureReportRedactionAudit}
         reviewClosureReportRedactionAuditLoading={closureReportRedactionAuditLoading}
         reviewClosureReportRedactionAuditError={closureReportRedactionAuditError}
@@ -1176,6 +1203,7 @@ export default function ChannelSettingsPage() {
         onLoadClosureEvidenceRedactionAudit={loadClosureEvidenceRedactionAudit}
         onExportClosureReport={exportClosureReport}
         onLoadClosureReportExportManifest={loadClosureReportExportManifest}
+        onLoadReviewQaHandoffBundle={loadReviewQaHandoffBundle}
         onLoadClosureReportRedactionAudit={loadClosureReportRedactionAudit}
         onLoadClosureExportIntegrity={loadClosureExportIntegrity}
         onLoadHistory={loadHistory}

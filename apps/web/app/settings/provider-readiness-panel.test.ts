@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -39,6 +39,7 @@ describe("ProviderReadinessPanel", () => {
       reviewClosureReport: providerWebhookReviewClosureReport(),
       reviewClosureReportExport: providerWebhookReviewClosureReportExport(),
       reviewClosureReportExportManifest: providerWebhookReviewExportManifest("closure-report-export"),
+      reviewQaHandoffBundle: providerWebhookReviewQaHandoffBundle(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -266,8 +267,17 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("closure report generated");
     expect(html).toContain("Export closure report");
     expect(html).toContain("Load export manifest");
+    expect(html).toContain("Load QA handoff bundle");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
+    expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
+    expect(html).toContain("reportManifestReady=true");
+    expect(html).toContain("reportRedactionPassedOrWarned=true");
+    expect(html).toContain("reportIntegrityConfirmed=true");
+    expect(html).toContain("providerOutboundAbsent=true");
+    expect(html).toContain("externalCallsZero=true");
+    expect(html).toContain("safeFilename=provider-webhook-closure-evidence-line-provider-webhook-unmatched-1.json");
+    expect(html).toContain("safeDigest=sha256:safeauditdigest");
     expect(html).toContain("Audit report export redaction");
     expect(html).toContain("Check export integrity");
     expect(html).toContain("Closure report redaction audit status=passed");
@@ -467,6 +477,12 @@ describe("ProviderReadinessPanel", () => {
       reviewClosureReportExport: null,
       reviewClosureReportExportLoading: false,
       reviewClosureReportExportError: "Closure Report Export API error: Failed to fetch",
+      reviewClosureReportExportManifest: null,
+      reviewClosureReportExportManifestLoading: false,
+      reviewClosureReportExportManifestError: "Closure Report Export Manifest API error: Failed to fetch",
+      reviewQaHandoffBundle: null,
+      reviewQaHandoffBundleLoading: false,
+      reviewQaHandoffBundleError: "QA Handoff Bundle API error: Failed to fetch",
       reviewClosureReportRedactionAudit: null,
       reviewClosureReportRedactionAuditLoading: false,
       reviewClosureReportRedactionAuditError: "Closure Report Redaction Audit API error: Failed to fetch",
@@ -500,6 +516,8 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Triage Guidance API error: Failed to fetch");
     expect(html).toContain("Closure Evidence / Report API error: Failed to fetch");
     expect(html).toContain("Closure Report Export API error: Failed to fetch");
+    expect(html).toContain("Closure Report Export Manifest API error: Failed to fetch");
+    expect(html).toContain("QA Handoff Bundle API error: Failed to fetch");
     expect(html).toContain("Closure Report Redaction Audit API error: Failed to fetch");
     expect(html).toContain("Closure Export Integrity API error: Failed to fetch");
     expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
@@ -1460,6 +1478,86 @@ function providerWebhookReviewExportManifest(
       externalCallsZero: true,
       manualQaReady: true
     },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffBundle(): ProviderWebhookReviewQaHandoffBundle {
+  const evidence = providerWebhookClosureEvidence();
+  const evidenceManifest = providerWebhookReviewExportManifest("closure-evidence-export", evidence.unmatchedId);
+  return {
+    generatedAt: "2026-06-04T00:06:00.000Z",
+    bundleKind: "provider-webhook-review-qa-handoff-bundle",
+    appliedFilters: { provider: "line", checklistIncomplete: false },
+    readiness: {
+      reviewClosureEvidenceEnabled: true,
+      reviewClosureReportEnabled: true,
+      reviewClosureEvidenceExportEnabled: true,
+      reviewClosureReportExportEnabled: true,
+      reviewExportRedactionAuditEnabled: true,
+      reviewExportIntegrityChecksEnabled: true,
+      reviewExportManifestEnabled: true,
+      reviewExportQaHandoffEnabled: true,
+      closureEvidenceReadyCount: 1,
+      closureEvidenceBlockedCount: 0,
+      closureEvidenceIncompleteCount: 0,
+      closureEvidenceExportCount: 1,
+      closureReportExportCount: 1,
+      exportRedactionPassedCount: 1,
+      exportRedactionWarningCount: 0,
+      exportRedactionBlockedCount: 0,
+      exportManifestReadyCount: 1,
+      exportManifestNeedsReviewCount: 0,
+      exportManifestBlockedCount: 0,
+      latestExportManifestStatus: "ready",
+      externalCalls: 0
+    },
+    closureReportExport: providerWebhookReviewClosureReportExport(),
+    closureReportManifest: providerWebhookReviewExportManifest("closure-report-export"),
+    closureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
+    closureExportIntegrity: providerWebhookReviewExportIntegrity(),
+    evidenceManifests: [{
+      unmatchedId: evidence.unmatchedId,
+      provider: evidence.provider,
+      platform: evidence.platform,
+      safeRoomLabel: evidence.safeRoomLabel,
+      roomKeyDigest: evidence.roomKeyDigest,
+      eventType: evidence.eventType,
+      receivedAt: evidence.receivedAt,
+      reviewStatus: evidence.reviewStatus,
+      linkStatus: evidence.linkStatus,
+      unmatchedStatus: evidence.unmatchedStatus,
+      closureReadiness: evidence.closureReadiness,
+      evidenceStatus: evidence.evidenceStatus,
+      safeFilename: evidenceManifest.safeFilename,
+      safeDigest: evidenceManifest.safeDigest,
+      redactionStatus: evidenceManifest.redactionStatus,
+      integrityStatus: evidenceManifest.integrityStatus,
+      deterministicExportConfirmed: evidenceManifest.deterministicExportConfirmed,
+      manualQaReadiness: evidenceManifest.manualQaReadiness,
+      manualQaChecks: evidenceManifest.manualQaChecks,
+      externalCalls: 0
+    }],
+    manualQaReadiness: "ready",
+    manualQaChecks: {
+      reportManifestReady: true,
+      reportRedactionPassedOrWarned: true,
+      reportIntegrityConfirmed: true,
+      evidenceManifestsReadyOrNeedsReview: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      readinessFlagsPresent: true
+    },
+    safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
+    safeDigest: "sha256:safeqahandoffbundle",
     externalCalls: 0
   };
 }

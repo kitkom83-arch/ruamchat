@@ -3200,6 +3200,92 @@ export const providerWebhookReviewExportManifestSchema = z.object({
 }).strict();
 export type ProviderWebhookReviewExportManifest = z.infer<typeof providerWebhookReviewExportManifestSchema>;
 
+export const providerWebhookReviewQaHandoffBundleEvidenceItemSchema = z.object({
+  unmatchedId: z.string().min(1),
+  provider: providerSandboxProviderSchema,
+  platform: providerSandboxProviderSchema,
+  safeRoomLabel: z.string().min(1),
+  roomKeyDigest: z.string().min(1).nullable(),
+  eventType: providerWebhookEventTypeSchema,
+  receivedAt: z.string().datetime(),
+  reviewStatus: providerWebhookUnmatchedReviewStatusSchema,
+  linkStatus: providerWebhookUnmatchedLinkStatusSchema,
+  unmatchedStatus: providerWebhookUnmatchedInboundStatusSchema,
+  closureReadiness: providerWebhookReviewClosureReadinessSchema,
+  evidenceStatus: providerWebhookReviewClosureEvidenceStatusSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  redactionStatus: providerWebhookReviewExportRedactionAuditStatusSchema,
+  integrityStatus: providerWebhookReviewExportManifestIntegrityStatusSchema,
+  deterministicExportConfirmed: z.boolean(),
+  manualQaReadiness: providerWebhookReviewExportManifestQaReadinessSchema,
+  manualQaChecks: providerWebhookReviewExportManifestChecksSchema,
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffBundleEvidenceItem = z.infer<typeof providerWebhookReviewQaHandoffBundleEvidenceItemSchema>;
+
+export const providerWebhookReviewQaHandoffBundleReadinessSchema = z.object({
+  reviewClosureEvidenceEnabled: z.boolean(),
+  reviewClosureReportEnabled: z.boolean(),
+  reviewClosureEvidenceExportEnabled: z.boolean(),
+  reviewClosureReportExportEnabled: z.boolean(),
+  reviewExportRedactionAuditEnabled: z.boolean(),
+  reviewExportIntegrityChecksEnabled: z.boolean(),
+  reviewExportManifestEnabled: z.boolean(),
+  reviewExportQaHandoffEnabled: z.boolean(),
+  closureEvidenceReadyCount: z.number().int().nonnegative(),
+  closureEvidenceBlockedCount: z.number().int().nonnegative(),
+  closureEvidenceIncompleteCount: z.number().int().nonnegative(),
+  closureEvidenceExportCount: z.number().int().nonnegative(),
+  closureReportExportCount: z.number().int().nonnegative(),
+  exportRedactionPassedCount: z.number().int().nonnegative(),
+  exportRedactionWarningCount: z.number().int().nonnegative(),
+  exportRedactionBlockedCount: z.number().int().nonnegative(),
+  exportManifestReadyCount: z.number().int().nonnegative(),
+  exportManifestNeedsReviewCount: z.number().int().nonnegative(),
+  exportManifestBlockedCount: z.number().int().nonnegative(),
+  latestExportManifestStatus: providerWebhookReviewExportManifestQaReadinessSchema.nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffBundleReadiness = z.infer<typeof providerWebhookReviewQaHandoffBundleReadinessSchema>;
+
+export const providerWebhookReviewQaHandoffBundleChecksSchema = z.object({
+  reportManifestReady: z.boolean(),
+  reportRedactionPassedOrWarned: z.boolean(),
+  reportIntegrityConfirmed: z.boolean(),
+  evidenceManifestsReadyOrNeedsReview: z.boolean(),
+  safeFilenamePresent: z.boolean(),
+  safeDigestPresent: z.boolean(),
+  rawPayloadAbsent: z.boolean(),
+  rawSignatureAbsent: z.boolean(),
+  tokenAbsent: z.boolean(),
+  replyTokenAbsent: z.boolean(),
+  rawSenderIdAbsent: z.boolean(),
+  rawRoomIdAbsent: z.boolean(),
+  providerOutboundAbsent: z.boolean(),
+  externalCallsZero: z.boolean(),
+  readinessFlagsPresent: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffBundleChecks = z.infer<typeof providerWebhookReviewQaHandoffBundleChecksSchema>;
+
+export const providerWebhookReviewQaHandoffBundleSchema = z.object({
+  generatedAt: z.string().datetime(),
+  bundleKind: z.literal("provider-webhook-review-qa-handoff-bundle"),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema,
+  readiness: providerWebhookReviewQaHandoffBundleReadinessSchema,
+  closureReportExport: providerWebhookReviewClosureReportExportSchema,
+  closureReportManifest: providerWebhookReviewExportManifestSchema,
+  closureReportRedactionAudit: providerWebhookReviewExportRedactionAuditSchema,
+  closureExportIntegrity: providerWebhookReviewExportIntegritySchema,
+  evidenceManifests: z.array(providerWebhookReviewQaHandoffBundleEvidenceItemSchema),
+  manualQaReadiness: providerWebhookReviewExportManifestQaReadinessSchema,
+  manualQaChecks: providerWebhookReviewQaHandoffBundleChecksSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffBundle = z.infer<typeof providerWebhookReviewQaHandoffBundleSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
