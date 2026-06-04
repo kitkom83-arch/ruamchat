@@ -25,9 +25,11 @@ import {
   type ProviderWebhookReviewAlertsFilters,
   type ProviderWebhookReviewAlertAgeBucket,
   type ProviderWebhookReviewClosureEvidence,
+  type ProviderWebhookReviewClosureEvidenceExport,
   type ProviderWebhookReviewClosureEvidenceStatus,
   type ProviderWebhookReviewClosureEvidenceSummaryItem,
   type ProviderWebhookReviewClosureReport,
+  type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
   type ProviderWebhookReviewMetrics,
   type ProviderWebhookReviewMetricsFilters,
@@ -480,6 +482,18 @@ export class ProviderWebhookEventsService {
     };
   }
 
+  getUnmatchedInboundClosureEvidenceExport(tenantId: string, id: string): ProviderWebhookReviewClosureEvidenceExport {
+    const evidence = this.getUnmatchedInboundClosureEvidence(tenantId, id);
+    return {
+      ...evidence,
+      exportKind: "closure-evidence",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: safeExportFilename(`provider-webhook-closure-evidence-${evidence.provider}-${evidence.unmatchedId}.json`),
+      exportedAt: new Date().toISOString()
+    };
+  }
+
   getReviewClosureReport(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string): ProviderWebhookReviewClosureReport {
     const normalizedFilters = cleanReviewClosureReportFilters(filters);
     const filteredItems = filterUnmatchedInboundItems(tenantId, reviewTriageBaseFilters(normalizedFilters), actorUserId)
@@ -505,6 +519,18 @@ export class ProviderWebhookEventsService {
       topEvidenceReadyItems: filteredItems.filter((item) => item.evidenceStatus === "ready").slice(0, 10),
       topEvidenceBlockedItems: filteredItems.filter((item) => item.evidenceStatus === "blocked").slice(0, 10),
       externalCalls: 0 as const
+    };
+  }
+
+  getReviewClosureReportExport(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string): ProviderWebhookReviewClosureReportExport {
+    const report = this.getReviewClosureReport(tenantId, filters, actorUserId);
+    return {
+      ...report,
+      exportKind: "closure-report",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: safeExportFilename("provider-webhook-review-closure-report.json"),
+      exportedAt: new Date().toISOString()
     };
   }
 
@@ -2084,6 +2110,8 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     resolutionSummaryEnabled: true,
     reviewClosureEvidenceEnabled: true,
     reviewClosureReportEnabled: true,
+    reviewClosureEvidenceExportEnabled: true,
+    reviewClosureReportExportEnabled: true,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
     unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
@@ -2101,6 +2129,8 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     closureEvidenceReadyCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "ready").length,
     closureEvidenceBlockedCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "blocked").length,
     closureEvidenceIncompleteCount: closureEvidenceItems.filter((item) => item.evidenceStatus === "incomplete").length,
+    closureEvidenceExportCount: closureEvidenceItems.length,
+    closureReportExportCount: closureEvidenceItems.length > 0 ? 1 : 0,
     reviewAlertCriticalCount: openAlertItems.filter((item) => item.severity === "critical").length,
     criticalTriageCount: triageItems.filter((item) => item.severity === "critical").length,
     openTriageCount: triageItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length,
@@ -3193,6 +3223,15 @@ function safeHistoryText(value: string | null | undefined) {
   const trimmed = value?.replace(/\s+/g, " ").trim();
   if (!trimmed || isUnsafeText(trimmed)) return null;
   return trimmed.length > 160 ? `${trimmed.slice(0, 157)}...` : trimmed;
+}
+
+function safeExportFilename(value: string) {
+  const sanitized = value
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120);
+  return sanitized.endsWith(".json") ? sanitized : `${sanitized || "provider-webhook-export"}.json`;
 }
 
 function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {

@@ -2399,6 +2399,8 @@ export const providerReadinessSchema = z.object({
   resolutionSummaryEnabled: z.boolean().default(false),
   reviewClosureEvidenceEnabled: z.boolean().default(false),
   reviewClosureReportEnabled: z.boolean().default(false),
+  reviewClosureEvidenceExportEnabled: z.boolean().default(false),
+  reviewClosureReportExportEnabled: z.boolean().default(false),
   savedViewCount: z.number().int().nonnegative(),
   operatorNoteCount: z.number().int().nonnegative(),
   unassignedOpenCount: z.number().int().nonnegative(),
@@ -2411,6 +2413,8 @@ export const providerReadinessSchema = z.object({
   closureEvidenceReadyCount: z.number().int().nonnegative().default(0),
   closureEvidenceBlockedCount: z.number().int().nonnegative().default(0),
   closureEvidenceIncompleteCount: z.number().int().nonnegative().default(0),
+  closureEvidenceExportCount: z.number().int().nonnegative().default(0),
+  closureReportExportCount: z.number().int().nonnegative().default(0),
   reviewAlertCriticalCount: z.number().int().nonnegative(),
   criticalTriageCount: z.number().int().nonnegative(),
   openTriageCount: z.number().int().nonnegative(),
@@ -3030,6 +3034,15 @@ export const providerWebhookReviewClosureEvidenceSchema = providerWebhookReviewC
 }).strict();
 export type ProviderWebhookReviewClosureEvidence = z.infer<typeof providerWebhookReviewClosureEvidenceSchema>;
 
+export const providerWebhookReviewClosureEvidenceExportSchema = providerWebhookReviewClosureEvidenceSchema.extend({
+  exportKind: z.literal("closure-evidence"),
+  format: z.literal("json"),
+  contentType: z.literal("application/json"),
+  safeFilename: z.string().min(1),
+  exportedAt: z.string().datetime()
+}).strict();
+export type ProviderWebhookReviewClosureEvidenceExport = z.infer<typeof providerWebhookReviewClosureEvidenceExportSchema>;
+
 export const providerWebhookReviewClosureReportFiltersSchema = providerWebhookReviewResolutionSummaryFiltersSchema.strip();
 export type ProviderWebhookReviewClosureReportFilters = z.infer<typeof providerWebhookReviewClosureReportFiltersSchema>;
 
@@ -3051,6 +3064,15 @@ export const providerWebhookReviewClosureReportSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewClosureReport = z.infer<typeof providerWebhookReviewClosureReportSchema>;
+
+export const providerWebhookReviewClosureReportExportSchema = providerWebhookReviewClosureReportSchema.extend({
+  exportKind: z.literal("closure-report"),
+  format: z.literal("json"),
+  contentType: z.literal("application/json"),
+  safeFilename: z.string().min(1),
+  exportedAt: z.string().datetime()
+}).strict();
+export type ProviderWebhookReviewClosureReportExport = z.infer<typeof providerWebhookReviewClosureReportExportSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
