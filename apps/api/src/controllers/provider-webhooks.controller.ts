@@ -74,6 +74,15 @@ export class ProviderWebhooksController {
     return this.events.getReviewClosureReportExport(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-closure-report/export/manifest")
+  getReviewClosureReportExportManifest(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewClosureReportExportManifest(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/redaction-audit")
   getReviewClosureReportRedactionAudit(
     @Headers("x-tenant-id") tenant: string | undefined,
@@ -160,6 +169,14 @@ export class ProviderWebhooksController {
     @Param("id") id: string
   ) {
     return this.events.getUnmatchedInboundClosureEvidenceExport(requireTenantId(tenant), id);
+  }
+
+  @Get("unmatched-inbound/:id/closure-evidence/export/manifest")
+  getUnmatchedInboundClosureEvidenceExportManifest(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Param("id") id: string
+  ) {
+    return this.events.getUnmatchedInboundClosureEvidenceExportManifest(requireTenantId(tenant), id);
   }
 
   @Get("unmatched-inbound/:id/closure-evidence/redaction-audit")

@@ -9,6 +9,7 @@ import {
   loadSettingsProviderWebhookHistoryData,
   loadSettingsProviderWebhookReviewAlertsData,
   loadSettingsProviderWebhookReviewClosureExportIntegrityData,
+  loadSettingsProviderWebhookReviewClosureReportExportManifestData,
   loadSettingsProviderWebhookReviewClosureReportData,
   loadSettingsProviderWebhookReviewClosureReportRedactionAuditData,
   loadSettingsProviderWebhookReviewMetricsData,
@@ -21,6 +22,7 @@ import {
   loadSettingsProviderWebhookEventsData,
   loadSettingsProviderWebhookUnmatchedInboundData,
   exportSettingsProviderWebhookClosureEvidenceData,
+  loadSettingsProviderWebhookClosureEvidenceExportManifestData,
   exportSettingsProviderWebhookReviewClosureReportData,
   loadSettingsProviderWebhookClosureEvidenceRedactionAuditData,
   exportSettingsProviderWebhookUnmatchedInboundData,
@@ -58,6 +60,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookEvents: vi.fn(),
   getProviderWebhookReviewAlerts: vi.fn(),
   getProviderWebhookReviewClosureExportIntegrity: vi.fn(),
+  getProviderWebhookReviewClosureReportExportManifest: vi.fn(),
   getProviderWebhookReviewClosureReportExport: vi.fn(),
   getProviderWebhookReviewClosureReportRedactionAudit: vi.fn(),
   getProviderWebhookReviewClosureReport: vi.fn(),
@@ -74,6 +77,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookUnmatchedInbound: vi.fn(),
   getProviderWebhookUnmatchedInboundCandidates: vi.fn(),
   getProviderWebhookUnmatchedInboundClosureEvidenceExport: vi.fn(),
+  getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest: vi.fn(),
   getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit: vi.fn(),
   getProviderWebhookUnmatchedInboundClosureEvidence: vi.fn(),
   getProviderWebhookUnmatchedInboundDiagnostics: vi.fn(),
@@ -101,6 +105,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookEvents: api.getProviderWebhookEvents,
   getProviderWebhookReviewAlerts: api.getProviderWebhookReviewAlerts,
   getProviderWebhookReviewClosureExportIntegrity: api.getProviderWebhookReviewClosureExportIntegrity,
+  getProviderWebhookReviewClosureReportExportManifest: api.getProviderWebhookReviewClosureReportExportManifest,
   getProviderWebhookReviewClosureReportExport: api.getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReportRedactionAudit: api.getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewClosureReport: api.getProviderWebhookReviewClosureReport,
@@ -117,6 +122,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookUnmatchedInbound: api.getProviderWebhookUnmatchedInbound,
   getProviderWebhookUnmatchedInboundCandidates: api.getProviderWebhookUnmatchedInboundCandidates,
   getProviderWebhookUnmatchedInboundClosureEvidenceExport: api.getProviderWebhookUnmatchedInboundClosureEvidenceExport,
+  getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest: api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest,
   getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit: api.getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit,
   getProviderWebhookUnmatchedInboundClosureEvidence: api.getProviderWebhookUnmatchedInboundClosureEvidence,
   getProviderWebhookUnmatchedInboundDiagnostics: api.getProviderWebhookUnmatchedInboundDiagnostics,
@@ -144,6 +150,7 @@ beforeEach(() => {
   api.getProviderWebhookEvents.mockReset();
   api.getProviderWebhookReviewAlerts.mockReset();
   api.getProviderWebhookReviewClosureExportIntegrity.mockReset();
+  api.getProviderWebhookReviewClosureReportExportManifest.mockReset();
   api.getProviderWebhookReviewClosureReportExport.mockReset();
   api.getProviderWebhookReviewClosureReportRedactionAudit.mockReset();
   api.getProviderWebhookReviewClosureReport.mockReset();
@@ -160,6 +167,7 @@ beforeEach(() => {
   api.getProviderWebhookUnmatchedInbound.mockReset();
   api.getProviderWebhookUnmatchedInboundCandidates.mockReset();
   api.getProviderWebhookUnmatchedInboundClosureEvidenceExport.mockReset();
+  api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest.mockReset();
   api.getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit.mockReset();
   api.getProviderWebhookUnmatchedInboundClosureEvidence.mockReset();
   api.getProviderWebhookUnmatchedInboundDiagnostics.mockReset();
@@ -382,11 +390,13 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewResolutionSummary.mockResolvedValueOnce(providerWebhookReviewResolutionSummaryResponse());
     api.getProviderWebhookReviewClosureReport.mockResolvedValueOnce(providerWebhookReviewClosureReportResponse());
     api.getProviderWebhookReviewClosureReportExport.mockResolvedValueOnce(providerWebhookReviewClosureReportExportResponse());
+    api.getProviderWebhookReviewClosureReportExportManifest.mockResolvedValueOnce(providerWebhookReviewExportManifestResponse("closure-report-export"));
     api.getProviderWebhookReviewClosureReportRedactionAudit.mockResolvedValueOnce(providerWebhookReviewExportRedactionAuditResponse("closure-report-export"));
     api.getProviderWebhookReviewClosureExportIntegrity.mockResolvedValueOnce(providerWebhookReviewExportIntegrityResponse());
     api.getProviderWebhookUnmatchedInboundDiagnostics.mockResolvedValueOnce(providerWebhookDiagnosticsResponse("provider-webhook-unmatched-api"));
     api.getProviderWebhookUnmatchedInboundClosureEvidence.mockResolvedValueOnce(providerWebhookClosureEvidenceResponse("provider-webhook-unmatched-api"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceExport.mockResolvedValueOnce(providerWebhookClosureEvidenceExportResponse("provider-webhook-unmatched-api"));
+    api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest.mockResolvedValueOnce(providerWebhookReviewExportManifestResponse("closure-evidence-export", "provider-webhook-unmatched-api"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit.mockResolvedValueOnce(providerWebhookReviewExportRedactionAuditResponse("closure-evidence-export", "provider-webhook-unmatched-api"));
 
     const metrics = await loadSettingsProviderWebhookReviewMetricsData("api", {
@@ -433,11 +443,13 @@ describe("settings API-mode data loaders", () => {
     } as const;
     const closureReport = await loadSettingsProviderWebhookReviewClosureReportData("api", closureFilters);
     const closureReportExport = await exportSettingsProviderWebhookReviewClosureReportData("api", closureFilters);
+    const closureReportManifest = await loadSettingsProviderWebhookReviewClosureReportExportManifestData("api", closureFilters);
     const closureReportAudit = await loadSettingsProviderWebhookReviewClosureReportRedactionAuditData("api", closureFilters);
     const closureExportIntegrity = await loadSettingsProviderWebhookReviewClosureExportIntegrityData("api", closureFilters);
     const diagnostics = await loadSettingsProviderWebhookDiagnosticsData("api", "provider-webhook-unmatched-api");
     const closureEvidence = await loadSettingsProviderWebhookClosureEvidenceData("api", "provider-webhook-unmatched-api");
     const closureEvidenceExport = await exportSettingsProviderWebhookClosureEvidenceData("api", "provider-webhook-unmatched-api");
+    const closureEvidenceManifest = await loadSettingsProviderWebhookClosureEvidenceExportManifestData("api", "provider-webhook-unmatched-api");
     const closureEvidenceAudit = await loadSettingsProviderWebhookClosureEvidenceRedactionAuditData("api", "provider-webhook-unmatched-api");
 
     expect(api.getProviderWebhookReviewMetrics).toHaveBeenCalledWith(expect.objectContaining({
@@ -490,6 +502,14 @@ describe("settings API-mode data loaders", () => {
       checklistIncomplete: false,
       assignmentStatus: "assigned_to_me"
     }));
+    expect(api.getProviderWebhookReviewClosureReportExportManifest).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "line",
+      resolutionStatus: "resolved",
+      resolutionOutcome: "NEEDS_REVIEW",
+      closureReadiness: "READY_FOR_REVIEW",
+      checklistIncomplete: false,
+      assignmentStatus: "assigned_to_me"
+    }));
     expect(api.getProviderWebhookReviewClosureReportRedactionAudit).toHaveBeenCalledWith(expect.objectContaining({
       provider: "line",
       resolutionStatus: "resolved",
@@ -509,6 +529,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookUnmatchedInboundDiagnostics).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(api.getProviderWebhookUnmatchedInboundClosureEvidence).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(api.getProviderWebhookUnmatchedInboundClosureEvidenceExport).toHaveBeenCalledWith("provider-webhook-unmatched-api");
+    expect(api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(api.getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit).toHaveBeenCalledWith("provider-webhook-unmatched-api");
     expect(metrics.mode).toBe("api");
     expect(metrics.metrics).toMatchObject({
@@ -564,6 +585,13 @@ describe("settings API-mode data loaders", () => {
       totalItems: 1,
       externalCalls: 0
     });
+    expect(closureReportManifest.mode).toBe("api");
+    expect(closureReportManifest.manifest).toMatchObject({
+      manifestTarget: "closure-report-export",
+      manualQaReadiness: "ready",
+      safeFilename: "provider-webhook-review-closure-report.json",
+      externalCalls: 0
+    });
     expect(closureReportAudit.mode).toBe("api");
     expect(closureReportAudit.audit).toMatchObject({
       auditTarget: "closure-report-export",
@@ -601,6 +629,13 @@ describe("settings API-mode data loaders", () => {
       unmatchedId: "provider-webhook-unmatched-api",
       externalCalls: 0
     });
+    expect(closureEvidenceManifest.mode).toBe("api");
+    expect(closureEvidenceManifest.manifest).toMatchObject({
+      manifestTarget: "closure-evidence-export",
+      unmatchedId: "provider-webhook-unmatched-api",
+      manualQaReadiness: "ready",
+      externalCalls: 0
+    });
     expect(closureEvidenceAudit.mode).toBe("api");
     expect(closureEvidenceAudit.audit).toMatchObject({
       auditTarget: "closure-evidence-export",
@@ -608,7 +643,7 @@ describe("settings API-mode data loaders", () => {
       status: "passed",
       externalCalls: 0
     });
-    expect(JSON.stringify({ metrics, alerts, triage, workload, resolutionSummary, closureReport, closureReportExport, closureReportAudit, closureExportIntegrity, diagnostics, closureEvidence, closureEvidenceExport, closureEvidenceAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
+    expect(JSON.stringify({ metrics, alerts, triage, workload, resolutionSummary, closureReport, closureReportExport, closureReportManifest, closureReportAudit, closureExportIntegrity, diagnostics, closureEvidence, closureEvidenceExport, closureEvidenceManifest, closureEvidenceAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
   });
 
   it("does not fallback to mock closure evidence or report data when API mode fails", async () => {
@@ -616,6 +651,8 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookUnmatchedInboundClosureEvidence.mockRejectedValueOnce(new Error("API request failed (503): closure evidence unavailable"));
     api.getProviderWebhookReviewClosureReportExport.mockRejectedValueOnce(new Error("API request failed (503): closure report export unavailable"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceExport.mockRejectedValueOnce(new Error("API request failed (503): closure evidence export unavailable"));
+    api.getProviderWebhookReviewClosureReportExportManifest.mockRejectedValueOnce(new Error("API request failed (503): closure report manifest unavailable"));
+    api.getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest.mockRejectedValueOnce(new Error("API request failed (503): closure evidence manifest unavailable"));
     api.getProviderWebhookReviewClosureReportRedactionAudit.mockRejectedValueOnce(new Error("API request failed (503): closure report audit unavailable"));
     api.getProviderWebhookReviewClosureExportIntegrity.mockRejectedValueOnce(new Error("API request failed (503): closure export integrity unavailable"));
     api.getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit.mockRejectedValueOnce(new Error("API request failed (503): closure evidence audit unavailable"));
@@ -628,6 +665,10 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("closure report export unavailable");
     await expect(exportSettingsProviderWebhookClosureEvidenceData("api", "provider-webhook-unmatched-api"))
       .rejects.toThrow("closure evidence export unavailable");
+    await expect(loadSettingsProviderWebhookReviewClosureReportExportManifestData("api", { provider: "line" }))
+      .rejects.toThrow("closure report manifest unavailable");
+    await expect(loadSettingsProviderWebhookClosureEvidenceExportManifestData("api", "provider-webhook-unmatched-api"))
+      .rejects.toThrow("closure evidence manifest unavailable");
     await expect(loadSettingsProviderWebhookReviewClosureReportRedactionAuditData("api", { provider: "line" }))
       .rejects.toThrow("closure report audit unavailable");
     await expect(loadSettingsProviderWebhookReviewClosureExportIntegrityData("api", { provider: "line" }))
@@ -2719,6 +2760,49 @@ function providerWebhookReviewExportIntegrityResponse() {
     deterministicExportConfirmed: true,
     exportShapeVersion: "provider-webhook-closure-export-v1",
     safeReportDigest: "sha256:safereportdigest"
+  };
+}
+
+function providerWebhookReviewExportManifestResponse(auditTarget: "closure-report-export" | "closure-evidence-export", unmatchedId?: string) {
+  return {
+    generatedAt: "2026-06-04T00:05:00.000Z",
+    manifestKind: "provider-webhook-review-export-manifest",
+    manifestTarget: auditTarget,
+    exportKind: auditTarget === "closure-report-export" ? "closure-report" : "closure-evidence",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: auditTarget === "closure-report-export"
+      ? "provider-webhook-review-closure-report.json"
+      : `provider-webhook-closure-evidence-line-${unmatchedId ?? "provider-webhook-unmatched-api"}.json`,
+    exportedAt: "2026-06-04T00:02:00.000Z",
+    exportShapeVersion: "provider-webhook-closure-export-v1",
+    ...(unmatchedId ? { unmatchedId } : {}),
+    ...(auditTarget === "closure-report-export" ? { appliedFilters: { provider: "line", checklistIncomplete: false } } : {}),
+    totalItems: 1,
+    totalOpenItems: 1,
+    evidenceReadyCount: 1,
+    evidenceBlockedCount: 0,
+    evidenceIncompleteCount: 0,
+    redactionStatus: "passed",
+    redactionIssueCount: 0,
+    redactionPassedCount: 1,
+    redactionWarningCount: 0,
+    redactionBlockedCount: 0,
+    integrityStatus: "confirmed",
+    deterministicExportConfirmed: true,
+    safeDigest: "sha256:safeauditdigest",
+    ...(auditTarget === "closure-report-export" ? { safeReportDigest: "sha256:safereportdigest" } : {}),
+    manualQaReadiness: "ready",
+    manualQaChecks: {
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      redactionPassedOrWarned: true,
+      redactionBlockedAbsent: true,
+      deterministicExportConfirmed: true,
+      externalCallsZero: true,
+      manualQaReady: true
+    },
+    externalCalls: 0
   };
 }
 

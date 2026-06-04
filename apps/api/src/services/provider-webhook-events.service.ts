@@ -33,6 +33,9 @@ import {
   type ProviderWebhookReviewExportRedactionIssue,
   type ProviderWebhookReviewExportRedactionAuditTarget,
   type ProviderWebhookReviewExportIntegrity,
+  type ProviderWebhookReviewExportManifest,
+  type ProviderWebhookReviewExportManifestIntegrityStatus,
+  type ProviderWebhookReviewExportManifestQaReadiness,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -602,6 +605,93 @@ export class ProviderWebhookEventsService {
       exportShapeVersion: reviewClosureExportShapeVersion,
       safeReportDigest
     };
+  }
+
+  getUnmatchedInboundClosureEvidenceExportManifest(tenantId: string, id: string): ProviderWebhookReviewExportManifest {
+    const exportPayload = this.getUnmatchedInboundClosureEvidenceExport(tenantId, id);
+    const redactionAudit = this.getUnmatchedInboundClosureEvidenceRedactionAudit(tenantId, id);
+    const redactionCounts = redactionCountsForStatus(redactionAudit.status);
+    const integrityStatus = exportManifestIntegrityStatus({
+      redactionStatus: redactionAudit.status,
+      deterministicExportConfirmed: redactionAudit.checks.exportDeterministic,
+      redactionWarningCount: redactionCounts.redactionWarningCount,
+      redactionBlockedCount: redactionCounts.redactionBlockedCount
+    });
+    const manualQaReadiness = exportManifestQaReadiness({
+      integrityStatus,
+      redactionWarningCount: redactionCounts.redactionWarningCount,
+      redactionBlockedCount: redactionCounts.redactionBlockedCount,
+      evidenceBlockedCount: exportPayload.evidenceStatus === "blocked" ? 1 : 0,
+      evidenceIncompleteCount: exportPayload.evidenceStatus === "incomplete" ? 1 : 0
+    });
+
+    return buildExportManifest({
+      manifestTarget: "closure-evidence-export",
+      exportKind: exportPayload.exportKind,
+      format: exportPayload.format,
+      contentType: exportPayload.contentType,
+      safeFilename: exportPayload.safeFilename,
+      exportedAt: exportPayload.exportedAt,
+      unmatchedId: exportPayload.unmatchedId,
+      totalItems: 1,
+      totalOpenItems: isOpenUnmatchedStatus(exportPayload.unmatchedStatus) ? 1 : 0,
+      evidenceReadyCount: exportPayload.evidenceStatus === "ready" ? 1 : 0,
+      evidenceBlockedCount: exportPayload.evidenceStatus === "blocked" ? 1 : 0,
+      evidenceIncompleteCount: exportPayload.evidenceStatus === "incomplete" ? 1 : 0,
+      redactionAudit,
+      ...redactionCounts,
+      integrityStatus,
+      deterministicExportConfirmed: redactionAudit.checks.exportDeterministic,
+      safeDigest: redactionAudit.safeDigest,
+      manualQaReadiness
+    });
+  }
+
+  getReviewClosureReportExportManifest(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewExportManifest {
+    const exportPayload = this.getReviewClosureReportExport(tenantId, filters, actorUserId);
+    const redactionAudit = this.getReviewClosureReportRedactionAudit(tenantId, exportPayload.appliedFilters, actorUserId);
+    const integrity = this.getReviewClosureExportIntegrity(tenantId, exportPayload.appliedFilters, actorUserId);
+    const integrityStatus = exportManifestIntegrityStatus({
+      redactionStatus: redactionAudit.status,
+      deterministicExportConfirmed: integrity.deterministicExportConfirmed,
+      redactionWarningCount: integrity.redactionWarningCount,
+      redactionBlockedCount: integrity.redactionBlockedCount
+    });
+    const manualQaReadiness = exportManifestQaReadiness({
+      integrityStatus,
+      redactionWarningCount: integrity.redactionWarningCount,
+      redactionBlockedCount: integrity.redactionBlockedCount,
+      evidenceBlockedCount: exportPayload.evidenceBlockedCount,
+      evidenceIncompleteCount: exportPayload.evidenceIncompleteCount
+    });
+
+    return buildExportManifest({
+      manifestTarget: "closure-report-export",
+      exportKind: exportPayload.exportKind,
+      format: exportPayload.format,
+      contentType: exportPayload.contentType,
+      safeFilename: exportPayload.safeFilename,
+      exportedAt: exportPayload.exportedAt,
+      appliedFilters: exportPayload.appliedFilters,
+      totalItems: exportPayload.totalItems,
+      totalOpenItems: exportPayload.totalOpenItems,
+      evidenceReadyCount: exportPayload.evidenceReadyCount,
+      evidenceBlockedCount: exportPayload.evidenceBlockedCount,
+      evidenceIncompleteCount: exportPayload.evidenceIncompleteCount,
+      redactionAudit,
+      redactionPassedCount: integrity.redactionPassedCount,
+      redactionWarningCount: integrity.redactionWarningCount,
+      redactionBlockedCount: integrity.redactionBlockedCount,
+      integrityStatus,
+      deterministicExportConfirmed: integrity.deterministicExportConfirmed,
+      safeDigest: redactionAudit.safeDigest,
+      safeReportDigest: integrity.safeReportDigest,
+      manualQaReadiness
+    });
   }
 
   private getClosureReportItems(tenantId: string, filters: ProviderWebhookReviewClosureReportFilters = {}, actorUserId?: string) {
@@ -2144,6 +2234,7 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     .map(reviewAlertItemFromUnmatched);
   const triageItems = unmatchedInboundItems.map(reviewTriageItemFromUnmatched);
   const closureEvidenceItems = unmatchedInboundItems.map(closureEvidenceSummaryItemFromUnmatched);
+  const exportManifestStatuses = closureEvidenceItems.map(exportManifestQaReadinessForEvidenceSummary);
   const openItems = unmatchedInboundItems.filter(isOpenUnmatchedStatusItem);
   return {
     webhookSignatureVerificationConfigured: true,
@@ -2194,9 +2285,15 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     reviewClosureReportExportEnabled: true,
     reviewExportRedactionAuditEnabled: true,
     reviewExportIntegrityChecksEnabled: true,
+    reviewExportManifestEnabled: true,
+    reviewExportQaHandoffEnabled: true,
     exportRedactionPassedCount: closureEvidenceItems.filter((item) => item.roomKeyDigest && item.externalCalls === 0).length,
     exportRedactionWarningCount: closureEvidenceItems.filter((item) => !item.roomKeyDigest).length,
     exportRedactionBlockedCount: 0,
+    exportManifestReadyCount: exportManifestStatuses.filter((status) => status === "ready").length,
+    exportManifestNeedsReviewCount: exportManifestStatuses.filter((status) => status === "needs_review").length,
+    exportManifestBlockedCount: exportManifestStatuses.filter((status) => status === "blocked").length,
+    latestExportManifestStatus: latestUnmatched ? exportManifestQaReadinessForEvidenceSummary(closureEvidenceSummaryItemFromUnmatched(latestUnmatched)) : null,
     savedViewCount: reviewSavedViews.filter((view) => !view.archived).length,
     operatorNoteCount: operatorNotes.length,
     unassignedOpenCount: openItems.filter((item) => item.assignmentStatus === "unassigned").length,
@@ -3079,6 +3176,128 @@ function buildExportRedactionAudit(input: {
     safeDigest,
     externalCalls: 0 as const
   };
+}
+
+function buildExportManifest(input: {
+  manifestTarget: ProviderWebhookReviewExportManifest["manifestTarget"];
+  exportKind: ProviderWebhookReviewExportManifest["exportKind"];
+  format: "json";
+  contentType: "application/json";
+  safeFilename: string;
+  exportedAt: string;
+  unmatchedId?: string;
+  appliedFilters?: ProviderWebhookReviewClosureReportFilters;
+  totalItems: number;
+  totalOpenItems: number;
+  evidenceReadyCount: number;
+  evidenceBlockedCount: number;
+  evidenceIncompleteCount: number;
+  redactionAudit: ProviderWebhookReviewExportRedactionAudit;
+  redactionPassedCount: number;
+  redactionWarningCount: number;
+  redactionBlockedCount: number;
+  integrityStatus: ProviderWebhookReviewExportManifestIntegrityStatus;
+  deterministicExportConfirmed: boolean;
+  safeDigest: string;
+  safeReportDigest?: string;
+  manualQaReadiness: ProviderWebhookReviewExportManifestQaReadiness;
+}): ProviderWebhookReviewExportManifest {
+  const manualQaChecks = {
+    safeFilenamePresent: input.safeFilename.length > 0,
+    safeDigestPresent: input.safeDigest.startsWith("sha256:"),
+    redactionPassedOrWarned: input.redactionAudit.status === "passed" || input.redactionAudit.status === "warning",
+    redactionBlockedAbsent: input.redactionBlockedCount === 0,
+    deterministicExportConfirmed: input.deterministicExportConfirmed,
+    externalCallsZero: input.redactionAudit.externalCalls === 0,
+    manualQaReady: input.manualQaReadiness === "ready"
+  };
+
+  return {
+    generatedAt: new Date().toISOString(),
+    manifestKind: "provider-webhook-review-export-manifest",
+    manifestTarget: input.manifestTarget,
+    exportKind: input.exportKind,
+    format: input.format,
+    contentType: input.contentType,
+    safeFilename: input.safeFilename,
+    exportedAt: input.exportedAt,
+    exportShapeVersion: input.redactionAudit.exportShapeVersion,
+    ...(input.unmatchedId ? { unmatchedId: input.unmatchedId } : {}),
+    ...(input.appliedFilters ? { appliedFilters: input.appliedFilters } : {}),
+    totalItems: input.totalItems,
+    totalOpenItems: input.totalOpenItems,
+    evidenceReadyCount: input.evidenceReadyCount,
+    evidenceBlockedCount: input.evidenceBlockedCount,
+    evidenceIncompleteCount: input.evidenceIncompleteCount,
+    redactionStatus: input.redactionAudit.status,
+    redactionIssueCount: input.redactionAudit.issues.length,
+    redactionPassedCount: input.redactionPassedCount,
+    redactionWarningCount: input.redactionWarningCount,
+    redactionBlockedCount: input.redactionBlockedCount,
+    integrityStatus: input.integrityStatus,
+    deterministicExportConfirmed: input.deterministicExportConfirmed,
+    safeDigest: input.safeDigest,
+    ...(input.safeReportDigest ? { safeReportDigest: input.safeReportDigest } : {}),
+    manualQaReadiness: input.manualQaReadiness,
+    manualQaChecks,
+    externalCalls: 0 as const
+  };
+}
+
+function redactionCountsForStatus(status: ProviderWebhookReviewExportRedactionAudit["status"]) {
+  return {
+    redactionPassedCount: status === "passed" ? 1 : 0,
+    redactionWarningCount: status === "warning" ? 1 : 0,
+    redactionBlockedCount: status === "blocked" ? 1 : 0
+  };
+}
+
+function exportManifestIntegrityStatus(input: {
+  redactionStatus: ProviderWebhookReviewExportRedactionAudit["status"];
+  deterministicExportConfirmed: boolean;
+  redactionWarningCount: number;
+  redactionBlockedCount: number;
+}): ProviderWebhookReviewExportManifestIntegrityStatus {
+  if (input.redactionStatus === "blocked" || input.redactionBlockedCount > 0 || !input.deterministicExportConfirmed) return "blocked";
+  if (input.redactionStatus === "warning" || input.redactionWarningCount > 0) return "warning";
+  return "confirmed";
+}
+
+function exportManifestQaReadiness(input: {
+  integrityStatus: ProviderWebhookReviewExportManifestIntegrityStatus;
+  redactionWarningCount: number;
+  redactionBlockedCount: number;
+  evidenceBlockedCount: number;
+  evidenceIncompleteCount: number;
+}): ProviderWebhookReviewExportManifestQaReadiness {
+  if (input.integrityStatus === "blocked" || input.redactionBlockedCount > 0) return "blocked";
+  if (
+    input.integrityStatus === "warning" ||
+    input.redactionWarningCount > 0 ||
+    input.evidenceBlockedCount > 0 ||
+    input.evidenceIncompleteCount > 0
+  ) {
+    return "needs_review";
+  }
+  return "ready";
+}
+
+function exportManifestQaReadinessForEvidenceSummary(item: ProviderWebhookReviewClosureEvidenceSummaryItem): ProviderWebhookReviewExportManifestQaReadiness {
+  const redactionWarningCount = item.roomKeyDigest ? 0 : 1;
+  const redactionBlockedCount = item.externalCalls === 0 ? 0 : 1;
+  const integrityStatus = exportManifestIntegrityStatus({
+    redactionStatus: redactionBlockedCount > 0 ? "blocked" : redactionWarningCount > 0 ? "warning" : "passed",
+    deterministicExportConfirmed: item.externalCalls === 0,
+    redactionWarningCount,
+    redactionBlockedCount
+  });
+  return exportManifestQaReadiness({
+    integrityStatus,
+    redactionWarningCount,
+    redactionBlockedCount,
+    evidenceBlockedCount: item.evidenceStatus === "blocked" ? 1 : 0,
+    evidenceIncompleteCount: item.evidenceStatus === "incomplete" ? 1 : 0
+  });
 }
 
 function redactionIssuesForChecks(checks: ProviderWebhookReviewExportRedactionChecks): ProviderWebhookReviewExportRedactionIssue[] {

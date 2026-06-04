@@ -19,6 +19,7 @@ import {
   providerWebhookReviewClosureEvidenceExportSchema,
   providerWebhookReviewClosureEvidenceSchema,
   providerWebhookReviewExportIntegritySchema,
+  providerWebhookReviewExportManifestSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportFiltersSchema,
@@ -210,6 +211,7 @@ import {
   type ProviderWebhookReviewClosureEvidence,
   type ProviderWebhookReviewClosureEvidenceExport,
   type ProviderWebhookReviewExportIntegrity,
+  type ProviderWebhookReviewExportManifest,
   type ProviderWebhookReviewExportRedactionAudit,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
@@ -512,6 +514,11 @@ export async function getProviderWebhookReviewClosureReportExport(filters: Provi
   return request(`/provider-webhooks/review-closure-report/export${search}`, providerWebhookReviewClosureReportExportSchema);
 }
 
+export async function getProviderWebhookReviewClosureReportExportManifest(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewExportManifest> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-closure-report/export/manifest${search}`, providerWebhookReviewExportManifestSchema);
+}
+
 export async function getProviderWebhookReviewClosureReportRedactionAudit(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewExportRedactionAudit> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-closure-report/redaction-audit${search}`, providerWebhookReviewExportRedactionAuditSchema);
@@ -615,6 +622,10 @@ export async function getProviderWebhookUnmatchedInboundClosureEvidence(unmatche
 
 export async function getProviderWebhookUnmatchedInboundClosureEvidenceExport(unmatchedInboundId: string): Promise<ProviderWebhookReviewClosureEvidenceExport> {
   return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence/export`, providerWebhookReviewClosureEvidenceExportSchema);
+}
+
+export async function getProviderWebhookUnmatchedInboundClosureEvidenceExportManifest(unmatchedInboundId: string): Promise<ProviderWebhookReviewExportManifest> {
+  return request(`/provider-webhooks/unmatched-inbound/${encodeURIComponent(unmatchedInboundId)}/closure-evidence/export/manifest`, providerWebhookReviewExportManifestSchema);
 }
 
 export async function getProviderWebhookUnmatchedInboundClosureEvidenceRedactionAudit(unmatchedInboundId: string): Promise<ProviderWebhookReviewExportRedactionAudit> {
