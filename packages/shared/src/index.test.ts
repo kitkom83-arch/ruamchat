@@ -47,6 +47,7 @@ import {
   providerWebhookReviewExportIntegritySchema,
   providerWebhookReviewExportManifestSchema,
   providerWebhookReviewQaHandoffBundleSchema,
+  providerWebhookReviewQaHandoffBundleExportSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportSchema,
@@ -346,6 +347,87 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffBundleSchema.parse({
       ...qaBundle,
       rawPayload: {}
+    })).toThrow();
+
+    const qaBundleExport = providerWebhookReviewQaHandoffBundleExportSchema.parse({
+      generatedAt: "2026-06-04T00:06:00.000Z",
+      exportedAt: "2026-06-04T00:06:05.000Z",
+      exportKind: "qa-handoff-bundle",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: "provider-webhook-review-qa-handoff-bundle-export.json",
+      safeDigest: "sha256:safebundleexportdigest",
+      status: "ready",
+      counts: {
+        totalItems: qaBundle.closureReportExport.totalItems,
+        totalOpenItems: qaBundle.closureReportExport.totalOpenItems,
+        evidenceManifestCount: qaBundle.evidenceManifests.length,
+        closureEvidenceReadyCount: qaBundle.readiness.closureEvidenceReadyCount,
+        closureEvidenceBlockedCount: qaBundle.readiness.closureEvidenceBlockedCount,
+        closureEvidenceIncompleteCount: qaBundle.readiness.closureEvidenceIncompleteCount
+      },
+      readinessFlags: {
+        reviewClosureEvidenceEnabled: true,
+        reviewClosureReportEnabled: true,
+        reviewClosureEvidenceExportEnabled: true,
+        reviewClosureReportExportEnabled: true,
+        reviewExportRedactionAuditEnabled: true,
+        reviewExportIntegrityChecksEnabled: true,
+        reviewExportManifestEnabled: true,
+        reviewExportQaHandoffEnabled: true
+      },
+      closureEvidenceSummary: {
+        readyCount: 1,
+        blockedCount: 0,
+        incompleteCount: 0,
+        exportCount: 1,
+        externalCalls: 0
+      },
+      exportManifestSummary: {
+        readyCount: 1,
+        needsReviewCount: 0,
+        blockedCount: 0,
+        latestStatus: "ready",
+        reportManifestReadiness: "ready",
+        reportManifestIntegrityStatus: "confirmed",
+        externalCalls: 0
+      },
+      redactionAuditSummary: {
+        status: "passed",
+        issueCount: 0,
+        passedCount: 1,
+        warningCount: 0,
+        blockedCount: 0,
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true,
+        externalCalls: 0
+      },
+      integritySummary: {
+        status: "confirmed",
+        totalCheckedItems: 1,
+        deterministicExportConfirmed: true,
+        safeReportDigest: "sha256:safereportdigest",
+        externalCalls: 0
+      },
+      manualQaChecks: qaBundle.manualQaChecks,
+      bundle: qaBundle,
+      externalCalls: 0
+    });
+
+    expect(qaBundleExport.safeFilename).toBe("provider-webhook-review-qa-handoff-bundle-export.json");
+    expect(qaBundleExport.safeDigest).toMatch(/^sha256:/);
+    expect(qaBundleExport.externalCalls).toBe(0);
+    expect(qaBundleExport.bundle.externalCalls).toBe(0);
+    expect(qaBundleExport.redactionAuditSummary.providerOutboundAbsent).toBe(true);
+    expect(() => providerWebhookReviewQaHandoffBundleExportSchema.parse({
+      ...qaBundleExport,
+      replyToken: "reply-token-must-not-parse"
     })).toThrow();
   });
 

@@ -82,6 +82,7 @@
     "smoke:sprint73": "node scripts/smoke-sprint73-provider-webhook-review-export-redaction-audit.mjs",
     "smoke:sprint74": "node scripts/smoke-sprint74-provider-webhook-review-export-manifest-handoff.mjs",
     "smoke:sprint75": "node scripts/smoke-sprint75-provider-webhook-review-qa-handoff-bundle.mjs",
+    "smoke:sprint76": "node scripts/smoke-sprint76-provider-webhook-review-qa-handoff-bundle-export.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

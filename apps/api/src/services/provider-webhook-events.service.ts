@@ -37,6 +37,7 @@ import {
   type ProviderWebhookReviewExportManifestIntegrityStatus,
   type ProviderWebhookReviewExportManifestQaReadiness,
   type ProviderWebhookReviewQaHandoffBundle,
+  type ProviderWebhookReviewQaHandoffBundleExport,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -747,6 +748,91 @@ export class ProviderWebhookEventsService {
       ...digestPayload,
       bundleKind: "provider-webhook-review-qa-handoff-bundle",
       safeDigest: safeDigestForExport(digestPayload),
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewQaHandoffBundleExport(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffBundleExport {
+    const bundle = this.getReviewQaHandoffBundle(tenantId, filters, actorUserId);
+    const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-bundle-export.json");
+    const exportedAt = new Date().toISOString();
+    const exportPayload = {
+      generatedAt: bundle.generatedAt,
+      exportedAt,
+      exportKind: "qa-handoff-bundle" as const,
+      format: "json" as const,
+      contentType: "application/json" as const,
+      safeFilename,
+      status: bundle.manualQaReadiness,
+      counts: {
+        totalItems: bundle.closureReportExport.totalItems,
+        totalOpenItems: bundle.closureReportExport.totalOpenItems,
+        evidenceManifestCount: bundle.evidenceManifests.length,
+        closureEvidenceReadyCount: bundle.readiness.closureEvidenceReadyCount,
+        closureEvidenceBlockedCount: bundle.readiness.closureEvidenceBlockedCount,
+        closureEvidenceIncompleteCount: bundle.readiness.closureEvidenceIncompleteCount
+      },
+      readinessFlags: {
+        reviewClosureEvidenceEnabled: bundle.readiness.reviewClosureEvidenceEnabled,
+        reviewClosureReportEnabled: bundle.readiness.reviewClosureReportEnabled,
+        reviewClosureEvidenceExportEnabled: bundle.readiness.reviewClosureEvidenceExportEnabled,
+        reviewClosureReportExportEnabled: bundle.readiness.reviewClosureReportExportEnabled,
+        reviewExportRedactionAuditEnabled: bundle.readiness.reviewExportRedactionAuditEnabled,
+        reviewExportIntegrityChecksEnabled: bundle.readiness.reviewExportIntegrityChecksEnabled,
+        reviewExportManifestEnabled: bundle.readiness.reviewExportManifestEnabled,
+        reviewExportQaHandoffEnabled: bundle.readiness.reviewExportQaHandoffEnabled
+      },
+      closureEvidenceSummary: {
+        readyCount: bundle.readiness.closureEvidenceReadyCount,
+        blockedCount: bundle.readiness.closureEvidenceBlockedCount,
+        incompleteCount: bundle.readiness.closureEvidenceIncompleteCount,
+        exportCount: bundle.readiness.closureEvidenceExportCount,
+        externalCalls: 0 as const
+      },
+      exportManifestSummary: {
+        readyCount: bundle.readiness.exportManifestReadyCount,
+        needsReviewCount: bundle.readiness.exportManifestNeedsReviewCount,
+        blockedCount: bundle.readiness.exportManifestBlockedCount,
+        latestStatus: bundle.readiness.latestExportManifestStatus,
+        reportManifestReadiness: bundle.closureReportManifest.manualQaReadiness,
+        reportManifestIntegrityStatus: bundle.closureReportManifest.integrityStatus,
+        externalCalls: 0 as const
+      },
+      redactionAuditSummary: {
+        status: bundle.closureReportRedactionAudit.status,
+        issueCount: bundle.closureReportRedactionAudit.issues.length,
+        passedCount: bundle.closureExportIntegrity.redactionPassedCount,
+        warningCount: bundle.closureExportIntegrity.redactionWarningCount,
+        blockedCount: bundle.closureExportIntegrity.redactionBlockedCount,
+        rawPayloadAbsent: bundle.closureReportRedactionAudit.checks.rawPayloadAbsent,
+        rawSignatureAbsent: bundle.closureReportRedactionAudit.checks.rawSignatureAbsent,
+        tokenAbsent: bundle.closureReportRedactionAudit.checks.tokenAbsent,
+        replyTokenAbsent: bundle.closureReportRedactionAudit.checks.replyTokenAbsent,
+        rawSenderIdAbsent: bundle.closureReportRedactionAudit.checks.rawSenderIdAbsent,
+        rawRoomIdAbsent: bundle.closureReportRedactionAudit.checks.rawRoomIdAbsent,
+        providerOutboundAbsent: bundle.closureReportRedactionAudit.checks.providerOutboundAbsent,
+        externalCallsZero: bundle.closureReportRedactionAudit.checks.externalCallsZero,
+        externalCalls: 0 as const
+      },
+      integritySummary: {
+        status: bundle.closureReportManifest.integrityStatus,
+        totalCheckedItems: bundle.closureExportIntegrity.totalCheckedItems,
+        deterministicExportConfirmed: bundle.closureExportIntegrity.deterministicExportConfirmed,
+        safeReportDigest: bundle.closureExportIntegrity.safeReportDigest,
+        externalCalls: 0 as const
+      },
+      manualQaChecks: bundle.manualQaChecks,
+      bundle,
+      externalCalls: 0 as const
+    };
+
+    return {
+      ...exportPayload,
+      safeDigest: safeDigestForExport(exportPayload),
       externalCalls: 0 as const
     };
   }

@@ -1462,6 +1462,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getUnmatchedInboundClosureEvidenceExportManifest(undefined, item.id)).toThrow(BadRequestException);
     expect(() => controller.getReviewClosureReportExportManifest(undefined, {}, "operator-current")).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffBundle(undefined, {}, "operator-current")).toThrow(BadRequestException);
+    expect(() => controller.exportReviewQaHandoffBundle(undefined, {}, "operator-current")).toThrow(BadRequestException);
     expect(() => controller.getUnmatchedInboundClosureEvidence("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
     expect(() => controller.exportUnmatchedInboundClosureEvidence("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
     expect(() => controller.getUnmatchedInboundClosureEvidenceRedactionAudit("other-tenant", item.id)).toThrow("Unmatched inbound item not found");
@@ -1491,6 +1492,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     const evidenceManifest = controller.getUnmatchedInboundClosureEvidenceExportManifest(tenantId, item.id);
     const reportManifest = controller.getReviewClosureReportExportManifest(tenantId, closureFilters, "operator-current");
     const qaBundle = controller.getReviewQaHandoffBundle(tenantId, closureFilters, "operator-current");
+    const qaBundleExport = controller.exportReviewQaHandoffBundle(tenantId, closureFilters, "operator-current");
     const stateAfterEvidence = listUnmatchedItems(controller, tenantId, undefined).find((candidate) => candidate.id === item.id);
     const serialized = JSON.stringify({
       evidence,
@@ -1502,7 +1504,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       exportIntegrity,
       evidenceManifest,
       reportManifest,
-      qaBundle
+      qaBundle,
+      qaBundleExport
     });
 
     expect(evidence).toMatchObject({
@@ -1762,6 +1765,58 @@ describe("ProviderWebhooksController sandbox events", () => {
       externalCalls: 0
     });
     expect(qaBundle.safeDigest).toMatch(/^sha256:/);
+    expect(qaBundleExport).toMatchObject({
+      exportKind: "qa-handoff-bundle",
+      format: "json",
+      contentType: "application/json",
+      safeFilename: "provider-webhook-review-qa-handoff-bundle-export.json",
+      status: "ready",
+      counts: {
+        totalItems: 1,
+        totalOpenItems: 1,
+        evidenceManifestCount: 1,
+        closureEvidenceReadyCount: expect.any(Number),
+        closureEvidenceBlockedCount: expect.any(Number),
+        closureEvidenceIncompleteCount: expect.any(Number)
+      },
+      readinessFlags: {
+        reviewExportQaHandoffEnabled: true,
+        reviewClosureReportExportEnabled: true
+      },
+      closureEvidenceSummary: {
+        externalCalls: 0
+      },
+      exportManifestSummary: {
+        reportManifestReadiness: "ready",
+        reportManifestIntegrityStatus: "confirmed",
+        externalCalls: 0
+      },
+      redactionAuditSummary: {
+        status: "passed",
+        rawPayloadAbsent: true,
+        rawSignatureAbsent: true,
+        tokenAbsent: true,
+        replyTokenAbsent: true,
+        rawSenderIdAbsent: true,
+        rawRoomIdAbsent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true,
+        externalCalls: 0
+      },
+      integritySummary: {
+        status: "confirmed",
+        totalCheckedItems: 1,
+        deterministicExportConfirmed: true,
+        externalCalls: 0
+      },
+      bundle: {
+        bundleKind: "provider-webhook-review-qa-handoff-bundle",
+        externalCalls: 0
+      },
+      externalCalls: 0
+    });
+    expect(qaBundleExport.safeDigest).toMatch(/^sha256:/);
+    expect(qaBundleExport.bundle.safeDigest).toBe(qaBundle.safeDigest);
     expect(stateAfterEvidence).toMatchObject({
       reviewStatus: stateBeforeEvidence?.reviewStatus,
       linkStatus: stateBeforeEvidence?.linkStatus,

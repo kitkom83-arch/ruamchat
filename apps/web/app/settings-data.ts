@@ -19,6 +19,7 @@ import type {
   ProviderWebhookReviewExportIntegrity,
   ProviderWebhookReviewExportManifest,
   ProviderWebhookReviewQaHandoffBundle,
+  ProviderWebhookReviewQaHandoffBundleExport,
   ProviderWebhookReviewExportRedactionAudit,
   ProviderWebhookReviewClosureReport,
   ProviderWebhookReviewClosureReportExport,
@@ -76,6 +77,7 @@ import {
   getProviderWebhookReviewClosureExportIntegrity,
   getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewQaHandoffBundle,
+  getProviderWebhookReviewQaHandoffBundleExport,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewResolutionSummary,
@@ -186,6 +188,11 @@ export type SettingsProviderWebhookReviewClosureReportExportManifestData = {
 export type SettingsProviderWebhookReviewQaHandoffBundleData = {
   mode: DataMode;
   bundle: ProviderWebhookReviewQaHandoffBundle;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffBundleExportData = {
+  mode: DataMode;
+  exportResult: ProviderWebhookReviewQaHandoffBundleExport;
 };
 
 export type SettingsProviderWebhookReviewClosureReportRedactionAuditData = {
@@ -463,6 +470,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffBundleData(
   return {
     mode,
     bundle: createMockReviewQaHandoffBundle(filters)
+  };
+}
+
+export async function exportSettingsProviderWebhookReviewQaHandoffBundleData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffBundleExportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      exportResult: await getProviderWebhookReviewQaHandoffBundleExport(filters)
+    };
+  }
+
+  return {
+    mode,
+    exportResult: createMockReviewQaHandoffBundleExport(filters)
   };
 }
 
@@ -1704,6 +1728,80 @@ function createMockReviewQaHandoffBundle(filters: ProviderWebhookReviewClosureRe
     manualQaChecks,
     safeFilename: "provider-webhook-review-qa-handoff-bundle.json",
     safeDigest: "sha256:mockqahandoffbundle",
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffBundleExport(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffBundleExport {
+  const bundle = createMockReviewQaHandoffBundle(filters);
+  return {
+    generatedAt: bundle.generatedAt,
+    exportedAt: new Date().toISOString(),
+    exportKind: "qa-handoff-bundle",
+    format: "json",
+    contentType: "application/json",
+    safeFilename: "provider-webhook-review-qa-handoff-bundle-export.json",
+    safeDigest: "sha256:mockqahandoffbundleexport",
+    status: bundle.manualQaReadiness,
+    counts: {
+      totalItems: bundle.closureReportExport.totalItems,
+      totalOpenItems: bundle.closureReportExport.totalOpenItems,
+      evidenceManifestCount: bundle.evidenceManifests.length,
+      closureEvidenceReadyCount: bundle.readiness.closureEvidenceReadyCount,
+      closureEvidenceBlockedCount: bundle.readiness.closureEvidenceBlockedCount,
+      closureEvidenceIncompleteCount: bundle.readiness.closureEvidenceIncompleteCount
+    },
+    readinessFlags: {
+      reviewClosureEvidenceEnabled: bundle.readiness.reviewClosureEvidenceEnabled,
+      reviewClosureReportEnabled: bundle.readiness.reviewClosureReportEnabled,
+      reviewClosureEvidenceExportEnabled: bundle.readiness.reviewClosureEvidenceExportEnabled,
+      reviewClosureReportExportEnabled: bundle.readiness.reviewClosureReportExportEnabled,
+      reviewExportRedactionAuditEnabled: bundle.readiness.reviewExportRedactionAuditEnabled,
+      reviewExportIntegrityChecksEnabled: bundle.readiness.reviewExportIntegrityChecksEnabled,
+      reviewExportManifestEnabled: bundle.readiness.reviewExportManifestEnabled,
+      reviewExportQaHandoffEnabled: bundle.readiness.reviewExportQaHandoffEnabled
+    },
+    closureEvidenceSummary: {
+      readyCount: bundle.readiness.closureEvidenceReadyCount,
+      blockedCount: bundle.readiness.closureEvidenceBlockedCount,
+      incompleteCount: bundle.readiness.closureEvidenceIncompleteCount,
+      exportCount: bundle.readiness.closureEvidenceExportCount,
+      externalCalls: 0
+    },
+    exportManifestSummary: {
+      readyCount: bundle.readiness.exportManifestReadyCount,
+      needsReviewCount: bundle.readiness.exportManifestNeedsReviewCount,
+      blockedCount: bundle.readiness.exportManifestBlockedCount,
+      latestStatus: bundle.readiness.latestExportManifestStatus,
+      reportManifestReadiness: bundle.closureReportManifest.manualQaReadiness,
+      reportManifestIntegrityStatus: bundle.closureReportManifest.integrityStatus,
+      externalCalls: 0
+    },
+    redactionAuditSummary: {
+      status: bundle.closureReportRedactionAudit.status,
+      issueCount: bundle.closureReportRedactionAudit.issues.length,
+      passedCount: bundle.closureExportIntegrity.redactionPassedCount,
+      warningCount: bundle.closureExportIntegrity.redactionWarningCount,
+      blockedCount: bundle.closureExportIntegrity.redactionBlockedCount,
+      rawPayloadAbsent: bundle.closureReportRedactionAudit.checks.rawPayloadAbsent,
+      rawSignatureAbsent: bundle.closureReportRedactionAudit.checks.rawSignatureAbsent,
+      tokenAbsent: bundle.closureReportRedactionAudit.checks.tokenAbsent,
+      replyTokenAbsent: bundle.closureReportRedactionAudit.checks.replyTokenAbsent,
+      rawSenderIdAbsent: bundle.closureReportRedactionAudit.checks.rawSenderIdAbsent,
+      rawRoomIdAbsent: bundle.closureReportRedactionAudit.checks.rawRoomIdAbsent,
+      providerOutboundAbsent: bundle.closureReportRedactionAudit.checks.providerOutboundAbsent,
+      externalCallsZero: bundle.closureReportRedactionAudit.checks.externalCallsZero,
+      externalCalls: 0
+    },
+    integritySummary: {
+      status: bundle.closureReportManifest.integrityStatus,
+      totalCheckedItems: bundle.closureExportIntegrity.totalCheckedItems,
+      deterministicExportConfirmed: bundle.closureExportIntegrity.deterministicExportConfirmed,
+      safeReportDigest: bundle.closureExportIntegrity.safeReportDigest,
+      externalCalls: 0
+    },
+    manualQaChecks: bundle.manualQaChecks,
+    bundle,
     externalCalls: 0
   };
 }
