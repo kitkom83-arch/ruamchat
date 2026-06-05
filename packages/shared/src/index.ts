@@ -2405,6 +2405,13 @@ export const providerReadinessSchema = z.object({
   reviewExportIntegrityChecksEnabled: z.boolean().default(false),
   reviewExportManifestEnabled: z.boolean().default(false),
   reviewExportQaHandoffEnabled: z.boolean().default(false),
+  reviewQaHandoffLockedArchiveEnabled: z.boolean().default(false),
+  reviewQaHandoffRetentionManifestEnabled: z.boolean().default(false),
+  lockedArchiveReadyCount: z.number().int().nonnegative().default(0),
+  lockedArchiveExportedCount: z.number().int().nonnegative().default(0),
+  retentionManifestReadyCount: z.number().int().nonnegative().default(0),
+  latestLockedArchiveStatus: z.enum(["ready", "exported"]).nullable().default(null),
+  latestRetentionManifestStatus: z.enum(["ready"]).nullable().default(null),
   exportRedactionPassedCount: z.number().int().nonnegative().default(0),
   exportRedactionWarningCount: z.number().int().nonnegative().default(0),
   exportRedactionBlockedCount: z.number().int().nonnegative().default(0),
@@ -3435,6 +3442,78 @@ export const providerWebhookReviewQaHandoffAcceptanceLockSchema = z.object({
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewQaHandoffAcceptanceLock = z.infer<typeof providerWebhookReviewQaHandoffAcceptanceLockSchema>;
+
+export const providerWebhookReviewQaHandoffLockedArchiveAcknowledgementStatusSchema = z.enum(["not_exported", "exported"]);
+export type ProviderWebhookReviewQaHandoffLockedArchiveAcknowledgementStatus = z.infer<typeof providerWebhookReviewQaHandoffLockedArchiveAcknowledgementStatusSchema>;
+
+export const providerWebhookReviewQaHandoffLockedArchiveStatusSchema = z.object({
+  generatedAt: z.string().datetime(),
+  lockedArchiveStatus: z.enum(["ready", "exported"]),
+  retentionManifestStatus: z.enum(["ready"]),
+  archiveAcknowledgementStatus: providerWebhookReviewQaHandoffLockedArchiveAcknowledgementStatusSchema,
+  acceptanceStatus: z.enum(["locked"]),
+  lockStatus: z.literal("locked"),
+  receiptStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  signOffStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  bundleStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  exportStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  bundleDigest: z.string().min(1),
+  exportDigest: z.string().min(1),
+  receiptDigest: z.string().min(1),
+  acceptanceLockDigest: z.string().min(1),
+  lockRecordId: z.string().min(1),
+  readinessFlags: providerWebhookReviewQaHandoffBundleExportSchema.shape.readinessFlags,
+  counts: providerWebhookReviewQaHandoffBundleExportSchema.shape.counts.extend({
+    lockedItemCount: z.number().int().nonnegative(),
+    lockedOpenItemCount: z.number().int().nonnegative()
+  }).strict(),
+  manualQaChecks: providerWebhookReviewQaHandoffBundleChecksSchema,
+  retentionPolicyLabel: z.string().min(1),
+  archivedAt: z.string().datetime().nullable(),
+  exportedAt: z.string().datetime().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffLockedArchiveStatus = z.infer<typeof providerWebhookReviewQaHandoffLockedArchiveStatusSchema>;
+
+export const providerWebhookReviewQaHandoffLockedArchiveExportSchema = providerWebhookReviewQaHandoffLockedArchiveStatusSchema.extend({
+  exportedAt: z.string().datetime(),
+  exportKind: z.literal("qa-handoff-locked-archive"),
+  format: z.literal("json"),
+  contentType: z.literal("application/json")
+}).strict();
+export type ProviderWebhookReviewQaHandoffLockedArchiveExport = z.infer<typeof providerWebhookReviewQaHandoffLockedArchiveExportSchema>;
+
+export const providerWebhookReviewQaHandoffRetentionManifestSchema = z.object({
+  generatedAt: z.string().datetime(),
+  manifestKind: z.literal("qa-handoff-locked-archive-retention-manifest"),
+  retentionManifestStatus: z.enum(["ready"]),
+  lockedArchiveStatus: z.enum(["ready", "exported"]),
+  archiveAcknowledgementStatus: providerWebhookReviewQaHandoffLockedArchiveAcknowledgementStatusSchema,
+  acceptanceStatus: z.enum(["locked"]),
+  lockStatus: z.literal("locked"),
+  receiptStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  signOffStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  bundleStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  exportStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  archiveDigest: z.string().min(1),
+  bundleDigest: z.string().min(1),
+  exportDigest: z.string().min(1),
+  receiptDigest: z.string().min(1),
+  acceptanceLockDigest: z.string().min(1),
+  retentionPolicyLabel: z.string().min(1),
+  retentionReadiness: z.enum(["ready"]),
+  readinessFlags: providerWebhookReviewQaHandoffBundleExportSchema.shape.readinessFlags,
+  counts: providerWebhookReviewQaHandoffLockedArchiveStatusSchema.shape.counts,
+  manualQaChecks: providerWebhookReviewQaHandoffBundleChecksSchema,
+  archivedAt: z.string().datetime().nullable(),
+  exportedAt: z.string().datetime().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffRetentionManifest = z.infer<typeof providerWebhookReviewQaHandoffRetentionManifestSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

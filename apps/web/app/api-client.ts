@@ -24,6 +24,9 @@ import {
   providerWebhookReviewQaHandoffBundleExportSchema,
   providerWebhookReviewQaHandoffAcceptanceLockRequestSchema,
   providerWebhookReviewQaHandoffAcceptanceLockSchema,
+  providerWebhookReviewQaHandoffLockedArchiveExportSchema,
+  providerWebhookReviewQaHandoffLockedArchiveStatusSchema,
+  providerWebhookReviewQaHandoffRetentionManifestSchema,
   providerWebhookReviewQaHandoffReceiptSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
   providerWebhookReviewQaHandoffSignOffResponseSchema,
@@ -223,6 +226,9 @@ import {
   type ProviderWebhookReviewQaHandoffBundleExport,
   type ProviderWebhookReviewQaHandoffAcceptanceLock,
   type ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
+  type ProviderWebhookReviewQaHandoffLockedArchiveExport,
+  type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
+  type ProviderWebhookReviewQaHandoffRetentionManifest,
   type ProviderWebhookReviewQaHandoffReceipt,
   type ProviderWebhookReviewQaHandoffSignOffRequest,
   type ProviderWebhookReviewQaHandoffSignOffResponse,
@@ -565,6 +571,21 @@ export async function lockProviderWebhookReviewQaHandoffAcceptance(
     method: "POST",
     body: JSON.stringify(body)
   });
+}
+
+export async function getProviderWebhookReviewQaHandoffLockedArchive(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffLockedArchiveStatus> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive${search}`, providerWebhookReviewQaHandoffLockedArchiveStatusSchema);
+}
+
+export async function exportProviderWebhookReviewQaHandoffLockedArchive(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffLockedArchiveExport> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/export${search}`, providerWebhookReviewQaHandoffLockedArchiveExportSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffRetentionManifest(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffRetentionManifest> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/retention-manifest${search}`, providerWebhookReviewQaHandoffRetentionManifestSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

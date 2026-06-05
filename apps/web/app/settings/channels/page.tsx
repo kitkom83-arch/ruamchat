@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -21,6 +21,9 @@ import {
   exportSettingsProviderWebhookReviewQaHandoffBundleData,
   loadSettingsProviderWebhookReviewQaHandoffReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffAcceptanceLockData,
+  loadSettingsProviderWebhookReviewQaHandoffLockedArchiveData,
+  exportSettingsProviderWebhookReviewQaHandoffLockedArchiveData,
+  loadSettingsProviderWebhookReviewQaHandoffRetentionManifestData,
   loadSettingsProviderWebhookReviewClosureReportExportManifestData,
   loadSettingsProviderWebhookReviewQaHandoffBundleData,
   lockSettingsProviderWebhookReviewQaHandoffAcceptance,
@@ -117,6 +120,15 @@ export default function ChannelSettingsPage() {
   const [reviewQaHandoffAcceptanceLock, setReviewQaHandoffAcceptanceLock] = useState<ProviderWebhookReviewQaHandoffAcceptanceLock | null>(null);
   const [qaHandoffAcceptanceLockLoading, setQaHandoffAcceptanceLockLoading] = useState(false);
   const [qaHandoffAcceptanceLockError, setQaHandoffAcceptanceLockError] = useState("");
+  const [reviewQaHandoffLockedArchive, setReviewQaHandoffLockedArchive] = useState<ProviderWebhookReviewQaHandoffLockedArchiveStatus | null>(null);
+  const [qaHandoffLockedArchiveLoading, setQaHandoffLockedArchiveLoading] = useState(false);
+  const [qaHandoffLockedArchiveError, setQaHandoffLockedArchiveError] = useState("");
+  const [reviewQaHandoffLockedArchiveExport, setReviewQaHandoffLockedArchiveExport] = useState<ProviderWebhookReviewQaHandoffLockedArchiveExport | null>(null);
+  const [qaHandoffLockedArchiveExportLoading, setQaHandoffLockedArchiveExportLoading] = useState(false);
+  const [qaHandoffLockedArchiveExportError, setQaHandoffLockedArchiveExportError] = useState("");
+  const [reviewQaHandoffRetentionManifest, setReviewQaHandoffRetentionManifest] = useState<ProviderWebhookReviewQaHandoffRetentionManifest | null>(null);
+  const [qaHandoffRetentionManifestLoading, setQaHandoffRetentionManifestLoading] = useState(false);
+  const [qaHandoffRetentionManifestError, setQaHandoffRetentionManifestError] = useState("");
   const [reviewClosureReportRedactionAudit, setReviewClosureReportRedactionAudit] = useState<ProviderWebhookReviewExportRedactionAudit | null>(null);
   const [closureReportRedactionAuditLoading, setClosureReportRedactionAuditLoading] = useState(false);
   const [closureReportRedactionAuditError, setClosureReportRedactionAuditError] = useState("");
@@ -685,6 +697,65 @@ export default function ChannelSettingsPage() {
     }
   }
 
+  async function loadReviewQaHandoffLockedArchive() {
+    setQaHandoffLockedArchiveLoading(true);
+    setQaHandoffLockedArchiveError("");
+    setReviewQaHandoffLockedArchive(null);
+    setReviewQaHandoffLockedArchiveExport(null);
+    try {
+      const result = await loadSettingsProviderWebhookReviewQaHandoffLockedArchiveData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewQaHandoffLockedArchive(result.lockedArchive);
+    } catch (reason) {
+      setReviewQaHandoffLockedArchive(null);
+      setReviewQaHandoffLockedArchiveExport(null);
+      setQaHandoffLockedArchiveError(`QA Handoff Locked Archive API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook QA handoff locked archive"}`);
+    } finally {
+      setQaHandoffLockedArchiveLoading(false);
+    }
+  }
+
+  async function exportReviewQaHandoffLockedArchive() {
+    setQaHandoffLockedArchiveExportLoading(true);
+    setQaHandoffLockedArchiveExportError("");
+    setReviewQaHandoffLockedArchive(null);
+    setReviewQaHandoffLockedArchiveExport(null);
+    try {
+      const result = await exportSettingsProviderWebhookReviewQaHandoffLockedArchiveData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewQaHandoffLockedArchiveExport(result.lockedArchiveExport);
+      setReviewQaHandoffLockedArchive(result.lockedArchiveExport);
+    } catch (reason) {
+      setReviewQaHandoffLockedArchive(null);
+      setReviewQaHandoffLockedArchiveExport(null);
+      setQaHandoffLockedArchiveExportError(`QA Handoff Locked Archive API error: ${reason instanceof Error ? reason.message : "Unable to export provider webhook QA handoff locked archive"}`);
+    } finally {
+      setQaHandoffLockedArchiveExportLoading(false);
+    }
+  }
+
+  async function loadReviewQaHandoffRetentionManifest() {
+    setQaHandoffRetentionManifestLoading(true);
+    setQaHandoffRetentionManifestError("");
+    setReviewQaHandoffRetentionManifest(null);
+    try {
+      const result = await loadSettingsProviderWebhookReviewQaHandoffRetentionManifestData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewQaHandoffRetentionManifest(result.retentionManifest);
+    } catch (reason) {
+      setReviewQaHandoffRetentionManifest(null);
+      setQaHandoffRetentionManifestError(`QA Handoff Retention Manifest API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook QA handoff retention manifest"}`);
+    } finally {
+      setQaHandoffRetentionManifestLoading(false);
+    }
+  }
+
   async function loadClosureReportRedactionAudit() {
     setClosureReportRedactionAuditLoading(true);
     setClosureReportRedactionAuditError("");
@@ -1101,6 +1172,12 @@ export default function ChannelSettingsPage() {
     setQaHandoffSignOffError("");
     setReviewQaHandoffAcceptanceLock(null);
     setQaHandoffAcceptanceLockError("");
+    setReviewQaHandoffLockedArchive(null);
+    setQaHandoffLockedArchiveError("");
+    setReviewQaHandoffLockedArchiveExport(null);
+    setQaHandoffLockedArchiveExportError("");
+    setReviewQaHandoffRetentionManifest(null);
+    setQaHandoffRetentionManifestError("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
       ...defaultUnmatchedFilters,
@@ -1274,6 +1351,15 @@ export default function ChannelSettingsPage() {
         reviewQaHandoffAcceptanceLock={reviewQaHandoffAcceptanceLock}
         reviewQaHandoffAcceptanceLockLoading={qaHandoffAcceptanceLockLoading}
         reviewQaHandoffAcceptanceLockError={qaHandoffAcceptanceLockError}
+        reviewQaHandoffLockedArchive={reviewQaHandoffLockedArchive}
+        reviewQaHandoffLockedArchiveLoading={qaHandoffLockedArchiveLoading}
+        reviewQaHandoffLockedArchiveError={qaHandoffLockedArchiveError}
+        reviewQaHandoffLockedArchiveExport={reviewQaHandoffLockedArchiveExport}
+        reviewQaHandoffLockedArchiveExportLoading={qaHandoffLockedArchiveExportLoading}
+        reviewQaHandoffLockedArchiveExportError={qaHandoffLockedArchiveExportError}
+        reviewQaHandoffRetentionManifest={reviewQaHandoffRetentionManifest}
+        reviewQaHandoffRetentionManifestLoading={qaHandoffRetentionManifestLoading}
+        reviewQaHandoffRetentionManifestError={qaHandoffRetentionManifestError}
         reviewClosureReportRedactionAudit={reviewClosureReportRedactionAudit}
         reviewClosureReportRedactionAuditLoading={closureReportRedactionAuditLoading}
         reviewClosureReportRedactionAuditError={closureReportRedactionAuditError}
@@ -1350,6 +1436,9 @@ export default function ChannelSettingsPage() {
         onSignOffReviewQaHandoffReceipt={signOffReviewQaHandoffReceipt}
         onLoadReviewQaHandoffAcceptanceLock={loadReviewQaHandoffAcceptanceLock}
         onLockReviewQaHandoffAcceptance={lockReviewQaHandoffAcceptance}
+        onLoadReviewQaHandoffLockedArchive={loadReviewQaHandoffLockedArchive}
+        onExportReviewQaHandoffLockedArchive={exportReviewQaHandoffLockedArchive}
+        onLoadReviewQaHandoffRetentionManifest={loadReviewQaHandoffRetentionManifest}
         onLoadClosureReportRedactionAudit={loadClosureReportRedactionAudit}
         onLoadClosureExportIntegrity={loadClosureExportIntegrity}
         onLoadHistory={loadHistory}
