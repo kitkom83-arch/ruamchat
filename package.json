@@ -86,6 +86,7 @@
     "smoke:sprint77": "node scripts/smoke-sprint77-provider-webhook-review-qa-handoff-receipt-signoff.mjs",
     "smoke:sprint78": "node scripts/smoke-sprint78-provider-webhook-review-qa-handoff-acceptance-lock.mjs",
     "smoke:sprint79": "node scripts/smoke-sprint79-provider-webhook-review-qa-handoff-locked-archive-export.mjs",
+    "smoke:sprint80": "node scripts/smoke-sprint80-provider-webhook-review-qa-archive-integrity-retention-audit.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

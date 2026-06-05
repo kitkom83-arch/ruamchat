@@ -48,6 +48,8 @@ import {
   providerWebhookReviewExportManifestSchema,
   providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewQaHandoffBundleExportSchema,
+  providerWebhookReviewQaHandoffArchiveIntegritySchema,
+  providerWebhookReviewQaHandoffRetentionAuditSchema,
   providerWebhookReviewQaHandoffReceiptSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
   providerWebhookReviewQaHandoffSignOffResponseSchema,
@@ -151,6 +153,120 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffReceiptSchema.parse({ ...receipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReceiptSchema.parse({ ...receipt, externalCalls: 1 })).toThrow();
+  });
+
+  it("validates QA archive integrity and retention audit DTOs without raw provider fields", () => {
+    const manualQaChecks = {
+      reportManifestReady: true,
+      reportRedactionPassedOrWarned: true,
+      reportIntegrityConfirmed: true,
+      evidenceManifestsReadyOrNeedsReview: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      readinessFlagsPresent: true
+    };
+    const readinessFlags = {
+      reviewClosureEvidenceEnabled: true,
+      reviewClosureReportEnabled: true,
+      reviewClosureEvidenceExportEnabled: true,
+      reviewClosureReportExportEnabled: true,
+      reviewExportRedactionAuditEnabled: true,
+      reviewExportIntegrityChecksEnabled: true,
+      reviewExportManifestEnabled: true,
+      reviewExportQaHandoffEnabled: true
+    };
+    const counts = {
+      totalItems: 1,
+      totalOpenItems: 1,
+      evidenceManifestCount: 1,
+      closureEvidenceReadyCount: 1,
+      closureEvidenceBlockedCount: 0,
+      closureEvidenceIncompleteCount: 0,
+      lockedItemCount: 1,
+      lockedOpenItemCount: 1
+    };
+    const integrity = providerWebhookReviewQaHandoffArchiveIntegritySchema.parse({
+      generatedAt: "2026-06-06T00:00:00.000Z",
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      lockedArchiveStatus: "exported",
+      retentionManifestStatus: "ready",
+      archiveAcknowledgementStatus: "exported",
+      auditAcknowledgementStatus: "acknowledged",
+      acceptanceStatus: "locked",
+      lockStatus: "locked",
+      receiptStatus: "signed_off",
+      signOffStatus: "signed_off",
+      bundleStatus: "ready",
+      exportStatus: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-locked-archive-integrity.json",
+      safeDigest: "sha256:integrity",
+      bundleDigest: "sha256:bundle",
+      exportDigest: "sha256:export",
+      receiptDigest: "sha256:receipt",
+      acceptanceLockDigest: "sha256:acceptance",
+      lockedArchiveDigest: "sha256:archive",
+      retentionManifestDigest: "sha256:retention",
+      digestChainStatus: "confirmed",
+      safeCheckLabels: ["bundle digest present", "retention manifest digest present"],
+      readinessFlags,
+      counts: {
+        ...counts,
+        digestChainLinkCount: 6,
+        integrityCheckedCount: 1
+      },
+      manualQaChecks,
+      archivedAt: "2026-06-06T00:00:00.000Z",
+      exportedAt: "2026-06-06T00:01:00.000Z",
+      externalCalls: 0
+    });
+    const retentionAudit = providerWebhookReviewQaHandoffRetentionAuditSchema.parse({
+      generatedAt: "2026-06-06T00:00:00.000Z",
+      retentionPolicyStatus: "active",
+      retentionAuditStatus: "confirmed",
+      retentionManifestStatus: "ready",
+      lockedArchiveStatus: "exported",
+      archiveAcknowledgementStatus: "exported",
+      auditAcknowledgementStatus: "acknowledged",
+      acceptanceStatus: "locked",
+      lockStatus: "locked",
+      safePolicyLabel: "safe-qa-handoff-locked-archive-retain-review-metadata-only",
+      safeRetentionWindowLabel: "safe-review-metadata-retained",
+      safeFilename: "provider-webhook-review-qa-handoff-retention-audit.json",
+      safeDigest: "sha256:retentionaudit",
+      lockedArchiveDigest: integrity.lockedArchiveDigest,
+      retentionManifestDigest: integrity.retentionManifestDigest,
+      digestChainStatus: "confirmed",
+      auditChecklistItems: [
+        { key: "retention_manifest_ready", label: "retention manifest ready", status: "confirmed" },
+        { key: "external_calls_zero", label: "externalCalls zero", status: "confirmed" }
+      ],
+      counts: {
+        ...counts,
+        auditChecklistPassedCount: 2,
+        auditChecklistNeedsReviewCount: 0,
+        auditChecklistBlockedCount: 0
+      },
+      archivedAt: integrity.archivedAt,
+      exportedAt: integrity.exportedAt,
+      externalCalls: 0
+    });
+
+    expect(integrity.digestChainStatus).toBe("confirmed");
+    expect(integrity.externalCalls).toBe(0);
+    expect(retentionAudit.retentionAuditStatus).toBe("confirmed");
+    expect(retentionAudit.externalCalls).toBe(0);
+    expect(() => providerWebhookReviewQaHandoffArchiveIntegritySchema.parse({ ...integrity, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffRetentionAuditSchema.parse({ ...retentionAudit, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffArchiveIntegritySchema.parse({ ...integrity, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

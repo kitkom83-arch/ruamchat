@@ -2365,6 +2365,100 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-lock|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:/i);
   });
+
+  it("returns safe QA archive integrity and retention audit without mutating review state", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-room-qa-archive-integrity", "qa-archive-integrity-1", "Safe QA archive integrity target");
+    const filters = {
+      provider: "line",
+      eventType: "message.created"
+    };
+
+    expect(() => controller.getReviewQaHandoffArchiveIntegrity(tenantId, filters, "operator-current"))
+      .toThrow("acceptance lock is required before locked archive export");
+    expect(() => controller.getReviewQaHandoffRetentionAudit(tenantId, filters, "operator-current"))
+      .toThrow("acceptance lock is required before locked archive export");
+
+    controller.signOffReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current", {
+      acknowledgementType: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe archive integrity reviewer"
+    });
+    const lock = controller.lockReviewQaHandoffAcceptance(tenantId, filters, "operator-current", {
+      lockReason: "Safe QA accepted for archive integrity",
+      acceptedByRole: "QA lead",
+      acceptedByLabel: "safe archive integrity reviewer"
+    });
+    const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+
+    const archive = controller.getReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
+    const exportedArchive = controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
+    const manifest = controller.getReviewQaHandoffRetentionManifest(tenantId, filters, "operator-current");
+    const integrity = controller.getReviewQaHandoffArchiveIntegrity(tenantId, filters, "operator-current");
+    const retentionAudit = controller.getReviewQaHandoffRetentionAudit(tenantId, filters, "operator-current");
+    const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const serialized = JSON.stringify({ lock, archive, exportedArchive, manifest, integrity, retentionAudit, after });
+
+    expect(archive).toMatchObject({
+      lockedArchiveStatus: "ready",
+      retentionManifestStatus: "ready",
+      lockStatus: "locked",
+      externalCalls: 0
+    });
+    expect(exportedArchive).toMatchObject({
+      lockedArchiveStatus: "exported",
+      archiveAcknowledgementStatus: "exported",
+      exportKind: "qa-handoff-locked-archive",
+      externalCalls: 0
+    });
+    expect(manifest).toMatchObject({
+      retentionManifestStatus: "ready",
+      retentionReadiness: "ready",
+      externalCalls: 0
+    });
+    expect(integrity).toMatchObject({
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      digestChainStatus: "confirmed",
+      lockedArchiveStatus: "exported",
+      retentionManifestStatus: "ready",
+      externalCalls: 0
+    });
+    expect(integrity.safeFilename).toBe("provider-webhook-review-qa-handoff-locked-archive-integrity.json");
+    expect(integrity.safeDigest).toMatch(/^sha256:/);
+    expect(integrity.lockedArchiveDigest).toBe(exportedArchive.safeDigest);
+    expect(integrity.retentionManifestDigest).toMatch(/^sha256:/);
+    expect(integrity.counts.digestChainLinkCount).toBe(6);
+    expect(retentionAudit).toMatchObject({
+      retentionPolicyStatus: "active",
+      retentionAuditStatus: "confirmed",
+      retentionManifestStatus: "ready",
+      lockedArchiveStatus: "exported",
+      digestChainStatus: "confirmed",
+      externalCalls: 0
+    });
+    expect(retentionAudit.safeFilename).toBe("provider-webhook-review-qa-handoff-retention-audit.json");
+    expect(retentionAudit.safeDigest).toMatch(/^sha256:/);
+    expect(retentionAudit.auditChecklistItems.map((entry) => entry.key)).toEqual(expect.arrayContaining([
+      "locked_archive_available",
+      "retention_manifest_ready",
+      "external_calls_zero"
+    ]));
+    expect(after).toMatchObject({
+      reviewStatus: before?.reviewStatus,
+      linkStatus: before?.linkStatus,
+      unmatchedStatus: before?.unmatchedStatus,
+      assignmentStatus: before?.assignmentStatus,
+      escalationStatus: before?.escalationStatus,
+      resolutionStatus: before?.resolutionStatus,
+      messagePersisted: before?.messagePersisted,
+      linkedConversationId: before?.linkedConversationId,
+      linkedMessageId: before?.linkedMessageId
+    });
+    expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-archive-integrity|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|line\.push|telegram\.send|facebook\.send|instagram\.send|openai|ai\.call|notification\.sent/i);
+  });
 });
 
 function buildController(conversations: Record<string, unknown> = {

@@ -148,6 +148,24 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffRetentionManifest(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/locked-archive/integrity")
+  getReviewQaHandoffArchiveIntegrity(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffArchiveIntegrity(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
+  @Get("review-qa-handoff-bundle/locked-archive/retention-audit")
+  getReviewQaHandoffRetentionAudit(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffRetentionAudit(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,
