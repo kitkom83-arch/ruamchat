@@ -48,6 +48,9 @@ import {
   providerWebhookReviewExportManifestSchema,
   providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewQaHandoffBundleExportSchema,
+  providerWebhookReviewQaHandoffReceiptSchema,
+  providerWebhookReviewQaHandoffSignOffRequestSchema,
+  providerWebhookReviewQaHandoffSignOffResponseSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportSchema,
@@ -77,6 +80,77 @@ describe("shared contracts", () => {
     });
 
     expect(parsed.platform).toBe("telegram");
+  });
+
+  it("validates QA handoff receipt and sign-off DTOs without raw provider fields", () => {
+    const manualQaChecks = {
+      reportManifestReady: true,
+      reportRedactionPassedOrWarned: true,
+      reportIntegrityConfirmed: true,
+      evidenceManifestsReadyOrNeedsReview: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      readinessFlagsPresent: true
+    };
+    const receipt = providerWebhookReviewQaHandoffReceiptSchema.parse({
+      generatedAt: "2026-05-21T04:00:00.000Z",
+      receiptStatus: "not_acknowledged",
+      bundleStatus: "ready",
+      exportStatus: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-receipt.json",
+      safeDigest: "sha256:receipt",
+      bundleDigest: "sha256:bundle",
+      exportDigest: "sha256:export",
+      readinessFlags: {
+        reviewClosureEvidenceEnabled: true,
+        reviewClosureReportEnabled: true,
+        reviewClosureEvidenceExportEnabled: true,
+        reviewClosureReportExportEnabled: true,
+        reviewExportRedactionAuditEnabled: true,
+        reviewExportIntegrityChecksEnabled: true,
+        reviewExportManifestEnabled: true,
+        reviewExportQaHandoffEnabled: true
+      },
+      counts: {
+        totalItems: 1,
+        totalOpenItems: 0,
+        evidenceManifestCount: 1,
+        closureEvidenceReadyCount: 1,
+        closureEvidenceBlockedCount: 0,
+        closureEvidenceIncompleteCount: 0
+      },
+      manualQaChecks,
+      reviewerRole: null,
+      reviewerLabel: null,
+      acknowledgedAt: null,
+      signedAt: null,
+      externalCalls: 0
+    });
+
+    expect(receipt.externalCalls).toBe(0);
+    expect(providerWebhookReviewQaHandoffSignOffRequestSchema.parse({}).acknowledgementType).toBe("sign_off");
+    expect(providerWebhookReviewQaHandoffSignOffResponseSchema.parse({
+      ...receipt,
+      receiptStatus: "signed_off",
+      reviewerRole: "reviewer",
+      reviewerLabel: "operator:safe",
+      acknowledgedAt: "2026-05-21T04:00:00.000Z",
+      signedAt: "2026-05-21T04:00:00.000Z",
+      signOffStatus: "signed_off",
+      signOffRecordId: "provider-webhook-qa-handoff-signoff-1",
+      action: "sign_off"
+    }).signOffStatus).toBe("signed_off");
+    expect(() => providerWebhookReviewQaHandoffReceiptSchema.parse({ ...receipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReceiptSchema.parse({ ...receipt, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

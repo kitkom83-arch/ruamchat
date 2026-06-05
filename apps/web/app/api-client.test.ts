@@ -33,6 +33,8 @@ import {
   getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewQaHandoffBundleExport,
+  getProviderWebhookReviewQaHandoffBundleReceipt,
+  signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewResolutionSummary,
   getProviderWebhookReviewSavedViews,
@@ -915,6 +917,44 @@ describe("frontend API client", () => {
     });
     expect(JSON.stringify({ report, qaBundle, qaBundleExport, evidence, reportExport, evidenceExport, reportManifest, evidenceManifest, reportAudit, integrity, evidenceAudit }))
       .not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer/i);
+  });
+
+  it("sends x-tenant-id and safe body for QA handoff receipt sign-off", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewQaHandoffReceiptResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookReviewQaHandoffSignOffResponse()));
+    const filters = { provider: "line", resolutionStatus: "resolved", resolutionOutcome: "NEEDS_REVIEW" } as const;
+
+    const receipt = await getProviderWebhookReviewQaHandoffBundleReceipt(filters);
+    const signOff = await signOffProviderWebhookReviewQaHandoffBundleReceipt(filters, {
+      acknowledgementType: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe reviewer"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/receipt?provider=line&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/receipt/sign-off?provider=line&resolutionStatus=resolved&resolutionOutcome=NEEDS_REVIEW", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        acknowledgementType: "sign_off",
+        reviewerRole: "QA reviewer",
+        reviewerLabel: "safe reviewer"
+      })
+    }));
+    expectTenantHeaderForAll(fetchMock);
+    expect(receipt).toMatchObject({
+      receiptStatus: "not_acknowledged",
+      safeFilename: "provider-webhook-review-qa-handoff-receipt.json",
+      externalCalls: 0
+    });
+    expect(signOff).toMatchObject({
+      signOffStatus: "signed_off",
+      action: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe reviewer",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ receipt, signOff })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:/i);
   });
 
   it("sends x-tenant-id and safe bodies for review saved views and operator notes", async () => {
@@ -3206,6 +3246,44 @@ function providerWebhookReviewQaHandoffBundleExportResponse() {
     },
     manualQaChecks: bundle.manualQaChecks,
     bundle,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffReceiptResponse() {
+  const exportResult = providerWebhookReviewQaHandoffBundleExportResponse();
+  return {
+    generatedAt: "2026-05-21T04:00:00.000Z",
+    receiptStatus: "not_acknowledged",
+    bundleStatus: exportResult.bundle.manualQaReadiness,
+    exportStatus: exportResult.status,
+    safeFilename: "provider-webhook-review-qa-handoff-receipt.json",
+    safeDigest: "sha256:safeqahandoffreceipt",
+    bundleDigest: exportResult.bundle.safeDigest,
+    exportDigest: exportResult.safeDigest,
+    readinessFlags: exportResult.readinessFlags,
+    counts: exportResult.counts,
+    manualQaChecks: exportResult.manualQaChecks,
+    reviewerRole: null,
+    reviewerLabel: null,
+    acknowledgedAt: null,
+    signedAt: null,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffSignOffResponse() {
+  return {
+    ...providerWebhookReviewQaHandoffReceiptResponse(),
+    receiptStatus: "signed_off",
+    safeDigest: "sha256:safeqahandoffreceiptsigned",
+    reviewerRole: "QA reviewer",
+    reviewerLabel: "safe reviewer",
+    acknowledgedAt: "2026-05-21T04:00:00.000Z",
+    signedAt: "2026-05-21T04:00:00.000Z",
+    signOffStatus: "signed_off",
+    signOffRecordId: "provider-webhook-qa-handoff-signoff-1",
+    action: "sign_off",
     externalCalls: 0
   };
 }

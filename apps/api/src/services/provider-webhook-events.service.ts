@@ -10,6 +10,7 @@ import {
   providerWebhookUnmatchedInboundResolutionChecklistRequestSchema,
   providerWebhookUnmatchedInboundResolutionRequestSchema,
   providerWebhookReviewSavedViewFiltersSchema,
+  providerWebhookReviewQaHandoffSignOffRequestSchema,
   providerWebhookUnmatchedInboundEscalationRequestSchema,
   updateProviderWebhookReviewSavedViewRequestSchema,
   type ProviderWebhookOperatorNote,
@@ -38,6 +39,8 @@ import {
   type ProviderWebhookReviewExportManifestQaReadiness,
   type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewQaHandoffBundleExport,
+  type ProviderWebhookReviewQaHandoffReceipt,
+  type ProviderWebhookReviewQaHandoffSignOffResponse,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
   type ProviderWebhookReviewClosureReportFilters,
@@ -204,7 +207,22 @@ const unmatchedInboundItems: ProviderWebhookUnmatchedInboundItem[] = [];
 const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntry[] = [];
 const reviewSavedViews: ProviderWebhookReviewSavedView[] = [];
 const operatorNotes: ProviderWebhookOperatorNote[] = [];
+const qaHandoffReceiptSignOffs: QaHandoffReceiptSignOffRecord[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
+
+type QaHandoffReceiptSignOffRecord = {
+  id: string;
+  tenantId: string;
+  receiptDigest: string;
+  bundleDigest: string;
+  exportDigest: string;
+  acknowledgementType: "acknowledge" | "sign_off";
+  reviewerRole: string | null;
+  reviewerLabel: string | null;
+  acknowledgedAt: string;
+  signedAt: string | null;
+  externalCalls: 0;
+};
 
 @Injectable()
 export class ProviderWebhookEventsService {
@@ -906,6 +924,77 @@ export class ProviderWebhookEventsService {
       operation: input.operation,
       results,
       summary: bulkResolutionSummary(input.ids.length, uniqueIds.length, results),
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewQaHandoffBundleReceipt(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffReceipt {
+    const exportResult = this.getReviewQaHandoffBundleExport(tenantId, filters, actorUserId);
+    const signOffEntry = latestReceiptSignOffRecord(tenantId, exportResult.bundle.safeDigest, exportResult.safeDigest);
+    const receiptStatus: ProviderWebhookReviewQaHandoffReceipt["receiptStatus"] = signOffEntry?.acknowledgementType === "sign_off"
+      ? "signed_off"
+      : signOffEntry?.acknowledgementType === "acknowledge"
+        ? "acknowledged"
+        : "not_acknowledged";
+    const receiptPayload = {
+      generatedAt: new Date().toISOString(),
+      receiptStatus,
+      bundleStatus: exportResult.bundle.manualQaReadiness,
+      exportStatus: exportResult.status,
+      safeFilename: exportResult.safeFilename,
+      bundleDigest: exportResult.bundle.safeDigest,
+      exportDigest: exportResult.safeDigest,
+      readinessFlags: exportResult.readinessFlags,
+      counts: exportResult.counts,
+      manualQaChecks: exportResult.manualQaChecks,
+      reviewerRole: signOffEntry?.reviewerRole ?? null,
+      reviewerLabel: signOffEntry?.reviewerLabel ?? null,
+      acknowledgedAt: signOffEntry?.acknowledgedAt ?? null,
+      signedAt: signOffEntry?.signedAt ?? null,
+      externalCalls: 0 as const
+    };
+
+    return {
+      ...receiptPayload,
+      safeDigest: safeDigestForExport(receiptPayload),
+      externalCalls: 0 as const
+    };
+  }
+
+  signOffReviewQaHandoffBundleReceipt(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    body: unknown,
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffSignOffResponse {
+    const parsed = providerWebhookReviewQaHandoffSignOffRequestSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook QA handoff sign-off request");
+    const receiptBefore = this.getReviewQaHandoffBundleReceipt(tenantId, filters, actorUserId);
+    const now = new Date().toISOString();
+    const signOffEntry: QaHandoffReceiptSignOffRecord = {
+      id: `provider-webhook-qa-handoff-signoff-${crypto.randomUUID()}`,
+      tenantId,
+      receiptDigest: receiptBefore.safeDigest,
+      bundleDigest: receiptBefore.bundleDigest,
+      exportDigest: receiptBefore.exportDigest,
+      acknowledgementType: parsed.data.acknowledgementType,
+      reviewerRole: safeOperatorLabel(parsed.data.reviewerRole) ?? "reviewer",
+      reviewerLabel: safeOperatorLabel(parsed.data.reviewerLabel) ?? safeActorLabel(actorUserId),
+      acknowledgedAt: now,
+      signedAt: parsed.data.acknowledgementType === "sign_off" ? now : null,
+      externalCalls: 0 as const
+    };
+    qaHandoffReceiptSignOffs.unshift(signOffEntry);
+    const receipt = this.getReviewQaHandoffBundleReceipt(tenantId, filters, actorUserId);
+    return {
+      ...receipt,
+      signOffStatus: receipt.receiptStatus,
+      signOffRecordId: signOffEntry.id,
+      action: signOffEntry.acknowledgementType,
       externalCalls: 0 as const
     };
   }
@@ -2364,6 +2453,7 @@ export function resetProviderWebhookEventStoreForTest() {
   unmatchedInboundHistoryEntries.splice(0);
   reviewSavedViews.splice(0);
   operatorNotes.splice(0);
+  qaHandoffReceiptSignOffs.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -3911,6 +4001,14 @@ function safeExportFilename(value: string) {
     .replace(/^-|-$/g, "")
     .slice(0, 120);
   return sanitized.endsWith(".json") ? sanitized : `${sanitized || "provider-webhook-export"}.json`;
+}
+
+function latestReceiptSignOffRecord(tenantId: string, bundleDigest: string, exportDigest: string) {
+  return qaHandoffReceiptSignOffs.find((record) =>
+    record.tenantId === tenantId &&
+    record.bundleDigest === bundleDigest &&
+    record.exportDigest === exportDigest
+  ) ?? null;
 }
 
 function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {

@@ -2214,6 +2214,59 @@ describe("ProviderWebhooksController sandbox events", () => {
     await expect(controller.createSandboxEvent(tenantId, undefined, safePayload()))
       .rejects.toThrow("disabled while live provider mode is active");
   });
+
+  it("returns safe QA handoff receipts and tenant-scoped sign-off without mutating review state", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-room-qa-receipt", "qa-receipt-1", "Safe QA receipt target");
+    const filters = {
+      provider: "line",
+      eventType: "message.created"
+    };
+    const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+
+    const receipt = controller.getReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current");
+    const afterRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const signOff = controller.signOffReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current", {
+      acknowledgementType: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe reviewer"
+    });
+    const signedReceipt = controller.getReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current");
+    const otherTenantReceipt = controller.getReviewQaHandoffBundleReceipt("00000000-0000-4000-8000-000000000099", filters, "operator-current");
+    const serialized = JSON.stringify({ receipt, signOff, signedReceipt, otherTenantReceipt });
+
+    expect(receipt).toMatchObject({
+      receiptStatus: "not_acknowledged",
+      bundleStatus: expect.any(String),
+      exportStatus: expect.any(String),
+      safeFilename: "provider-webhook-review-qa-handoff-bundle-export.json",
+      externalCalls: 0
+    });
+    expect(receipt.safeDigest).toMatch(/^sha256:/);
+    expect(receipt.bundleDigest).toMatch(/^sha256:/);
+    expect(receipt.exportDigest).toMatch(/^sha256:/);
+    expect(afterRead).toMatchObject({
+      reviewStatus: before?.reviewStatus,
+      linkStatus: before?.linkStatus,
+      unmatchedStatus: before?.unmatchedStatus,
+      messagePersisted: before?.messagePersisted,
+      linkedConversationId: before?.linkedConversationId,
+      linkedMessageId: before?.linkedMessageId
+    });
+    expect(signOff).toMatchObject({
+      signOffStatus: "signed_off",
+      action: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe reviewer",
+      externalCalls: 0
+    });
+    expect(signedReceipt.receiptStatus).toBe("signed_off");
+    expect(signedReceipt.signedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(otherTenantReceipt.receiptStatus).toBe("not_acknowledged");
+    expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-receipt|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:/i);
+  });
 });
 
 function buildController(conversations: Record<string, unknown> = {

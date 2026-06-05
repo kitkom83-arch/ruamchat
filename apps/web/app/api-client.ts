@@ -22,6 +22,9 @@ import {
   providerWebhookReviewExportManifestSchema,
   providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewQaHandoffBundleExportSchema,
+  providerWebhookReviewQaHandoffReceiptSchema,
+  providerWebhookReviewQaHandoffSignOffRequestSchema,
+  providerWebhookReviewQaHandoffSignOffResponseSchema,
   providerWebhookReviewExportRedactionAuditSchema,
   providerWebhookReviewClosureReportExportSchema,
   providerWebhookReviewClosureReportFiltersSchema,
@@ -216,6 +219,9 @@ import {
   type ProviderWebhookReviewExportManifest,
   type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewQaHandoffBundleExport,
+  type ProviderWebhookReviewQaHandoffReceipt,
+  type ProviderWebhookReviewQaHandoffSignOffRequest,
+  type ProviderWebhookReviewQaHandoffSignOffResponse,
   type ProviderWebhookReviewExportRedactionAudit,
   type ProviderWebhookReviewClosureReport,
   type ProviderWebhookReviewClosureReportExport,
@@ -521,6 +527,23 @@ export async function getProviderWebhookReviewQaHandoffBundle(filters: ProviderW
 export async function getProviderWebhookReviewQaHandoffBundleExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffBundleExport> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/export${search}`, providerWebhookReviewQaHandoffBundleExportSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffBundleReceipt(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReceipt> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/receipt${search}`, providerWebhookReviewQaHandoffReceiptSchema);
+}
+
+export async function signOffProviderWebhookReviewQaHandoffBundleReceipt(
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffSignOffRequest = { acknowledgementType: "sign_off" }
+): Promise<ProviderWebhookReviewQaHandoffSignOffResponse> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  const body = providerWebhookReviewQaHandoffSignOffRequestSchema.parse(payload);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/receipt/sign-off${search}`, providerWebhookReviewQaHandoffSignOffResponseSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

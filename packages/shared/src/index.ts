@@ -3358,6 +3358,43 @@ export const providerWebhookReviewQaHandoffBundleExportSchema = z.object({
 }).strict();
 export type ProviderWebhookReviewQaHandoffBundleExport = z.infer<typeof providerWebhookReviewQaHandoffBundleExportSchema>;
 
+export const providerWebhookReviewQaHandoffAcknowledgementStatusSchema = z.enum(["not_acknowledged", "acknowledged", "signed_off"]);
+export type ProviderWebhookReviewQaHandoffAcknowledgementStatus = z.infer<typeof providerWebhookReviewQaHandoffAcknowledgementStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReceiptSchema = z.object({
+  generatedAt: z.string().datetime(),
+  receiptStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  bundleStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  exportStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  bundleDigest: z.string().min(1),
+  exportDigest: z.string().min(1),
+  readinessFlags: providerWebhookReviewQaHandoffBundleExportSchema.shape.readinessFlags,
+  counts: providerWebhookReviewQaHandoffBundleExportSchema.shape.counts,
+  manualQaChecks: providerWebhookReviewQaHandoffBundleChecksSchema,
+  reviewerRole: z.string().min(1).nullable(),
+  reviewerLabel: z.string().min(1).nullable(),
+  acknowledgedAt: z.string().datetime().nullable(),
+  signedAt: z.string().datetime().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReceipt = z.infer<typeof providerWebhookReviewQaHandoffReceiptSchema>;
+
+export const providerWebhookReviewQaHandoffSignOffRequestSchema = z.object({
+  acknowledgementType: z.enum(["acknowledge", "sign_off"]).default("sign_off"),
+  reviewerRole: z.string().trim().min(1).max(80).optional(),
+  reviewerLabel: z.string().trim().min(1).max(80).optional()
+}).strict();
+export type ProviderWebhookReviewQaHandoffSignOffRequest = z.infer<typeof providerWebhookReviewQaHandoffSignOffRequestSchema>;
+
+export const providerWebhookReviewQaHandoffSignOffResponseSchema = providerWebhookReviewQaHandoffReceiptSchema.extend({
+  signOffStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  signOffRecordId: z.string().min(1),
+  action: z.enum(["acknowledge", "sign_off"])
+}).strict();
+export type ProviderWebhookReviewQaHandoffSignOffResponse = z.infer<typeof providerWebhookReviewQaHandoffSignOffResponseSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
