@@ -2267,6 +2267,104 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(otherTenantReceipt.receiptStatus).toBe("not_acknowledged");
     expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-receipt|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:/i);
   });
+
+  it("locks signed QA handoff acceptance and blocks review mutations for the locked scope", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-room-qa-lock", "qa-lock-1", "Safe QA acceptance lock target");
+    const filters = {
+      provider: "line",
+      eventType: "message.created"
+    };
+    const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+
+    const unlocked = controller.getReviewQaHandoffAcceptanceLock(tenantId, filters, "operator-current");
+    expect(unlocked).toMatchObject({
+      lockStatus: "unlocked",
+      lockAction: "none",
+      receiptStatus: "not_acknowledged",
+      externalCalls: 0
+    });
+    expect(unlocked.acceptanceChecks.receiptSignedOff).toBe(false);
+    expect(() => controller.lockReviewQaHandoffAcceptance(tenantId, filters, "operator-current", {
+      lockReason: "Safe premature lock"
+    })).toThrow("must be signed off before acceptance lock");
+
+    controller.signOffReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current", {
+      acknowledgementType: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe lock reviewer"
+    });
+    const lock = controller.lockReviewQaHandoffAcceptance(tenantId, filters, "operator-current", {
+      lockReason: "Safe QA accepted",
+      acceptedByRole: "QA lead",
+      acceptedByLabel: "safe lock reviewer"
+    });
+    const lockReadback = controller.getReviewQaHandoffAcceptanceLock(tenantId, filters, "operator-current");
+
+    expect(lock).toMatchObject({
+      lockStatus: "locked",
+      lockAction: "locked",
+      receiptStatus: "signed_off",
+      lockReason: "Safe QA accepted",
+      acceptedByRole: "QA lead",
+      acceptedByLabel: "safe lock reviewer",
+      externalCalls: 0
+    });
+    expect(lock.lockRecordId).toMatch(/^provider-webhook-qa-handoff-acceptance-lock-/);
+    expect(lock.lockedUnmatchedInboundIds).toContain(item.id);
+    expect(lock.lockedItemCount).toBeGreaterThanOrEqual(1);
+    expect(lock.acceptanceChecks).toMatchObject({
+      receiptSignedOff: true,
+      bundleDigestMatches: true,
+      exportDigestMatches: true,
+      lockedItemScopePresent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true
+    });
+    expect(lockReadback.lockStatus).toBe("locked");
+    expect(lockReadback.lockAction).toBe("already_locked");
+    expect(lockReadback.lockRecordId).toBe(lock.lockRecordId);
+
+    await expect(controller.assignUnmatchedInbound(tenantId, "operator-current", item.id, {
+      operation: "ASSIGN_TO_ME",
+      note: "Safe assignment after lock"
+    })).rejects.toThrow("acceptance lock is active");
+    await expect(controller.createOperatorNote(tenantId, "operator-current", item.id, {
+      note: "Safe note after lock"
+    })).rejects.toThrow("acceptance lock is active");
+    await expect(controller.reviewUnmatchedInbound(tenantId, "operator-current", item.id, {
+      status: "reviewed",
+      reason: "Safe review after lock"
+    })).rejects.toThrow("acceptance lock is active");
+    const bulk = await controller.bulkAssignUnmatchedInbound(tenantId, "operator-current", {
+      ids: [item.id],
+      operation: "ASSIGN_TO_ME",
+      note: "Safe bulk assignment after lock"
+    });
+    const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const serialized = JSON.stringify({ unlocked, lock, lockReadback, bulk, after });
+
+    expect(bulk.results[0]).toMatchObject({
+      ok: false,
+      resultStatus: "conflict",
+      error: expect.stringContaining("acceptance lock is active"),
+      externalCalls: 0
+    });
+    expect(after).toMatchObject({
+      reviewStatus: before?.reviewStatus,
+      linkStatus: before?.linkStatus,
+      unmatchedStatus: before?.unmatchedStatus,
+      assignmentStatus: before?.assignmentStatus,
+      escalationStatus: before?.escalationStatus,
+      resolutionStatus: before?.resolutionStatus,
+      messagePersisted: before?.messagePersisted,
+      linkedConversationId: before?.linkedConversationId,
+      linkedMessageId: before?.linkedMessageId
+    });
+    expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-lock|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:/i);
+  });
 });
 
 function buildController(conversations: Record<string, unknown> = {

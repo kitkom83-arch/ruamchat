@@ -102,6 +102,25 @@ export class ProviderWebhooksController {
     return this.events.signOffReviewQaHandoffBundleReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), body, userId);
   }
 
+  @Get("review-qa-handoff-bundle/acceptance-lock")
+  getReviewQaHandoffAcceptanceLock(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffAcceptanceLock(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
+  @Post("review-qa-handoff-bundle/acceptance-lock")
+  lockReviewQaHandoffAcceptance(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.lockReviewQaHandoffAcceptance(requireTenantId(tenant), parseReviewClosureReportFilters(query), body, userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,

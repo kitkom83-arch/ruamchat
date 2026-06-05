@@ -20,6 +20,8 @@ import type {
   ProviderWebhookReviewExportManifest,
   ProviderWebhookReviewQaHandoffBundle,
   ProviderWebhookReviewQaHandoffBundleExport,
+  ProviderWebhookReviewQaHandoffAcceptanceLock,
+  ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
   ProviderWebhookReviewQaHandoffReceipt,
   ProviderWebhookReviewQaHandoffSignOffRequest,
   ProviderWebhookReviewQaHandoffSignOffResponse,
@@ -81,7 +83,9 @@ import {
   getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewQaHandoffBundleExport,
+  getProviderWebhookReviewQaHandoffAcceptanceLock,
   getProviderWebhookReviewQaHandoffBundleReceipt,
+  lockProviderWebhookReviewQaHandoffAcceptance,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
@@ -198,6 +202,11 @@ export type SettingsProviderWebhookReviewQaHandoffBundleData = {
 export type SettingsProviderWebhookReviewQaHandoffBundleExportData = {
   mode: DataMode;
   exportResult: ProviderWebhookReviewQaHandoffBundleExport;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffAcceptanceLockData = {
+  mode: DataMode;
+  acceptanceLock: ProviderWebhookReviewQaHandoffAcceptanceLock;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -537,6 +546,41 @@ export async function signOffSettingsProviderWebhookReviewQaHandoffReceipt(
   return {
     mode,
     signOff: createMockReviewQaHandoffSignOff(filters, payload)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffAcceptanceLockData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffAcceptanceLockData> {
+  if (mode === "api") {
+    return {
+      mode,
+      acceptanceLock: await getProviderWebhookReviewQaHandoffAcceptanceLock(filters)
+    };
+  }
+
+  return {
+    mode,
+    acceptanceLock: createMockReviewQaHandoffAcceptanceLock(filters, "none")
+  };
+}
+
+export async function lockSettingsProviderWebhookReviewQaHandoffAcceptance(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffAcceptanceLockRequest = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffAcceptanceLockData> {
+  if (mode === "api") {
+    return {
+      mode,
+      acceptanceLock: await lockProviderWebhookReviewQaHandoffAcceptance(filters, payload)
+    };
+  }
+
+  return {
+    mode,
+    acceptanceLock: createMockReviewQaHandoffAcceptanceLock(filters, "locked", payload)
   };
 }
 
@@ -1910,6 +1954,71 @@ function createMockReviewQaHandoffSignOff(
     signOffStatus: signedReceipt.receiptStatus,
     signOffRecordId: record.id,
     action,
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffAcceptanceLock(
+  filters: ProviderWebhookReviewClosureReportFilters,
+  action: ProviderWebhookReviewQaHandoffAcceptanceLock["lockAction"],
+  payload: ProviderWebhookReviewQaHandoffAcceptanceLockRequest = {}
+): ProviderWebhookReviewQaHandoffAcceptanceLock {
+  const receipt = createMockReviewQaHandoffReceipt(filters);
+  let lock = mockProviderWebhookQaHandoffAcceptanceLocks.find((record) =>
+    record.bundleDigest === receipt.bundleDigest && record.exportDigest === receipt.exportDigest
+  );
+  if (action === "locked" && receipt.receiptStatus === "signed_off" && !lock) {
+    lock = {
+      id: `provider-webhook-qa-handoff-acceptance-lock-local-${mockProviderWebhookQaHandoffAcceptanceLocks.length + 1}`,
+      receiptDigest: receipt.safeDigest,
+      bundleDigest: receipt.bundleDigest,
+      exportDigest: receipt.exportDigest,
+      lockedUnmatchedInboundIds: mockProviderWebhookUnmatchedInbound.map((item) => item.id),
+      lockReason: safeMockText(payload.lockReason) ?? "QA handoff accepted",
+      acceptedByRole: safeMockText(payload.acceptedByRole) ?? receipt.reviewerRole ?? "QA reviewer",
+      acceptedByLabel: safeMockText(payload.acceptedByLabel) ?? receipt.reviewerLabel ?? "operator:local",
+      lockedAt: new Date().toISOString()
+    };
+    mockProviderWebhookQaHandoffAcceptanceLocks.unshift(lock);
+  }
+  const itemIds = lock?.lockedUnmatchedInboundIds ?? mockProviderWebhookUnmatchedInbound.map((item) => item.id);
+  const lockAction: ProviderWebhookReviewQaHandoffAcceptanceLock["lockAction"] = lock
+    ? action === "locked" ? "locked" : "already_locked"
+    : "none";
+  const responseBase = {
+    generatedAt: new Date().toISOString(),
+    lockStatus: lock ? "locked" as const : "unlocked" as const,
+    lockRecordId: lock?.id ?? null,
+    lockAction,
+    safeFilename: "provider-webhook-review-qa-handoff-acceptance-lock.json",
+    receiptDigest: lock?.receiptDigest ?? receipt.safeDigest,
+    bundleDigest: receipt.bundleDigest,
+    exportDigest: receipt.exportDigest,
+    appliedFilters: filters,
+    lockedUnmatchedInboundIds: itemIds,
+    lockedItemCount: itemIds.length,
+    lockedOpenItemCount: mockProviderWebhookUnmatchedInbound.filter((item) => itemIds.includes(item.id) && (item.unmatchedStatus === "open" || item.unmatchedStatus === "review-needed")).length,
+    lockReason: lock?.lockReason ?? null,
+    acceptedByRole: lock?.acceptedByRole ?? null,
+    acceptedByLabel: lock?.acceptedByLabel ?? null,
+    lockedAt: lock?.lockedAt ?? null,
+    receiptStatus: receipt.receiptStatus,
+    bundleStatus: receipt.bundleStatus,
+    exportStatus: receipt.exportStatus,
+    acceptanceChecks: {
+      receiptSignedOff: receipt.receiptStatus === "signed_off",
+      bundleDigestMatches: true,
+      exportDigestMatches: true,
+      lockedItemScopePresent: itemIds.length > 0,
+      safeDigestPresent: true,
+      providerOutboundAbsent: receipt.manualQaChecks.providerOutboundAbsent,
+      externalCallsZero: receipt.manualQaChecks.externalCallsZero
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...responseBase,
+    safeDigest: lock ? `sha256:mockqahandoffacceptancelock-${lock.id.slice(-6)}` : "sha256:mockqahandoffacceptancelock",
     externalCalls: 0
   };
 }
@@ -3425,6 +3534,18 @@ const mockProviderWebhookQaHandoffSignOffs: Array<{
   reviewerLabel: string;
   acknowledgedAt: string;
   signedAt: string | null;
+}> = [];
+
+const mockProviderWebhookQaHandoffAcceptanceLocks: Array<{
+  id: string;
+  receiptDigest: string;
+  bundleDigest: string;
+  exportDigest: string;
+  lockedUnmatchedInboundIds: string[];
+  lockReason: string | null;
+  acceptedByRole: string | null;
+  acceptedByLabel: string | null;
+  lockedAt: string;
 }> = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {

@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import {
   createProviderWebhookOperatorNoteRequestSchema,
   createProviderWebhookReviewSavedViewRequestSchema,
+  providerWebhookReviewQaHandoffAcceptanceLockRequestSchema,
   providerWebhookUnmatchedInboundAssignmentRequestSchema,
   providerWebhookUnmatchedInboundBulkAssignmentRequestSchema,
   providerWebhookUnmatchedInboundBulkEscalationRequestSchema,
@@ -39,6 +40,7 @@ import {
   type ProviderWebhookReviewExportManifestQaReadiness,
   type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewQaHandoffBundleExport,
+  type ProviderWebhookReviewQaHandoffAcceptanceLock,
   type ProviderWebhookReviewQaHandoffReceipt,
   type ProviderWebhookReviewQaHandoffSignOffResponse,
   type ProviderWebhookReviewClosureReport,
@@ -208,6 +210,7 @@ const unmatchedInboundHistoryEntries: ProviderWebhookUnmatchedInboundHistoryEntr
 const reviewSavedViews: ProviderWebhookReviewSavedView[] = [];
 const operatorNotes: ProviderWebhookOperatorNote[] = [];
 const qaHandoffReceiptSignOffs: QaHandoffReceiptSignOffRecord[] = [];
+const qaHandoffAcceptanceLocks: QaHandoffAcceptanceLockRecord[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 type QaHandoffReceiptSignOffRecord = {
@@ -221,6 +224,21 @@ type QaHandoffReceiptSignOffRecord = {
   reviewerLabel: string | null;
   acknowledgedAt: string;
   signedAt: string | null;
+  externalCalls: 0;
+};
+
+type QaHandoffAcceptanceLockRecord = {
+  id: string;
+  tenantId: string;
+  receiptDigest: string;
+  bundleDigest: string;
+  exportDigest: string;
+  appliedFilters: ProviderWebhookReviewClosureReportFilters;
+  lockedUnmatchedInboundIds: string[];
+  lockReason: string | null;
+  acceptedByRole: string | null;
+  acceptedByLabel: string | null;
+  lockedAt: string;
   externalCalls: 0;
 };
 
@@ -895,6 +913,11 @@ export class ProviderWebhookEventsService {
         results.push(bulkResolutionResult(id, false, "not-found", null, null, null, null, null, "Unmatched inbound item not found"));
         continue;
       }
+      const acceptanceLock = qaHandoffAcceptanceLockForItem(tenantId, item);
+      if (acceptanceLock) {
+        results.push(bulkResolutionResult(id, false, "conflict", item.resolutionStatus, item.resolutionOutcome, item.closureReadiness, item.checklistCompletedCount, item.checklistTotalCount, qaHandoffAcceptanceLockConflictMessage(acceptanceLock)));
+        continue;
+      }
       const before = resolutionFingerprint(item);
       if (input.operation === "SET_RESOLUTION" || input.operation === "CLEAR_RESOLUTION") {
         await this.applyResolutionToItem(tenantId, item, {
@@ -999,6 +1022,76 @@ export class ProviderWebhookEventsService {
     };
   }
 
+  getReviewQaHandoffAcceptanceLock(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffAcceptanceLock {
+    const receipt = this.getReviewQaHandoffBundleReceipt(tenantId, filters, actorUserId);
+    const { normalizedFilters, filteredItems } = this.getClosureReportItems(tenantId, filters, actorUserId);
+    const existing = latestAcceptanceLockRecord(tenantId, receipt.bundleDigest, receipt.exportDigest);
+    return qaHandoffAcceptanceLockResponse({
+      receipt,
+      appliedFilters: existing?.appliedFilters ?? normalizedFilters,
+      lockRecord: existing ?? null,
+      lockAction: existing ? "already_locked" : "none",
+      itemIds: existing?.lockedUnmatchedInboundIds ?? filteredItems.map((item) => item.unmatchedId),
+      openItemCount: existing
+        ? openLockedItemCount(tenantId, existing.lockedUnmatchedInboundIds)
+        : filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length
+    });
+  }
+
+  lockReviewQaHandoffAcceptance(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    body: unknown,
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffAcceptanceLock {
+    const parsed = providerWebhookReviewQaHandoffAcceptanceLockRequestSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook QA handoff acceptance lock request");
+    const receipt = this.getReviewQaHandoffBundleReceipt(tenantId, filters, actorUserId);
+    if (receipt.receiptStatus !== "signed_off") {
+      throw new ConflictException("Provider webhook QA handoff receipt must be signed off before acceptance lock");
+    }
+    const existing = latestAcceptanceLockRecord(tenantId, receipt.bundleDigest, receipt.exportDigest);
+    if (existing) {
+      return qaHandoffAcceptanceLockResponse({
+        receipt,
+        appliedFilters: existing.appliedFilters,
+        lockRecord: existing,
+        lockAction: "already_locked",
+        itemIds: existing.lockedUnmatchedInboundIds,
+        openItemCount: openLockedItemCount(tenantId, existing.lockedUnmatchedInboundIds)
+      });
+    }
+
+    const { normalizedFilters, filteredItems } = this.getClosureReportItems(tenantId, filters, actorUserId);
+    const lockRecord: QaHandoffAcceptanceLockRecord = {
+      id: `provider-webhook-qa-handoff-acceptance-lock-${crypto.randomUUID()}`,
+      tenantId,
+      receiptDigest: receipt.safeDigest,
+      bundleDigest: receipt.bundleDigest,
+      exportDigest: receipt.exportDigest,
+      appliedFilters: normalizedFilters,
+      lockedUnmatchedInboundIds: filteredItems.map((item) => item.unmatchedId),
+      lockReason: safeMetadataNote(parsed.data.lockReason) ?? "QA handoff accepted",
+      acceptedByRole: safeOperatorLabel(parsed.data.acceptedByRole) ?? receipt.reviewerRole ?? "QA reviewer",
+      acceptedByLabel: safeOperatorLabel(parsed.data.acceptedByLabel) ?? receipt.reviewerLabel ?? safeActorLabel(actorUserId),
+      lockedAt: new Date().toISOString(),
+      externalCalls: 0 as const
+    };
+    qaHandoffAcceptanceLocks.unshift(lockRecord);
+    return qaHandoffAcceptanceLockResponse({
+      receipt,
+      appliedFilters: normalizedFilters,
+      lockRecord,
+      lockAction: "locked",
+      itemIds: lockRecord.lockedUnmatchedInboundIds,
+      openItemCount: filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length
+    });
+  }
+
   listReviewSavedViews(tenantId: string): ProviderWebhookReviewSavedView[] {
     return reviewSavedViews
       .filter((view) => view.tenantId === tenantId && !view.archived)
@@ -1086,6 +1179,7 @@ export class ProviderWebhookEventsService {
 
     const item = findUnmatchedInboundItem(tenantId, unmatchedId);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const now = new Date().toISOString();
     const note: ProviderWebhookOperatorNote = {
       id: `provider-webhook-operator-note-${crypto.randomUUID()}`,
@@ -1136,6 +1230,11 @@ export class ProviderWebhookEventsService {
         results.push(bulkMetadataResult(id, false, "not-found", null, null, null, "Unmatched inbound item not found"));
         continue;
       }
+      const acceptanceLock = qaHandoffAcceptanceLockForItem(tenantId, item);
+      if (acceptanceLock) {
+        results.push(bulkMetadataResult(item.id, false, "conflict", item.assignmentStatus, item.escalationStatus, item.escalationReason, qaHandoffAcceptanceLockConflictMessage(acceptanceLock)));
+        continue;
+      }
       const before = metadataFingerprint(item);
       await this.applyAssignmentToItem(tenantId, item, input, actorUserId, true);
       results.push(bulkMetadataResult(
@@ -1173,6 +1272,11 @@ export class ProviderWebhookEventsService {
       const item = findUnmatchedInboundItem(tenantId, id);
       if (!item) {
         results.push(bulkMetadataResult(id, false, "not-found", null, null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+      const acceptanceLock = qaHandoffAcceptanceLockForItem(tenantId, item);
+      if (acceptanceLock) {
+        results.push(bulkMetadataResult(item.id, false, "conflict", item.assignmentStatus, item.escalationStatus, item.escalationReason, qaHandoffAcceptanceLockConflictMessage(acceptanceLock)));
         continue;
       }
       const before = metadataFingerprint(item);
@@ -1321,6 +1425,7 @@ export class ProviderWebhookEventsService {
 
     const item = findUnmatchedInboundItem(tenantId, id);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
 
     const input = parsed.data;
     if (item.unmatchedStatus === input.status && item.reviewStatus === input.status) {
@@ -1383,6 +1488,11 @@ export class ProviderWebhookEventsService {
       const item = findUnmatchedInboundItem(tenantId, id);
       if (!item) {
         results.push(bulkReviewResult(id, false, "not-found", null, null, "Unmatched inbound item not found"));
+        continue;
+      }
+      const acceptanceLock = qaHandoffAcceptanceLockForItem(tenantId, item);
+      if (acceptanceLock) {
+        results.push(bulkReviewResult(item.id, false, "conflict", safeBulkReviewStatus(item.reviewStatus), item.unmatchedStatus, qaHandoffAcceptanceLockConflictMessage(acceptanceLock)));
         continue;
       }
 
@@ -1458,6 +1568,7 @@ export class ProviderWebhookEventsService {
 
     const item = findUnmatchedInboundItem(tenantId, id);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const input = parsed.data;
 
     if (item.unmatchedStatus === "linked" && item.linkedConversationId === input.conversationId) {
@@ -1599,6 +1710,7 @@ export class ProviderWebhookEventsService {
   ) {
     const item = findUnmatchedInboundItem(tenantId, unmatchedId);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     await this.applyAssignmentToItem(tenantId, item, input, actorUserId, bulk);
     return item;
   }
@@ -1610,6 +1722,7 @@ export class ProviderWebhookEventsService {
     actorUserId: string | undefined,
     bulk: boolean
   ) {
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const actorLabel = safeActorLabel(actorUserId);
     const note = safeMetadataNote(input.note);
     const beforeStatus = item.assignmentStatus;
@@ -1667,6 +1780,7 @@ export class ProviderWebhookEventsService {
   ) {
     const item = findUnmatchedInboundItem(tenantId, unmatchedId);
     if (!item) throw new NotFoundException("Unmatched inbound item not found");
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     await this.applyEscalationToItem(tenantId, item, input, actorUserId, bulk);
     return item;
   }
@@ -1678,6 +1792,7 @@ export class ProviderWebhookEventsService {
     actorUserId: string | undefined,
     bulk: boolean
   ) {
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const actorLabel = safeActorLabel(actorUserId);
     const note = safeMetadataNote(input.note);
     const beforeStatus = item.escalationStatus;
@@ -1730,6 +1845,7 @@ export class ProviderWebhookEventsService {
     actorUserId: string | undefined,
     bulk: boolean
   ) {
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const actorLabel = safeActorLabel(actorUserId);
     const note = safeMetadataNote(input.note);
     if (input.note && !note) throw new BadRequestException("Resolution note contains unsafe provider or credential content");
@@ -1785,6 +1901,7 @@ export class ProviderWebhookEventsService {
     actorUserId: string | undefined,
     bulk: boolean
   ) {
+    assertQaHandoffAcceptanceUnlocked(tenantId, item);
     const actorLabel = safeActorLabel(actorUserId);
     ensureResolutionState(item);
     const now = new Date().toISOString();
@@ -2454,6 +2571,7 @@ export function resetProviderWebhookEventStoreForTest() {
   reviewSavedViews.splice(0);
   operatorNotes.splice(0);
   qaHandoffReceiptSignOffs.splice(0);
+  qaHandoffAcceptanceLocks.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -4009,6 +4127,85 @@ function latestReceiptSignOffRecord(tenantId: string, bundleDigest: string, expo
     record.bundleDigest === bundleDigest &&
     record.exportDigest === exportDigest
   ) ?? null;
+}
+
+function latestAcceptanceLockRecord(tenantId: string, bundleDigest: string, exportDigest: string) {
+  return qaHandoffAcceptanceLocks.find((record) =>
+    record.tenantId === tenantId &&
+    record.bundleDigest === bundleDigest &&
+    record.exportDigest === exportDigest
+  ) ?? null;
+}
+
+function qaHandoffAcceptanceLockForItem(tenantId: string, item: ProviderWebhookUnmatchedInboundItem) {
+  return qaHandoffAcceptanceLocks.find((record) =>
+    record.tenantId === tenantId &&
+    record.lockedUnmatchedInboundIds.includes(item.id)
+  ) ?? null;
+}
+
+function assertQaHandoffAcceptanceUnlocked(tenantId: string, item: ProviderWebhookUnmatchedInboundItem) {
+  const lock = qaHandoffAcceptanceLockForItem(tenantId, item);
+  if (lock) throw new ConflictException(qaHandoffAcceptanceLockConflictMessage(lock));
+}
+
+function qaHandoffAcceptanceLockConflictMessage(lock: QaHandoffAcceptanceLockRecord) {
+  return `Provider webhook QA handoff acceptance lock is active for this unmatched inbound item (${lock.id})`;
+}
+
+function openLockedItemCount(tenantId: string, ids: string[]) {
+  return ids
+    .map((id) => findUnmatchedInboundItem(tenantId, id))
+    .filter((item): item is ProviderWebhookUnmatchedInboundItem => Boolean(item))
+    .filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus))
+    .length;
+}
+
+function qaHandoffAcceptanceLockResponse(input: {
+  receipt: ProviderWebhookReviewQaHandoffReceipt;
+  appliedFilters: ProviderWebhookReviewClosureReportFilters;
+  lockRecord: QaHandoffAcceptanceLockRecord | null;
+  lockAction: ProviderWebhookReviewQaHandoffAcceptanceLock["lockAction"];
+  itemIds: string[];
+  openItemCount: number;
+}): ProviderWebhookReviewQaHandoffAcceptanceLock {
+  const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-acceptance-lock.json");
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    lockStatus: input.lockRecord ? "locked" as const : "unlocked" as const,
+    lockRecordId: input.lockRecord?.id ?? null,
+    lockAction: input.lockAction,
+    safeFilename,
+    receiptDigest: input.lockRecord?.receiptDigest ?? input.receipt.safeDigest,
+    bundleDigest: input.receipt.bundleDigest,
+    exportDigest: input.receipt.exportDigest,
+    appliedFilters: input.appliedFilters,
+    lockedUnmatchedInboundIds: input.itemIds,
+    lockedItemCount: input.itemIds.length,
+    lockedOpenItemCount: input.openItemCount,
+    lockReason: input.lockRecord?.lockReason ?? null,
+    acceptedByRole: input.lockRecord?.acceptedByRole ?? null,
+    acceptedByLabel: input.lockRecord?.acceptedByLabel ?? null,
+    lockedAt: input.lockRecord?.lockedAt ?? null,
+    receiptStatus: input.receipt.receiptStatus,
+    bundleStatus: input.receipt.bundleStatus,
+    exportStatus: input.receipt.exportStatus,
+    acceptanceChecks: {
+      receiptSignedOff: input.receipt.receiptStatus === "signed_off",
+      bundleDigestMatches: input.lockRecord ? input.lockRecord.bundleDigest === input.receipt.bundleDigest : true,
+      exportDigestMatches: input.lockRecord ? input.lockRecord.exportDigest === input.receipt.exportDigest : true,
+      lockedItemScopePresent: input.itemIds.length > 0,
+      safeDigestPresent: Boolean(input.receipt.safeDigest && input.receipt.bundleDigest && input.receipt.exportDigest),
+      providerOutboundAbsent: input.receipt.manualQaChecks.providerOutboundAbsent,
+      externalCallsZero: input.receipt.externalCalls === 0 && input.receipt.manualQaChecks.externalCallsZero
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
 }
 
 function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {
