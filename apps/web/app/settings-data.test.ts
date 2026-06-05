@@ -14,6 +14,8 @@ import {
   loadSettingsProviderWebhookReviewClosureReportRedactionAuditData,
   loadSettingsProviderWebhookReviewQaHandoffBundleData,
   exportSettingsProviderWebhookReviewQaHandoffBundleData,
+  loadSettingsProviderWebhookReviewQaHandoffArchiveIntegrityData,
+  loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData,
   loadSettingsProviderWebhookReviewQaHandoffReceiptData,
   signOffSettingsProviderWebhookReviewQaHandoffReceipt,
   loadSettingsProviderWebhookReviewMetricsData,
@@ -68,6 +70,13 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewQaHandoffBundle: vi.fn(),
   getProviderWebhookReviewQaHandoffBundleExport: vi.fn(),
   getProviderWebhookReviewQaHandoffBundleReceipt: vi.fn(),
+  getProviderWebhookReviewQaHandoffAcceptanceLock: vi.fn(),
+  lockProviderWebhookReviewQaHandoffAcceptance: vi.fn(),
+  getProviderWebhookReviewQaHandoffLockedArchive: vi.fn(),
+  exportProviderWebhookReviewQaHandoffLockedArchive: vi.fn(),
+  getProviderWebhookReviewQaHandoffRetentionManifest: vi.fn(),
+  getProviderWebhookReviewQaHandoffArchiveIntegrity: vi.fn(),
+  getProviderWebhookReviewQaHandoffRetentionAudit: vi.fn(),
   signOffProviderWebhookReviewQaHandoffBundleReceipt: vi.fn(),
   getProviderWebhookReviewClosureReportExport: vi.fn(),
   getProviderWebhookReviewClosureReportRedactionAudit: vi.fn(),
@@ -117,6 +126,13 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewQaHandoffBundle: api.getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewQaHandoffBundleExport: api.getProviderWebhookReviewQaHandoffBundleExport,
   getProviderWebhookReviewQaHandoffBundleReceipt: api.getProviderWebhookReviewQaHandoffBundleReceipt,
+  getProviderWebhookReviewQaHandoffAcceptanceLock: api.getProviderWebhookReviewQaHandoffAcceptanceLock,
+  lockProviderWebhookReviewQaHandoffAcceptance: api.lockProviderWebhookReviewQaHandoffAcceptance,
+  getProviderWebhookReviewQaHandoffLockedArchive: api.getProviderWebhookReviewQaHandoffLockedArchive,
+  exportProviderWebhookReviewQaHandoffLockedArchive: api.exportProviderWebhookReviewQaHandoffLockedArchive,
+  getProviderWebhookReviewQaHandoffRetentionManifest: api.getProviderWebhookReviewQaHandoffRetentionManifest,
+  getProviderWebhookReviewQaHandoffArchiveIntegrity: api.getProviderWebhookReviewQaHandoffArchiveIntegrity,
+  getProviderWebhookReviewQaHandoffRetentionAudit: api.getProviderWebhookReviewQaHandoffRetentionAudit,
   signOffProviderWebhookReviewQaHandoffBundleReceipt: api.signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewClosureReportExport: api.getProviderWebhookReviewClosureReportExport,
   getProviderWebhookReviewClosureReportRedactionAudit: api.getProviderWebhookReviewClosureReportRedactionAudit,
@@ -812,6 +828,45 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("closure export integrity unavailable");
     await expect(loadSettingsProviderWebhookClosureEvidenceRedactionAuditData("api", "provider-webhook-unmatched-api"))
       .rejects.toThrow("closure evidence audit unavailable");
+  });
+
+  it("loads QA archive integrity and retention audit through API mode without local fallback", async () => {
+    api.getProviderWebhookReviewQaHandoffArchiveIntegrity.mockResolvedValueOnce(providerWebhookArchiveIntegrityResponse());
+    api.getProviderWebhookReviewQaHandoffRetentionAudit.mockResolvedValueOnce(providerWebhookRetentionAuditResponse());
+
+    const filters = { provider: "line", eventType: "message.created" } as const;
+    const integrity = await loadSettingsProviderWebhookReviewQaHandoffArchiveIntegrityData("api", filters);
+    const retentionAudit = await loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData("api", filters);
+
+    expect(api.getProviderWebhookReviewQaHandoffArchiveIntegrity).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffRetentionAudit).toHaveBeenCalledWith(filters);
+    expect(integrity.mode).toBe("api");
+    expect(integrity.integrity).toMatchObject({
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-locked-archive-integrity.json",
+      externalCalls: 0
+    });
+    expect(retentionAudit.mode).toBe("api");
+    expect(retentionAudit.retentionAudit).toMatchObject({
+      retentionPolicyStatus: "active",
+      retentionAuditStatus: "confirmed",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-retention-audit.json",
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ integrity, retentionAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+  });
+
+  it("does not fallback to mock archive integrity or retention audit when API mode fails", async () => {
+    api.getProviderWebhookReviewQaHandoffArchiveIntegrity.mockRejectedValueOnce(new Error("API request failed (503): archive integrity unavailable"));
+    api.getProviderWebhookReviewQaHandoffRetentionAudit.mockRejectedValueOnce(new Error("API request failed (503): retention audit unavailable"));
+
+    await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveIntegrityData("api", { provider: "line" }))
+      .rejects.toThrow("archive integrity unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData("api", { provider: "line" }))
+      .rejects.toThrow("retention audit unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -3155,6 +3210,149 @@ function providerWebhookReviewQaHandoffSignOffResponse() {
     signOffStatus: "signed_off",
     signOffRecordId: "provider-webhook-qa-handoff-signoff-1",
     action: "sign_off",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookLockedArchiveResponse() {
+  const signOff = providerWebhookReviewQaHandoffSignOffResponse();
+  return {
+    generatedAt: "2026-06-04T00:08:00.000Z",
+    lockedArchiveStatus: "exported",
+    retentionManifestStatus: "ready",
+    archiveAcknowledgementStatus: "exported",
+    acceptanceStatus: "locked",
+    lockStatus: "locked",
+    receiptStatus: signOff.receiptStatus,
+    signOffStatus: signOff.signOffStatus,
+    bundleStatus: signOff.bundleStatus,
+    exportStatus: signOff.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-export.json",
+    safeDigest: "sha256:safeqahandofflockedarchive",
+    bundleDigest: signOff.bundleDigest,
+    exportDigest: signOff.exportDigest,
+    receiptDigest: signOff.safeDigest,
+    acceptanceLockDigest: "sha256:safeqahandoffacceptancelock",
+    lockRecordId: "provider-webhook-qa-handoff-lock-1",
+    readinessFlags: signOff.readinessFlags,
+    counts: {
+      ...signOff.counts,
+      lockedItemCount: 1,
+      lockedOpenItemCount: 1
+    },
+    manualQaChecks: signOff.manualQaChecks,
+    retentionPolicyLabel: "safe-qa-handoff-locked-archive-retain-review-metadata-only",
+    archivedAt: "2026-06-04T00:07:00.000Z",
+    exportedAt: "2026-06-04T00:08:00.000Z",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookRetentionManifestResponse() {
+  const archive = providerWebhookLockedArchiveResponse();
+  return {
+    generatedAt: "2026-06-04T00:08:30.000Z",
+    manifestKind: "qa-handoff-locked-archive-retention-manifest",
+    retentionManifestStatus: "ready",
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    receiptStatus: archive.receiptStatus,
+    signOffStatus: archive.signOffStatus,
+    bundleStatus: archive.bundleStatus,
+    exportStatus: archive.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-retention-manifest.json",
+    safeDigest: "sha256:safeqahandoffretentionmanifest",
+    archiveDigest: archive.safeDigest,
+    bundleDigest: archive.bundleDigest,
+    exportDigest: archive.exportDigest,
+    receiptDigest: archive.receiptDigest,
+    acceptanceLockDigest: archive.acceptanceLockDigest,
+    retentionPolicyLabel: archive.retentionPolicyLabel,
+    retentionReadiness: "ready",
+    readinessFlags: archive.readinessFlags,
+    counts: archive.counts,
+    manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveIntegrityResponse() {
+  const archive = providerWebhookLockedArchiveResponse();
+  const manifest = providerWebhookRetentionManifestResponse();
+  return {
+    generatedAt: "2026-06-04T00:09:00.000Z",
+    integrityStatus: "confirmed",
+    retentionAuditStatus: "confirmed",
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    retentionManifestStatus: manifest.retentionManifestStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: "acknowledged",
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    receiptStatus: archive.receiptStatus,
+    signOffStatus: archive.signOffStatus,
+    bundleStatus: archive.bundleStatus,
+    exportStatus: archive.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-integrity.json",
+    safeDigest: "sha256:safeqahandoffarchiveintegrity",
+    bundleDigest: archive.bundleDigest,
+    exportDigest: archive.exportDigest,
+    receiptDigest: archive.receiptDigest,
+    acceptanceLockDigest: archive.acceptanceLockDigest,
+    lockedArchiveDigest: archive.safeDigest,
+    retentionManifestDigest: manifest.safeDigest,
+    digestChainStatus: "confirmed",
+    safeCheckLabels: ["bundle digest present", "retention manifest digest present"],
+    readinessFlags: archive.readinessFlags,
+    counts: {
+      ...archive.counts,
+      digestChainLinkCount: 6,
+      integrityCheckedCount: 1
+    },
+    manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookRetentionAuditResponse() {
+  const archive = providerWebhookLockedArchiveResponse();
+  const manifest = providerWebhookRetentionManifestResponse();
+  return {
+    generatedAt: "2026-06-04T00:09:30.000Z",
+    retentionPolicyStatus: "active",
+    retentionAuditStatus: "confirmed",
+    retentionManifestStatus: manifest.retentionManifestStatus,
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: "acknowledged",
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    safePolicyLabel: archive.retentionPolicyLabel,
+    safeRetentionWindowLabel: "safe-review-metadata-retained",
+    safeFilename: "provider-webhook-review-qa-handoff-retention-audit.json",
+    safeDigest: "sha256:safeqahandoffretentionaudit",
+    lockedArchiveDigest: archive.safeDigest,
+    retentionManifestDigest: manifest.safeDigest,
+    digestChainStatus: "confirmed",
+    auditChecklistItems: [
+      { key: "locked_archive_available", label: "locked archive available", status: "confirmed" },
+      { key: "retention_manifest_ready", label: "retention manifest ready", status: "confirmed" },
+      { key: "external_calls_zero", label: "externalCalls zero", status: "confirmed" }
+    ],
+    counts: {
+      ...archive.counts,
+      auditChecklistPassedCount: 3,
+      auditChecklistNeedsReviewCount: 0,
+      auditChecklistBlockedCount: 0
+    },
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
     externalCalls: 0
   };
 }

@@ -36,6 +36,8 @@ import {
   getProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewQaHandoffLockedArchive,
   exportProviderWebhookReviewQaHandoffLockedArchive,
+  getProviderWebhookReviewQaHandoffArchiveIntegrity,
+  getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
@@ -187,6 +189,34 @@ describe("frontend API client", () => {
     expect(exported).toMatchObject({ lockedArchiveStatus: "exported", exportKind: "qa-handoff-locked-archive", externalCalls: 0 });
     expect(manifest).toMatchObject({ retentionManifestStatus: "ready", retentionReadiness: "ready", externalCalls: 0 });
     expect(JSON.stringify({ loaded, exported, manifest })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+  });
+
+  it("wires archive integrity and retention audit through tenant-scoped API calls without fallback", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveIntegrityResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookRetentionAuditResponse()));
+
+    const integrity = await getProviderWebhookReviewQaHandoffArchiveIntegrity({ provider: "line", eventType: "message.created" });
+    const retentionAudit = await getProviderWebhookReviewQaHandoffRetentionAudit({ provider: "line", eventType: "message.created" });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/integrity?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/retention-audit?provider=line&eventType=message.created", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(integrity).toMatchObject({ integrityStatus: "confirmed", digestChainStatus: "confirmed", externalCalls: 0 });
+    expect(retentionAudit).toMatchObject({ retentionPolicyStatus: "active", retentionAuditStatus: "confirmed", externalCalls: 0 });
+    expect(JSON.stringify({ integrity, retentionAudit })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+  });
+
+  it("surfaces archive integrity API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "archive integrity unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveIntegrity()).rejects.toThrow("API request failed (503): archive integrity unavailable");
+  });
+
+  it("surfaces retention audit API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "retention audit unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffRetentionAudit()).rejects.toThrow("API request failed (503): retention audit unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3399,6 +3429,94 @@ function providerWebhookRetentionManifestResponse() {
     readinessFlags: archive.readinessFlags,
     counts: archive.counts,
     manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveIntegrityResponse() {
+  const archive = {
+    ...providerWebhookLockedArchiveResponse(),
+    lockedArchiveStatus: "exported",
+    archiveAcknowledgementStatus: "exported",
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-export.json",
+    exportedAt: "2026-06-04T00:08:00.000Z"
+  };
+  const manifest = providerWebhookRetentionManifestResponse();
+  return {
+    generatedAt: "2026-06-04T00:09:00.000Z",
+    integrityStatus: "confirmed",
+    retentionAuditStatus: "confirmed",
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    retentionManifestStatus: manifest.retentionManifestStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: "acknowledged",
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    receiptStatus: archive.receiptStatus,
+    signOffStatus: archive.signOffStatus,
+    bundleStatus: archive.bundleStatus,
+    exportStatus: archive.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-integrity.json",
+    safeDigest: "sha256:safeqahandoffarchiveintegrity",
+    bundleDigest: archive.bundleDigest,
+    exportDigest: archive.exportDigest,
+    receiptDigest: archive.receiptDigest,
+    acceptanceLockDigest: archive.acceptanceLockDigest,
+    lockedArchiveDigest: archive.safeDigest,
+    retentionManifestDigest: manifest.safeDigest,
+    digestChainStatus: "confirmed",
+    safeCheckLabels: ["bundle digest present", "retention manifest digest present"],
+    readinessFlags: archive.readinessFlags,
+    counts: {
+      ...archive.counts,
+      digestChainLinkCount: 6,
+      integrityCheckedCount: 1
+    },
+    manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookRetentionAuditResponse() {
+  const archive = {
+    ...providerWebhookLockedArchiveResponse(),
+    lockedArchiveStatus: "exported",
+    archiveAcknowledgementStatus: "exported",
+    exportedAt: "2026-06-04T00:08:00.000Z"
+  };
+  const manifest = providerWebhookRetentionManifestResponse();
+  return {
+    generatedAt: "2026-06-04T00:09:30.000Z",
+    retentionPolicyStatus: "active",
+    retentionAuditStatus: "confirmed",
+    retentionManifestStatus: manifest.retentionManifestStatus,
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: "acknowledged",
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    safePolicyLabel: archive.retentionPolicyLabel,
+    safeRetentionWindowLabel: "safe-review-metadata-retained",
+    safeFilename: "provider-webhook-review-qa-handoff-retention-audit.json",
+    safeDigest: "sha256:safeqahandoffretentionaudit",
+    lockedArchiveDigest: archive.safeDigest,
+    retentionManifestDigest: manifest.safeDigest,
+    digestChainStatus: "confirmed",
+    auditChecklistItems: [
+      { key: "locked_archive_available", label: "locked archive available", status: "confirmed" },
+      { key: "retention_manifest_ready", label: "retention manifest ready", status: "confirmed" },
+      { key: "external_calls_zero", label: "externalCalls zero", status: "confirmed" }
+    ],
+    counts: {
+      ...archive.counts,
+      auditChecklistPassedCount: 3,
+      auditChecklistNeedsReviewCount: 0,
+      auditChecklistBlockedCount: 0
+    },
     archivedAt: archive.archivedAt,
     exportedAt: archive.exportedAt,
     externalCalls: 0
