@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, FileText, Flag, Link2, ListChecks, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, FileText, Flag, Link2, ListChecks, LockKeyhole, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -60,6 +60,9 @@ type ProviderReadinessPanelProps = {
   reviewQaHandoffSignOff?: ProviderWebhookReviewQaHandoffSignOffResponse | null;
   reviewQaHandoffSignOffLoading?: boolean;
   reviewQaHandoffSignOffError?: string;
+  reviewQaHandoffAcceptanceLock?: ProviderWebhookReviewQaHandoffAcceptanceLock | null;
+  reviewQaHandoffAcceptanceLockLoading?: boolean;
+  reviewQaHandoffAcceptanceLockError?: string;
   reviewClosureReportRedactionAudit?: ProviderWebhookReviewExportRedactionAudit | null;
   reviewClosureReportRedactionAuditLoading?: boolean;
   reviewClosureReportRedactionAuditError?: string;
@@ -134,6 +137,8 @@ type ProviderReadinessPanelProps = {
   onExportReviewQaHandoffBundle?: () => Promise<void>;
   onLoadReviewQaHandoffReceipt?: () => Promise<void>;
   onSignOffReviewQaHandoffReceipt?: () => Promise<void>;
+  onLoadReviewQaHandoffAcceptanceLock?: () => Promise<void>;
+  onLockReviewQaHandoffAcceptance?: () => Promise<void>;
   onLoadClosureReportRedactionAudit?: () => Promise<void>;
   onLoadClosureExportIntegrity?: () => Promise<void>;
   onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
@@ -239,6 +244,9 @@ export function ProviderReadinessPanel({
   reviewQaHandoffSignOff = null,
   reviewQaHandoffSignOffLoading = false,
   reviewQaHandoffSignOffError = "",
+  reviewQaHandoffAcceptanceLock = null,
+  reviewQaHandoffAcceptanceLockLoading = false,
+  reviewQaHandoffAcceptanceLockError = "",
   reviewClosureReportRedactionAudit = null,
   reviewClosureReportRedactionAuditLoading = false,
   reviewClosureReportRedactionAuditError = "",
@@ -313,6 +321,8 @@ export function ProviderReadinessPanel({
   onExportReviewQaHandoffBundle,
   onLoadReviewQaHandoffReceipt,
   onSignOffReviewQaHandoffReceipt,
+  onLoadReviewQaHandoffAcceptanceLock,
+  onLockReviewQaHandoffAcceptance,
   onLoadClosureReportRedactionAudit,
   onLoadClosureExportIntegrity,
   onLoadHistory,
@@ -1174,6 +1184,24 @@ export function ProviderReadinessPanel({
         e("button", {
           className: "webhookEventButton",
           type: "button",
+          disabled: reviewQaHandoffAcceptanceLockLoading || !onLoadReviewQaHandoffAcceptanceLock,
+          onClick: () => void onLoadReviewQaHandoffAcceptanceLock?.()
+        },
+          e(LockKeyhole, { size: 15 }),
+          reviewQaHandoffAcceptanceLockLoading ? "Loading lock..." : "Load acceptance lock"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
+          disabled: reviewQaHandoffAcceptanceLockLoading || !onLockReviewQaHandoffAcceptance,
+          onClick: () => void onLockReviewQaHandoffAcceptance?.()
+        },
+          e(LockKeyhole, { size: 15 }),
+          reviewQaHandoffAcceptanceLockLoading ? "Locking..." : "Lock QA acceptance"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
           disabled: reviewClosureReportRedactionAuditLoading || !onLoadClosureReportRedactionAudit,
           onClick: () => void onLoadClosureReportRedactionAudit?.()
         },
@@ -1197,6 +1225,7 @@ export function ProviderReadinessPanel({
       reviewQaHandoffBundleExportError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffBundleExportError) : null,
       reviewQaHandoffReceiptError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffReceiptError) : null,
       reviewQaHandoffSignOffError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffSignOffError) : null,
+      reviewQaHandoffAcceptanceLockError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffAcceptanceLockError) : null,
       reviewClosureReportRedactionAuditError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewClosureReportRedactionAuditError) : null,
       reviewClosureExportIntegrityError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewClosureExportIntegrityError) : null,
       reviewClosureReportLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook closure evidence report...") : null,
@@ -1205,6 +1234,7 @@ export function ProviderReadinessPanel({
       reviewQaHandoffBundleExportLoading ? e("div", { className: "apiLoadingBox compact" }, "Exporting safe QA handoff bundle...") : null,
       reviewQaHandoffReceiptLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading safe QA handoff receipt...") : null,
       reviewQaHandoffSignOffLoading ? e("div", { className: "apiLoadingBox compact" }, "Signing off safe QA handoff receipt...") : null,
+      reviewQaHandoffAcceptanceLockLoading ? e("div", { className: "apiLoadingBox compact" }, "Checking safe QA handoff acceptance lock...") : null,
       reviewClosureReportExport ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
         `Closure report export ${reviewClosureReportExport.format}: totalItems=${reviewClosureReportExport.totalItems}; evidenceReadyCount=${reviewClosureReportExport.evidenceReadyCount}; safeFilename=${reviewClosureReportExport.safeFilename}; externalCalls=${reviewClosureReportExport.externalCalls}`
       ) : null,
@@ -1222,6 +1252,29 @@ export function ProviderReadinessPanel({
       ) : null,
       reviewQaHandoffSignOff ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
         `QA handoff sign-off: signOffStatus=${reviewQaHandoffSignOff.signOffStatus}; action=${reviewQaHandoffSignOff.action}; recordId=${reviewQaHandoffSignOff.signOffRecordId}; safeDigest=${reviewQaHandoffSignOff.safeDigest}; signedAt=${reviewQaHandoffSignOff.signedAt ?? "none"}; externalCalls=${reviewQaHandoffSignOff.externalCalls}`
+      ) : null,
+      reviewQaHandoffAcceptanceLock ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
+        `QA handoff acceptance lock: status=${reviewQaHandoffAcceptanceLock.lockStatus}; action=${reviewQaHandoffAcceptanceLock.lockAction}; recordId=${reviewQaHandoffAcceptanceLock.lockRecordId ?? "none"}; lockedItems=${reviewQaHandoffAcceptanceLock.lockedItemCount}; lockedOpenItems=${reviewQaHandoffAcceptanceLock.lockedOpenItemCount}; safeDigest=${reviewQaHandoffAcceptanceLock.safeDigest}; lockedAt=${reviewQaHandoffAcceptanceLock.lockedAt ?? "none"}; externalCalls=${reviewQaHandoffAcceptanceLock.externalCalls}`
+      ) : null,
+      reviewQaHandoffAcceptanceLock ? e("div", { className: "webhookMetricGroups twoColumn" },
+        e("div", null,
+          e("strong", null, "QA acceptance lock checks"),
+          e("span", null, `receiptSignedOff=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.receiptSignedOff)}`),
+          e("span", null, `bundleDigestMatches=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.bundleDigestMatches)}`),
+          e("span", null, `exportDigestMatches=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.exportDigestMatches)}`),
+          e("span", null, `lockedItemScopePresent=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.lockedItemScopePresent)}`),
+          e("span", null, `providerOutboundAbsent=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.providerOutboundAbsent)}`),
+          e("span", null, `externalCallsZero=${String(reviewQaHandoffAcceptanceLock.acceptanceChecks.externalCallsZero)}`)
+        ),
+        e("div", null,
+          e("strong", null, "QA acceptance lock receipt"),
+          e("span", null, `receiptStatus=${reviewQaHandoffAcceptanceLock.receiptStatus}`),
+          e("span", null, `bundleStatus=${reviewQaHandoffAcceptanceLock.bundleStatus}`),
+          e("span", null, `exportStatus=${reviewQaHandoffAcceptanceLock.exportStatus}`),
+          e("span", null, `receiptDigest=${reviewQaHandoffAcceptanceLock.receiptDigest}`),
+          e("span", null, `bundleDigest=${reviewQaHandoffAcceptanceLock.bundleDigest}`),
+          e("span", null, `exportDigest=${reviewQaHandoffAcceptanceLock.exportDigest}`)
+        )
       ) : null,
       reviewQaHandoffBundleExport ? e("div", { className: "webhookMetricGroups twoColumn" },
         e("div", null,

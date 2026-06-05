@@ -3395,6 +3395,47 @@ export const providerWebhookReviewQaHandoffSignOffResponseSchema = providerWebho
 }).strict();
 export type ProviderWebhookReviewQaHandoffSignOffResponse = z.infer<typeof providerWebhookReviewQaHandoffSignOffResponseSchema>;
 
+export const providerWebhookReviewQaHandoffAcceptanceLockRequestSchema = z.object({
+  lockReason: z.string().trim().min(1).max(160).optional(),
+  acceptedByRole: z.string().trim().min(1).max(80).optional(),
+  acceptedByLabel: z.string().trim().min(1).max(80).optional()
+}).strict();
+export type ProviderWebhookReviewQaHandoffAcceptanceLockRequest = z.infer<typeof providerWebhookReviewQaHandoffAcceptanceLockRequestSchema>;
+
+export const providerWebhookReviewQaHandoffAcceptanceLockSchema = z.object({
+  generatedAt: z.string().datetime(),
+  lockStatus: z.enum(["unlocked", "locked"]),
+  lockRecordId: z.string().min(1).nullable(),
+  lockAction: z.enum(["none", "locked", "already_locked"]),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  receiptDigest: z.string().min(1),
+  bundleDigest: z.string().min(1),
+  exportDigest: z.string().min(1),
+  appliedFilters: providerWebhookReviewClosureReportFiltersSchema,
+  lockedUnmatchedInboundIds: z.array(z.string().min(1)),
+  lockedItemCount: z.number().int().nonnegative(),
+  lockedOpenItemCount: z.number().int().nonnegative(),
+  lockReason: z.string().min(1).nullable(),
+  acceptedByRole: z.string().min(1).nullable(),
+  acceptedByLabel: z.string().min(1).nullable(),
+  lockedAt: z.string().datetime().nullable(),
+  receiptStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  bundleStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  exportStatus: providerWebhookReviewExportManifestQaReadinessSchema,
+  acceptanceChecks: z.object({
+    receiptSignedOff: z.boolean(),
+    bundleDigestMatches: z.boolean(),
+    exportDigestMatches: z.boolean(),
+    lockedItemScopePresent: z.boolean(),
+    safeDigestPresent: z.boolean(),
+    providerOutboundAbsent: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffAcceptanceLock = z.infer<typeof providerWebhookReviewQaHandoffAcceptanceLockSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

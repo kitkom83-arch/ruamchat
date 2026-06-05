@@ -22,6 +22,8 @@ import {
   providerWebhookReviewExportManifestSchema,
   providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewQaHandoffBundleExportSchema,
+  providerWebhookReviewQaHandoffAcceptanceLockRequestSchema,
+  providerWebhookReviewQaHandoffAcceptanceLockSchema,
   providerWebhookReviewQaHandoffReceiptSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
   providerWebhookReviewQaHandoffSignOffResponseSchema,
@@ -219,6 +221,8 @@ import {
   type ProviderWebhookReviewExportManifest,
   type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewQaHandoffBundleExport,
+  type ProviderWebhookReviewQaHandoffAcceptanceLock,
+  type ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
   type ProviderWebhookReviewQaHandoffReceipt,
   type ProviderWebhookReviewQaHandoffSignOffRequest,
   type ProviderWebhookReviewQaHandoffSignOffResponse,
@@ -541,6 +545,23 @@ export async function signOffProviderWebhookReviewQaHandoffBundleReceipt(
   const search = providerWebhookReviewClosureReportSearch(filters);
   const body = providerWebhookReviewQaHandoffSignOffRequestSchema.parse(payload);
   return request(`/provider-webhooks/review-qa-handoff-bundle/receipt/sign-off${search}`, providerWebhookReviewQaHandoffSignOffResponseSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getProviderWebhookReviewQaHandoffAcceptanceLock(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffAcceptanceLock> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/acceptance-lock${search}`, providerWebhookReviewQaHandoffAcceptanceLockSchema);
+}
+
+export async function lockProviderWebhookReviewQaHandoffAcceptance(
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffAcceptanceLockRequest = {}
+): Promise<ProviderWebhookReviewQaHandoffAcceptanceLock> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  const body = providerWebhookReviewQaHandoffAcceptanceLockRequestSchema.parse(payload);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/acceptance-lock${search}`, providerWebhookReviewQaHandoffAcceptanceLockSchema, {
     method: "POST",
     body: JSON.stringify(body)
   });
