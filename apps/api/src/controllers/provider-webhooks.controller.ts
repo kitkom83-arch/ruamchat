@@ -83,6 +83,25 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffBundleExport(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/receipt")
+  getReviewQaHandoffBundleReceipt(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffBundleReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
+  @Post("review-qa-handoff-bundle/receipt/sign-off")
+  signOffReviewQaHandoffBundleReceipt(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.signOffReviewQaHandoffBundleReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), body, userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,

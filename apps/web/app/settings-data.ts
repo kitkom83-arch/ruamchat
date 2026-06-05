@@ -20,6 +20,9 @@ import type {
   ProviderWebhookReviewExportManifest,
   ProviderWebhookReviewQaHandoffBundle,
   ProviderWebhookReviewQaHandoffBundleExport,
+  ProviderWebhookReviewQaHandoffReceipt,
+  ProviderWebhookReviewQaHandoffSignOffRequest,
+  ProviderWebhookReviewQaHandoffSignOffResponse,
   ProviderWebhookReviewExportRedactionAudit,
   ProviderWebhookReviewClosureReport,
   ProviderWebhookReviewClosureReportExport,
@@ -78,6 +81,8 @@ import {
   getProviderWebhookReviewClosureReportRedactionAudit,
   getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewQaHandoffBundleExport,
+  getProviderWebhookReviewQaHandoffBundleReceipt,
+  signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
   getProviderWebhookReviewResolutionSummary,
@@ -193,6 +198,16 @@ export type SettingsProviderWebhookReviewQaHandoffBundleData = {
 export type SettingsProviderWebhookReviewQaHandoffBundleExportData = {
   mode: DataMode;
   exportResult: ProviderWebhookReviewQaHandoffBundleExport;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
+  mode: DataMode;
+  receipt: ProviderWebhookReviewQaHandoffReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffSignOffData = {
+  mode: DataMode;
+  signOff: ProviderWebhookReviewQaHandoffSignOffResponse;
 };
 
 export type SettingsProviderWebhookReviewClosureReportRedactionAuditData = {
@@ -487,6 +502,41 @@ export async function exportSettingsProviderWebhookReviewQaHandoffBundleData(
   return {
     mode,
     exportResult: createMockReviewQaHandoffBundleExport(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      receipt: await getProviderWebhookReviewQaHandoffBundleReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    receipt: createMockReviewQaHandoffReceipt(filters)
+  };
+}
+
+export async function signOffSettingsProviderWebhookReviewQaHandoffReceipt(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffSignOffRequest = { acknowledgementType: "sign_off" }
+): Promise<SettingsProviderWebhookReviewQaHandoffSignOffData> {
+  if (mode === "api") {
+    return {
+      mode,
+      signOff: await signOffProviderWebhookReviewQaHandoffBundleReceipt(filters, payload)
+    };
+  }
+
+  return {
+    mode,
+    signOff: createMockReviewQaHandoffSignOff(filters, payload)
   };
 }
 
@@ -1802,6 +1852,64 @@ function createMockReviewQaHandoffBundleExport(filters: ProviderWebhookReviewClo
     },
     manualQaChecks: bundle.manualQaChecks,
     bundle,
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffReceipt(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffReceipt {
+  const exportResult = createMockReviewQaHandoffBundleExport(filters);
+  const signOff = mockProviderWebhookQaHandoffSignOffs.find((record) =>
+    record.bundleDigest === exportResult.bundle.safeDigest && record.exportDigest === exportResult.safeDigest
+  );
+  const receiptStatus = signOff?.acknowledgementType === "sign_off"
+    ? "signed_off"
+    : signOff?.acknowledgementType === "acknowledge"
+      ? "acknowledged"
+      : "not_acknowledged";
+  return {
+    generatedAt: new Date().toISOString(),
+    receiptStatus,
+    bundleStatus: exportResult.bundle.manualQaReadiness,
+    exportStatus: exportResult.status,
+    safeFilename: "provider-webhook-review-qa-handoff-receipt.json",
+    safeDigest: signOff ? `sha256:mockqahandoffreceipt-${signOff.id.slice(-6)}` : "sha256:mockqahandoffreceipt",
+    bundleDigest: exportResult.bundle.safeDigest,
+    exportDigest: exportResult.safeDigest,
+    readinessFlags: exportResult.readinessFlags,
+    counts: exportResult.counts,
+    manualQaChecks: exportResult.manualQaChecks,
+    reviewerRole: signOff?.reviewerRole ?? null,
+    reviewerLabel: signOff?.reviewerLabel ?? null,
+    acknowledgedAt: signOff?.acknowledgedAt ?? null,
+    signedAt: signOff?.signedAt ?? null,
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffSignOff(
+  filters: ProviderWebhookReviewClosureReportFilters,
+  payload: ProviderWebhookReviewQaHandoffSignOffRequest
+): ProviderWebhookReviewQaHandoffSignOffResponse {
+  const receipt = createMockReviewQaHandoffReceipt(filters);
+  const nowIso = new Date().toISOString();
+  const action = payload.acknowledgementType ?? "sign_off";
+  const record = {
+    id: `provider-webhook-qa-handoff-signoff-local-${mockProviderWebhookQaHandoffSignOffs.length + 1}`,
+    bundleDigest: receipt.bundleDigest,
+    exportDigest: receipt.exportDigest,
+    acknowledgementType: action,
+    reviewerRole: safeMockText(payload.reviewerRole) ?? "reviewer",
+    reviewerLabel: safeMockText(payload.reviewerLabel) ?? "operator:local",
+    acknowledgedAt: nowIso,
+    signedAt: action === "sign_off" ? nowIso : null
+  };
+  mockProviderWebhookQaHandoffSignOffs.unshift(record);
+  const signedReceipt = createMockReviewQaHandoffReceipt(filters);
+  return {
+    ...signedReceipt,
+    signOffStatus: signedReceipt.receiptStatus,
+    signOffRecordId: record.id,
+    action,
     externalCalls: 0
   };
 }
@@ -3307,6 +3415,17 @@ export let mockProviderWebhookReviewSavedViews: ProviderWebhookReviewSavedView[]
 ];
 
 export let mockProviderWebhookOperatorNotes: ProviderWebhookOperatorNote[] = [];
+
+const mockProviderWebhookQaHandoffSignOffs: Array<{
+  id: string;
+  bundleDigest: string;
+  exportDigest: string;
+  acknowledgementType: "acknowledge" | "sign_off";
+  reviewerRole: string;
+  reviewerLabel: string;
+  acknowledgedAt: string;
+  signedAt: string | null;
+}> = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {
   "provider-webhook-unmatched-local-1": [
