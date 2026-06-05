@@ -114,6 +114,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("export integrity checks=enabled");
     expect(html).toContain("export manifest=enabled");
     expect(html).toContain("QA handoff=enabled");
+    expect(html).toContain("QA locked archive=enabled");
+    expect(html).toContain("QA retention manifest=enabled");
+    expect(html).toContain("locked archive ready count=1");
+    expect(html).toContain("locked archive exported count=0");
+    expect(html).toContain("retention manifest ready count=1");
+    expect(html).toContain("latest locked archive status=ready");
+    expect(html).toContain("latest retention manifest status=ready");
     expect(html).toContain("saved view count=1");
     expect(html).toContain("operator note count=1");
     expect(html).toContain("unassigned open count=1");
@@ -621,6 +628,13 @@ function providerReadiness(): ProviderReadiness {
     reviewExportIntegrityChecksEnabled: true,
     reviewExportManifestEnabled: true,
     reviewExportQaHandoffEnabled: true,
+    reviewQaHandoffLockedArchiveEnabled: true,
+    reviewQaHandoffRetentionManifestEnabled: true,
+    lockedArchiveReadyCount: 1,
+    lockedArchiveExportedCount: 0,
+    retentionManifestReadyCount: 1,
+    latestLockedArchiveStatus: "ready",
+    latestRetentionManifestStatus: "ready",
     exportRedactionPassedCount: 1,
     exportRedactionWarningCount: 0,
     exportRedactionBlockedCount: 0,

@@ -34,6 +34,9 @@ import {
   getProviderWebhookReviewQaHandoffBundle,
   getProviderWebhookReviewQaHandoffBundleExport,
   getProviderWebhookReviewQaHandoffBundleReceipt,
+  getProviderWebhookReviewQaHandoffLockedArchive,
+  exportProviderWebhookReviewQaHandoffLockedArchive,
+  getProviderWebhookReviewQaHandoffRetentionManifest,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewResolutionSummary,
@@ -154,6 +157,36 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "readiness unavailable" }, 503));
 
     await expect(getProviderReadiness()).rejects.toThrow("API request failed (503): readiness unavailable");
+  });
+
+  it("wires locked archive and retention manifest through tenant-scoped API calls without fallback", async () => {
+    const archive = providerWebhookLockedArchiveResponse();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(archive))
+      .mockResolvedValueOnce(jsonResponse({
+        ...archive,
+        lockedArchiveStatus: "exported",
+        archiveAcknowledgementStatus: "exported",
+        safeFilename: "provider-webhook-review-qa-handoff-locked-archive-export.json",
+        exportedAt: "2026-06-04T00:08:00.000Z",
+        exportKind: "qa-handoff-locked-archive",
+        format: "json",
+        contentType: "application/json"
+      }))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookRetentionManifestResponse()));
+
+    const loaded = await getProviderWebhookReviewQaHandoffLockedArchive({ provider: "line", eventType: "message.created" });
+    const exported = await exportProviderWebhookReviewQaHandoffLockedArchive({ provider: "line", eventType: "message.created" });
+    const manifest = await getProviderWebhookReviewQaHandoffRetentionManifest({ provider: "line", eventType: "message.created" });
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/export?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/retention-manifest?provider=line&eventType=message.created", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(loaded).toMatchObject({ lockedArchiveStatus: "ready", safeFilename: "provider-webhook-review-qa-handoff-locked-archive.json", externalCalls: 0 });
+    expect(exported).toMatchObject({ lockedArchiveStatus: "exported", exportKind: "qa-handoff-locked-archive", externalCalls: 0 });
+    expect(manifest).toMatchObject({ retentionManifestStatus: "ready", retentionReadiness: "ready", externalCalls: 0 });
+    expect(JSON.stringify({ loaded, exported, manifest })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -2004,6 +2037,24 @@ function providerReadinessResponse() {
       reviewClosureReportEnabled: true,
       reviewClosureEvidenceExportEnabled: true,
       reviewClosureReportExportEnabled: true,
+      reviewExportRedactionAuditEnabled: true,
+      reviewExportIntegrityChecksEnabled: true,
+      reviewExportManifestEnabled: true,
+      reviewExportQaHandoffEnabled: true,
+      reviewQaHandoffLockedArchiveEnabled: true,
+      reviewQaHandoffRetentionManifestEnabled: true,
+      lockedArchiveReadyCount: 1,
+      lockedArchiveExportedCount: 0,
+      retentionManifestReadyCount: 1,
+      latestLockedArchiveStatus: "ready",
+      latestRetentionManifestStatus: "ready",
+      exportRedactionPassedCount: 1,
+      exportRedactionWarningCount: 0,
+      exportRedactionBlockedCount: 0,
+      exportManifestReadyCount: 1,
+      exportManifestNeedsReviewCount: 0,
+      exportManifestBlockedCount: 0,
+      latestExportManifestStatus: "ready",
       savedViewCount: 1,
       operatorNoteCount: 1,
       unassignedOpenCount: 1,
@@ -3284,6 +3335,72 @@ function providerWebhookReviewQaHandoffSignOffResponse() {
     signOffStatus: "signed_off",
     signOffRecordId: "provider-webhook-qa-handoff-signoff-1",
     action: "sign_off",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookLockedArchiveResponse() {
+  const signOff = providerWebhookReviewQaHandoffSignOffResponse();
+  return {
+    generatedAt: "2026-06-04T00:07:00.000Z",
+    lockedArchiveStatus: "ready",
+    retentionManifestStatus: "ready",
+    archiveAcknowledgementStatus: "not_exported",
+    acceptanceStatus: "locked",
+    lockStatus: "locked",
+    receiptStatus: signOff.receiptStatus,
+    signOffStatus: signOff.signOffStatus,
+    bundleStatus: signOff.bundleStatus,
+    exportStatus: signOff.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive.json",
+    safeDigest: "sha256:safeqahandofflockedarchive",
+    bundleDigest: signOff.bundleDigest,
+    exportDigest: signOff.exportDigest,
+    receiptDigest: signOff.safeDigest,
+    acceptanceLockDigest: "sha256:safeqahandoffacceptancelock",
+    lockRecordId: "provider-webhook-qa-handoff-lock-1",
+    readinessFlags: signOff.readinessFlags,
+    counts: {
+      ...signOff.counts,
+      lockedItemCount: 1,
+      lockedOpenItemCount: 1
+    },
+    manualQaChecks: signOff.manualQaChecks,
+    retentionPolicyLabel: "safe-qa-handoff-locked-archive-retention",
+    archivedAt: "2026-06-04T00:07:00.000Z",
+    exportedAt: null,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookRetentionManifestResponse() {
+  const archive = providerWebhookLockedArchiveResponse();
+  return {
+    generatedAt: "2026-06-04T00:07:30.000Z",
+    manifestKind: "qa-handoff-locked-archive-retention-manifest",
+    retentionManifestStatus: "ready",
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    acceptanceStatus: archive.acceptanceStatus,
+    lockStatus: archive.lockStatus,
+    receiptStatus: archive.receiptStatus,
+    signOffStatus: archive.signOffStatus,
+    bundleStatus: archive.bundleStatus,
+    exportStatus: archive.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-retention-manifest.json",
+    safeDigest: "sha256:safeqahandoffretentionmanifest",
+    archiveDigest: archive.safeDigest,
+    bundleDigest: archive.bundleDigest,
+    exportDigest: archive.exportDigest,
+    receiptDigest: archive.receiptDigest,
+    acceptanceLockDigest: archive.acceptanceLockDigest,
+    retentionPolicyLabel: archive.retentionPolicyLabel,
+    retentionReadiness: "ready",
+    readinessFlags: archive.readinessFlags,
+    counts: archive.counts,
+    manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
     externalCalls: 0
   };
 }

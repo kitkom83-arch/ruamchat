@@ -22,6 +22,9 @@ import type {
   ProviderWebhookReviewQaHandoffBundleExport,
   ProviderWebhookReviewQaHandoffAcceptanceLock,
   ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
+  ProviderWebhookReviewQaHandoffLockedArchiveExport,
+  ProviderWebhookReviewQaHandoffLockedArchiveStatus,
+  ProviderWebhookReviewQaHandoffRetentionManifest,
   ProviderWebhookReviewQaHandoffReceipt,
   ProviderWebhookReviewQaHandoffSignOffRequest,
   ProviderWebhookReviewQaHandoffSignOffResponse,
@@ -85,6 +88,9 @@ import {
   getProviderWebhookReviewQaHandoffBundleExport,
   getProviderWebhookReviewQaHandoffAcceptanceLock,
   getProviderWebhookReviewQaHandoffBundleReceipt,
+  getProviderWebhookReviewQaHandoffLockedArchive,
+  exportProviderWebhookReviewQaHandoffLockedArchive,
+  getProviderWebhookReviewQaHandoffRetentionManifest,
   lockProviderWebhookReviewQaHandoffAcceptance,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
@@ -207,6 +213,21 @@ export type SettingsProviderWebhookReviewQaHandoffBundleExportData = {
 export type SettingsProviderWebhookReviewQaHandoffAcceptanceLockData = {
   mode: DataMode;
   acceptanceLock: ProviderWebhookReviewQaHandoffAcceptanceLock;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffLockedArchiveData = {
+  mode: DataMode;
+  lockedArchive: ProviderWebhookReviewQaHandoffLockedArchiveStatus;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffLockedArchiveExportData = {
+  mode: DataMode;
+  lockedArchiveExport: ProviderWebhookReviewQaHandoffLockedArchiveExport;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffRetentionManifestData = {
+  mode: DataMode;
+  retentionManifest: ProviderWebhookReviewQaHandoffRetentionManifest;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -581,6 +602,57 @@ export async function lockSettingsProviderWebhookReviewQaHandoffAcceptance(
   return {
     mode,
     acceptanceLock: createMockReviewQaHandoffAcceptanceLock(filters, "locked", payload)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffLockedArchiveData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffLockedArchiveData> {
+  if (mode === "api") {
+    return {
+      mode,
+      lockedArchive: await getProviderWebhookReviewQaHandoffLockedArchive(filters)
+    };
+  }
+
+  return {
+    mode,
+    lockedArchive: createMockReviewQaHandoffLockedArchive(filters)
+  };
+}
+
+export async function exportSettingsProviderWebhookReviewQaHandoffLockedArchiveData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffLockedArchiveExportData> {
+  if (mode === "api") {
+    return {
+      mode,
+      lockedArchiveExport: await exportProviderWebhookReviewQaHandoffLockedArchive(filters)
+    };
+  }
+
+  return {
+    mode,
+    lockedArchiveExport: createMockReviewQaHandoffLockedArchiveExport(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffRetentionManifestData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffRetentionManifestData> {
+  if (mode === "api") {
+    return {
+      mode,
+      retentionManifest: await getProviderWebhookReviewQaHandoffRetentionManifest(filters)
+    };
+  }
+
+  return {
+    mode,
+    retentionManifest: createMockReviewQaHandoffRetentionManifest(filters)
   };
 }
 
@@ -2023,6 +2095,130 @@ function createMockReviewQaHandoffAcceptanceLock(
   };
 }
 
+function ensureMockReviewQaHandoffAcceptanceLock(filters: ProviderWebhookReviewClosureReportFilters) {
+  const receipt = createMockReviewQaHandoffReceipt(filters);
+  if (receipt.receiptStatus !== "signed_off") {
+    createMockReviewQaHandoffSignOff(filters, { acknowledgementType: "sign_off", reviewerRole: "QA reviewer", reviewerLabel: "operator:local" });
+  }
+  return createMockReviewQaHandoffAcceptanceLock(filters, "locked", {
+    lockReason: "QA handoff accepted",
+    acceptedByRole: "QA lead",
+    acceptedByLabel: "operator:local"
+  });
+}
+
+function createMockReviewQaHandoffLockedArchive(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffLockedArchiveStatus {
+  const lock = ensureMockReviewQaHandoffAcceptanceLock(filters);
+  const receipt = createMockReviewQaHandoffReceipt(filters);
+  const exportRecord = mockProviderWebhookQaHandoffLockedArchiveExports.find((record) =>
+    record.lockRecordId === lock.lockRecordId && record.acceptanceLockDigest === lock.safeDigest
+  );
+  const responseBase = {
+    generatedAt: new Date().toISOString(),
+    lockedArchiveStatus: exportRecord ? "exported" as const : "ready" as const,
+    retentionManifestStatus: "ready" as const,
+    archiveAcknowledgementStatus: exportRecord ? "exported" as const : "not_exported" as const,
+    acceptanceStatus: "locked" as const,
+    lockStatus: "locked" as const,
+    receiptStatus: receipt.receiptStatus,
+    signOffStatus: receipt.receiptStatus,
+    bundleStatus: receipt.bundleStatus,
+    exportStatus: receipt.exportStatus,
+    safeFilename: exportRecord?.safeFilename ?? "provider-webhook-review-qa-handoff-locked-archive.json",
+    bundleDigest: receipt.bundleDigest,
+    exportDigest: receipt.exportDigest,
+    receiptDigest: receipt.safeDigest,
+    acceptanceLockDigest: lock.safeDigest,
+    lockRecordId: lock.lockRecordId ?? "provider-webhook-qa-handoff-acceptance-lock-local-1",
+    readinessFlags: receipt.readinessFlags,
+    counts: {
+      ...receipt.counts,
+      lockedItemCount: lock.lockedItemCount,
+      lockedOpenItemCount: lock.lockedOpenItemCount
+    },
+    manualQaChecks: receipt.manualQaChecks,
+    retentionPolicyLabel: "safe-qa-handoff-locked-archive-retain-review-metadata-only",
+    archivedAt: lock.lockedAt,
+    exportedAt: exportRecord?.exportedAt ?? null,
+    externalCalls: 0 as const
+  };
+  return {
+    ...responseBase,
+    safeDigest: exportRecord?.safeDigest ?? "sha256:mockqahandofflockedarchive",
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffLockedArchiveExport(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffLockedArchiveExport {
+  const archive = createMockReviewQaHandoffLockedArchive(filters);
+  let exportRecord = mockProviderWebhookQaHandoffLockedArchiveExports.find((record) =>
+    record.lockRecordId === archive.lockRecordId && record.acceptanceLockDigest === archive.acceptanceLockDigest
+  );
+  if (!exportRecord) {
+    exportRecord = {
+      id: `provider-webhook-qa-handoff-locked-archive-export-local-${mockProviderWebhookQaHandoffLockedArchiveExports.length + 1}`,
+      lockRecordId: archive.lockRecordId,
+      receiptDigest: archive.receiptDigest,
+      bundleDigest: archive.bundleDigest,
+      exportDigest: archive.exportDigest,
+      acceptanceLockDigest: archive.acceptanceLockDigest,
+      safeDigest: `sha256:mockqahandofflockedarchiveexport-${mockProviderWebhookQaHandoffLockedArchiveExports.length + 1}`,
+      safeFilename: "provider-webhook-review-qa-handoff-locked-archive-export.json",
+      exportedAt: new Date().toISOString()
+    };
+    mockProviderWebhookQaHandoffLockedArchiveExports.unshift(exportRecord);
+  }
+  const exportedArchive = createMockReviewQaHandoffLockedArchive(filters);
+  return {
+    ...exportedArchive,
+    lockedArchiveStatus: "exported",
+    archiveAcknowledgementStatus: "exported",
+    safeFilename: exportRecord.safeFilename,
+    safeDigest: exportRecord.safeDigest,
+    exportedAt: exportRecord.exportedAt,
+    exportKind: "qa-handoff-locked-archive",
+    format: "json",
+    contentType: "application/json",
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffRetentionManifest(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffRetentionManifest {
+  const archive = createMockReviewQaHandoffLockedArchive(filters);
+  const responseBase = {
+    generatedAt: new Date().toISOString(),
+    manifestKind: "qa-handoff-locked-archive-retention-manifest" as const,
+    retentionManifestStatus: "ready" as const,
+    lockedArchiveStatus: archive.lockedArchiveStatus,
+    archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+    acceptanceStatus: "locked" as const,
+    lockStatus: "locked" as const,
+    receiptStatus: archive.receiptStatus,
+    signOffStatus: archive.signOffStatus,
+    bundleStatus: archive.bundleStatus,
+    exportStatus: archive.exportStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-locked-archive-retention-manifest.json",
+    archiveDigest: archive.safeDigest,
+    bundleDigest: archive.bundleDigest,
+    exportDigest: archive.exportDigest,
+    receiptDigest: archive.receiptDigest,
+    acceptanceLockDigest: archive.acceptanceLockDigest,
+    retentionPolicyLabel: archive.retentionPolicyLabel,
+    retentionReadiness: "ready" as const,
+    readinessFlags: archive.readinessFlags,
+    counts: archive.counts,
+    manualQaChecks: archive.manualQaChecks,
+    archivedAt: archive.archivedAt,
+    exportedAt: archive.exportedAt,
+    externalCalls: 0 as const
+  };
+  return {
+    ...responseBase,
+    safeDigest: "sha256:mockqahandoffretentionmanifest",
+    externalCalls: 0
+  };
+}
+
 function createMockClosureEvidence(unmatchedInboundId: string): ProviderWebhookReviewClosureEvidence {
   const item = mockProviderWebhookUnmatchedInbound.find((candidate) => candidate.id === unmatchedInboundId);
   if (!item) throw new Error("Unmatched inbound item not found");
@@ -3270,6 +3466,11 @@ function refreshMockUnmatchedCounts() {
   mockProviderReadiness.exportManifestNeedsReviewCount = manifestStatuses.filter((status) => status === "needs_review").length;
   mockProviderReadiness.exportManifestBlockedCount = manifestStatuses.filter((status) => status === "blocked").length;
   mockProviderReadiness.latestExportManifestStatus = manifestStatuses[0] ?? null;
+  mockProviderReadiness.lockedArchiveReadyCount = mockProviderWebhookQaHandoffAcceptanceLocks.length;
+  mockProviderReadiness.lockedArchiveExportedCount = mockProviderWebhookQaHandoffLockedArchiveExports.length;
+  mockProviderReadiness.retentionManifestReadyCount = mockProviderWebhookQaHandoffAcceptanceLocks.length;
+  mockProviderReadiness.latestLockedArchiveStatus = mockProviderWebhookQaHandoffLockedArchiveExports.length > 0 ? "exported" : mockProviderWebhookQaHandoffAcceptanceLocks.length > 0 ? "ready" : null;
+  mockProviderReadiness.latestRetentionManifestStatus = mockProviderWebhookQaHandoffAcceptanceLocks.length > 0 ? "ready" : null;
 }
 
 export const mockProviderReadiness: ProviderReadiness = {
@@ -3331,6 +3532,13 @@ export const mockProviderReadiness: ProviderReadiness = {
   reviewExportIntegrityChecksEnabled: true,
   reviewExportManifestEnabled: true,
   reviewExportQaHandoffEnabled: true,
+  reviewQaHandoffLockedArchiveEnabled: true,
+  reviewQaHandoffRetentionManifestEnabled: true,
+  lockedArchiveReadyCount: 0,
+  lockedArchiveExportedCount: 0,
+  retentionManifestReadyCount: 0,
+  latestLockedArchiveStatus: null,
+  latestRetentionManifestStatus: null,
   exportRedactionPassedCount: 1,
   exportRedactionWarningCount: 0,
   exportRedactionBlockedCount: 0,
@@ -3546,6 +3754,18 @@ const mockProviderWebhookQaHandoffAcceptanceLocks: Array<{
   acceptedByRole: string | null;
   acceptedByLabel: string | null;
   lockedAt: string;
+}> = [];
+
+const mockProviderWebhookQaHandoffLockedArchiveExports: Array<{
+  id: string;
+  lockRecordId: string;
+  receiptDigest: string;
+  bundleDigest: string;
+  exportDigest: string;
+  acceptanceLockDigest: string;
+  safeDigest: string;
+  safeFilename: string;
+  exportedAt: string;
 }> = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {

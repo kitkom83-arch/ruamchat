@@ -41,6 +41,9 @@ import {
   type ProviderWebhookReviewQaHandoffBundle,
   type ProviderWebhookReviewQaHandoffBundleExport,
   type ProviderWebhookReviewQaHandoffAcceptanceLock,
+  type ProviderWebhookReviewQaHandoffLockedArchiveExport,
+  type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
+  type ProviderWebhookReviewQaHandoffRetentionManifest,
   type ProviderWebhookReviewQaHandoffReceipt,
   type ProviderWebhookReviewQaHandoffSignOffResponse,
   type ProviderWebhookReviewClosureReport,
@@ -211,6 +214,7 @@ const reviewSavedViews: ProviderWebhookReviewSavedView[] = [];
 const operatorNotes: ProviderWebhookOperatorNote[] = [];
 const qaHandoffReceiptSignOffs: QaHandoffReceiptSignOffRecord[] = [];
 const qaHandoffAcceptanceLocks: QaHandoffAcceptanceLockRecord[] = [];
+const qaHandoffLockedArchiveExports: QaHandoffLockedArchiveExportRecord[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 type QaHandoffReceiptSignOffRecord = {
@@ -239,6 +243,20 @@ type QaHandoffAcceptanceLockRecord = {
   acceptedByRole: string | null;
   acceptedByLabel: string | null;
   lockedAt: string;
+  externalCalls: 0;
+};
+
+type QaHandoffLockedArchiveExportRecord = {
+  id: string;
+  tenantId: string;
+  lockRecordId: string;
+  receiptDigest: string;
+  bundleDigest: string;
+  exportDigest: string;
+  acceptanceLockDigest: string;
+  safeDigest: string;
+  safeFilename: string;
+  exportedAt: string;
   externalCalls: 0;
 };
 
@@ -1090,6 +1108,120 @@ export class ProviderWebhookEventsService {
       itemIds: lockRecord.lockedUnmatchedInboundIds,
       openItemCount: filteredItems.filter((item) => isOpenUnmatchedStatus(item.unmatchedStatus)).length
     });
+  }
+
+  getReviewQaHandoffLockedArchive(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffLockedArchiveStatus {
+    const context = this.getLockedArchiveContext(tenantId, filters, actorUserId);
+    return qaHandoffLockedArchiveStatusResponse(context);
+  }
+
+  exportReviewQaHandoffLockedArchive(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffLockedArchiveExport {
+    const context = this.getLockedArchiveContext(tenantId, filters, actorUserId);
+    const now = new Date().toISOString();
+    const existing = latestLockedArchiveExportRecord(tenantId, context.lockRecord.id, context.acceptanceLock.safeDigest);
+    const exportRecord = existing ?? {
+      id: `provider-webhook-qa-handoff-locked-archive-export-${crypto.randomUUID()}`,
+      tenantId,
+      lockRecordId: context.lockRecord.id,
+      receiptDigest: context.receipt.safeDigest,
+      bundleDigest: context.receipt.bundleDigest,
+      exportDigest: context.receipt.exportDigest,
+      acceptanceLockDigest: context.acceptanceLock.safeDigest,
+      safeDigest: "",
+      safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-locked-archive-export.json"),
+      exportedAt: now,
+      externalCalls: 0 as const
+    };
+    const payload = qaHandoffLockedArchiveStatusResponse({ ...context, archiveRecord: exportRecord });
+    const completed: QaHandoffLockedArchiveExportRecord = {
+      ...exportRecord,
+      safeDigest: payload.safeDigest,
+      externalCalls: 0 as const
+    };
+    if (!existing) qaHandoffLockedArchiveExports.unshift(completed);
+
+    return {
+      ...payload,
+      lockedArchiveStatus: "exported",
+      archiveAcknowledgementStatus: "exported",
+      exportedAt: completed.exportedAt,
+      exportKind: "qa-handoff-locked-archive",
+      format: "json",
+      contentType: "application/json",
+      externalCalls: 0 as const
+    };
+  }
+
+  getReviewQaHandoffRetentionManifest(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffRetentionManifest {
+    const context = this.getLockedArchiveContext(tenantId, filters, actorUserId);
+    const archive = qaHandoffLockedArchiveStatusResponse(context);
+    const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-locked-archive-retention-manifest.json");
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      manifestKind: "qa-handoff-locked-archive-retention-manifest" as const,
+      retentionManifestStatus: "ready" as const,
+      lockedArchiveStatus: archive.lockedArchiveStatus,
+      archiveAcknowledgementStatus: archive.archiveAcknowledgementStatus,
+      acceptanceStatus: "locked" as const,
+      lockStatus: "locked" as const,
+      receiptStatus: archive.receiptStatus,
+      signOffStatus: archive.signOffStatus,
+      bundleStatus: archive.bundleStatus,
+      exportStatus: archive.exportStatus,
+      safeFilename,
+      archiveDigest: archive.safeDigest,
+      bundleDigest: archive.bundleDigest,
+      exportDigest: archive.exportDigest,
+      receiptDigest: archive.receiptDigest,
+      acceptanceLockDigest: archive.acceptanceLockDigest,
+      retentionPolicyLabel: archive.retentionPolicyLabel,
+      retentionReadiness: "ready" as const,
+      readinessFlags: archive.readinessFlags,
+      counts: archive.counts,
+      manualQaChecks: archive.manualQaChecks,
+      archivedAt: archive.archivedAt,
+      exportedAt: archive.exportedAt,
+      externalCalls: 0 as const
+    };
+    return {
+      ...payload,
+      safeDigest: safeDigestForExport(payload),
+      externalCalls: 0 as const
+    };
+  }
+
+  private getLockedArchiveContext(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ) {
+    const receipt = this.getReviewQaHandoffBundleReceipt(tenantId, filters, actorUserId);
+    const acceptanceLock = this.getReviewQaHandoffAcceptanceLock(tenantId, filters, actorUserId);
+    if (acceptanceLock.lockStatus !== "locked" || !acceptanceLock.lockRecordId) {
+      throw new ConflictException("Provider webhook QA handoff acceptance lock is required before locked archive export");
+    }
+    const lockRecord = latestAcceptanceLockRecord(tenantId, receipt.bundleDigest, receipt.exportDigest);
+    if (!lockRecord) {
+      throw new ConflictException("Provider webhook QA handoff acceptance lock is required before locked archive export");
+    }
+    return {
+      receipt,
+      acceptanceLock,
+      lockRecord,
+      archiveRecord: latestLockedArchiveExportRecord(tenantId, lockRecord.id, acceptanceLock.safeDigest)
+    };
   }
 
   listReviewSavedViews(tenantId: string): ProviderWebhookReviewSavedView[] {
@@ -2572,6 +2704,7 @@ export function resetProviderWebhookEventStoreForTest() {
   operatorNotes.splice(0);
   qaHandoffReceiptSignOffs.splice(0);
   qaHandoffAcceptanceLocks.splice(0);
+  qaHandoffLockedArchiveExports.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -2587,6 +2720,9 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
   const closureEvidenceItems = unmatchedInboundItems.map(closureEvidenceSummaryItemFromUnmatched);
   const exportManifestStatuses = closureEvidenceItems.map(exportManifestQaReadinessForEvidenceSummary);
   const openItems = unmatchedInboundItems.filter(isOpenUnmatchedStatusItem);
+  const lockedArchiveReadyCount = qaHandoffAcceptanceLocks.length;
+  const lockedArchiveExportedCount = qaHandoffLockedArchiveExports.length;
+  const latestArchiveExport = qaHandoffLockedArchiveExports[0] ?? null;
   return {
     webhookSignatureVerificationConfigured: true,
     webhookSignatureVerificationReady: true,
@@ -2638,6 +2774,13 @@ export function getProviderWebhookGuardrailReadinessSnapshot() {
     reviewExportIntegrityChecksEnabled: true,
     reviewExportManifestEnabled: true,
     reviewExportQaHandoffEnabled: true,
+    reviewQaHandoffLockedArchiveEnabled: true,
+    reviewQaHandoffRetentionManifestEnabled: true,
+    lockedArchiveReadyCount,
+    lockedArchiveExportedCount,
+    retentionManifestReadyCount: lockedArchiveReadyCount,
+    latestLockedArchiveStatus: latestArchiveExport ? "exported" as const : lockedArchiveReadyCount > 0 ? "ready" as const : null,
+    latestRetentionManifestStatus: lockedArchiveReadyCount > 0 ? "ready" as const : null,
     exportRedactionPassedCount: closureEvidenceItems.filter((item) => item.roomKeyDigest && item.externalCalls === 0).length,
     exportRedactionWarningCount: closureEvidenceItems.filter((item) => !item.roomKeyDigest).length,
     exportRedactionBlockedCount: 0,
@@ -4137,6 +4280,14 @@ function latestAcceptanceLockRecord(tenantId: string, bundleDigest: string, expo
   ) ?? null;
 }
 
+function latestLockedArchiveExportRecord(tenantId: string, lockRecordId: string, acceptanceLockDigest: string) {
+  return qaHandoffLockedArchiveExports.find((record) =>
+    record.tenantId === tenantId &&
+    record.lockRecordId === lockRecordId &&
+    record.acceptanceLockDigest === acceptanceLockDigest
+  ) ?? null;
+}
+
 function qaHandoffAcceptanceLockForItem(tenantId: string, item: ProviderWebhookUnmatchedInboundItem) {
   return qaHandoffAcceptanceLocks.find((record) =>
     record.tenantId === tenantId &&
@@ -4204,6 +4355,50 @@ function qaHandoffAcceptanceLockResponse(input: {
   return {
     ...payload,
     safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffLockedArchiveStatusResponse(input: {
+  receipt: ProviderWebhookReviewQaHandoffReceipt;
+  acceptanceLock: ProviderWebhookReviewQaHandoffAcceptanceLock;
+  lockRecord: QaHandoffAcceptanceLockRecord;
+  archiveRecord: QaHandoffLockedArchiveExportRecord | null;
+}): ProviderWebhookReviewQaHandoffLockedArchiveStatus {
+  const safeFilename = input.archiveRecord?.safeFilename ?? safeExportFilename("provider-webhook-review-qa-handoff-locked-archive.json");
+  const exportedAt = input.archiveRecord?.exportedAt ?? null;
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    lockedArchiveStatus: input.archiveRecord ? "exported" as const : "ready" as const,
+    retentionManifestStatus: "ready" as const,
+    archiveAcknowledgementStatus: input.archiveRecord ? "exported" as const : "not_exported" as const,
+    acceptanceStatus: "locked" as const,
+    lockStatus: "locked" as const,
+    receiptStatus: input.receipt.receiptStatus,
+    signOffStatus: input.receipt.receiptStatus,
+    bundleStatus: input.receipt.bundleStatus,
+    exportStatus: input.receipt.exportStatus,
+    safeFilename,
+    bundleDigest: input.receipt.bundleDigest,
+    exportDigest: input.receipt.exportDigest,
+    receiptDigest: input.receipt.safeDigest,
+    acceptanceLockDigest: input.acceptanceLock.safeDigest,
+    lockRecordId: input.lockRecord.id,
+    readinessFlags: input.receipt.readinessFlags,
+    counts: {
+      ...input.receipt.counts,
+      lockedItemCount: input.acceptanceLock.lockedItemCount,
+      lockedOpenItemCount: input.acceptanceLock.lockedOpenItemCount
+    },
+    manualQaChecks: input.receipt.manualQaChecks,
+    retentionPolicyLabel: "safe-qa-handoff-locked-archive-retain-review-metadata-only",
+    archivedAt: input.lockRecord.lockedAt,
+    exportedAt,
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: input.archiveRecord?.safeDigest || safeDigestForExport(payload),
     externalCalls: 0 as const
   };
 }
