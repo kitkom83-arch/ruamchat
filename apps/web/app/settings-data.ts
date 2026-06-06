@@ -22,7 +22,11 @@ import type {
   ProviderWebhookReviewQaHandoffBundleExport,
   ProviderWebhookReviewQaHandoffAcceptanceLock,
   ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
+  ProviderWebhookReviewQaHandoffArchiveFinalization,
   ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  ProviderWebhookReviewQaHandoffFinalizationReceipt,
+  ProviderWebhookReviewQaHandoffFinalizationSignOffRequest,
+  ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   ProviderWebhookReviewQaHandoffLockedArchiveExport,
   ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -92,10 +96,13 @@ import {
   getProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewQaHandoffLockedArchive,
   exportProviderWebhookReviewQaHandoffLockedArchive,
+  getProviderWebhookReviewQaHandoffArchiveFinalization,
+  getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
   lockProviderWebhookReviewQaHandoffAcceptance,
+  signOffProviderWebhookReviewQaHandoffArchiveFinalization,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewSavedViews,
@@ -242,6 +249,21 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveIntegrityData = {
 export type SettingsProviderWebhookReviewQaHandoffRetentionAuditData = {
   mode: DataMode;
   retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationData = {
+  mode: DataMode;
+  finalization: ProviderWebhookReviewQaHandoffArchiveFinalization;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationSignOffData = {
+  mode: DataMode;
+  signOff: ProviderWebhookReviewQaHandoffFinalizationSignOffResponse;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData = {
+  mode: DataMode;
+  receipt: ProviderWebhookReviewQaHandoffFinalizationReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -701,6 +723,58 @@ export async function loadSettingsProviderWebhookReviewQaHandoffRetentionAuditDa
   return {
     mode,
     retentionAudit: createMockReviewQaHandoffRetentionAudit(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveFinalizationData> {
+  if (mode === "api") {
+    return {
+      mode,
+      finalization: await getProviderWebhookReviewQaHandoffArchiveFinalization(filters)
+    };
+  }
+
+  return {
+    mode,
+    finalization: createMockReviewQaHandoffArchiveFinalization(filters)
+  };
+}
+
+export async function signOffSettingsProviderWebhookReviewQaHandoffArchiveFinalization(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffFinalizationSignOffRequest = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveFinalizationSignOffData> {
+  if (mode === "api") {
+    return {
+      mode,
+      signOff: await signOffProviderWebhookReviewQaHandoffArchiveFinalization(filters, payload)
+    };
+  }
+
+  return {
+    mode,
+    signOff: createMockReviewQaHandoffArchiveFinalizationSignOff(filters, payload)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      receipt: await getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    receipt: createMockReviewQaHandoffArchiveFinalizationReceipt(filters)
   };
 }
 
@@ -2351,6 +2425,98 @@ function createMockReviewQaHandoffRetentionAudit(filters: ProviderWebhookReviewC
     },
     archivedAt: archive.archivedAt,
     exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveFinalization(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffArchiveFinalization {
+  const integrity = createMockReviewQaHandoffArchiveIntegrity(filters);
+  const retentionAudit = createMockReviewQaHandoffRetentionAudit(filters);
+  return {
+    generatedAt: new Date().toISOString(),
+    finalizationStatus: "ready",
+    retentionSignOffStatus: "not_signed",
+    finalizationReceiptStatus: "not_created",
+    integrityStatus: integrity.integrityStatus,
+    retentionAuditStatus: retentionAudit.retentionAuditStatus,
+    lockedArchiveStatus: integrity.lockedArchiveStatus,
+    retentionManifestStatus: integrity.retentionManifestStatus,
+    archiveAcknowledgementStatus: integrity.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: retentionAudit.auditAcknowledgementStatus,
+    acceptanceStatus: integrity.acceptanceStatus,
+    lockStatus: integrity.lockStatus,
+    receiptStatus: integrity.receiptStatus,
+    signOffStatus: integrity.signOffStatus,
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization.json",
+    safeDigest: "sha256:mockqahandoffarchivefinalization",
+    bundleDigest: integrity.bundleDigest,
+    exportDigest: integrity.exportDigest,
+    receiptDigest: integrity.receiptDigest,
+    acceptanceLockDigest: integrity.acceptanceLockDigest,
+    lockedArchiveDigest: integrity.lockedArchiveDigest,
+    retentionManifestDigest: integrity.retentionManifestDigest,
+    integrityDigest: integrity.safeDigest,
+    finalizationReceiptDigest: null,
+    safeRetentionPolicyLabel: retentionAudit.safePolicyLabel,
+    safeReviewerLabel: null,
+    safeCheckLabels: [
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "retention manifest ready",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    readinessFlags: integrity.readinessFlags,
+    counts: {
+      ...integrity.counts,
+      digestChainLinkCount: 7,
+      finalizationCheckedCount: 1,
+      retentionSignOffCount: 0
+    },
+    manualQaChecks: integrity.manualQaChecks,
+    archivedAt: integrity.archivedAt,
+    exportedAt: integrity.exportedAt,
+    signedAt: null,
+    finalizedAt: null,
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveFinalizationSignOff(
+  filters: ProviderWebhookReviewClosureReportFilters,
+  payload: ProviderWebhookReviewQaHandoffFinalizationSignOffRequest = {}
+): ProviderWebhookReviewQaHandoffFinalizationSignOffResponse {
+  const finalization = createMockReviewQaHandoffArchiveFinalization(filters);
+  const signedAt = new Date().toISOString();
+  return {
+    ...finalization,
+    generatedAt: signedAt,
+    finalizationStatus: "finalized",
+    retentionSignOffStatus: "signed_off",
+    finalizationReceiptStatus: "ready",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-signoff.json",
+    safeDigest: "sha256:mockqahandoffarchivefinalizationsignoff",
+    finalizationReceiptDigest: "sha256:mockqahandoffarchivefinalizationreceipt",
+    safeReviewerLabel: payload.reviewerLabel ?? "mock safe retention reviewer",
+    counts: {
+      ...finalization.counts,
+      retentionSignOffCount: 1
+    },
+    signedAt,
+    finalizedAt: signedAt,
+    action: "sign_off",
+    signOffRecordId: "provider-webhook-qa-handoff-archive-finalization-signoff-mock",
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveFinalizationReceipt(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffFinalizationReceipt {
+  return {
+    ...createMockReviewQaHandoffArchiveFinalizationSignOff(filters),
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-receipt.json",
+    safeDigest: "sha256:mockqahandoffarchivefinalizationreceiptread",
+    receiptKind: "qa-handoff-locked-archive-finalization-receipt",
     externalCalls: 0
   };
 }

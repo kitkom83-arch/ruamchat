@@ -49,6 +49,10 @@ import {
   providerWebhookReviewQaHandoffBundleSchema,
   providerWebhookReviewQaHandoffBundleExportSchema,
   providerWebhookReviewQaHandoffArchiveIntegritySchema,
+  providerWebhookReviewQaHandoffArchiveFinalizationSchema,
+  providerWebhookReviewQaHandoffFinalizationReceiptSchema,
+  providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema,
+  providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
   providerWebhookReviewQaHandoffReceiptSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
@@ -267,6 +271,126 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffArchiveIntegritySchema.parse({ ...integrity, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffRetentionAuditSchema.parse({ ...retentionAudit, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveIntegritySchema.parse({ ...integrity, externalCalls: 1 })).toThrow();
+  });
+
+  it("validates QA archive finalization and retention sign-off DTOs without raw provider fields", () => {
+    const manualQaChecks = {
+      reportManifestReady: true,
+      reportRedactionPassedOrWarned: true,
+      reportIntegrityConfirmed: true,
+      evidenceManifestsReadyOrNeedsReview: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      rawPayloadAbsent: true,
+      rawSignatureAbsent: true,
+      tokenAbsent: true,
+      replyTokenAbsent: true,
+      rawSenderIdAbsent: true,
+      rawRoomIdAbsent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true,
+      readinessFlagsPresent: true
+    };
+    const readinessFlags = {
+      reviewClosureEvidenceEnabled: true,
+      reviewClosureReportEnabled: true,
+      reviewClosureEvidenceExportEnabled: true,
+      reviewClosureReportExportEnabled: true,
+      reviewExportRedactionAuditEnabled: true,
+      reviewExportIntegrityChecksEnabled: true,
+      reviewExportManifestEnabled: true,
+      reviewExportQaHandoffEnabled: true
+    };
+    const finalization = providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({
+      generatedAt: "2026-06-06T00:00:00.000Z",
+      finalizationStatus: "ready",
+      retentionSignOffStatus: "not_signed",
+      finalizationReceiptStatus: "not_created",
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      lockedArchiveStatus: "exported",
+      retentionManifestStatus: "ready",
+      archiveAcknowledgementStatus: "exported",
+      auditAcknowledgementStatus: "acknowledged",
+      acceptanceStatus: "locked",
+      lockStatus: "locked",
+      receiptStatus: "signed_off",
+      signOffStatus: "signed_off",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-archive-finalization.json",
+      safeDigest: "sha256:finalization",
+      bundleDigest: "sha256:bundle",
+      exportDigest: "sha256:export",
+      receiptDigest: "sha256:receipt",
+      acceptanceLockDigest: "sha256:acceptance",
+      lockedArchiveDigest: "sha256:archive",
+      retentionManifestDigest: "sha256:retention",
+      integrityDigest: "sha256:integrity",
+      finalizationReceiptDigest: null,
+      safeRetentionPolicyLabel: "safe-qa-handoff-locked-archive-retain-review-metadata-only",
+      safeReviewerLabel: null,
+      safeCheckLabels: ["archive integrity confirmed", "retention audit confirmed"],
+      readinessFlags,
+      counts: {
+        totalItems: 1,
+        totalOpenItems: 1,
+        evidenceManifestCount: 1,
+        closureEvidenceReadyCount: 1,
+        closureEvidenceBlockedCount: 0,
+        closureEvidenceIncompleteCount: 0,
+        lockedItemCount: 1,
+        lockedOpenItemCount: 1,
+        digestChainLinkCount: 7,
+        finalizationCheckedCount: 1,
+        retentionSignOffCount: 0
+      },
+      manualQaChecks,
+      archivedAt: "2026-06-06T00:00:00.000Z",
+      exportedAt: "2026-06-06T00:01:00.000Z",
+      signedAt: null,
+      finalizedAt: null,
+      externalCalls: 0
+    });
+
+    const request = providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({
+      reviewerRole: "retention reviewer",
+      reviewerLabel: "safe finalization reviewer"
+    });
+    const signed = providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema.parse({
+      ...finalization,
+      generatedAt: "2026-06-06T00:02:00.000Z",
+      finalizationStatus: "finalized",
+      retentionSignOffStatus: "signed_off",
+      finalizationReceiptStatus: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-signoff.json",
+      safeDigest: "sha256:signoff",
+      finalizationReceiptDigest: "sha256:receiptfinal",
+      safeReviewerLabel: "safe finalization reviewer",
+      counts: {
+        ...finalization.counts,
+        retentionSignOffCount: 1
+      },
+      signedAt: "2026-06-06T00:02:00.000Z",
+      finalizedAt: "2026-06-06T00:02:00.000Z",
+      action: "sign_off",
+      signOffRecordId: "provider-webhook-qa-archive-finalization-signoff-1"
+    });
+    const receiptBase: Omit<typeof signed, "action"> & Partial<Pick<typeof signed, "action">> = { ...signed };
+    delete receiptBase.action;
+    const receipt = providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({
+      ...receiptBase,
+      receiptKind: "qa-handoff-locked-archive-finalization-receipt"
+    });
+
+    expect(finalization.finalizationStatus).toBe("ready");
+    expect(request.action).toBe("sign_off");
+    expect(signed.retentionSignOffStatus).toBe("signed_off");
+    expect(receipt.finalizationReceiptStatus).toBe("ready");
+    expect(receipt.externalCalls).toBe(0);
+    expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

@@ -166,6 +166,34 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffRetentionAudit(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/locked-archive/finalization")
+  getReviewQaHandoffArchiveFinalization(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffArchiveFinalization(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
+  @Post("review-qa-handoff-bundle/locked-archive/finalization/sign-off")
+  signOffReviewQaHandoffArchiveFinalization(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId: string | undefined,
+    @Body() body: unknown
+  ) {
+    return this.events.signOffReviewQaHandoffArchiveFinalization(requireTenantId(tenant), parseReviewClosureReportFilters(query), body, userId);
+  }
+
+  @Get("review-qa-handoff-bundle/locked-archive/finalization/receipt")
+  getReviewQaHandoffArchiveFinalizationReceipt(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffArchiveFinalizationReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,

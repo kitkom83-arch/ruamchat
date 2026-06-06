@@ -3596,6 +3596,87 @@ export const providerWebhookReviewQaHandoffRetentionAuditSchema = z.object({
 }).strict();
 export type ProviderWebhookReviewQaHandoffRetentionAudit = z.infer<typeof providerWebhookReviewQaHandoffRetentionAuditSchema>;
 
+export const providerWebhookReviewQaHandoffArchiveFinalizationStatusSchema = z.enum(["ready", "finalized", "blocked"]);
+export type ProviderWebhookReviewQaHandoffArchiveFinalizationStatus = z.infer<typeof providerWebhookReviewQaHandoffArchiveFinalizationStatusSchema>;
+
+export const providerWebhookReviewQaHandoffRetentionSignOffStatusSchema = z.enum(["not_signed", "signed_off"]);
+export type ProviderWebhookReviewQaHandoffRetentionSignOffStatus = z.infer<typeof providerWebhookReviewQaHandoffRetentionSignOffStatusSchema>;
+
+export const providerWebhookReviewQaHandoffFinalizationReceiptStatusSchema = z.enum(["not_created", "ready"]);
+export type ProviderWebhookReviewQaHandoffFinalizationReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffFinalizationReceiptStatusSchema>;
+
+export const providerWebhookReviewQaHandoffFinalizationBaseSchema = z.object({
+  generatedAt: z.string().datetime(),
+  finalizationStatus: providerWebhookReviewQaHandoffArchiveFinalizationStatusSchema,
+  retentionSignOffStatus: providerWebhookReviewQaHandoffRetentionSignOffStatusSchema,
+  finalizationReceiptStatus: providerWebhookReviewQaHandoffFinalizationReceiptStatusSchema,
+  integrityStatus: providerWebhookReviewQaHandoffArchiveIntegrityStatusSchema,
+  retentionAuditStatus: providerWebhookReviewQaHandoffArchiveIntegrityStatusSchema,
+  lockedArchiveStatus: z.enum(["ready", "exported"]),
+  retentionManifestStatus: z.enum(["ready"]),
+  archiveAcknowledgementStatus: providerWebhookReviewQaHandoffLockedArchiveAcknowledgementStatusSchema,
+  auditAcknowledgementStatus: providerWebhookReviewQaHandoffArchiveAuditAcknowledgementStatusSchema,
+  acceptanceStatus: z.enum(["locked"]),
+  lockStatus: z.literal("locked"),
+  receiptStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  signOffStatus: providerWebhookReviewQaHandoffAcknowledgementStatusSchema,
+  digestChainStatus: providerWebhookReviewQaHandoffDigestChainStatusSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  bundleDigest: z.string().min(1),
+  exportDigest: z.string().min(1),
+  receiptDigest: z.string().min(1),
+  acceptanceLockDigest: z.string().min(1),
+  lockedArchiveDigest: z.string().min(1),
+  retentionManifestDigest: z.string().min(1),
+  integrityDigest: z.string().min(1),
+  finalizationReceiptDigest: z.string().min(1).nullable(),
+  safeRetentionPolicyLabel: z.string().min(1),
+  safeReviewerLabel: z.string().min(1).nullable(),
+  safeCheckLabels: z.array(z.string().min(1)).min(1),
+  readinessFlags: providerWebhookReviewQaHandoffBundleExportSchema.shape.readinessFlags,
+  counts: providerWebhookReviewQaHandoffLockedArchiveStatusSchema.shape.counts.extend({
+    digestChainLinkCount: z.number().int().nonnegative(),
+    integrityCheckedCount: z.number().int().nonnegative().optional(),
+    finalizationCheckedCount: z.number().int().nonnegative(),
+    retentionSignOffCount: z.number().int().nonnegative()
+  }).strict(),
+  manualQaChecks: providerWebhookReviewQaHandoffBundleChecksSchema,
+  archivedAt: z.string().datetime().nullable(),
+  exportedAt: z.string().datetime().nullable(),
+  signedAt: z.string().datetime().nullable(),
+  finalizedAt: z.string().datetime().nullable(),
+  externalCalls: z.literal(0)
+}).strict();
+
+export const providerWebhookReviewQaHandoffArchiveFinalizationSchema = providerWebhookReviewQaHandoffFinalizationBaseSchema;
+export type ProviderWebhookReviewQaHandoffArchiveFinalization = z.infer<typeof providerWebhookReviewQaHandoffArchiveFinalizationSchema>;
+
+export const providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema = z.object({
+  action: z.literal("sign_off").default("sign_off"),
+  reviewerRole: z.string().trim().min(1).max(80).default("retention reviewer"),
+  reviewerLabel: z.string().trim().min(1).max(120).optional()
+}).strict();
+export type ProviderWebhookReviewQaHandoffFinalizationSignOffRequest = z.input<typeof providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema>;
+
+export const providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema = providerWebhookReviewQaHandoffFinalizationBaseSchema.extend({
+  finalizationStatus: z.literal("finalized"),
+  retentionSignOffStatus: z.literal("signed_off"),
+  finalizationReceiptStatus: z.literal("ready"),
+  action: z.literal("sign_off"),
+  signOffRecordId: z.string().min(1)
+}).strict();
+export type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse = z.infer<typeof providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema>;
+
+export const providerWebhookReviewQaHandoffFinalizationReceiptSchema = providerWebhookReviewQaHandoffFinalizationBaseSchema.extend({
+  receiptKind: z.literal("qa-handoff-locked-archive-finalization-receipt"),
+  finalizationStatus: z.literal("finalized"),
+  retentionSignOffStatus: z.literal("signed_off"),
+  finalizationReceiptStatus: z.literal("ready"),
+  signOffRecordId: z.string().min(1)
+}).strict();
+export type ProviderWebhookReviewQaHandoffFinalizationReceipt = z.infer<typeof providerWebhookReviewQaHandoffFinalizationReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

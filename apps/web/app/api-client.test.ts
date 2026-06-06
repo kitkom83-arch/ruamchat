@@ -37,8 +37,11 @@ import {
   getProviderWebhookReviewQaHandoffLockedArchive,
   exportProviderWebhookReviewQaHandoffLockedArchive,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
+  getProviderWebhookReviewQaHandoffArchiveFinalization,
+  getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
+  signOffProviderWebhookReviewQaHandoffArchiveFinalization,
   signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewMetrics,
   getProviderWebhookReviewResolutionSummary,
@@ -217,6 +220,47 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "retention audit unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffRetentionAudit()).rejects.toThrow("API request failed (503): retention audit unavailable");
+  });
+
+  it("wires archive finalization, retention sign-off, and receipt through tenant-scoped API calls without fallback", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationSignOffResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()));
+
+    const filters = { provider: "line" as const, eventType: "message.created" as const };
+    const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
+    const signOff = await signOffProviderWebhookReviewQaHandoffArchiveFinalization(filters, {
+      reviewerRole: "retention reviewer",
+      reviewerLabel: "safe reviewer"
+    });
+    const receipt = await getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters);
+
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?provider=line&eventType=message.created", expect.any(Object));
+    expectTenantHeaderForAll(fetchMock);
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
+      action: "sign_off",
+      reviewerRole: "retention reviewer",
+      reviewerLabel: "safe reviewer"
+    });
+    expect(finalization).toMatchObject({ finalizationStatus: "ready", retentionSignOffStatus: "not_signed", finalizationReceiptStatus: "not_created", externalCalls: 0 });
+    expect(signOff).toMatchObject({ finalizationStatus: "finalized", retentionSignOffStatus: "signed_off", action: "sign_off", externalCalls: 0 });
+    expect(receipt).toMatchObject({ receiptKind: "qa-handoff-locked-archive-finalization-receipt", finalizationReceiptStatus: "ready", externalCalls: 0 });
+    expect(JSON.stringify({ finalization, signOff, receipt })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+  });
+
+  it("surfaces archive finalization API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "archive finalization unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveFinalization()).rejects.toThrow("API request failed (503): archive finalization unavailable");
+  });
+
+  it("surfaces retention sign-off API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "retention sign-off unavailable" }, 503));
+
+    await expect(signOffProviderWebhookReviewQaHandoffArchiveFinalization()).rejects.toThrow("API request failed (503): retention sign-off unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3519,6 +3563,89 @@ function providerWebhookRetentionAuditResponse() {
     },
     archivedAt: archive.archivedAt,
     exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveFinalizationResponse() {
+  const integrity = providerWebhookArchiveIntegrityResponse();
+  const retentionAudit = providerWebhookRetentionAuditResponse();
+  return {
+    generatedAt: "2026-06-04T00:10:00.000Z",
+    finalizationStatus: "ready",
+    retentionSignOffStatus: "not_signed",
+    finalizationReceiptStatus: "not_created",
+    integrityStatus: integrity.integrityStatus,
+    retentionAuditStatus: retentionAudit.retentionAuditStatus,
+    lockedArchiveStatus: integrity.lockedArchiveStatus,
+    retentionManifestStatus: integrity.retentionManifestStatus,
+    archiveAcknowledgementStatus: integrity.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: retentionAudit.auditAcknowledgementStatus,
+    acceptanceStatus: integrity.acceptanceStatus,
+    lockStatus: integrity.lockStatus,
+    receiptStatus: integrity.receiptStatus,
+    signOffStatus: integrity.signOffStatus,
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization.json",
+    safeDigest: "sha256:safeqahandoffarchivefinalization",
+    bundleDigest: integrity.bundleDigest,
+    exportDigest: integrity.exportDigest,
+    receiptDigest: integrity.receiptDigest,
+    acceptanceLockDigest: integrity.acceptanceLockDigest,
+    lockedArchiveDigest: integrity.lockedArchiveDigest,
+    retentionManifestDigest: integrity.retentionManifestDigest,
+    integrityDigest: integrity.safeDigest,
+    finalizationReceiptDigest: null,
+    safeRetentionPolicyLabel: retentionAudit.safePolicyLabel,
+    safeReviewerLabel: null,
+    safeCheckLabels: ["archive integrity confirmed", "retention audit confirmed"],
+    readinessFlags: integrity.readinessFlags,
+    counts: {
+      ...integrity.counts,
+      digestChainLinkCount: 7,
+      finalizationCheckedCount: 1,
+      retentionSignOffCount: 0
+    },
+    manualQaChecks: integrity.manualQaChecks,
+    archivedAt: integrity.archivedAt,
+    exportedAt: integrity.exportedAt,
+    signedAt: null,
+    finalizedAt: null,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveFinalizationSignOffResponse() {
+  return {
+    ...providerWebhookArchiveFinalizationResponse(),
+    generatedAt: "2026-06-04T00:10:30.000Z",
+    finalizationStatus: "finalized",
+    retentionSignOffStatus: "signed_off",
+    finalizationReceiptStatus: "ready",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-signoff.json",
+    safeDigest: "sha256:safeqahandoffarchivefinalizationsignoff",
+    finalizationReceiptDigest: "sha256:safeqahandoffarchivefinalizationreceipt",
+    safeReviewerLabel: "safe reviewer",
+    counts: {
+      ...providerWebhookArchiveFinalizationResponse().counts,
+      retentionSignOffCount: 1
+    },
+    signedAt: "2026-06-04T00:10:30.000Z",
+    finalizedAt: "2026-06-04T00:10:30.000Z",
+    action: "sign_off",
+    signOffRecordId: "provider-webhook-qa-handoff-archive-finalization-signoff-1",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveFinalizationReceiptResponse() {
+  const signOff = providerWebhookArchiveFinalizationSignOffResponse();
+  delete (signOff as Partial<ReturnType<typeof providerWebhookArchiveFinalizationSignOffResponse>>).action;
+  return {
+    ...signOff,
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-receipt.json",
+    safeDigest: "sha256:safeqahandoffarchivefinalizationreceiptread",
+    receiptKind: "qa-handoff-locked-archive-finalization-receipt",
     externalCalls: 0
   };
 }

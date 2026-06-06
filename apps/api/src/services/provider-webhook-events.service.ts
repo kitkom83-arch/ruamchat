@@ -11,6 +11,7 @@ import {
   providerWebhookUnmatchedInboundResolutionChecklistRequestSchema,
   providerWebhookUnmatchedInboundResolutionRequestSchema,
   providerWebhookReviewSavedViewFiltersSchema,
+  providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
   providerWebhookUnmatchedInboundEscalationRequestSchema,
   updateProviderWebhookReviewSavedViewRequestSchema,
@@ -44,6 +45,9 @@ import {
   type ProviderWebhookReviewQaHandoffLockedArchiveExport,
   type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   type ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  type ProviderWebhookReviewQaHandoffArchiveFinalization,
+  type ProviderWebhookReviewQaHandoffFinalizationReceipt,
+  type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
   type ProviderWebhookReviewQaHandoffRetentionManifest,
   type ProviderWebhookReviewQaHandoffReceipt,
@@ -217,6 +221,7 @@ const operatorNotes: ProviderWebhookOperatorNote[] = [];
 const qaHandoffReceiptSignOffs: QaHandoffReceiptSignOffRecord[] = [];
 const qaHandoffAcceptanceLocks: QaHandoffAcceptanceLockRecord[] = [];
 const qaHandoffLockedArchiveExports: QaHandoffLockedArchiveExportRecord[] = [];
+const qaHandoffArchiveFinalizationSignOffs: QaHandoffArchiveFinalizationSignOffRecord[] = [];
 const dedupFirstSeenAtByDigest = new Map<string, string>();
 
 type QaHandoffReceiptSignOffRecord = {
@@ -259,6 +264,20 @@ type QaHandoffLockedArchiveExportRecord = {
   safeDigest: string;
   safeFilename: string;
   exportedAt: string;
+  externalCalls: 0;
+};
+
+type QaHandoffArchiveFinalizationSignOffRecord = {
+  id: string;
+  tenantId: string;
+  lockedArchiveDigest: string;
+  retentionManifestDigest: string;
+  integrityDigest: string;
+  safeDigest: string;
+  reviewerRole: string | null;
+  reviewerLabel: string | null;
+  signedAt: string;
+  finalizedAt: string;
   externalCalls: 0;
 };
 
@@ -1224,6 +1243,71 @@ export class ProviderWebhookEventsService {
     const lockedArchive = qaHandoffLockedArchiveStatusResponse(context);
     const retentionManifest = this.getReviewQaHandoffRetentionManifest(tenantId, filters, actorUserId);
     return qaHandoffRetentionAuditResponse(lockedArchive, retentionManifest);
+  }
+
+  getReviewQaHandoffArchiveFinalization(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffArchiveFinalization {
+    const integrity = this.getReviewQaHandoffArchiveIntegrity(tenantId, filters, actorUserId);
+    const retentionAudit = this.getReviewQaHandoffRetentionAudit(tenantId, filters, actorUserId);
+    assertQaHandoffArchiveFinalizationReady(integrity, retentionAudit);
+    const record = latestArchiveFinalizationSignOffRecord(
+      tenantId,
+      integrity.lockedArchiveDigest,
+      integrity.retentionManifestDigest,
+      integrity.safeDigest
+    );
+    return qaHandoffArchiveFinalizationResponse(integrity, retentionAudit, record);
+  }
+
+  signOffReviewQaHandoffArchiveFinalization(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    body: unknown,
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffFinalizationSignOffResponse {
+    const parsed = providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException("Invalid provider webhook QA archive finalization sign-off payload");
+    const integrity = this.getReviewQaHandoffArchiveIntegrity(tenantId, filters, actorUserId);
+    const retentionAudit = this.getReviewQaHandoffRetentionAudit(tenantId, filters, actorUserId);
+    assertQaHandoffArchiveFinalizationReady(integrity, retentionAudit);
+    const existing = latestArchiveFinalizationSignOffRecord(
+      tenantId,
+      integrity.lockedArchiveDigest,
+      integrity.retentionManifestDigest,
+      integrity.safeDigest
+    );
+    const record = existing ?? createArchiveFinalizationSignOffRecord({
+      tenantId,
+      integrity,
+      retentionAudit,
+      reviewerRole: parsed.data.reviewerRole,
+      reviewerLabel: safeOperatorLabel(parsed.data.reviewerLabel) ?? safeActorLabel(actorUserId)
+    });
+    if (!existing) qaHandoffArchiveFinalizationSignOffs.unshift(record);
+    return qaHandoffArchiveFinalizationSignOffResponse(integrity, retentionAudit, record);
+  }
+
+  getReviewQaHandoffArchiveFinalizationReceipt(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffFinalizationReceipt {
+    const integrity = this.getReviewQaHandoffArchiveIntegrity(tenantId, filters, actorUserId);
+    const retentionAudit = this.getReviewQaHandoffRetentionAudit(tenantId, filters, actorUserId);
+    assertQaHandoffArchiveFinalizationReady(integrity, retentionAudit);
+    const record = latestArchiveFinalizationSignOffRecord(
+      tenantId,
+      integrity.lockedArchiveDigest,
+      integrity.retentionManifestDigest,
+      integrity.safeDigest
+    );
+    if (!record) {
+      throw new ConflictException("Provider webhook QA archive finalization sign-off is required before finalization receipt");
+    }
+    return qaHandoffArchiveFinalizationReceiptResponse(integrity, retentionAudit, record);
   }
 
   private getLockedArchiveContext(
@@ -2729,6 +2813,7 @@ export function resetProviderWebhookEventStoreForTest() {
   qaHandoffReceiptSignOffs.splice(0);
   qaHandoffAcceptanceLocks.splice(0);
   qaHandoffLockedArchiveExports.splice(0);
+  qaHandoffArchiveFinalizationSignOffs.splice(0);
   dedupFirstSeenAtByDigest.clear();
 }
 
@@ -4312,6 +4397,20 @@ function latestLockedArchiveExportRecord(tenantId: string, lockRecordId: string,
   ) ?? null;
 }
 
+function latestArchiveFinalizationSignOffRecord(
+  tenantId: string,
+  lockedArchiveDigest: string,
+  retentionManifestDigest: string,
+  integrityDigest: string
+) {
+  return qaHandoffArchiveFinalizationSignOffs.find((record) =>
+    record.tenantId === tenantId &&
+    record.lockedArchiveDigest === lockedArchiveDigest &&
+    record.retentionManifestDigest === retentionManifestDigest &&
+    record.integrityDigest === integrityDigest
+  ) ?? null;
+}
+
 function qaHandoffAcceptanceLockForItem(tenantId: string, item: ProviderWebhookUnmatchedInboundItem) {
   return qaHandoffAcceptanceLocks.find((record) =>
     record.tenantId === tenantId &&
@@ -4538,6 +4637,168 @@ function qaHandoffRetentionAuditResponse(
   return {
     ...payload,
     safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
+}
+
+function assertQaHandoffArchiveFinalizationReady(
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit
+) {
+  if (integrity.integrityStatus !== "confirmed" || integrity.digestChainStatus !== "confirmed") {
+    throw new ConflictException("Provider webhook QA archive finalization requires confirmed archive integrity");
+  }
+  if (retentionAudit.retentionAuditStatus !== "confirmed" || retentionAudit.digestChainStatus !== "confirmed") {
+    throw new ConflictException("Provider webhook QA archive finalization requires ready retention audit");
+  }
+}
+
+function createArchiveFinalizationSignOffRecord(input: {
+  tenantId: string;
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity;
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit;
+  reviewerRole: string | null;
+  reviewerLabel: string | null;
+}): QaHandoffArchiveFinalizationSignOffRecord {
+  const now = new Date().toISOString();
+  const recordBase = {
+    id: `provider-webhook-qa-handoff-archive-finalization-signoff-${crypto.randomUUID()}`,
+    tenantId: input.tenantId,
+    lockedArchiveDigest: input.integrity.lockedArchiveDigest,
+    retentionManifestDigest: input.integrity.retentionManifestDigest,
+    integrityDigest: input.integrity.safeDigest,
+    retentionAuditDigest: input.retentionAudit.safeDigest,
+    reviewerRole: input.reviewerRole,
+    reviewerLabel: input.reviewerLabel,
+    signedAt: now,
+    finalizedAt: now,
+    externalCalls: 0 as const
+  };
+  return {
+    ...recordBase,
+    safeDigest: safeDigestForExport(recordBase),
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveFinalizationPayload(
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit,
+  record: QaHandoffArchiveFinalizationSignOffRecord | null,
+  safeFilename: string
+) {
+  const finalized = Boolean(record);
+  return {
+    generatedAt: new Date().toISOString(),
+    finalizationStatus: finalized ? "finalized" as const : "ready" as const,
+    retentionSignOffStatus: finalized ? "signed_off" as const : "not_signed" as const,
+    finalizationReceiptStatus: finalized ? "ready" as const : "not_created" as const,
+    integrityStatus: integrity.integrityStatus,
+    retentionAuditStatus: retentionAudit.retentionAuditStatus,
+    lockedArchiveStatus: integrity.lockedArchiveStatus,
+    retentionManifestStatus: integrity.retentionManifestStatus,
+    archiveAcknowledgementStatus: integrity.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: retentionAudit.auditAcknowledgementStatus,
+    acceptanceStatus: integrity.acceptanceStatus,
+    lockStatus: integrity.lockStatus,
+    receiptStatus: integrity.receiptStatus,
+    signOffStatus: integrity.signOffStatus,
+    digestChainStatus: integrity.digestChainStatus === "confirmed" && retentionAudit.digestChainStatus === "confirmed" ? "confirmed" as const : "needs_review" as const,
+    safeFilename,
+    bundleDigest: integrity.bundleDigest,
+    exportDigest: integrity.exportDigest,
+    receiptDigest: integrity.receiptDigest,
+    acceptanceLockDigest: integrity.acceptanceLockDigest,
+    lockedArchiveDigest: integrity.lockedArchiveDigest,
+    retentionManifestDigest: integrity.retentionManifestDigest,
+    integrityDigest: integrity.safeDigest,
+    finalizationReceiptDigest: record?.safeDigest ?? null,
+    safeRetentionPolicyLabel: retentionAudit.safePolicyLabel,
+    safeReviewerLabel: record?.reviewerLabel ?? null,
+    safeCheckLabels: [
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "retention manifest ready",
+      "locked archive scope preserved",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    readinessFlags: integrity.readinessFlags,
+    counts: {
+      ...integrity.counts,
+      digestChainLinkCount: 7,
+      finalizationCheckedCount: 1,
+      retentionSignOffCount: finalized ? 1 : 0
+    },
+    manualQaChecks: integrity.manualQaChecks,
+    archivedAt: integrity.archivedAt,
+    exportedAt: integrity.exportedAt,
+    signedAt: record?.signedAt ?? null,
+    finalizedAt: record?.finalizedAt ?? null,
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveFinalizationResponse(
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit,
+  record: QaHandoffArchiveFinalizationSignOffRecord | null
+): ProviderWebhookReviewQaHandoffArchiveFinalization {
+  const payload = qaHandoffArchiveFinalizationPayload(
+    integrity,
+    retentionAudit,
+    record,
+    safeExportFilename("provider-webhook-review-qa-handoff-archive-finalization.json")
+  );
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveFinalizationSignOffResponse(
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit,
+  record: QaHandoffArchiveFinalizationSignOffRecord
+): ProviderWebhookReviewQaHandoffFinalizationSignOffResponse {
+  const payload = qaHandoffArchiveFinalizationPayload(
+    integrity,
+    retentionAudit,
+    record,
+    safeExportFilename("provider-webhook-review-qa-handoff-archive-finalization-signoff.json")
+  );
+  return {
+    ...payload,
+    finalizationStatus: "finalized" as const,
+    retentionSignOffStatus: "signed_off" as const,
+    finalizationReceiptStatus: "ready" as const,
+    safeDigest: safeDigestForExport(payload),
+    action: "sign_off" as const,
+    signOffRecordId: record.id,
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveFinalizationReceiptResponse(
+  integrity: ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit,
+  record: QaHandoffArchiveFinalizationSignOffRecord
+): ProviderWebhookReviewQaHandoffFinalizationReceipt {
+  const payload = qaHandoffArchiveFinalizationPayload(
+    integrity,
+    retentionAudit,
+    record,
+    safeExportFilename("provider-webhook-review-qa-handoff-archive-finalization-receipt.json")
+  );
+  return {
+    ...payload,
+    finalizationStatus: "finalized" as const,
+    retentionSignOffStatus: "signed_off" as const,
+    finalizationReceiptStatus: "ready" as const,
+    safeDigest: safeDigestForExport(payload),
+    receiptKind: "qa-handoff-locked-archive-finalization-receipt" as const,
+    signOffRecordId: record.id,
     externalCalls: 0 as const
   };
 }

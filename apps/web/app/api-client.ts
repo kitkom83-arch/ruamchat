@@ -24,7 +24,11 @@ import {
   providerWebhookReviewQaHandoffBundleExportSchema,
   providerWebhookReviewQaHandoffAcceptanceLockRequestSchema,
   providerWebhookReviewQaHandoffAcceptanceLockSchema,
+  providerWebhookReviewQaHandoffArchiveFinalizationSchema,
   providerWebhookReviewQaHandoffArchiveIntegritySchema,
+  providerWebhookReviewQaHandoffFinalizationReceiptSchema,
+  providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema,
+  providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema,
   providerWebhookReviewQaHandoffLockedArchiveExportSchema,
   providerWebhookReviewQaHandoffLockedArchiveStatusSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -228,7 +232,11 @@ import {
   type ProviderWebhookReviewQaHandoffBundleExport,
   type ProviderWebhookReviewQaHandoffAcceptanceLock,
   type ProviderWebhookReviewQaHandoffAcceptanceLockRequest,
+  type ProviderWebhookReviewQaHandoffArchiveFinalization,
   type ProviderWebhookReviewQaHandoffArchiveIntegrity,
+  type ProviderWebhookReviewQaHandoffFinalizationReceipt,
+  type ProviderWebhookReviewQaHandoffFinalizationSignOffRequest,
+  type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   type ProviderWebhookReviewQaHandoffLockedArchiveExport,
   type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -600,6 +608,28 @@ export async function getProviderWebhookReviewQaHandoffArchiveIntegrity(filters:
 export async function getProviderWebhookReviewQaHandoffRetentionAudit(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffRetentionAudit> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/retention-audit${search}`, providerWebhookReviewQaHandoffRetentionAuditSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffArchiveFinalization(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffArchiveFinalization> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization${search}`, providerWebhookReviewQaHandoffArchiveFinalizationSchema);
+}
+
+export async function signOffProviderWebhookReviewQaHandoffArchiveFinalization(
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffFinalizationSignOffRequest = {}
+): Promise<ProviderWebhookReviewQaHandoffFinalizationSignOffResponse> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  const body = providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse(payload);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off${search}`, providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffFinalizationReceipt> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt${search}`, providerWebhookReviewQaHandoffFinalizationReceiptSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
