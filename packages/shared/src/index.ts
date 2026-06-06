@@ -3764,6 +3764,57 @@ export const providerWebhookReviewQaHandoffReleaseVerificationSchema = providerW
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseVerification = z.infer<typeof providerWebhookReviewQaHandoffReleaseVerificationSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseCertificationSchema = z.object({
+  certificationKind: z.literal("qa-handoff-locked-archive-release-certification-receipt"),
+  certificationStatus: z.literal("certified"),
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  releaseVerificationDigest: z.string().min(1),
+  prerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  certificationChecklist: z.object({
+    releaseEvidenceReady: z.boolean(),
+    releaseVerificationPresent: z.boolean(),
+    releaseVerificationVerified: z.boolean(),
+    releaseReadinessReady: z.boolean(),
+    digestChainConfirmed: z.boolean(),
+    prerequisitesComplete: z.boolean(),
+    digestMatrixVerified: z.boolean(),
+    safeFilenamePresent: z.boolean(),
+    safeDigestPresent: z.boolean(),
+    releaseEvidenceDigestPresent: z.boolean(),
+    releaseVerificationDigestPresent: z.boolean(),
+    providerOutboundAbsent: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  digestMatrixSummary: z.object({
+    totalRows: z.number().int().nonnegative(),
+    verifiedRows: z.number().int().nonnegative(),
+    needsReviewRows: z.number().int().nonnegative(),
+    blockedRows: z.number().int().nonnegative(),
+    allRowsVerified: z.boolean()
+  }).strict(),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    digestMatrixRowCount: z.number().int().nonnegative(),
+    digestMatrixVerifiedCount: z.number().int().nonnegative(),
+    digestMatrixNeedsReviewCount: z.number().int().nonnegative(),
+    digestMatrixBlockedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseCertification = z.infer<typeof providerWebhookReviewQaHandoffReleaseCertificationSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

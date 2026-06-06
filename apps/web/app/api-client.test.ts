@@ -40,6 +40,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
+  getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
@@ -230,7 +231,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationSignOffResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseEvidenceResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseVerificationResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseVerificationResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseCertificationResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -241,12 +243,14 @@ describe("frontend API client", () => {
     const receipt = await getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters);
     const releaseEvidence = await getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(filters);
     const releaseVerification = await getProviderWebhookReviewQaHandoffArchiveReleaseVerification(filters);
+    const releaseCertification = await getProviderWebhookReviewQaHandoffArchiveReleaseCertification(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification?provider=line&eventType=message.created", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -275,7 +279,18 @@ describe("frontend API client", () => {
       externalCalls: 0
     });
     expect(releaseVerification.digestMatrixRows).toHaveLength(10);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(releaseCertification).toMatchObject({
+      certificationKind: "qa-handoff-locked-archive-release-certification-receipt",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      releaseVerificationDigest: releaseVerification.safeDigest,
+      externalCalls: 0
+    });
+    expect(releaseCertification.digestMatrixSummary.allRowsVerified).toBe(true);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -300,6 +315,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release verification unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffArchiveReleaseVerification()).rejects.toThrow("API request failed (503): release verification unavailable");
+  });
+
+  it("surfaces archive release certification API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release certification unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveReleaseCertification()).rejects.toThrow("API request failed (503): release certification unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3794,6 +3815,60 @@ function providerWebhookReleaseVerificationDigestRow(key: string, label: string,
     digestPresent: true,
     digestMatchesExpected: true,
     verificationStatus: "verified"
+  };
+}
+
+function providerWebhookArchiveReleaseCertificationResponse() {
+  const verification = providerWebhookArchiveReleaseVerificationResponse();
+  const certificationChecklist = {
+    releaseEvidenceReady: true,
+    releaseVerificationPresent: true,
+    releaseVerificationVerified: true,
+    releaseReadinessReady: true,
+    digestChainConfirmed: true,
+    prerequisitesComplete: true,
+    digestMatrixVerified: true,
+    safeFilenamePresent: true,
+    safeDigestPresent: true,
+    releaseEvidenceDigestPresent: true,
+    releaseVerificationDigestPresent: true,
+    providerOutboundAbsent: true,
+    externalCallsZero: true
+  };
+  return {
+    certificationKind: "qa-handoff-locked-archive-release-certification-receipt",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-certification-receipt.json",
+    safeDigest: "sha256:safeqahandoffarchivereleasecertification",
+    releaseEvidenceDigest: verification.releaseEvidenceDigest,
+    releaseVerificationDigest: verification.safeDigest,
+    prerequisiteChecklist: verification.prerequisiteChecklist,
+    certificationChecklist,
+    digestMatrixSummary: {
+      totalRows: 10,
+      verifiedRows: 10,
+      needsReviewRows: 0,
+      blockedRows: 0,
+      allRowsVerified: true
+    },
+    counts: {
+      totalItems: verification.counts.totalItems,
+      releaseEvidenceCheckedCount: verification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: verification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: 1,
+      prerequisitePassedCount: verification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: verification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: Object.values(certificationChecklist).filter(Boolean).length,
+      certificationChecklistTotalCount: Object.values(certificationChecklist).length,
+      digestMatrixRowCount: verification.counts.digestMatrixRowCount,
+      digestMatrixVerifiedCount: verification.counts.digestMatrixVerifiedCount,
+      digestMatrixNeedsReviewCount: verification.counts.digestMatrixNeedsReviewCount,
+      digestMatrixBlockedCount: verification.counts.digestMatrixBlockedCount
+    },
+    externalCalls: 0
   };
 }
 

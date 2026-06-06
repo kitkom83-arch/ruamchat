@@ -49,6 +49,7 @@ import {
   type ProviderWebhookReviewQaHandoffFinalizationReceipt,
   type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
+  type ProviderWebhookReviewQaHandoffReleaseCertification,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow,
   type ProviderWebhookReviewQaHandoffReleaseVerificationStatus,
@@ -1351,6 +1352,16 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive release evidence must be ready_for_release before verification");
     }
     return qaHandoffArchiveReleaseVerificationResponse(releaseEvidence);
+  }
+
+  getReviewQaHandoffArchiveReleaseCertification(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffReleaseCertification {
+    const releaseVerification = this.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, actorUserId);
+    assertQaHandoffArchiveReleaseCertificationReady(releaseVerification);
+    return qaHandoffArchiveReleaseCertificationResponse(releaseVerification);
   }
 
   private getLockedArchiveContext(
@@ -4991,6 +5002,88 @@ function releaseVerificationDigestRow(
     digestPresent,
     digestMatchesExpected,
     verificationStatus
+  };
+}
+
+function assertQaHandoffArchiveReleaseCertificationReady(
+  verification: ProviderWebhookReviewQaHandoffReleaseVerification
+) {
+  if (verification.verificationStatus !== "verified") {
+    throw new ConflictException("Provider webhook QA archive release verification must be verified before certification");
+  }
+  if (verification.releaseReadinessStatus !== "ready_for_release") {
+    throw new ConflictException("Provider webhook QA archive release evidence must be ready_for_release before certification");
+  }
+  if (verification.digestChainStatus !== "confirmed") {
+    throw new ConflictException("Provider webhook QA archive digest chain must be confirmed before certification");
+  }
+  if (!Object.values(verification.prerequisiteChecklist).every(Boolean)) {
+    throw new ConflictException("Provider webhook QA archive release prerequisites must be complete before certification");
+  }
+  if (!verification.digestMatrixRows.every((row) => row.verificationStatus === "verified" && row.digestPresent && row.digestMatchesExpected)) {
+    throw new ConflictException("Provider webhook QA archive release digest matrix must be verified before certification");
+  }
+}
+
+function qaHandoffArchiveReleaseCertificationResponse(
+  verification: ProviderWebhookReviewQaHandoffReleaseVerification
+): ProviderWebhookReviewQaHandoffReleaseCertification {
+  const releaseVerificationDigest = verification.safeDigest;
+  const digestMatrixSummary = {
+    totalRows: verification.counts.digestMatrixRowCount,
+    verifiedRows: verification.counts.digestMatrixVerifiedCount,
+    needsReviewRows: verification.counts.digestMatrixNeedsReviewCount,
+    blockedRows: verification.counts.digestMatrixBlockedCount,
+    allRowsVerified: verification.digestMatrixRows.every((row) => row.verificationStatus === "verified" && row.digestPresent && row.digestMatchesExpected)
+  };
+  const certificationChecklist = {
+    releaseEvidenceReady: Boolean(verification.releaseEvidenceDigest),
+    releaseVerificationPresent: Boolean(releaseVerificationDigest),
+    releaseVerificationVerified: verification.verificationStatus === "verified",
+    releaseReadinessReady: verification.releaseReadinessStatus === "ready_for_release",
+    digestChainConfirmed: verification.digestChainStatus === "confirmed",
+    prerequisitesComplete: Object.values(verification.prerequisiteChecklist).every(Boolean),
+    digestMatrixVerified: digestMatrixSummary.allRowsVerified,
+    safeFilenamePresent: Boolean(verification.safeFilename),
+    safeDigestPresent: Boolean(verification.safeDigest),
+    releaseEvidenceDigestPresent: Boolean(verification.releaseEvidenceDigest),
+    releaseVerificationDigestPresent: Boolean(releaseVerificationDigest),
+    providerOutboundAbsent: verification.prerequisiteChecklist.providerOutboundAbsent,
+    externalCallsZero: verification.externalCalls === 0 && verification.prerequisiteChecklist.externalCallsZero
+  };
+  const checklistValues = Object.values(certificationChecklist);
+  const payload = {
+    certificationKind: "qa-handoff-locked-archive-release-certification-receipt" as const,
+    certificationStatus: "certified" as const,
+    releaseReadinessStatus: "ready_for_release" as const,
+    verificationStatus: "verified" as const,
+    digestChainStatus: "confirmed" as const,
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-archive-release-certification-receipt.json"),
+    releaseEvidenceDigest: verification.releaseEvidenceDigest,
+    releaseVerificationDigest,
+    prerequisiteChecklist: verification.prerequisiteChecklist,
+    certificationChecklist,
+    digestMatrixSummary,
+    counts: {
+      totalItems: verification.counts.totalItems,
+      releaseEvidenceCheckedCount: verification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: verification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: 1,
+      prerequisitePassedCount: verification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: verification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: checklistValues.filter(Boolean).length,
+      certificationChecklistTotalCount: checklistValues.length,
+      digestMatrixRowCount: verification.counts.digestMatrixRowCount,
+      digestMatrixVerifiedCount: verification.counts.digestMatrixVerifiedCount,
+      digestMatrixNeedsReviewCount: verification.counts.digestMatrixNeedsReviewCount,
+      digestMatrixBlockedCount: verification.counts.digestMatrixBlockedCount
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
   };
 }
 
