@@ -19,6 +19,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData,
+  loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData,
   loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData,
@@ -89,6 +90,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification: vi.fn(),
+  getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: vi.fn(),
   signOffProviderWebhookReviewQaHandoffBundleReceipt: vi.fn(),
@@ -152,6 +154,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt: api.getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification: api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
+  getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit: api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   signOffProviderWebhookReviewQaHandoffBundleReceipt: api.signOffProviderWebhookReviewQaHandoffBundleReceipt,
@@ -204,6 +207,7 @@ beforeEach(() => {
   api.getProviderWebhookReviewQaHandoffBundleExport.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockReset();
+  api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockReset();
   api.getProviderWebhookReviewClosureReportExport.mockReset();
@@ -902,6 +906,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockResolvedValueOnce(providerWebhookArchiveReleaseVerificationResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockResolvedValueOnce(providerWebhookArchiveReleaseCertificationResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockResolvedValueOnce(providerWebhookArchiveReleaseClosureLedgerResponse());
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit.mockResolvedValueOnce(providerWebhookArchiveReleaseAttestationAuditResponse());
 
     const filters = { provider: "line", eventType: "message.created" } as const;
     const finalization = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", filters);
@@ -914,6 +919,7 @@ describe("settings API-mode data loaders", () => {
     const releaseVerification = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData("api", filters);
     const releaseCertification = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData("api", filters);
     const closureLedger = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData("api", filters);
+    const attestationAudit = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData("api", filters);
 
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters);
     expect(api.signOffProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters, {
@@ -925,6 +931,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit).toHaveBeenCalledWith(filters);
     expect(finalization.finalization).toMatchObject({
       finalizationStatus: "ready",
       retentionSignOffStatus: "not_signed",
@@ -981,7 +988,20 @@ describe("settings API-mode data loaders", () => {
     });
     expect(closureLedger.closureLedger.releaseCertificationDigest).toBe(releaseCertification.certification.safeDigest);
     expect(closureLedger.closureLedger.ledgerRows).toHaveLength(5);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(attestationAudit.attestationAudit).toMatchObject({
+      attestationKind: "qa-handoff-locked-archive-release-attestation-audit",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      closureLedgerDigest: closureLedger.closureLedger.safeDigest,
+      externalCalls: 0
+    });
+    expect(attestationAudit.attestationAudit.attestationRows).toHaveLength(7);
+    expect(attestationAudit.attestationAudit.counts.attestationAuditCheckedCount).toBe(1);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("does not fallback to mock archive finalization or retention sign-off when API mode fails", async () => {
@@ -992,6 +1012,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockRejectedValueOnce(new Error("API request failed (503): release verification unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockRejectedValueOnce(new Error("API request failed (503): release certification unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockRejectedValueOnce(new Error("API request failed (503): release closure ledger unavailable"));
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit.mockRejectedValueOnce(new Error("API request failed (503): release attestation audit unavailable"));
 
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", { provider: "line" }))
       .rejects.toThrow("archive finalization unavailable");
@@ -1007,6 +1028,8 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("release certification unavailable");
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData("api", { provider: "line" }))
       .rejects.toThrow("release closure ledger unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData("api", { provider: "line" }))
+      .rejects.toThrow("release attestation audit unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -3792,11 +3815,80 @@ function providerWebhookArchiveReleaseClosureLedgerResponse() {
   };
 }
 
+function providerWebhookArchiveReleaseAttestationAuditResponse() {
+  const closureLedger = providerWebhookArchiveReleaseClosureLedgerResponse();
+  const attestationRows = [
+    providerWebhookReleaseAttestationAuditRow("closure_ledger", "Closure ledger", "attested", closureLedger.safeDigest, closureLedger.counts.closureLedgerCheckedCount),
+    providerWebhookReleaseAttestationAuditRow("release_evidence_digest", "Release evidence digest", "verified", closureLedger.releaseEvidenceDigest, closureLedger.counts.releaseEvidenceCheckedCount),
+    providerWebhookReleaseAttestationAuditRow("release_verification_digest", "Release verification digest", "verified", closureLedger.releaseVerificationDigest, closureLedger.counts.releaseVerificationCheckedCount),
+    providerWebhookReleaseAttestationAuditRow("release_certification_digest", "Release certification digest", "verified", closureLedger.releaseCertificationDigest, closureLedger.counts.releaseCertificationCheckedCount),
+    providerWebhookReleaseAttestationAuditRow("prerequisite_checklist", "Prerequisite checklist", "complete", closureLedger.safeDigest, closureLedger.counts.prerequisitePassedCount),
+    providerWebhookReleaseAttestationAuditRow("certification_checklist", "Certification checklist", "complete", closureLedger.safeDigest, closureLedger.counts.certificationChecklistPassedCount),
+    providerWebhookReleaseAttestationAuditRow("external_calls", "External calls", "attested", closureLedger.safeDigest, closureLedger.externalCalls)
+  ];
+  return {
+    attestationKind: "qa-handoff-locked-archive-release-attestation-audit",
+    attestationStatus: "complete",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-attestation-audit.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseattestationaudit",
+    releaseEvidenceDigest: closureLedger.releaseEvidenceDigest,
+    releaseVerificationDigest: closureLedger.releaseVerificationDigest,
+    releaseCertificationDigest: closureLedger.releaseCertificationDigest,
+    closureLedgerDigest: closureLedger.safeDigest,
+    attestationRows,
+    prerequisiteChecklist: closureLedger.prerequisiteChecklist,
+    certificationChecklist: closureLedger.certificationChecklist,
+    attestationSummary: {
+      attestationRowCount: attestationRows.length,
+      attestedRowCount: attestationRows.length,
+      ledgerClosed: true,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      closureLedgerDigestPresent: true,
+      externalCallsZero: true
+    },
+    counts: {
+      totalItems: closureLedger.counts.totalItems,
+      releaseEvidenceCheckedCount: closureLedger.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: closureLedger.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: closureLedger.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: closureLedger.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: 1,
+      prerequisitePassedCount: closureLedger.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: closureLedger.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: closureLedger.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: closureLedger.counts.certificationChecklistTotalCount,
+      ledgerRowCount: closureLedger.counts.ledgerRowCount,
+      ledgerClosedRowCount: closureLedger.counts.ledgerClosedRowCount,
+      attestationRowCount: attestationRows.length,
+      attestationAttestedRowCount: attestationRows.length,
+      attestationNeedsReviewRowCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookReleaseClosureLedgerRow(key: string, label: string, ledgerStatus: string, safeDigest: string, checkedCount: number) {
   return {
     key,
     label,
     ledgerStatus,
+    safeDigest,
+    checkedCount,
+    complete: true
+  };
+}
+
+function providerWebhookReleaseAttestationAuditRow(key: string, label: string, attestationStatus: string, safeDigest: string, checkedCount: number) {
+  return {
+    key,
+    label,
+    attestationStatus,
     safeDigest,
     checkedCount,
     complete: true

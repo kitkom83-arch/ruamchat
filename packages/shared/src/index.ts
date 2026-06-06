@@ -3883,6 +3883,81 @@ export const providerWebhookReviewQaHandoffReleaseClosureLedgerSchema = z.object
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseClosureLedger = z.infer<typeof providerWebhookReviewQaHandoffReleaseClosureLedgerSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseAttestationAuditRowKeySchema = z.enum([
+  "closure_ledger",
+  "release_evidence_digest",
+  "release_verification_digest",
+  "release_certification_digest",
+  "prerequisite_checklist",
+  "certification_checklist",
+  "external_calls"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseAttestationAuditRowKey = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationAuditRowKeySchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationAuditRowStatusSchema = z.enum([
+  "verified",
+  "complete",
+  "attested"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseAttestationAuditRowStatus = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationAuditRowStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationAuditRowSchema = z.object({
+  key: providerWebhookReviewQaHandoffReleaseAttestationAuditRowKeySchema,
+  label: z.string().min(1),
+  attestationStatus: providerWebhookReviewQaHandoffReleaseAttestationAuditRowStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseAttestationAuditRow = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationAuditRowSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationAuditSchema = z.object({
+  attestationKind: z.literal("qa-handoff-locked-archive-release-attestation-audit"),
+  attestationStatus: z.literal("complete"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  releaseVerificationDigest: z.string().min(1),
+  releaseCertificationDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  attestationRows: z.array(providerWebhookReviewQaHandoffReleaseAttestationAuditRowSchema).min(1),
+  prerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  certificationChecklist: providerWebhookReviewQaHandoffReleaseCertificationSchema.shape.certificationChecklist,
+  attestationSummary: z.object({
+    attestationRowCount: z.number().int().nonnegative(),
+    attestedRowCount: z.number().int().nonnegative(),
+    ledgerClosed: z.boolean(),
+    prerequisiteChecklistComplete: z.boolean(),
+    certificationChecklistComplete: z.boolean(),
+    closureLedgerDigestPresent: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    closureLedgerCheckedCount: z.number().int().nonnegative(),
+    attestationAuditCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    ledgerRowCount: z.number().int().nonnegative(),
+    ledgerClosedRowCount: z.number().int().nonnegative(),
+    attestationRowCount: z.number().int().nonnegative(),
+    attestationAttestedRowCount: z.number().int().nonnegative(),
+    attestationNeedsReviewRowCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseAttestationAudit = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationAuditSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
