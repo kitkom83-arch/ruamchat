@@ -2487,6 +2487,8 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(() => controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2498,6 +2500,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("finalization sign-off is required before finalization receipt");
     expect(() => controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
@@ -2505,9 +2509,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     const receipt = controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current");
     const releaseEvidence = controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current");
+    const releaseVerification = controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2579,6 +2584,32 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(releaseEvidence.retentionAuditDigest).toBe(retentionAudit.safeDigest);
     expect(releaseEvidence.counts.releaseEvidenceCheckedCount).toBe(1);
     expect(releaseEvidence.counts.prerequisitePassedCount).toBe(releaseEvidence.counts.prerequisiteTotalCount);
+    expect(releaseVerification).toMatchObject({
+      verificationKind: "qa-handoff-locked-archive-release-verification-matrix",
+      verificationStatus: "verified",
+      releaseReadinessStatus: "ready_for_release",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      externalCalls: 0
+    });
+    expect(releaseVerification.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-release-verification-matrix.json");
+    expect(releaseVerification.safeDigest).toMatch(/^sha256:/);
+    expect(releaseVerification.digestMatrixRows.map((row) => row.key)).toEqual([
+      "qa_handoff_bundle",
+      "qa_handoff_export",
+      "receipt_sign_off",
+      "acceptance_lock",
+      "locked_archive_export",
+      "retention_manifest",
+      "archive_integrity",
+      "retention_audit",
+      "finalization_receipt",
+      "release_evidence"
+    ]);
+    expect(releaseVerification.digestMatrixRows.every((row) => row.verificationStatus === "verified" && row.digestPresent && row.digestMatchesExpected)).toBe(true);
+    expect(releaseVerification.counts.releaseVerificationCheckedCount).toBe(1);
+    expect(releaseVerification.counts.digestMatrixRowCount).toBe(10);
+    expect(releaseVerification.counts.digestMatrixVerifiedCount).toBe(10);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,

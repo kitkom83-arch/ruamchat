@@ -40,6 +40,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
+  getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
   signOffProviderWebhookReviewQaHandoffArchiveFinalization,
@@ -228,7 +229,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationSignOffResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseEvidenceResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseEvidenceResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseVerificationResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -238,11 +240,13 @@ describe("frontend API client", () => {
     });
     const receipt = await getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters);
     const releaseEvidence = await getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(filters);
+    const releaseVerification = await getProviderWebhookReviewQaHandoffArchiveReleaseVerification(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification?provider=line&eventType=message.created", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -262,7 +266,16 @@ describe("frontend API client", () => {
       }),
       externalCalls: 0
     });
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(releaseVerification).toMatchObject({
+      verificationKind: "qa-handoff-locked-archive-release-verification-matrix",
+      verificationStatus: "verified",
+      releaseReadinessStatus: "ready_for_release",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      externalCalls: 0
+    });
+    expect(releaseVerification.digestMatrixRows).toHaveLength(10);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -281,6 +294,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release evidence unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffArchiveReleaseEvidence()).rejects.toThrow("API request failed (503): release evidence unavailable");
+  });
+
+  it("surfaces archive release verification API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release verification unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveReleaseVerification()).rejects.toThrow("API request failed (503): release verification unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3723,6 +3742,58 @@ function providerWebhookArchiveReleaseEvidenceResponse() {
       prerequisiteTotalCount: 16
     },
     externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveReleaseVerificationResponse() {
+  const releaseEvidence = providerWebhookArchiveReleaseEvidenceResponse();
+  const digestMatrixRows = [
+    providerWebhookReleaseVerificationDigestRow("qa_handoff_bundle", "QA handoff bundle", releaseEvidence.bundleDigest),
+    providerWebhookReleaseVerificationDigestRow("qa_handoff_export", "QA handoff export", releaseEvidence.exportDigest),
+    providerWebhookReleaseVerificationDigestRow("receipt_sign_off", "receipt/sign-off", releaseEvidence.receiptDigest),
+    providerWebhookReleaseVerificationDigestRow("acceptance_lock", "acceptance lock", releaseEvidence.acceptanceLockDigest),
+    providerWebhookReleaseVerificationDigestRow("locked_archive_export", "locked archive/export", releaseEvidence.lockedArchiveDigest),
+    providerWebhookReleaseVerificationDigestRow("retention_manifest", "retention manifest", releaseEvidence.retentionManifestDigest),
+    providerWebhookReleaseVerificationDigestRow("archive_integrity", "archive integrity", releaseEvidence.integrityDigest),
+    providerWebhookReleaseVerificationDigestRow("retention_audit", "retention audit", releaseEvidence.retentionAuditDigest),
+    providerWebhookReleaseVerificationDigestRow("finalization_receipt", "finalization receipt", releaseEvidence.finalizationReceiptDigest),
+    providerWebhookReleaseVerificationDigestRow("release_evidence", "release evidence", releaseEvidence.safeDigest)
+  ];
+  return {
+    ...releaseEvidence,
+    verificationKind: "qa-handoff-locked-archive-release-verification-matrix",
+    verificationStatus: "verified",
+    safeVerificationLabel: "safe-qa-handoff-release-verification-matrix",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-verification-matrix.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseverification",
+    releaseEvidenceDigest: releaseEvidence.safeDigest,
+    digestMatrixRows,
+    safeCheckLabels: [
+      ...releaseEvidence.safeCheckLabels,
+      "release evidence ready",
+      "digest matrix verified"
+    ],
+    counts: {
+      ...releaseEvidence.counts,
+      releaseVerificationCheckedCount: 1,
+      digestMatrixRowCount: digestMatrixRows.length,
+      digestMatrixVerifiedCount: 10,
+      digestMatrixNeedsReviewCount: 0,
+      digestMatrixBlockedCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReleaseVerificationDigestRow(key: string, label: string, digest: string) {
+  return {
+    key,
+    label,
+    safeDigest: digest,
+    expectedDigest: digest,
+    digestPresent: true,
+    digestMatchesExpected: true,
+    verificationStatus: "verified"
   };
 }
 

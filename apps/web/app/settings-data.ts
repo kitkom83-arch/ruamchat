@@ -30,6 +30,7 @@ import type {
   ProviderWebhookReviewQaHandoffLockedArchiveExport,
   ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   ProviderWebhookReviewQaHandoffReleaseEvidence,
+  ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
   ProviderWebhookReviewQaHandoffRetentionManifest,
   ProviderWebhookReviewQaHandoffReceipt,
@@ -100,6 +101,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
+  getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
@@ -271,6 +273,11 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData
 export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData = {
   mode: DataMode;
   releaseEvidence: ProviderWebhookReviewQaHandoffReleaseEvidence;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData = {
+  mode: DataMode;
+  verification: ProviderWebhookReviewQaHandoffReleaseVerification;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -799,6 +806,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEv
   return {
     mode,
     releaseEvidence: createMockReviewQaHandoffArchiveReleaseEvidence(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData> {
+  if (mode === "api") {
+    return {
+      mode,
+      verification: await getProviderWebhookReviewQaHandoffArchiveReleaseVerification(filters)
+    };
+  }
+
+  return {
+    mode,
+    verification: createMockReviewQaHandoffArchiveReleaseVerification(filters)
   };
 }
 
@@ -2606,6 +2630,63 @@ function createMockReviewQaHandoffArchiveReleaseEvidence(filters: ProviderWebhoo
       prerequisiteTotalCount: checklistValues.length
     },
     externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveReleaseVerification(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffReleaseVerification {
+  const releaseEvidence = createMockReviewQaHandoffArchiveReleaseEvidence(filters);
+  const digestMatrixRows: ProviderWebhookReviewQaHandoffReleaseVerification["digestMatrixRows"] = [
+    createMockReleaseVerificationDigestRow("qa_handoff_bundle", "QA handoff bundle", releaseEvidence.bundleDigest),
+    createMockReleaseVerificationDigestRow("qa_handoff_export", "QA handoff export", releaseEvidence.exportDigest),
+    createMockReleaseVerificationDigestRow("receipt_sign_off", "receipt/sign-off", releaseEvidence.receiptDigest),
+    createMockReleaseVerificationDigestRow("acceptance_lock", "acceptance lock", releaseEvidence.acceptanceLockDigest),
+    createMockReleaseVerificationDigestRow("locked_archive_export", "locked archive/export", releaseEvidence.lockedArchiveDigest),
+    createMockReleaseVerificationDigestRow("retention_manifest", "retention manifest", releaseEvidence.retentionManifestDigest),
+    createMockReleaseVerificationDigestRow("archive_integrity", "archive integrity", releaseEvidence.integrityDigest),
+    createMockReleaseVerificationDigestRow("retention_audit", "retention audit", releaseEvidence.retentionAuditDigest),
+    createMockReleaseVerificationDigestRow("finalization_receipt", "finalization receipt", releaseEvidence.finalizationReceiptDigest),
+    createMockReleaseVerificationDigestRow("release_evidence", "release evidence", releaseEvidence.safeDigest)
+  ];
+  const verifiedCount = digestMatrixRows.filter((row) => row.verificationStatus === "verified").length;
+  return {
+    ...releaseEvidence,
+    verificationKind: "qa-handoff-locked-archive-release-verification-matrix",
+    verificationStatus: "verified",
+    safeVerificationLabel: "safe-qa-handoff-release-verification-matrix",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-verification-matrix.json",
+    safeDigest: "sha256:mockqahandoffarchivereleaseverification",
+    releaseEvidenceDigest: releaseEvidence.safeDigest,
+    digestMatrixRows,
+    safeCheckLabels: [
+      ...releaseEvidence.safeCheckLabels,
+      "release evidence ready",
+      "digest matrix verified"
+    ],
+    counts: {
+      ...releaseEvidence.counts,
+      releaseVerificationCheckedCount: 1,
+      digestMatrixRowCount: digestMatrixRows.length,
+      digestMatrixVerifiedCount: verifiedCount,
+      digestMatrixNeedsReviewCount: digestMatrixRows.filter((row) => row.verificationStatus === "needs_review").length,
+      digestMatrixBlockedCount: digestMatrixRows.filter((row) => row.verificationStatus === "blocked").length
+    },
+    externalCalls: 0
+  };
+}
+
+function createMockReleaseVerificationDigestRow(
+  key: ProviderWebhookReviewQaHandoffReleaseVerification["digestMatrixRows"][number]["key"],
+  label: string,
+  digest: string
+): ProviderWebhookReviewQaHandoffReleaseVerification["digestMatrixRows"][number] {
+  return {
+    key,
+    label,
+    safeDigest: digest,
+    expectedDigest: digest,
+    digestPresent: Boolean(digest),
+    digestMatchesExpected: true,
+    verificationStatus: "verified"
   };
 }
 

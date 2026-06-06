@@ -3719,6 +3719,51 @@ export const providerWebhookReviewQaHandoffReleaseEvidenceSchema = providerWebho
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseEvidence = z.infer<typeof providerWebhookReviewQaHandoffReleaseEvidenceSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseVerificationStatusSchema = z.enum(["verified", "needs_review", "blocked"]);
+export type ProviderWebhookReviewQaHandoffReleaseVerificationStatus = z.infer<typeof providerWebhookReviewQaHandoffReleaseVerificationStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseVerificationMatrixKeySchema = z.enum([
+  "qa_handoff_bundle",
+  "qa_handoff_export",
+  "receipt_sign_off",
+  "acceptance_lock",
+  "locked_archive_export",
+  "retention_manifest",
+  "archive_integrity",
+  "retention_audit",
+  "finalization_receipt",
+  "release_evidence"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseVerificationMatrixKey = z.infer<typeof providerWebhookReviewQaHandoffReleaseVerificationMatrixKeySchema>;
+
+export const providerWebhookReviewQaHandoffReleaseVerificationDigestRowSchema = z.object({
+  key: providerWebhookReviewQaHandoffReleaseVerificationMatrixKeySchema,
+  label: z.string().min(1),
+  safeDigest: z.string().min(1),
+  expectedDigest: z.string().min(1),
+  digestPresent: z.boolean(),
+  digestMatchesExpected: z.boolean(),
+  verificationStatus: providerWebhookReviewQaHandoffReleaseVerificationStatusSchema
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow = z.infer<typeof providerWebhookReviewQaHandoffReleaseVerificationDigestRowSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseVerificationSchema = providerWebhookReviewQaHandoffReleaseEvidenceSchema.extend({
+  verificationKind: z.literal("qa-handoff-locked-archive-release-verification-matrix"),
+  verificationStatus: providerWebhookReviewQaHandoffReleaseVerificationStatusSchema,
+  safeVerificationLabel: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  digestMatrixRows: z.array(providerWebhookReviewQaHandoffReleaseVerificationDigestRowSchema).min(1),
+  counts: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.counts.extend({
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    digestMatrixRowCount: z.number().int().nonnegative(),
+    digestMatrixVerifiedCount: z.number().int().nonnegative(),
+    digestMatrixNeedsReviewCount: z.number().int().nonnegative(),
+    digestMatrixBlockedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseVerification = z.infer<typeof providerWebhookReviewQaHandoffReleaseVerificationSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
