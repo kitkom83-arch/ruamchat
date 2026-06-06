@@ -2489,6 +2489,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("locked archive export is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2502,6 +2504,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("finalization sign-off is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
@@ -2510,9 +2514,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     const receipt = controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current");
     const releaseEvidence = controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current");
     const releaseVerification = controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current");
+    const releaseCertification = controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2610,6 +2615,38 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(releaseVerification.counts.releaseVerificationCheckedCount).toBe(1);
     expect(releaseVerification.counts.digestMatrixRowCount).toBe(10);
     expect(releaseVerification.counts.digestMatrixVerifiedCount).toBe(10);
+    expect(releaseCertification).toMatchObject({
+      certificationKind: "qa-handoff-locked-archive-release-certification-receipt",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      releaseVerificationDigest: releaseVerification.safeDigest,
+      externalCalls: 0
+    });
+    expect(releaseCertification.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-release-certification-receipt.json");
+    expect(releaseCertification.safeDigest).toMatch(/^sha256:/);
+    expect(releaseCertification.certificationChecklist).toMatchObject({
+      releaseEvidenceReady: true,
+      releaseVerificationPresent: true,
+      releaseVerificationVerified: true,
+      releaseReadinessReady: true,
+      digestChainConfirmed: true,
+      prerequisitesComplete: true,
+      digestMatrixVerified: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true
+    });
+    expect(releaseCertification.digestMatrixSummary).toMatchObject({
+      totalRows: 10,
+      verifiedRows: 10,
+      needsReviewRows: 0,
+      blockedRows: 0,
+      allRowsVerified: true
+    });
+    expect(releaseCertification.counts.releaseCertificationCheckedCount).toBe(1);
+    expect(releaseCertification.counts.certificationChecklistPassedCount).toBe(releaseCertification.counts.certificationChecklistTotalCount);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,

@@ -32,6 +32,7 @@ import {
   providerWebhookReviewQaHandoffLockedArchiveExportSchema,
   providerWebhookReviewQaHandoffLockedArchiveStatusSchema,
   providerWebhookReviewQaHandoffReleaseEvidenceSchema,
+  providerWebhookReviewQaHandoffReleaseCertificationSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
   providerWebhookReviewQaHandoffRetentionManifestSchema,
@@ -242,6 +243,7 @@ import {
   type ProviderWebhookReviewQaHandoffLockedArchiveExport,
   type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
+  type ProviderWebhookReviewQaHandoffReleaseCertification,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
   type ProviderWebhookReviewQaHandoffRetentionManifest,
@@ -644,6 +646,11 @@ export async function getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(fi
 export async function getProviderWebhookReviewQaHandoffArchiveReleaseVerification(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseVerification> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification${search}`, providerWebhookReviewQaHandoffReleaseVerificationSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffArchiveReleaseCertification(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseCertification> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification${search}`, providerWebhookReviewQaHandoffReleaseCertificationSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

@@ -18,6 +18,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData,
+  loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData,
   loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData,
   loadSettingsProviderWebhookReviewQaHandoffReceiptData,
@@ -86,6 +87,7 @@ const api = vi.hoisted(() => ({
   signOffProviderWebhookReviewQaHandoffArchiveFinalization: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: vi.fn(),
+  getProviderWebhookReviewQaHandoffArchiveReleaseCertification: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: vi.fn(),
   signOffProviderWebhookReviewQaHandoffBundleReceipt: vi.fn(),
   getProviderWebhookReviewClosureReportExport: vi.fn(),
@@ -147,6 +149,7 @@ vi.mock("./api-client", () => ({
   signOffProviderWebhookReviewQaHandoffArchiveFinalization: api.signOffProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt: api.getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
+  getProviderWebhookReviewQaHandoffArchiveReleaseCertification: api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   signOffProviderWebhookReviewQaHandoffBundleReceipt: api.signOffProviderWebhookReviewQaHandoffBundleReceipt,
   getProviderWebhookReviewClosureReportExport: api.getProviderWebhookReviewClosureReportExport,
@@ -197,6 +200,7 @@ beforeEach(() => {
   api.getProviderWebhookReviewQaHandoffBundle.mockReset();
   api.getProviderWebhookReviewQaHandoffBundleExport.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence.mockReset();
+  api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockReset();
   api.getProviderWebhookReviewClosureReportExport.mockReset();
   api.getProviderWebhookReviewClosureReportRedactionAudit.mockReset();
@@ -892,6 +896,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt.mockResolvedValueOnce(providerWebhookArchiveFinalizationReceiptResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence.mockResolvedValueOnce(providerWebhookArchiveReleaseEvidenceResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockResolvedValueOnce(providerWebhookArchiveReleaseVerificationResponse());
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockResolvedValueOnce(providerWebhookArchiveReleaseCertificationResponse());
 
     const filters = { provider: "line", eventType: "message.created" } as const;
     const finalization = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", filters);
@@ -902,6 +907,7 @@ describe("settings API-mode data loaders", () => {
     const receipt = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData("api", filters);
     const releaseEvidence = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData("api", filters);
     const releaseVerification = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData("api", filters);
+    const releaseCertification = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData("api", filters);
 
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters);
     expect(api.signOffProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters, {
@@ -911,6 +917,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification).toHaveBeenCalledWith(filters);
     expect(finalization.finalization).toMatchObject({
       finalizationStatus: "ready",
       retentionSignOffStatus: "not_signed",
@@ -947,7 +954,16 @@ describe("settings API-mode data loaders", () => {
       externalCalls: 0
     });
     expect(releaseVerification.verification.digestMatrixRows).toHaveLength(10);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(releaseCertification.certification).toMatchObject({
+      certificationKind: "qa-handoff-locked-archive-release-certification-receipt",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      externalCalls: 0
+    });
+    expect(releaseCertification.certification.releaseVerificationDigest).toBe(releaseVerification.verification.safeDigest);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("does not fallback to mock archive finalization or retention sign-off when API mode fails", async () => {
@@ -956,6 +972,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt.mockRejectedValueOnce(new Error("API request failed (503): finalization receipt unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence.mockRejectedValueOnce(new Error("API request failed (503): release evidence unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification.mockRejectedValueOnce(new Error("API request failed (503): release verification unavailable"));
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockRejectedValueOnce(new Error("API request failed (503): release certification unavailable"));
 
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", { provider: "line" }))
       .rejects.toThrow("archive finalization unavailable");
@@ -967,6 +984,8 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("release evidence unavailable");
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData("api", { provider: "line" }))
       .rejects.toThrow("release verification unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData("api", { provider: "line" }))
+      .rejects.toThrow("release certification unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -3645,6 +3664,60 @@ function providerWebhookReleaseVerificationDigestRow(key: string, label: string,
     digestPresent: true,
     digestMatchesExpected: true,
     verificationStatus: "verified"
+  };
+}
+
+function providerWebhookArchiveReleaseCertificationResponse() {
+  const verification = providerWebhookArchiveReleaseVerificationResponse();
+  const certificationChecklist = {
+    releaseEvidenceReady: true,
+    releaseVerificationPresent: true,
+    releaseVerificationVerified: true,
+    releaseReadinessReady: true,
+    digestChainConfirmed: true,
+    prerequisitesComplete: true,
+    digestMatrixVerified: true,
+    safeFilenamePresent: true,
+    safeDigestPresent: true,
+    releaseEvidenceDigestPresent: true,
+    releaseVerificationDigestPresent: true,
+    providerOutboundAbsent: true,
+    externalCallsZero: true
+  };
+  return {
+    certificationKind: "qa-handoff-locked-archive-release-certification-receipt",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-certification-receipt.json",
+    safeDigest: "sha256:safeqahandoffarchivereleasecertification",
+    releaseEvidenceDigest: verification.releaseEvidenceDigest,
+    releaseVerificationDigest: verification.safeDigest,
+    prerequisiteChecklist: verification.prerequisiteChecklist,
+    certificationChecklist,
+    digestMatrixSummary: {
+      totalRows: 10,
+      verifiedRows: 10,
+      needsReviewRows: 0,
+      blockedRows: 0,
+      allRowsVerified: true
+    },
+    counts: {
+      totalItems: verification.counts.totalItems,
+      releaseEvidenceCheckedCount: verification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: verification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: 1,
+      prerequisitePassedCount: verification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: verification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: Object.values(certificationChecklist).filter(Boolean).length,
+      certificationChecklistTotalCount: Object.values(certificationChecklist).length,
+      digestMatrixRowCount: verification.counts.digestMatrixRowCount,
+      digestMatrixVerifiedCount: verification.counts.digestMatrixVerifiedCount,
+      digestMatrixNeedsReviewCount: verification.counts.digestMatrixNeedsReviewCount,
+      digestMatrixBlockedCount: verification.counts.digestMatrixBlockedCount
+    },
+    externalCalls: 0
   };
 }
 
