@@ -41,6 +41,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
+  getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
@@ -232,7 +233,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseEvidenceResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseVerificationResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseCertificationResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseCertificationResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseClosureLedgerResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -244,6 +246,7 @@ describe("frontend API client", () => {
     const releaseEvidence = await getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(filters);
     const releaseVerification = await getProviderWebhookReviewQaHandoffArchiveReleaseVerification(filters);
     const releaseCertification = await getProviderWebhookReviewQaHandoffArchiveReleaseCertification(filters);
+    const closureLedger = await getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
@@ -251,6 +254,7 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger?provider=line&eventType=message.created", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -290,7 +294,21 @@ describe("frontend API client", () => {
       externalCalls: 0
     });
     expect(releaseCertification.digestMatrixSummary.allRowsVerified).toBe(true);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(closureLedger).toMatchObject({
+      ledgerKind: "qa-handoff-locked-archive-release-closure-ledger",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      releaseVerificationDigest: releaseVerification.safeDigest,
+      releaseCertificationDigest: releaseCertification.safeDigest,
+      externalCalls: 0
+    });
+    expect(closureLedger.ledgerRows).toHaveLength(5);
+    expect(closureLedger.ledgerSummary.certificationChecklistComplete).toBe(true);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -321,6 +339,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release certification unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffArchiveReleaseCertification()).rejects.toThrow("API request failed (503): release certification unavailable");
+  });
+
+  it("surfaces archive release closure ledger API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release closure ledger unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger()).rejects.toThrow("API request failed (503): release closure ledger unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3869,6 +3893,67 @@ function providerWebhookArchiveReleaseCertificationResponse() {
       digestMatrixBlockedCount: verification.counts.digestMatrixBlockedCount
     },
     externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveReleaseClosureLedgerResponse() {
+  const certification = providerWebhookArchiveReleaseCertificationResponse();
+  const ledgerRows = [
+    providerWebhookReleaseClosureLedgerRow("release_evidence", "Release evidence pack", "verified", certification.releaseEvidenceDigest, certification.counts.releaseEvidenceCheckedCount),
+    providerWebhookReleaseClosureLedgerRow("release_verification", "Release verification matrix", "verified", certification.releaseVerificationDigest, certification.counts.releaseVerificationCheckedCount),
+    providerWebhookReleaseClosureLedgerRow("release_certification", "Release certification receipt", "certified", certification.safeDigest, certification.counts.releaseCertificationCheckedCount),
+    providerWebhookReleaseClosureLedgerRow("prerequisite_checklist", "Prerequisite checklist", "complete", certification.safeDigest, certification.counts.prerequisitePassedCount),
+    providerWebhookReleaseClosureLedgerRow("certification_checklist", "Certification checklist", "closed", certification.safeDigest, certification.counts.certificationChecklistPassedCount)
+  ];
+  return {
+    ledgerKind: "qa-handoff-locked-archive-release-closure-ledger",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-closure-ledger.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseclosureledger",
+    releaseEvidenceDigest: certification.releaseEvidenceDigest,
+    releaseVerificationDigest: certification.releaseVerificationDigest,
+    releaseCertificationDigest: certification.safeDigest,
+    ledgerRows,
+    prerequisiteChecklist: certification.prerequisiteChecklist,
+    certificationChecklist: certification.certificationChecklist,
+    ledgerSummary: {
+      ledgerRowCount: ledgerRows.length,
+      closedRowCount: ledgerRows.length,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      releaseCertificationDigestPresent: true,
+      externalCallsZero: true
+    },
+    counts: {
+      totalItems: certification.counts.totalItems,
+      releaseEvidenceCheckedCount: certification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: certification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: certification.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: 1,
+      prerequisitePassedCount: certification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: certification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: certification.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: certification.counts.certificationChecklistTotalCount,
+      ledgerRowCount: ledgerRows.length,
+      ledgerClosedRowCount: ledgerRows.length,
+      ledgerNeedsReviewRowCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReleaseClosureLedgerRow(key: string, label: string, ledgerStatus: string, safeDigest: string, checkedCount: number) {
+  return {
+    key,
+    label,
+    ledgerStatus,
+    safeDigest,
+    checkedCount,
+    complete: true
   };
 }
 

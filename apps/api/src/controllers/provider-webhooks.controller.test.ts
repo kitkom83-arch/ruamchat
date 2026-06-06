@@ -2491,6 +2491,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("locked archive export is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseClosureLedger(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2506,6 +2508,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("finalization sign-off is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseClosureLedger(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
@@ -2515,9 +2519,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     const releaseEvidence = controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current");
     const releaseVerification = controller.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, "operator-current");
     const releaseCertification = controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current");
+    const closureLedger = controller.getReviewQaHandoffArchiveReleaseClosureLedger(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2647,6 +2652,37 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(releaseCertification.counts.releaseCertificationCheckedCount).toBe(1);
     expect(releaseCertification.counts.certificationChecklistPassedCount).toBe(releaseCertification.counts.certificationChecklistTotalCount);
+    expect(closureLedger).toMatchObject({
+      ledgerKind: "qa-handoff-locked-archive-release-closure-ledger",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      releaseVerificationDigest: releaseVerification.safeDigest,
+      releaseCertificationDigest: releaseCertification.safeDigest,
+      externalCalls: 0
+    });
+    expect(closureLedger.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-release-closure-ledger.json");
+    expect(closureLedger.safeDigest).toMatch(/^sha256:/);
+    expect(closureLedger.ledgerRows.map((row) => row.key)).toEqual([
+      "release_evidence",
+      "release_verification",
+      "release_certification",
+      "prerequisite_checklist",
+      "certification_checklist"
+    ]);
+    expect(closureLedger.ledgerSummary).toMatchObject({
+      ledgerRowCount: 5,
+      closedRowCount: 5,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      releaseCertificationDigestPresent: true,
+      externalCallsZero: true
+    });
+    expect(closureLedger.counts.closureLedgerCheckedCount).toBe(1);
+    expect(closureLedger.counts.ledgerNeedsReviewRowCount).toBe(0);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,

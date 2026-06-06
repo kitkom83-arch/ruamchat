@@ -3815,6 +3815,74 @@ export const providerWebhookReviewQaHandoffReleaseCertificationSchema = z.object
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseCertification = z.infer<typeof providerWebhookReviewQaHandoffReleaseCertificationSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseClosureLedgerRowKeySchema = z.enum([
+  "release_evidence",
+  "release_verification",
+  "release_certification",
+  "prerequisite_checklist",
+  "certification_checklist"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseClosureLedgerRowKey = z.infer<typeof providerWebhookReviewQaHandoffReleaseClosureLedgerRowKeySchema>;
+
+export const providerWebhookReviewQaHandoffReleaseClosureLedgerRowStatusSchema = z.enum([
+  "verified",
+  "certified",
+  "complete",
+  "closed"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseClosureLedgerRowStatus = z.infer<typeof providerWebhookReviewQaHandoffReleaseClosureLedgerRowStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseClosureLedgerRowSchema = z.object({
+  key: providerWebhookReviewQaHandoffReleaseClosureLedgerRowKeySchema,
+  label: z.string().min(1),
+  ledgerStatus: providerWebhookReviewQaHandoffReleaseClosureLedgerRowStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseClosureLedgerRow = z.infer<typeof providerWebhookReviewQaHandoffReleaseClosureLedgerRowSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseClosureLedgerSchema = z.object({
+  ledgerKind: z.literal("qa-handoff-locked-archive-release-closure-ledger"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  releaseVerificationDigest: z.string().min(1),
+  releaseCertificationDigest: z.string().min(1),
+  ledgerRows: z.array(providerWebhookReviewQaHandoffReleaseClosureLedgerRowSchema).min(1),
+  prerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  certificationChecklist: providerWebhookReviewQaHandoffReleaseCertificationSchema.shape.certificationChecklist,
+  ledgerSummary: z.object({
+    ledgerRowCount: z.number().int().nonnegative(),
+    closedRowCount: z.number().int().nonnegative(),
+    prerequisiteChecklistComplete: z.boolean(),
+    certificationChecklistComplete: z.boolean(),
+    releaseCertificationDigestPresent: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    closureLedgerCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    ledgerRowCount: z.number().int().nonnegative(),
+    ledgerClosedRowCount: z.number().int().nonnegative(),
+    ledgerNeedsReviewRowCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseClosureLedger = z.infer<typeof providerWebhookReviewQaHandoffReleaseClosureLedgerSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

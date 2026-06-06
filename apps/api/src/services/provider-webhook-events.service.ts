@@ -50,6 +50,7 @@ import {
   type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
   type ProviderWebhookReviewQaHandoffReleaseCertification,
+  type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow,
   type ProviderWebhookReviewQaHandoffReleaseVerificationStatus,
@@ -1362,6 +1363,16 @@ export class ProviderWebhookEventsService {
     const releaseVerification = this.getReviewQaHandoffArchiveReleaseVerification(tenantId, filters, actorUserId);
     assertQaHandoffArchiveReleaseCertificationReady(releaseVerification);
     return qaHandoffArchiveReleaseCertificationResponse(releaseVerification);
+  }
+
+  getReviewQaHandoffArchiveReleaseClosureLedger(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffReleaseClosureLedger {
+    const releaseCertification = this.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, actorUserId);
+    assertQaHandoffArchiveReleaseClosureLedgerReady(releaseCertification);
+    return qaHandoffArchiveReleaseClosureLedgerResponse(releaseCertification);
   }
 
   private getLockedArchiveContext(
@@ -5084,6 +5095,106 @@ function qaHandoffArchiveReleaseCertificationResponse(
     ...payload,
     safeDigest: safeDigestForExport(payload),
     externalCalls: 0 as const
+  };
+}
+
+function assertQaHandoffArchiveReleaseClosureLedgerReady(
+  certification: ProviderWebhookReviewQaHandoffReleaseCertification
+) {
+  if (certification.certificationStatus !== "certified") {
+    throw new ConflictException("Provider webhook QA archive release certification receipt must be certified before closure ledger");
+  }
+  if (certification.releaseReadinessStatus !== "ready_for_release") {
+    throw new ConflictException("Provider webhook QA archive release readiness must be ready_for_release before closure ledger");
+  }
+  if (certification.verificationStatus !== "verified") {
+    throw new ConflictException("Provider webhook QA archive release verification must be verified before closure ledger");
+  }
+  if (certification.digestChainStatus !== "confirmed") {
+    throw new ConflictException("Provider webhook QA archive digest chain must be confirmed before closure ledger");
+  }
+  if (!Object.values(certification.prerequisiteChecklist).every(Boolean)) {
+    throw new ConflictException("Provider webhook QA archive release prerequisites must be complete before closure ledger");
+  }
+  if (!Object.values(certification.certificationChecklist).every(Boolean)) {
+    throw new ConflictException("Provider webhook QA archive release certification checklist must be complete before closure ledger");
+  }
+}
+
+function qaHandoffArchiveReleaseClosureLedgerResponse(
+  certification: ProviderWebhookReviewQaHandoffReleaseCertification
+): ProviderWebhookReviewQaHandoffReleaseClosureLedger {
+  const releaseCertificationDigest = certification.safeDigest;
+  const prerequisiteChecklistComplete = Object.values(certification.prerequisiteChecklist).every(Boolean);
+  const certificationChecklistComplete = Object.values(certification.certificationChecklist).every(Boolean);
+  const ledgerRows: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"] = [
+    releaseClosureLedgerRow("release_evidence", "Release evidence pack", "verified", certification.releaseEvidenceDigest, certification.counts.releaseEvidenceCheckedCount, Boolean(certification.releaseEvidenceDigest)),
+    releaseClosureLedgerRow("release_verification", "Release verification matrix", "verified", certification.releaseVerificationDigest, certification.counts.releaseVerificationCheckedCount, Boolean(certification.releaseVerificationDigest)),
+    releaseClosureLedgerRow("release_certification", "Release certification receipt", "certified", releaseCertificationDigest, certification.counts.releaseCertificationCheckedCount, certification.certificationStatus === "certified"),
+    releaseClosureLedgerRow("prerequisite_checklist", "Prerequisite checklist", "complete", releaseCertificationDigest, certification.counts.prerequisitePassedCount, prerequisiteChecklistComplete),
+    releaseClosureLedgerRow("certification_checklist", "Certification checklist", "closed", releaseCertificationDigest, certification.counts.certificationChecklistPassedCount, certificationChecklistComplete)
+  ];
+  const closedRowCount = ledgerRows.filter((row) => row.complete).length;
+  const payload = {
+    ledgerKind: "qa-handoff-locked-archive-release-closure-ledger" as const,
+    ledgerStatus: "certified_release_closed" as const,
+    certificationStatus: "certified" as const,
+    releaseReadinessStatus: "ready_for_release" as const,
+    verificationStatus: "verified" as const,
+    digestChainStatus: "confirmed" as const,
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-archive-release-closure-ledger.json"),
+    releaseEvidenceDigest: certification.releaseEvidenceDigest,
+    releaseVerificationDigest: certification.releaseVerificationDigest,
+    releaseCertificationDigest,
+    ledgerRows,
+    prerequisiteChecklist: certification.prerequisiteChecklist,
+    certificationChecklist: certification.certificationChecklist,
+    ledgerSummary: {
+      ledgerRowCount: ledgerRows.length,
+      closedRowCount,
+      prerequisiteChecklistComplete,
+      certificationChecklistComplete,
+      releaseCertificationDigestPresent: Boolean(releaseCertificationDigest),
+      externalCallsZero: certification.externalCalls === 0
+    },
+    counts: {
+      totalItems: certification.counts.totalItems,
+      releaseEvidenceCheckedCount: certification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: certification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: certification.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: 1,
+      prerequisitePassedCount: certification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: certification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: certification.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: certification.counts.certificationChecklistTotalCount,
+      ledgerRowCount: ledgerRows.length,
+      ledgerClosedRowCount: closedRowCount,
+      ledgerNeedsReviewRowCount: ledgerRows.length - closedRowCount
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
+}
+
+function releaseClosureLedgerRow(
+  key: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number]["key"],
+  label: string,
+  ledgerStatus: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number]["ledgerStatus"],
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean
+): ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number] {
+  return {
+    key,
+    label,
+    ledgerStatus,
+    safeDigest,
+    checkedCount,
+    complete
   };
 }
 

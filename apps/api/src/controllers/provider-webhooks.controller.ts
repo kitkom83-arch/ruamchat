@@ -221,6 +221,15 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffArchiveReleaseCertification(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger")
+  getReviewQaHandoffArchiveReleaseClosureLedger(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffArchiveReleaseClosureLedger(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,
