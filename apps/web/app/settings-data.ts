@@ -29,6 +29,7 @@ import type {
   ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   ProviderWebhookReviewQaHandoffLockedArchiveExport,
   ProviderWebhookReviewQaHandoffLockedArchiveStatus,
+  ProviderWebhookReviewQaHandoffReleaseEvidence,
   ProviderWebhookReviewQaHandoffRetentionAudit,
   ProviderWebhookReviewQaHandoffRetentionManifest,
   ProviderWebhookReviewQaHandoffReceipt,
@@ -98,6 +99,7 @@ import {
   exportProviderWebhookReviewQaHandoffLockedArchive,
   getProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
+  getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
@@ -264,6 +266,11 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationSignOffData
 export type SettingsProviderWebhookReviewQaHandoffArchiveFinalizationReceiptData = {
   mode: DataMode;
   receipt: ProviderWebhookReviewQaHandoffFinalizationReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData = {
+  mode: DataMode;
+  releaseEvidence: ProviderWebhookReviewQaHandoffReleaseEvidence;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -775,6 +782,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizat
   return {
     mode,
     receipt: createMockReviewQaHandoffArchiveFinalizationReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData> {
+  if (mode === "api") {
+    return {
+      mode,
+      releaseEvidence: await getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(filters)
+    };
+  }
+
+  return {
+    mode,
+    releaseEvidence: createMockReviewQaHandoffArchiveReleaseEvidence(filters)
   };
 }
 
@@ -2517,6 +2541,70 @@ function createMockReviewQaHandoffArchiveFinalizationReceipt(filters: ProviderWe
     safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-receipt.json",
     safeDigest: "sha256:mockqahandoffarchivefinalizationreceiptread",
     receiptKind: "qa-handoff-locked-archive-finalization-receipt",
+    externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveReleaseEvidence(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffReleaseEvidence {
+  const { action: _action, ...receipt } = createMockReviewQaHandoffArchiveFinalizationReceipt(filters) as ProviderWebhookReviewQaHandoffFinalizationReceipt & { action?: string };
+  void _action;
+  const releaseReceipt: ProviderWebhookReviewQaHandoffFinalizationReceipt = {
+    ...receipt,
+    lockedArchiveStatus: "exported" as const,
+    archiveAcknowledgementStatus: "exported" as const,
+    exportedAt: receipt.exportedAt ?? new Date().toISOString()
+  };
+  const retentionAudit = createMockReviewQaHandoffRetentionAudit(filters);
+  const prerequisiteChecklist = {
+    qaHandoffBundleReady: Boolean(releaseReceipt.bundleDigest),
+    qaHandoffExportReady: Boolean(releaseReceipt.exportDigest),
+    receiptSignedOff: releaseReceipt.receiptStatus === "signed_off" && releaseReceipt.signOffStatus === "signed_off",
+    acceptanceLocked: releaseReceipt.acceptanceStatus === "locked" && releaseReceipt.lockStatus === "locked",
+    lockedArchiveReady: releaseReceipt.lockedArchiveStatus === "ready" || releaseReceipt.lockedArchiveStatus === "exported",
+    lockedArchiveExported: releaseReceipt.lockedArchiveStatus === "exported" && releaseReceipt.archiveAcknowledgementStatus === "exported",
+    retentionManifestReady: releaseReceipt.retentionManifestStatus === "ready",
+    archiveIntegrityConfirmed: releaseReceipt.integrityStatus === "confirmed",
+    retentionAuditConfirmed: releaseReceipt.retentionAuditStatus === "confirmed" && retentionAudit.retentionAuditStatus === "confirmed",
+    finalizationSignedOff: releaseReceipt.finalizationStatus === "finalized" && releaseReceipt.retentionSignOffStatus === "signed_off",
+    finalizationReceiptReady: releaseReceipt.finalizationReceiptStatus === "ready" && Boolean(releaseReceipt.finalizationReceiptDigest),
+    digestChainConfirmed: releaseReceipt.digestChainStatus === "confirmed" && retentionAudit.digestChainStatus === "confirmed",
+    safeFilenamePresent: Boolean(releaseReceipt.safeFilename && retentionAudit.safeFilename),
+    safeDigestPresent: Boolean(releaseReceipt.safeDigest && retentionAudit.safeDigest),
+    providerOutboundAbsent: releaseReceipt.manualQaChecks.providerOutboundAbsent,
+    externalCallsZero: releaseReceipt.externalCalls === 0 && retentionAudit.externalCalls === 0 && releaseReceipt.manualQaChecks.externalCallsZero
+  };
+  const checklistValues = Object.values(prerequisiteChecklist);
+  return {
+    ...releaseReceipt,
+    evidenceKind: "qa-handoff-locked-archive-release-evidence-pack",
+    releaseReadinessStatus: "ready_for_release",
+    retentionPolicyStatus: retentionAudit.retentionPolicyStatus,
+    safeReleaseLabel: "safe-qa-handoff-release-evidence-pack",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-evidence-pack.json",
+    safeDigest: "sha256:mockqahandoffarchivereleaseevidence",
+    retentionAuditDigest: retentionAudit.safeDigest,
+    finalizationReceiptDigest: releaseReceipt.finalizationReceiptDigest ?? releaseReceipt.safeDigest,
+    prerequisiteChecklist,
+    safeCheckLabels: [
+      "QA handoff bundle ready",
+      "QA handoff export ready",
+      "receipt signed off",
+      "acceptance lock present",
+      "locked archive exported",
+      "retention manifest ready",
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "finalization sign-off complete",
+      "finalization receipt ready",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    counts: {
+      ...releaseReceipt.counts,
+      releaseEvidenceCheckedCount: 1,
+      prerequisitePassedCount: checklistValues.filter(Boolean).length,
+      prerequisiteTotalCount: checklistValues.length
+    },
     externalCalls: 0
   };
 }
