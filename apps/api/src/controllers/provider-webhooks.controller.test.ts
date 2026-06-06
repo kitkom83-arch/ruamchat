@@ -2459,6 +2459,102 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-archive-integrity|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|line\.push|telegram\.send|facebook\.send|instagram\.send|openai|ai\.call|notification\.sent/i);
   });
+
+  it("returns safe QA archive finalization and retention sign-off without mutating review state", async () => {
+    const { controller } = buildController(noMatchConversations());
+    const item = await createUnmatched(controller, "raw-room-qa-archive-finalization", "qa-archive-finalization-1", "Safe QA archive finalization target");
+    const filters = {
+      provider: "line",
+      eventType: "message.created"
+    };
+
+    expect(() => controller.getReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current"))
+      .toThrow("acceptance lock is required before locked archive export");
+    expect(() => controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
+      reviewerRole: "retention reviewer",
+      reviewerLabel: "safe finalization reviewer"
+    })).toThrow("acceptance lock is required before locked archive export");
+
+    controller.signOffReviewQaHandoffBundleReceipt(tenantId, filters, "operator-current", {
+      acknowledgementType: "sign_off",
+      reviewerRole: "QA reviewer",
+      reviewerLabel: "safe finalization reviewer"
+    });
+    controller.lockReviewQaHandoffAcceptance(tenantId, filters, "operator-current", {
+      lockReason: "Safe QA accepted for archive finalization",
+      acceptedByRole: "QA lead",
+      acceptedByLabel: "safe finalization reviewer"
+    });
+    controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
+    const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const integrity = controller.getReviewQaHandoffArchiveIntegrity(tenantId, filters, "operator-current");
+    const retentionAudit = controller.getReviewQaHandoffRetentionAudit(tenantId, filters, "operator-current");
+    const finalization = controller.getReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current");
+
+    expect(() => controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before finalization receipt");
+
+    const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
+      reviewerRole: "retention reviewer",
+      reviewerLabel: "safe finalization reviewer"
+    });
+    const receipt = controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current");
+    const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, after });
+
+    expect(finalization).toMatchObject({
+      finalizationStatus: "ready",
+      retentionSignOffStatus: "not_signed",
+      finalizationReceiptStatus: "not_created",
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      digestChainStatus: "confirmed",
+      externalCalls: 0
+    });
+    expect(finalization.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-finalization.json");
+    expect(finalization.safeDigest).toMatch(/^sha256:/);
+    expect(finalization.finalizationReceiptDigest).toBeNull();
+    expect(finalization.integrityDigest).toBe(integrity.safeDigest);
+    expect(finalization.counts.digestChainLinkCount).toBe(7);
+    expect(signOff).toMatchObject({
+      action: "sign_off",
+      finalizationStatus: "finalized",
+      retentionSignOffStatus: "signed_off",
+      finalizationReceiptStatus: "ready",
+      integrityStatus: "confirmed",
+      retentionAuditStatus: "confirmed",
+      safeReviewerLabel: "safe finalization reviewer",
+      externalCalls: 0
+    });
+    expect(signOff.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-finalization-signoff.json");
+    expect(signOff.safeDigest).toMatch(/^sha256:/);
+    expect(signOff.finalizationReceiptDigest).toMatch(/^sha256:/);
+    expect(signOff.signOffRecordId).toMatch(/^provider-webhook-qa-handoff-archive-finalization-signoff-/);
+    expect(receipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-finalization-receipt",
+      finalizationStatus: "finalized",
+      retentionSignOffStatus: "signed_off",
+      finalizationReceiptStatus: "ready",
+      signOffRecordId: signOff.signOffRecordId,
+      externalCalls: 0
+    });
+    expect(receipt.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-finalization-receipt.json");
+    expect(receipt.safeDigest).toMatch(/^sha256:/);
+    expect(after).toMatchObject({
+      reviewStatus: before?.reviewStatus,
+      linkStatus: before?.linkStatus,
+      unmatchedStatus: before?.unmatchedStatus,
+      assignmentStatus: before?.assignmentStatus,
+      escalationStatus: before?.escalationStatus,
+      resolutionStatus: before?.resolutionStatus,
+      messagePersisted: before?.messagePersisted,
+      linkedConversationId: before?.linkedConversationId,
+      linkedMessageId: before?.linkedMessageId
+    });
+    expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-archive-finalization|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|line\.push|telegram\.send|facebook\.send|instagram\.send|openai|ai\.call|notification\.sent/i);
+  });
 });
 
 function buildController(conversations: Record<string, unknown> = {
