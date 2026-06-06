@@ -33,6 +33,7 @@ import {
   providerWebhookReviewQaHandoffLockedArchiveStatusSchema,
   providerWebhookReviewQaHandoffReleaseEvidenceSchema,
   providerWebhookReviewQaHandoffReleaseCertificationSchema,
+  providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
   providerWebhookReviewQaHandoffRetentionManifestSchema,
@@ -244,6 +245,7 @@ import {
   type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
   type ProviderWebhookReviewQaHandoffReleaseCertification,
+  type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
   type ProviderWebhookReviewQaHandoffRetentionManifest,
@@ -651,6 +653,11 @@ export async function getProviderWebhookReviewQaHandoffArchiveReleaseVerificatio
 export async function getProviderWebhookReviewQaHandoffArchiveReleaseCertification(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseCertification> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification${search}`, providerWebhookReviewQaHandoffReleaseCertificationSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseClosureLedger> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger${search}`, providerWebhookReviewQaHandoffReleaseClosureLedgerSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

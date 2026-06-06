@@ -31,6 +31,7 @@ import type {
   ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   ProviderWebhookReviewQaHandoffReleaseEvidence,
   ProviderWebhookReviewQaHandoffReleaseCertification,
+  ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
   ProviderWebhookReviewQaHandoffRetentionManifest,
@@ -103,6 +104,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
+  getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
   getProviderWebhookReviewQaHandoffRetentionAudit,
@@ -285,6 +287,11 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData
 export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData = {
   mode: DataMode;
   certification: ProviderWebhookReviewQaHandoffReleaseCertification;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData = {
+  mode: DataMode;
+  closureLedger: ProviderWebhookReviewQaHandoffReleaseClosureLedger;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -847,6 +854,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCe
   return {
     mode,
     certification: createMockReviewQaHandoffArchiveReleaseCertification(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData> {
+  if (mode === "api") {
+    return {
+      mode,
+      closureLedger: await getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger(filters)
+    };
+  }
+
+  return {
+    mode,
+    closureLedger: createMockReviewQaHandoffArchiveReleaseClosureLedger(filters)
   };
 }
 
@@ -2767,6 +2791,77 @@ function createMockReviewQaHandoffArchiveReleaseCertification(filters: ProviderW
       digestMatrixBlockedCount: verification.counts.digestMatrixBlockedCount
     },
     externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffArchiveReleaseClosureLedger(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffReleaseClosureLedger {
+  const certification = createMockReviewQaHandoffArchiveReleaseCertification(filters);
+  const prerequisiteChecklistComplete = Object.values(certification.prerequisiteChecklist).every(Boolean);
+  const certificationChecklistComplete = Object.values(certification.certificationChecklist).every(Boolean);
+  const ledgerRows: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"] = [
+    createMockReleaseClosureLedgerRow("release_evidence", "Release evidence pack", "verified", certification.releaseEvidenceDigest, certification.counts.releaseEvidenceCheckedCount, Boolean(certification.releaseEvidenceDigest)),
+    createMockReleaseClosureLedgerRow("release_verification", "Release verification matrix", "verified", certification.releaseVerificationDigest, certification.counts.releaseVerificationCheckedCount, Boolean(certification.releaseVerificationDigest)),
+    createMockReleaseClosureLedgerRow("release_certification", "Release certification receipt", "certified", certification.safeDigest, certification.counts.releaseCertificationCheckedCount, certification.certificationStatus === "certified"),
+    createMockReleaseClosureLedgerRow("prerequisite_checklist", "Prerequisite checklist", "complete", certification.safeDigest, certification.counts.prerequisitePassedCount, prerequisiteChecklistComplete),
+    createMockReleaseClosureLedgerRow("certification_checklist", "Certification checklist", "closed", certification.safeDigest, certification.counts.certificationChecklistPassedCount, certificationChecklistComplete)
+  ];
+  const closedRowCount = ledgerRows.filter((row) => row.complete).length;
+  return {
+    ledgerKind: "qa-handoff-locked-archive-release-closure-ledger",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-closure-ledger.json",
+    safeDigest: "sha256:mockqahandoffarchivereleaseclosureledger",
+    releaseEvidenceDigest: certification.releaseEvidenceDigest,
+    releaseVerificationDigest: certification.releaseVerificationDigest,
+    releaseCertificationDigest: certification.safeDigest,
+    ledgerRows,
+    prerequisiteChecklist: certification.prerequisiteChecklist,
+    certificationChecklist: certification.certificationChecklist,
+    ledgerSummary: {
+      ledgerRowCount: ledgerRows.length,
+      closedRowCount,
+      prerequisiteChecklistComplete,
+      certificationChecklistComplete,
+      releaseCertificationDigestPresent: Boolean(certification.safeDigest),
+      externalCallsZero: certification.externalCalls === 0
+    },
+    counts: {
+      totalItems: certification.counts.totalItems,
+      releaseEvidenceCheckedCount: certification.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: certification.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: certification.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: 1,
+      prerequisitePassedCount: certification.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: certification.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: certification.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: certification.counts.certificationChecklistTotalCount,
+      ledgerRowCount: ledgerRows.length,
+      ledgerClosedRowCount: closedRowCount,
+      ledgerNeedsReviewRowCount: ledgerRows.length - closedRowCount
+    },
+    externalCalls: 0
+  };
+}
+
+function createMockReleaseClosureLedgerRow(
+  key: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number]["key"],
+  label: string,
+  ledgerStatus: ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number]["ledgerStatus"],
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean
+): ProviderWebhookReviewQaHandoffReleaseClosureLedger["ledgerRows"][number] {
+  return {
+    key,
+    label,
+    ledgerStatus,
+    safeDigest,
+    checkedCount,
+    complete
   };
 }
 
