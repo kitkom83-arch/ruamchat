@@ -33,6 +33,7 @@ import {
   providerWebhookReviewQaHandoffLockedArchiveStatusSchema,
   providerWebhookReviewQaHandoffReleaseEvidenceSchema,
   providerWebhookReviewQaHandoffReleaseCertificationSchema,
+  providerWebhookReviewQaHandoffReleaseAttestationAuditSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -245,6 +246,7 @@ import {
   type ProviderWebhookReviewQaHandoffLockedArchiveStatus,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
   type ProviderWebhookReviewQaHandoffReleaseCertification,
+  type ProviderWebhookReviewQaHandoffReleaseAttestationAudit,
   type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -658,6 +660,11 @@ export async function getProviderWebhookReviewQaHandoffArchiveReleaseCertificati
 export async function getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseClosureLedger> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger${search}`, providerWebhookReviewQaHandoffReleaseClosureLedgerSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffReleaseAttestationAudit> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit${search}`, providerWebhookReviewQaHandoffReleaseAttestationAuditSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
