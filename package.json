@@ -89,6 +89,7 @@
     "smoke:sprint80": "node scripts/smoke-sprint80-provider-webhook-review-qa-archive-integrity-retention-audit.mjs",
     "smoke:sprint81": "node scripts/smoke-sprint81-provider-webhook-review-qa-archive-finalization-signoff.mjs",
     "smoke:sprint82": "node scripts/smoke-sprint82-provider-webhook-review-qa-archive-release-evidence-pack.mjs",
+    "smoke:sprint83": "node scripts/smoke-sprint83-provider-webhook-review-qa-archive-release-verification-matrix.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

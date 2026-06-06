@@ -54,6 +54,7 @@ import {
   providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema,
   providerWebhookReviewQaHandoffFinalizationSignOffResponseSchema,
   providerWebhookReviewQaHandoffReleaseEvidenceSchema,
+  providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
   providerWebhookReviewQaHandoffReceiptSchema,
   providerWebhookReviewQaHandoffSignOffRequestSchema,
@@ -417,6 +418,35 @@ describe("shared contracts", () => {
         prerequisiteTotalCount: 16
       }
     });
+    const releaseVerification = providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({
+      ...releaseEvidence,
+      verificationKind: "qa-handoff-locked-archive-release-verification-matrix",
+      verificationStatus: "verified",
+      safeVerificationLabel: "safe-qa-handoff-release-verification-matrix",
+      safeFilename: "provider-webhook-review-qa-handoff-archive-release-verification-matrix.json",
+      safeDigest: "sha256:releaseverification",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      digestMatrixRows: [
+        { key: "qa_handoff_bundle", label: "QA handoff bundle", safeDigest: releaseEvidence.bundleDigest, expectedDigest: releaseEvidence.bundleDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "qa_handoff_export", label: "QA handoff export", safeDigest: releaseEvidence.exportDigest, expectedDigest: releaseEvidence.exportDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "receipt_sign_off", label: "receipt/sign-off", safeDigest: releaseEvidence.receiptDigest, expectedDigest: releaseEvidence.receiptDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "acceptance_lock", label: "acceptance lock", safeDigest: releaseEvidence.acceptanceLockDigest, expectedDigest: releaseEvidence.acceptanceLockDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "locked_archive_export", label: "locked archive/export", safeDigest: releaseEvidence.lockedArchiveDigest, expectedDigest: releaseEvidence.lockedArchiveDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "retention_manifest", label: "retention manifest", safeDigest: releaseEvidence.retentionManifestDigest, expectedDigest: releaseEvidence.retentionManifestDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "archive_integrity", label: "archive integrity", safeDigest: releaseEvidence.integrityDigest, expectedDigest: releaseEvidence.integrityDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "retention_audit", label: "retention audit", safeDigest: releaseEvidence.retentionAuditDigest, expectedDigest: releaseEvidence.retentionAuditDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "finalization_receipt", label: "finalization receipt", safeDigest: releaseEvidence.finalizationReceiptDigest, expectedDigest: releaseEvidence.finalizationReceiptDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" },
+        { key: "release_evidence", label: "release evidence", safeDigest: releaseEvidence.safeDigest, expectedDigest: releaseEvidence.safeDigest, digestPresent: true, digestMatchesExpected: true, verificationStatus: "verified" }
+      ],
+      counts: {
+        ...releaseEvidence.counts,
+        releaseVerificationCheckedCount: 1,
+        digestMatrixRowCount: 10,
+        digestMatrixVerifiedCount: 10,
+        digestMatrixNeedsReviewCount: 0,
+        digestMatrixBlockedCount: 0
+      }
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -425,13 +455,19 @@ describe("shared contracts", () => {
     expect(receipt.externalCalls).toBe(0);
     expect(releaseEvidence.releaseReadinessStatus).toBe("ready_for_release");
     expect(releaseEvidence.prerequisiteChecklist.externalCallsZero).toBe(true);
+    expect(releaseVerification.verificationStatus).toBe("verified");
+    expect(releaseVerification.digestMatrixRows).toHaveLength(10);
+    expect(releaseVerification.releaseEvidenceDigest).toBe(releaseEvidence.safeDigest);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, authorization: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, rawSenderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

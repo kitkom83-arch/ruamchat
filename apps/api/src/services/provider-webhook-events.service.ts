@@ -49,6 +49,9 @@ import {
   type ProviderWebhookReviewQaHandoffFinalizationReceipt,
   type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
   type ProviderWebhookReviewQaHandoffReleaseEvidence,
+  type ProviderWebhookReviewQaHandoffReleaseVerification,
+  type ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow,
+  type ProviderWebhookReviewQaHandoffReleaseVerificationStatus,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
   type ProviderWebhookReviewQaHandoffRetentionManifest,
   type ProviderWebhookReviewQaHandoffReceipt,
@@ -1336,6 +1339,18 @@ export class ProviderWebhookEventsService {
     }
     const receipt = qaHandoffArchiveFinalizationReceiptResponse(integrity, retentionAudit, record);
     return qaHandoffArchiveReleaseEvidenceResponse(receipt, retentionAudit);
+  }
+
+  getReviewQaHandoffArchiveReleaseVerification(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffReleaseVerification {
+    const releaseEvidence = this.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, actorUserId);
+    if (releaseEvidence.releaseReadinessStatus !== "ready_for_release") {
+      throw new ConflictException("Provider webhook QA archive release evidence must be ready_for_release before verification");
+    }
+    return qaHandoffArchiveReleaseVerificationResponse(releaseEvidence);
   }
 
   private getLockedArchiveContext(
@@ -4891,6 +4906,91 @@ function qaHandoffArchiveReleaseEvidenceResponse(
     ...payload,
     safeDigest: safeDigestForExport(payload),
     externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveReleaseVerificationResponse(
+  releaseEvidence: ProviderWebhookReviewQaHandoffReleaseEvidence
+): ProviderWebhookReviewQaHandoffReleaseVerification {
+  const { safeDigest: releaseEvidenceDigest, safeFilename: _releaseEvidenceFilename, ...releaseEvidencePayload } = releaseEvidence;
+  void _releaseEvidenceFilename;
+  const chainReady = releaseEvidence.releaseReadinessStatus === "ready_for_release" &&
+    releaseEvidence.digestChainStatus === "confirmed" &&
+    Object.values(releaseEvidence.prerequisiteChecklist).every(Boolean);
+  const digestMatrixRows: ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow[] = [
+    releaseVerificationDigestRow("qa_handoff_bundle", "QA handoff bundle", releaseEvidence.bundleDigest, releaseEvidence.bundleDigest, chainReady),
+    releaseVerificationDigestRow("qa_handoff_export", "QA handoff export", releaseEvidence.exportDigest, releaseEvidence.exportDigest, chainReady),
+    releaseVerificationDigestRow("receipt_sign_off", "receipt/sign-off", releaseEvidence.receiptDigest, releaseEvidence.receiptDigest, chainReady),
+    releaseVerificationDigestRow("acceptance_lock", "acceptance lock", releaseEvidence.acceptanceLockDigest, releaseEvidence.acceptanceLockDigest, chainReady),
+    releaseVerificationDigestRow("locked_archive_export", "locked archive/export", releaseEvidence.lockedArchiveDigest, releaseEvidence.lockedArchiveDigest, chainReady),
+    releaseVerificationDigestRow("retention_manifest", "retention manifest", releaseEvidence.retentionManifestDigest, releaseEvidence.retentionManifestDigest, chainReady),
+    releaseVerificationDigestRow("archive_integrity", "archive integrity", releaseEvidence.integrityDigest, releaseEvidence.integrityDigest, chainReady),
+    releaseVerificationDigestRow("retention_audit", "retention audit", releaseEvidence.retentionAuditDigest, releaseEvidence.retentionAuditDigest, chainReady),
+    releaseVerificationDigestRow("finalization_receipt", "finalization receipt", releaseEvidence.finalizationReceiptDigest, releaseEvidence.finalizationReceiptDigest, chainReady),
+    releaseVerificationDigestRow("release_evidence", "release evidence", releaseEvidenceDigest, releaseEvidenceDigest, chainReady)
+  ];
+  const verifiedCount = digestMatrixRows.filter((row) => row.verificationStatus === "verified").length;
+  const needsReviewCount = digestMatrixRows.filter((row) => row.verificationStatus === "needs_review").length;
+  const blockedCount = digestMatrixRows.filter((row) => row.verificationStatus === "blocked").length;
+  const verificationStatus: ProviderWebhookReviewQaHandoffReleaseVerificationStatus =
+    chainReady && verifiedCount === digestMatrixRows.length
+      ? "verified"
+      : blockedCount > 0
+        ? "blocked"
+        : "needs_review";
+  const payload = {
+    ...releaseEvidencePayload,
+    verificationKind: "qa-handoff-locked-archive-release-verification-matrix" as const,
+    verificationStatus,
+    safeVerificationLabel: "safe-qa-handoff-release-verification-matrix",
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-archive-release-verification-matrix.json"),
+    releaseEvidenceDigest,
+    digestMatrixRows,
+    safeCheckLabels: [
+      ...releaseEvidence.safeCheckLabels,
+      "release evidence ready",
+      "digest matrix verified"
+    ],
+    counts: {
+      ...releaseEvidence.counts,
+      releaseVerificationCheckedCount: 1,
+      digestMatrixRowCount: digestMatrixRows.length,
+      digestMatrixVerifiedCount: verifiedCount,
+      digestMatrixNeedsReviewCount: needsReviewCount,
+      digestMatrixBlockedCount: blockedCount
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
+    externalCalls: 0 as const
+  };
+}
+
+function releaseVerificationDigestRow(
+  key: ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow["key"],
+  label: string,
+  safeDigest: string,
+  expectedDigest: string,
+  chainReady: boolean
+): ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow {
+  const digestPresent = /^sha256:[a-f0-9]+$/i.test(safeDigest);
+  const digestMatchesExpected = digestPresent && safeDigest === expectedDigest;
+  const verificationStatus: ProviderWebhookReviewQaHandoffReleaseVerificationStatus =
+    digestPresent && digestMatchesExpected && chainReady
+      ? "verified"
+      : digestPresent
+        ? "needs_review"
+        : "blocked";
+  return {
+    key,
+    label,
+    safeDigest,
+    expectedDigest,
+    digestPresent,
+    digestMatchesExpected,
+    verificationStatus
   };
 }
 
