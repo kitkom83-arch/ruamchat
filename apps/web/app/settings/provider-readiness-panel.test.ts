@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -48,6 +48,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffRetentionManifest: providerWebhookReviewQaHandoffRetentionManifest(),
       reviewQaHandoffArchiveIntegrity: providerWebhookReviewQaHandoffArchiveIntegrity(),
       reviewQaHandoffRetentionAudit: providerWebhookReviewQaHandoffRetentionAudit(),
+      reviewQaHandoffArchiveReleaseEvidence: providerWebhookReviewQaHandoffArchiveReleaseEvidence(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -291,6 +292,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Load retention manifest");
     expect(html).toContain("Load archive integrity");
     expect(html).toContain("Load retention audit");
+    expect(html).toContain("Load release evidence");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
     expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
@@ -302,6 +304,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA handoff retention manifest: retentionManifestStatus=ready; retentionReadiness=ready; safeFilename=provider-webhook-review-qa-handoff-locked-archive-retention-manifest.json; safeDigest=sha256:safeqahandoffretentionmanifest; archiveDigest=sha256:safeqahandofflockedarchive; externalCalls=0");
     expect(html).toContain("QA archive integrity: integrityStatus=confirmed; retentionAuditStatus=confirmed; lockedArchiveStatus=exported; retentionManifestStatus=ready; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-locked-archive-integrity.json; safeDigest=sha256:safeqahandoffarchiveintegrity; externalCalls=0");
     expect(html).toContain("QA retention audit: retentionPolicyStatus=active; retentionAuditStatus=confirmed; retentionManifestStatus=ready; lockedArchiveStatus=exported; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-retention-audit.json; safeDigest=sha256:safeqahandoffretentionaudit; externalCalls=0");
+    expect(html).toContain("QA archive release evidence: releaseReadinessStatus=ready_for_release; qaHandoffBundleReady=true; qaHandoffExportReady=true; receiptSignedOff=true; acceptanceLocked=true; lockedArchiveExported=true; retentionManifestReady=true; archiveIntegrityConfirmed=true; retentionAuditConfirmed=true; finalizationSignedOff=true; finalizationReceiptReady=true; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-archive-release-evidence-pack.json; safeDigest=sha256:safeqahandoffarchivereleaseevidence; totalItems=1; prerequisites=16/16; externalCalls=0");
     expect(html).toContain("QA archive integrity digest chain");
     expect(html).toContain("digestChainLinkCount=6");
     expect(html).toContain("QA retention audit checklist");
@@ -535,6 +538,9 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffRetentionAudit: null,
       reviewQaHandoffRetentionAuditLoading: false,
       reviewQaHandoffRetentionAuditError: "QA Retention Audit API error: Failed to fetch",
+      reviewQaHandoffArchiveReleaseEvidence: null,
+      reviewQaHandoffArchiveReleaseEvidenceLoading: false,
+      reviewQaHandoffArchiveReleaseEvidenceError: "QA Archive Release Evidence API error: Failed to fetch",
       reviewClosureReportRedactionAudit: null,
       reviewClosureReportRedactionAuditLoading: false,
       reviewClosureReportRedactionAuditError: "Closure Report Redaction Audit API error: Failed to fetch",
@@ -575,6 +581,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA Handoff Sign-off API error: Failed to fetch");
     expect(html).toContain("QA Archive Integrity API error: Failed to fetch");
     expect(html).toContain("QA Retention Audit API error: Failed to fetch");
+    expect(html).toContain("QA Archive Release Evidence API error: Failed to fetch");
     expect(html).toContain("Closure Report Redaction Audit API error: Failed to fetch");
     expect(html).toContain("Closure Export Integrity API error: Failed to fetch");
     expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
@@ -590,6 +597,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).not.toContain("QA handoff sign-off: signOffStatus=");
     expect(html).not.toContain("QA archive integrity: integrityStatus=");
     expect(html).not.toContain("QA retention audit: retentionPolicyStatus=");
+    expect(html).not.toContain("QA archive release evidence: releaseReadinessStatus=");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-bundle-export.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-locked-archive-integrity.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-retention-audit.json");
@@ -1901,6 +1909,123 @@ function providerWebhookReviewQaHandoffRetentionAudit(): ProviderWebhookReviewQa
     },
     archivedAt: archive.archivedAt,
     exportedAt: archive.exportedAt,
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffArchiveFinalizationSignOff(): ProviderWebhookReviewQaHandoffFinalizationSignOffResponse {
+  const integrity = providerWebhookReviewQaHandoffArchiveIntegrity();
+  const retentionAudit = providerWebhookReviewQaHandoffRetentionAudit();
+  return {
+    generatedAt: "2026-06-04T00:10:30.000Z",
+    finalizationStatus: "finalized",
+    retentionSignOffStatus: "signed_off",
+    finalizationReceiptStatus: "ready",
+    integrityStatus: integrity.integrityStatus,
+    retentionAuditStatus: retentionAudit.retentionAuditStatus,
+    lockedArchiveStatus: integrity.lockedArchiveStatus,
+    retentionManifestStatus: integrity.retentionManifestStatus,
+    archiveAcknowledgementStatus: integrity.archiveAcknowledgementStatus,
+    auditAcknowledgementStatus: retentionAudit.auditAcknowledgementStatus,
+    acceptanceStatus: integrity.acceptanceStatus,
+    lockStatus: integrity.lockStatus,
+    receiptStatus: integrity.receiptStatus,
+    signOffStatus: integrity.signOffStatus,
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-signoff.json",
+    safeDigest: "sha256:safeqahandoffarchivefinalizationsignoff",
+    bundleDigest: integrity.bundleDigest,
+    exportDigest: integrity.exportDigest,
+    receiptDigest: integrity.receiptDigest,
+    acceptanceLockDigest: integrity.acceptanceLockDigest,
+    lockedArchiveDigest: integrity.lockedArchiveDigest,
+    retentionManifestDigest: integrity.retentionManifestDigest,
+    integrityDigest: integrity.safeDigest,
+    finalizationReceiptDigest: "sha256:safeqahandoffarchivefinalizationreceipt",
+    safeRetentionPolicyLabel: retentionAudit.safePolicyLabel,
+    safeReviewerLabel: "safe reviewer",
+    safeCheckLabels: ["archive integrity confirmed", "retention audit confirmed", "finalization receipt ready"],
+    readinessFlags: integrity.readinessFlags,
+    counts: {
+      ...integrity.counts,
+      digestChainLinkCount: 7,
+      finalizationCheckedCount: 1,
+      retentionSignOffCount: 1
+    },
+    manualQaChecks: integrity.manualQaChecks,
+    archivedAt: integrity.archivedAt,
+    exportedAt: integrity.exportedAt,
+    signedAt: "2026-06-04T00:10:30.000Z",
+    finalizedAt: "2026-06-04T00:10:30.000Z",
+    action: "sign_off",
+    signOffRecordId: "provider-webhook-qa-handoff-archive-finalization-signoff-1",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffArchiveFinalizationReceipt(): ProviderWebhookReviewQaHandoffFinalizationReceipt {
+  const signOff = providerWebhookReviewQaHandoffArchiveFinalizationSignOff();
+  return {
+    ...signOff,
+    safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-receipt.json",
+    safeDigest: "sha256:safeqahandoffarchivefinalizationreceiptread",
+    receiptKind: "qa-handoff-locked-archive-finalization-receipt",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffArchiveReleaseEvidence(): ProviderWebhookReviewQaHandoffReleaseEvidence {
+  const { action: _action, ...receipt } = providerWebhookReviewQaHandoffArchiveFinalizationReceipt() as ProviderWebhookReviewQaHandoffFinalizationReceipt & { action?: string };
+  void _action;
+  const retentionAudit = providerWebhookReviewQaHandoffRetentionAudit();
+  return {
+    ...receipt,
+    evidenceKind: "qa-handoff-locked-archive-release-evidence-pack",
+    releaseReadinessStatus: "ready_for_release",
+    retentionPolicyStatus: retentionAudit.retentionPolicyStatus,
+    safeReleaseLabel: "safe-qa-handoff-release-evidence-pack",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-evidence-pack.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseevidence",
+    retentionAuditDigest: retentionAudit.safeDigest,
+    finalizationReceiptDigest: receipt.finalizationReceiptDigest ?? receipt.safeDigest,
+    prerequisiteChecklist: {
+      qaHandoffBundleReady: true,
+      qaHandoffExportReady: true,
+      receiptSignedOff: true,
+      acceptanceLocked: true,
+      lockedArchiveReady: true,
+      lockedArchiveExported: true,
+      retentionManifestReady: true,
+      archiveIntegrityConfirmed: true,
+      retentionAuditConfirmed: true,
+      finalizationSignedOff: true,
+      finalizationReceiptReady: true,
+      digestChainConfirmed: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true
+    },
+    safeCheckLabels: [
+      "QA handoff bundle ready",
+      "QA handoff export ready",
+      "receipt signed off",
+      "acceptance lock present",
+      "locked archive exported",
+      "retention manifest ready",
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "finalization sign-off complete",
+      "finalization receipt ready",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    counts: {
+      ...receipt.counts,
+      releaseEvidenceCheckedCount: 1,
+      prerequisitePassedCount: 16,
+      prerequisiteTotalCount: 16
+    },
     externalCalls: 0
   };
 }

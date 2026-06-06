@@ -39,6 +39,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
   getProviderWebhookReviewQaHandoffArchiveFinalization,
   getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt,
+  getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffRetentionAudit,
   getProviderWebhookReviewQaHandoffRetentionManifest,
   signOffProviderWebhookReviewQaHandoffArchiveFinalization,
@@ -226,7 +227,8 @@ describe("frontend API client", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationSignOffResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveFinalizationReceiptResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseEvidenceResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -235,10 +237,12 @@ describe("frontend API client", () => {
       reviewerLabel: "safe reviewer"
     });
     const receipt = await getProviderWebhookReviewQaHandoffArchiveFinalizationReceipt(filters);
+    const releaseEvidence = await getProviderWebhookReviewQaHandoffArchiveReleaseEvidence(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence?provider=line&eventType=message.created", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -248,7 +252,17 @@ describe("frontend API client", () => {
     expect(finalization).toMatchObject({ finalizationStatus: "ready", retentionSignOffStatus: "not_signed", finalizationReceiptStatus: "not_created", externalCalls: 0 });
     expect(signOff).toMatchObject({ finalizationStatus: "finalized", retentionSignOffStatus: "signed_off", action: "sign_off", externalCalls: 0 });
     expect(receipt).toMatchObject({ receiptKind: "qa-handoff-locked-archive-finalization-receipt", finalizationReceiptStatus: "ready", externalCalls: 0 });
-    expect(JSON.stringify({ finalization, signOff, receipt })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(releaseEvidence).toMatchObject({
+      evidenceKind: "qa-handoff-locked-archive-release-evidence-pack",
+      releaseReadinessStatus: "ready_for_release",
+      prerequisiteChecklist: expect.objectContaining({
+        qaHandoffBundleReady: true,
+        lockedArchiveExported: true,
+        finalizationReceiptReady: true
+      }),
+      externalCalls: 0
+    });
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -261,6 +275,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "retention sign-off unavailable" }, 503));
 
     await expect(signOffProviderWebhookReviewQaHandoffArchiveFinalization()).rejects.toThrow("API request failed (503): retention sign-off unavailable");
+  });
+
+  it("surfaces archive release evidence API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release evidence unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffArchiveReleaseEvidence()).rejects.toThrow("API request failed (503): release evidence unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -3646,6 +3666,62 @@ function providerWebhookArchiveFinalizationReceiptResponse() {
     safeFilename: "provider-webhook-review-qa-handoff-archive-finalization-receipt.json",
     safeDigest: "sha256:safeqahandoffarchivefinalizationreceiptread",
     receiptKind: "qa-handoff-locked-archive-finalization-receipt",
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveReleaseEvidenceResponse() {
+  const receipt = providerWebhookArchiveFinalizationReceiptResponse();
+  const retentionAudit = providerWebhookRetentionAuditResponse();
+  return {
+    ...receipt,
+    evidenceKind: "qa-handoff-locked-archive-release-evidence-pack",
+    releaseReadinessStatus: "ready_for_release",
+    lockedArchiveStatus: "exported",
+    archiveAcknowledgementStatus: "exported",
+    retentionPolicyStatus: retentionAudit.retentionPolicyStatus,
+    safeReleaseLabel: "safe-qa-handoff-release-evidence-pack",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-evidence-pack.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseevidence",
+    retentionAuditDigest: retentionAudit.safeDigest,
+    prerequisiteChecklist: {
+      qaHandoffBundleReady: true,
+      qaHandoffExportReady: true,
+      receiptSignedOff: true,
+      acceptanceLocked: true,
+      lockedArchiveReady: true,
+      lockedArchiveExported: true,
+      retentionManifestReady: true,
+      archiveIntegrityConfirmed: true,
+      retentionAuditConfirmed: true,
+      finalizationSignedOff: true,
+      finalizationReceiptReady: true,
+      digestChainConfirmed: true,
+      safeFilenamePresent: true,
+      safeDigestPresent: true,
+      providerOutboundAbsent: true,
+      externalCallsZero: true
+    },
+    safeCheckLabels: [
+      "QA handoff bundle ready",
+      "QA handoff export ready",
+      "receipt signed off",
+      "acceptance lock present",
+      "locked archive exported",
+      "retention manifest ready",
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "finalization sign-off complete",
+      "finalization receipt ready",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    counts: {
+      ...receipt.counts,
+      releaseEvidenceCheckedCount: 1,
+      prerequisitePassedCount: 16,
+      prerequisiteTotalCount: 16
+    },
     externalCalls: 0
   };
 }

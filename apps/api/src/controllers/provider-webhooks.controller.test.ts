@@ -2485,6 +2485,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       acceptedByRole: "QA lead",
       acceptedByLabel: "safe finalization reviewer"
     });
+    expect(() => controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2494,15 +2496,18 @@ describe("ProviderWebhooksController sandbox events", () => {
 
     expect(() => controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before finalization receipt");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
       reviewerLabel: "safe finalization reviewer"
     });
     const receipt = controller.getReviewQaHandoffArchiveFinalizationReceipt(tenantId, filters, "operator-current");
+    const releaseEvidence = controller.getReviewQaHandoffArchiveReleaseEvidence(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2542,6 +2547,38 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(receipt.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-finalization-receipt.json");
     expect(receipt.safeDigest).toMatch(/^sha256:/);
+    expect(releaseEvidence).toMatchObject({
+      evidenceKind: "qa-handoff-locked-archive-release-evidence-pack",
+      releaseReadinessStatus: "ready_for_release",
+      finalizationStatus: "finalized",
+      retentionSignOffStatus: "signed_off",
+      finalizationReceiptStatus: "ready",
+      digestChainStatus: "confirmed",
+      prerequisiteChecklist: {
+        qaHandoffBundleReady: true,
+        qaHandoffExportReady: true,
+        receiptSignedOff: true,
+        acceptanceLocked: true,
+        lockedArchiveReady: true,
+        lockedArchiveExported: true,
+        retentionManifestReady: true,
+        archiveIntegrityConfirmed: true,
+        retentionAuditConfirmed: true,
+        finalizationSignedOff: true,
+        finalizationReceiptReady: true,
+        digestChainConfirmed: true,
+        safeFilenamePresent: true,
+        safeDigestPresent: true,
+        providerOutboundAbsent: true,
+        externalCallsZero: true
+      },
+      externalCalls: 0
+    });
+    expect(releaseEvidence.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-release-evidence-pack.json");
+    expect(releaseEvidence.safeDigest).toMatch(/^sha256:/);
+    expect(releaseEvidence.retentionAuditDigest).toBe(retentionAudit.safeDigest);
+    expect(releaseEvidence.counts.releaseEvidenceCheckedCount).toBe(1);
+    expect(releaseEvidence.counts.prerequisitePassedCount).toBe(releaseEvidence.counts.prerequisiteTotalCount);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,

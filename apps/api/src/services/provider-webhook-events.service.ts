@@ -48,6 +48,7 @@ import {
   type ProviderWebhookReviewQaHandoffArchiveFinalization,
   type ProviderWebhookReviewQaHandoffFinalizationReceipt,
   type ProviderWebhookReviewQaHandoffFinalizationSignOffResponse,
+  type ProviderWebhookReviewQaHandoffReleaseEvidence,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
   type ProviderWebhookReviewQaHandoffRetentionManifest,
   type ProviderWebhookReviewQaHandoffReceipt,
@@ -1308,6 +1309,33 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive finalization sign-off is required before finalization receipt");
     }
     return qaHandoffArchiveFinalizationReceiptResponse(integrity, retentionAudit, record);
+  }
+
+  getReviewQaHandoffArchiveReleaseEvidence(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffReleaseEvidence {
+    const context = this.getLockedArchiveContext(tenantId, filters, actorUserId);
+    if (!context.archiveRecord) {
+      throw new ConflictException("Provider webhook QA locked archive export is required before release evidence");
+    }
+    const lockedArchive = qaHandoffLockedArchiveStatusResponse(context);
+    const retentionManifest = this.getReviewQaHandoffRetentionManifest(tenantId, filters, actorUserId);
+    const integrity = qaHandoffArchiveIntegrityResponse(lockedArchive, retentionManifest);
+    const retentionAudit = qaHandoffRetentionAuditResponse(lockedArchive, retentionManifest);
+    assertQaHandoffArchiveFinalizationReady(integrity, retentionAudit);
+    const record = latestArchiveFinalizationSignOffRecord(
+      tenantId,
+      integrity.lockedArchiveDigest,
+      integrity.retentionManifestDigest,
+      integrity.safeDigest
+    );
+    if (!record) {
+      throw new ConflictException("Provider webhook QA archive finalization sign-off is required before release evidence");
+    }
+    const receipt = qaHandoffArchiveFinalizationReceiptResponse(integrity, retentionAudit, record);
+    return qaHandoffArchiveReleaseEvidenceResponse(receipt, retentionAudit);
   }
 
   private getLockedArchiveContext(
@@ -4799,6 +4827,69 @@ function qaHandoffArchiveFinalizationReceiptResponse(
     safeDigest: safeDigestForExport(payload),
     receiptKind: "qa-handoff-locked-archive-finalization-receipt" as const,
     signOffRecordId: record.id,
+    externalCalls: 0 as const
+  };
+}
+
+function qaHandoffArchiveReleaseEvidenceResponse(
+  receipt: ProviderWebhookReviewQaHandoffFinalizationReceipt,
+  retentionAudit: ProviderWebhookReviewQaHandoffRetentionAudit
+): ProviderWebhookReviewQaHandoffReleaseEvidence {
+  const { safeDigest: receiptReadDigest, ...receiptPayload } = receipt;
+  const prerequisiteChecklist = {
+    qaHandoffBundleReady: Boolean(receipt.bundleDigest),
+    qaHandoffExportReady: Boolean(receipt.exportDigest),
+    receiptSignedOff: receipt.receiptStatus === "signed_off" && receipt.signOffStatus === "signed_off",
+    acceptanceLocked: receipt.acceptanceStatus === "locked" && receipt.lockStatus === "locked",
+    lockedArchiveReady: receipt.lockedArchiveStatus === "ready" || receipt.lockedArchiveStatus === "exported",
+    lockedArchiveExported: receipt.lockedArchiveStatus === "exported" && receipt.archiveAcknowledgementStatus === "exported",
+    retentionManifestReady: receipt.retentionManifestStatus === "ready",
+    archiveIntegrityConfirmed: receipt.integrityStatus === "confirmed",
+    retentionAuditConfirmed: receipt.retentionAuditStatus === "confirmed" && retentionAudit.retentionAuditStatus === "confirmed",
+    finalizationSignedOff: receipt.finalizationStatus === "finalized" && receipt.retentionSignOffStatus === "signed_off",
+    finalizationReceiptReady: receipt.finalizationReceiptStatus === "ready" && Boolean(receipt.finalizationReceiptDigest),
+    digestChainConfirmed: receipt.digestChainStatus === "confirmed" && retentionAudit.digestChainStatus === "confirmed",
+    safeFilenamePresent: Boolean(receipt.safeFilename && retentionAudit.safeFilename),
+    safeDigestPresent: Boolean(receiptReadDigest && retentionAudit.safeDigest),
+    providerOutboundAbsent: receipt.manualQaChecks.providerOutboundAbsent,
+    externalCallsZero: receipt.externalCalls === 0 && retentionAudit.externalCalls === 0 && receipt.manualQaChecks.externalCallsZero
+  };
+  const checklistValues = Object.values(prerequisiteChecklist);
+  const payload = {
+    ...receiptPayload,
+    evidenceKind: "qa-handoff-locked-archive-release-evidence-pack" as const,
+    releaseReadinessStatus: "ready_for_release" as const,
+    retentionPolicyStatus: retentionAudit.retentionPolicyStatus,
+    safeReleaseLabel: "safe-qa-handoff-release-evidence-pack",
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-archive-release-evidence-pack.json"),
+    retentionAuditDigest: retentionAudit.safeDigest,
+    finalizationReceiptDigest: receipt.finalizationReceiptDigest ?? receiptReadDigest,
+    prerequisiteChecklist,
+    safeCheckLabels: [
+      "QA handoff bundle ready",
+      "QA handoff export ready",
+      "receipt signed off",
+      "acceptance lock present",
+      "locked archive exported",
+      "retention manifest ready",
+      "archive integrity confirmed",
+      "retention audit confirmed",
+      "finalization sign-off complete",
+      "finalization receipt ready",
+      "provider outbound absent",
+      "externalCalls zero"
+    ],
+    counts: {
+      ...receipt.counts,
+      releaseEvidenceCheckedCount: 1,
+      prerequisitePassedCount: checklistValues.filter(Boolean).length,
+      prerequisiteTotalCount: checklistValues.length
+    },
+    externalCalls: 0 as const
+  };
+  return {
+    ...payload,
+    safeDigest: safeDigestForExport(payload),
     externalCalls: 0 as const
   };
 }

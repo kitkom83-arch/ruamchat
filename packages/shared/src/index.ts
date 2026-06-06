@@ -3677,6 +3677,48 @@ export const providerWebhookReviewQaHandoffFinalizationReceiptSchema = providerW
 }).strict();
 export type ProviderWebhookReviewQaHandoffFinalizationReceipt = z.infer<typeof providerWebhookReviewQaHandoffFinalizationReceiptSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseReadinessStatusSchema = z.enum(["ready_for_release"]);
+export type ProviderWebhookReviewQaHandoffReleaseReadinessStatus = z.infer<typeof providerWebhookReviewQaHandoffReleaseReadinessStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseEvidenceSchema = providerWebhookReviewQaHandoffFinalizationBaseSchema.extend({
+  evidenceKind: z.literal("qa-handoff-locked-archive-release-evidence-pack"),
+  receiptKind: z.literal("qa-handoff-locked-archive-finalization-receipt"),
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  finalizationStatus: z.literal("finalized"),
+  retentionSignOffStatus: z.literal("signed_off"),
+  finalizationReceiptStatus: z.literal("ready"),
+  retentionPolicyStatus: providerWebhookReviewQaHandoffRetentionPolicyStatusSchema,
+  signOffRecordId: z.string().min(1),
+  safeReleaseLabel: z.string().min(1),
+  retentionAuditDigest: z.string().min(1),
+  finalizationReceiptDigest: z.string().min(1),
+  prerequisiteChecklist: z.object({
+    qaHandoffBundleReady: z.boolean(),
+    qaHandoffExportReady: z.boolean(),
+    receiptSignedOff: z.boolean(),
+    acceptanceLocked: z.boolean(),
+    lockedArchiveReady: z.boolean(),
+    lockedArchiveExported: z.boolean(),
+    retentionManifestReady: z.boolean(),
+    archiveIntegrityConfirmed: z.boolean(),
+    retentionAuditConfirmed: z.boolean(),
+    finalizationSignedOff: z.boolean(),
+    finalizationReceiptReady: z.boolean(),
+    digestChainConfirmed: z.boolean(),
+    safeFilenamePresent: z.boolean(),
+    safeDigestPresent: z.boolean(),
+    providerOutboundAbsent: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: providerWebhookReviewQaHandoffFinalizationBaseSchema.shape.counts.extend({
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseEvidence = z.infer<typeof providerWebhookReviewQaHandoffReleaseEvidenceSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

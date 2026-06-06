@@ -194,6 +194,15 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffArchiveFinalizationReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence")
+  getReviewQaHandoffArchiveReleaseEvidence(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffArchiveReleaseEvidence(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,
