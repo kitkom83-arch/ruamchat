@@ -48,6 +48,8 @@ import {
   acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
+  runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffRetentionAudit,
@@ -248,7 +250,9 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseDecisionReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseHandoffPacketResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseHandoffAcceptanceRecordResponse("not_started")))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseHandoffAcceptanceRecordResponse("acknowledged")));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseHandoffAcceptanceRecordResponse("acknowledged")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseNoopExecutionDryRunResponse("not_started")))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseNoopExecutionDryRunResponse("passed")));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -273,6 +277,14 @@ describe("frontend API client", () => {
       acknowledgedByLabel: "safe release owner",
       acknowledgedChecklistKeys: handoffPacket.operatorChecklist.map((item) => item.key)
     });
+    const noopDryRun = await getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters);
+    const executedNoopDryRun = await runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters, {
+      requestedBy: "safe release owner",
+      checklistAcknowledged: true,
+      operatorNote: "safe no-op dry-run",
+      dryRunReason: "safe no-op execution readiness rehearsal",
+      executionMode: "no_op"
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
@@ -288,6 +300,8 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -299,6 +313,11 @@ describe("frontend API client", () => {
       acknowledgedByRole: "release owner",
       acknowledgedByLabel: "safe release owner",
       acknowledgedChecklistKeys: handoffPacket.operatorChecklist.map((item) => item.key)
+    });
+    expect(JSON.parse(String((fetchMock.mock.calls[15]?.[1] as RequestInit)?.body))).toMatchObject({
+      requestedBy: "safe release owner",
+      checklistAcknowledged: true,
+      executionMode: "no_op"
     });
     expect(finalization).toMatchObject({ finalizationStatus: "ready", retentionSignOffStatus: "not_signed", finalizationReceiptStatus: "not_created", externalCalls: 0 });
     expect(signOff).toMatchObject({ finalizationStatus: "finalized", retentionSignOffStatus: "signed_off", action: "sign_off", externalCalls: 0 });
@@ -435,7 +454,25 @@ describe("frontend API client", () => {
     expect(acknowledgedRecord.acknowledgedChecklist.every((item) => item.acknowledged)).toBe(true);
     expect(acknowledgedRecord.acknowledgementRows.length).toBeGreaterThan(0);
     expect(acknowledgedRecord.releaseOwnerSummary.operatorChecklistAcknowledged).toBe(true);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(noopDryRun).toMatchObject({
+      dryRunKind: "qa-handoff-locked-archive-certified-release-noop-execution-dryrun",
+      dryRunStatus: "not_started",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      externalCalls: 0
+    });
+    expect(executedNoopDryRun).toMatchObject({
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      externalCalls: 0
+    });
+    expect(executedNoopDryRun.executionChecklist.length).toBeGreaterThan(0);
+    expect(executedNoopDryRun.dryRunRows.length).toBeGreaterThan(0);
+    expect(executedNoopDryRun.executionPlanRows.length).toBeGreaterThan(0);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -508,6 +545,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "certified release handoff acceptance record unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord()).rejects.toThrow("API request failed (503): certified release handoff acceptance record unavailable");
+  });
+
+  it("surfaces certified release no-op execution dry-run API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "certified release no-op dry-run unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun()).rejects.toThrow("API request failed (503): certified release no-op dry-run unavailable");
   });
 
   it("surfaces certified release handoff acceptance acknowledgement API errors without local fallback", async () => {
@@ -4595,6 +4638,121 @@ function providerWebhookArchiveCertifiedReleaseHandoffAcceptanceRecordResponse(a
     },
     externalCalls: 0
   };
+}
+
+function providerWebhookArchiveCertifiedReleaseNoopExecutionDryRunResponse(dryRunStatus: "not_started" | "passed") {
+  const acceptanceRecord = providerWebhookArchiveCertifiedReleaseHandoffAcceptanceRecordResponse("acknowledged");
+  const passed = dryRunStatus === "passed";
+  const executionChecklist = [
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("acceptance_record_acknowledged", "Acceptance record acknowledged", acceptanceRecord.acceptanceRecordDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("handoff_ready", "Handoff ready", acceptanceRecord.handoffPacketDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("release_decision_go", "Release decision go", acceptanceRecord.decisionReceiptDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("execution_mode_no_op", "Execution mode no-op", acceptanceRecord.acceptanceRecordDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("external_calls_zero", "External calls zero", acceptanceRecord.acceptanceRecordDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("provider_outbound_absent", "Provider outbound absent", acceptanceRecord.acceptanceRecordDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("notification_send_absent", "External notification sending absent", acceptanceRecord.acceptanceRecordDigest),
+    providerWebhookCertifiedReleaseNoopExecutionChecklistItem("source_material_absent", "Sensitive source material absent", acceptanceRecord.acceptanceRecordDigest)
+  ];
+  const dryRunRows = [
+    providerWebhookCertifiedReleaseNoopDryRunRow("acceptance_record", "Acceptance record", acceptanceRecord.acceptanceRecordDigest, 1),
+    providerWebhookCertifiedReleaseNoopDryRunRow("handoff_packet", "Handoff packet", acceptanceRecord.handoffPacketDigest, 1),
+    providerWebhookCertifiedReleaseNoopDryRunRow("decision_receipt", "Decision receipt", acceptanceRecord.decisionReceiptDigest, 1)
+  ];
+  const executionPlanRows = [
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("plan_scope", "Certified release readiness check", acceptanceRecord.acceptanceRecordDigest, 1, "ready"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("release_execution", "Release execution", acceptanceRecord.acceptanceRecordDigest, 0, "no_op"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("provider_outbound", "Provider outbound", acceptanceRecord.acceptanceRecordDigest, 0, "no_op"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("external_notifications", "External notifications", acceptanceRecord.acceptanceRecordDigest, 0, "no_op"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("automation_calls", "Automation calls", acceptanceRecord.acceptanceRecordDigest, 0, "no_op"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("state_mutation", "Release state mutation", acceptanceRecord.acceptanceRecordDigest, 0, "no_op"),
+    providerWebhookCertifiedReleaseNoopExecutionPlanRow("readback", "Safe readback", acceptanceRecord.acceptanceRecordDigest, 1, "ready")
+  ];
+  return {
+    dryRunKind: "qa-handoff-locked-archive-certified-release-noop-execution-dryrun",
+    dryRunStatus,
+    executionMode: "no_op",
+    acceptanceStatus: acceptanceRecord.acceptanceStatus,
+    handoffStatus: acceptanceRecord.handoffStatus,
+    releaseDecision: acceptanceRecord.releaseDecision,
+    packetStatus: acceptanceRecord.packetStatus,
+    receiptStatus: acceptanceRecord.receiptStatus,
+    gateStatus: acceptanceRecord.gateStatus,
+    goNoGoDecision: acceptanceRecord.goNoGoDecision,
+    releaseReadinessStatus: acceptanceRecord.releaseReadinessStatus,
+    reconciliationStatus: acceptanceRecord.reconciliationStatus,
+    attestationStatus: acceptanceRecord.attestationStatus,
+    ledgerStatus: acceptanceRecord.ledgerStatus,
+    certificationStatus: acceptanceRecord.certificationStatus,
+    verificationStatus: acceptanceRecord.verificationStatus,
+    digestChainStatus: acceptanceRecord.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-noop-execution-dryrun.json",
+    safeDigest: passed ? "sha256:safeqahandoffcertifiedreleasenoopdryrun" : "sha256:safeqahandoffcertifiedreleasenoopdryrunpending",
+    noopExecutionDryRunDigest: passed ? "sha256:safeqahandoffcertifiedreleasenoopdryrun" : "sha256:safeqahandoffcertifiedreleasenoopdryrunpending",
+    acceptanceRecordDigest: acceptanceRecord.acceptanceRecordDigest,
+    handoffPacketDigest: acceptanceRecord.handoffPacketDigest,
+    decisionReceiptDigest: acceptanceRecord.decisionReceiptDigest,
+    releaseGateDigest: acceptanceRecord.releaseGateDigest,
+    reconciliationDigest: acceptanceRecord.reconciliationDigest,
+    attestationAuditDigest: acceptanceRecord.attestationAuditDigest,
+    closureLedgerDigest: acceptanceRecord.closureLedgerDigest,
+    certificationDigest: acceptanceRecord.certificationDigest,
+    verificationDigest: acceptanceRecord.verificationDigest,
+    releaseEvidenceDigest: acceptanceRecord.releaseEvidenceDigest,
+    operatorChecklist: acceptanceRecord.operatorChecklist,
+    acknowledgedChecklist: acceptanceRecord.acknowledgedChecklist,
+    executionChecklist,
+    dryRunRows,
+    executionPlanRows,
+    releaseOwnerSummary: {
+      ...acceptanceRecord.releaseOwnerSummary,
+      requestedBy: passed ? "safe release owner" : null,
+      checklistAcknowledged: passed,
+      dryRunReason: passed ? "safe no-op execution readiness rehearsal" : null,
+      executionModeNoOp: true
+    },
+    inheritedPrerequisiteChecklist: acceptanceRecord.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: acceptanceRecord.inheritedCertificationChecklist,
+    inheritedGateChecklist: acceptanceRecord.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: acceptanceRecord.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: acceptanceRecord.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: {
+      acceptanceStatus: acceptanceRecord.acceptanceStatus,
+      handoffStatus: acceptanceRecord.handoffStatus,
+      releaseDecision: acceptanceRecord.releaseDecision,
+      operatorChecklistAcknowledged: acceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged,
+      acknowledgedChecklistItemCount: acceptanceRecord.counts.acknowledgedChecklistItemCount,
+      acknowledgedChecklistCompleteCount: acceptanceRecord.counts.acknowledgedChecklistCompleteCount,
+      acknowledgementRowCount: acceptanceRecord.counts.acknowledgementRowCount,
+      acknowledgementRowCompleteCount: acceptanceRecord.counts.acknowledgementRowCompleteCount,
+      externalCallsZero: true
+    },
+    inheritedBlockingReasons: acceptanceRecord.inheritedBlockingReasons,
+    inheritedExceptionRows: acceptanceRecord.inheritedExceptionRows,
+    counts: {
+      ...acceptanceRecord.counts,
+      noopExecutionDryRunCheckedCount: 1,
+      noopExecutionDryRunMutationCount: passed ? 1 : 0,
+      executionChecklistItemCount: executionChecklist.length,
+      executionChecklistCompleteCount: executionChecklist.length,
+      dryRunRowCount: dryRunRows.length,
+      dryRunRowPassedCount: dryRunRows.length,
+      executionPlanRowCount: executionPlanRows.length,
+      executionPlanReadyCount: executionPlanRows.length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCertifiedReleaseNoopExecutionChecklistItem(key: string, label: string, safeDigest: string) {
+  return { key, label, checklistStatus: "complete", safeDigest, complete: true };
+}
+
+function providerWebhookCertifiedReleaseNoopDryRunRow(key: string, label: string, safeDigest: string, checkedCount: number) {
+  return { key, label, dryRunRowStatus: "passed", safeDigest, checkedCount, complete: true };
+}
+
+function providerWebhookCertifiedReleaseNoopExecutionPlanRow(key: string, label: string, safeDigest: string, checkedCount: number, planStatus: string) {
+  return { key, label, planStatus, safeDigest, checkedCount, complete: true };
 }
 
 function providerWebhookCertifiedReleaseAcknowledgementRow(key: string, label: string, safeDigest: string, checkedCount: number, complete: boolean) {

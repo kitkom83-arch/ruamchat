@@ -98,6 +98,7 @@
     "smoke:sprint89": "node scripts/smoke-sprint89-provider-webhook-review-qa-archive-certified-release-decision-receipt.mjs",
     "smoke:sprint90": "node scripts/smoke-sprint90-provider-webhook-review-qa-archive-certified-release-handoff-packet.mjs",
     "smoke:sprint91": "node scripts/smoke-sprint91-provider-webhook-review-qa-archive-certified-release-handoff-acceptance-record.mjs",
+    "smoke:sprint92": "node scripts/smoke-sprint92-provider-webhook-review-qa-archive-certified-release-noop-execution-dryrun.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

@@ -28,6 +28,8 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationReconciliation(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseGate(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseDecisionReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.runReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined, { checklistAcknowledged: true, executionMode: "no_op" })).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2564,9 +2566,22 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     const acceptedReadback = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterAcceptance = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
+    const initialNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, "operator-current");
+    const afterNoopRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const executedNoopExecutionDryRun = controller.runReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, "operator-current", {
+      requestedBy: "safe release owner",
+      checklistAcknowledged: true,
+      operatorNote: "Safe no-op execution dry-run from controller test",
+      dryRunReason: "safe no-op execution readiness rehearsal",
+      executionMode: "no_op"
+    });
+    const noopExecutionDryRunReadback = controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, "operator-current");
+    const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
+    const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2980,6 +2995,80 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(acceptedReadback.acceptanceStatus).toBe("acknowledged");
     expect(acceptedReadback.acceptanceRecordDigest).toBe(acknowledgedAcceptanceRecord.acceptanceRecordDigest);
     expect(handoffPacketAfterAcceptance).toEqual(handoffPacket);
+    expect(initialNoopExecutionDryRun).toMatchObject({
+      dryRunKind: "qa-handoff-locked-archive-certified-release-noop-execution-dryrun",
+      dryRunStatus: "not_started",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      externalCalls: 0
+    });
+    expect(initialNoopExecutionDryRun.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-noop-execution-dryrun.json");
+    expect(initialNoopExecutionDryRun.executionChecklist.length).toBeGreaterThan(0);
+    expect(initialNoopExecutionDryRun.dryRunRows.length).toBeGreaterThan(0);
+    expect(initialNoopExecutionDryRun.executionPlanRows.length).toBeGreaterThan(0);
+    expect(executedNoopExecutionDryRun).toMatchObject({
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      acceptanceRecordDigest: acknowledgedAcceptanceRecord.acceptanceRecordDigest,
+      handoffPacketDigest: handoffPacket.handoffPacketDigest,
+      decisionReceiptDigest: decisionReceipt.decisionReceiptDigest,
+      releaseGateDigest: releaseGate.releaseGateDigest,
+      externalCalls: 0
+    });
+    expect(executedNoopExecutionDryRun.safeDigest).toMatch(/^sha256:/);
+    expect(executedNoopExecutionDryRun.noopExecutionDryRunDigest).toBe(executedNoopExecutionDryRun.safeDigest);
+    expect(executedNoopExecutionDryRun.executionChecklist.every((entry) => entry.complete)).toBe(true);
+    expect(executedNoopExecutionDryRun.dryRunRows.every((entry) => entry.complete)).toBe(true);
+    expect(executedNoopExecutionDryRun.executionPlanRows.every((entry) => entry.complete)).toBe(true);
+    expect(executedNoopExecutionDryRun.releaseOwnerSummary).toMatchObject({
+      requestedBy: "safe release owner",
+      checklistAcknowledged: true,
+      handoffReady: true,
+      operatorChecklistAcknowledged: true,
+      externalCallsZero: true
+    });
+    expect(executedNoopExecutionDryRun.inheritedAcceptanceSummary).toMatchObject({
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      externalCallsZero: true
+    });
+    expect(executedNoopExecutionDryRun.counts.noopExecutionDryRunMutationCount).toBe(1);
+    expect(noopExecutionDryRunReadback.dryRunStatus).toBe("passed");
+    expect(noopExecutionDryRunReadback.noopExecutionDryRunDigest).toBe(executedNoopExecutionDryRun.noopExecutionDryRunDigest);
+    expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
+    expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
+    expect(afterNoopRead).toMatchObject({
+      reviewStatus: beforeAcceptancePost?.reviewStatus,
+      linkStatus: beforeAcceptancePost?.linkStatus,
+      unmatchedStatus: beforeAcceptancePost?.unmatchedStatus,
+      assignmentStatus: beforeAcceptancePost?.assignmentStatus,
+      escalationStatus: beforeAcceptancePost?.escalationStatus,
+      resolutionStatus: beforeAcceptancePost?.resolutionStatus,
+      messagePersisted: beforeAcceptancePost?.messagePersisted,
+      linkedConversationId: beforeAcceptancePost?.linkedConversationId,
+      linkedMessageId: beforeAcceptancePost?.linkedMessageId
+    });
     expect(after).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,
       linkStatus: beforeAcceptancePost?.linkStatus,

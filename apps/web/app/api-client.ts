@@ -39,6 +39,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -258,6 +259,8 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
   type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -709,6 +712,22 @@ export async function acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseH
 ): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record${search}`, providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun${search}`, providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema);
+}
+
+export async function runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest
+): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun${search}`, providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema, {
     method: "POST",
     body: JSON.stringify(payload)
   });
