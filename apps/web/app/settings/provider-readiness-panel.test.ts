@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -59,6 +59,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseHandoffPacket: providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacket(),
       reviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(),
       reviewQaHandoffCertifiedReleaseNoopExecutionDryRun: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(),
+      reviewQaHandoffCertifiedReleaseDryRunResultLedger: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -315,6 +316,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Acknowledge certified release handoff checklist");
     expect(html).toContain("Load certified release no-op execution dry-run");
     expect(html).toContain("Run certified release no-op execution dry-run");
+    expect(html).toContain("Load certified release dry-run result ledger");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
     expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
@@ -344,6 +346,12 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("executionPlanRows=7/7");
     expect(html).toContain("checklistAcknowledged=true");
     expect(html).toContain("noopExecutionDryRunMutationCount=1");
+    expect(html).toContain("QA archive certified release dry-run result ledger: ledgerStatus=recorded; dryRunStatus=passed; executionMode=no_op; acceptanceStatus=acknowledged; handoffStatus=ready; releaseDecision=go; packetStatus=issued; receiptStatus=issued; gateStatus=ready; goNoGoDecision=go");
+    expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-dryrun-result-ledger.json");
+    expect(html).toContain("dryRunResultLedgerDigest=sha256:safeqahandoffcertifiedreleasedryrunresultledger");
+    expect(html).toContain("resultLedgerRows=12/12");
+    expect(html).toContain("finalReadinessRows=9/9");
+    expect(html).toContain("dryRunResultLedgerMutationCount=0");
     expect(html).toContain("QA archive integrity digest chain");
     expect(html).toContain("digestChainLinkCount=6");
     expect(html).toContain("QA retention audit checklist");
@@ -2842,12 +2850,133 @@ function providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(): Pr
   };
 }
 
+function providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger(): ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger {
+  const dryRun = providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun();
+  const resultLedgerRows: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["resultLedgerRows"] = [
+    providerWebhookDryRunResultLedgerRow("noop_execution_dryrun", "No-op execution dry-run", dryRun.noopExecutionDryRunDigest, dryRun.counts.noopExecutionDryRunCheckedCount),
+    providerWebhookDryRunResultLedgerRow("acceptance_record", "Acceptance record", dryRun.acceptanceRecordDigest, 1),
+    providerWebhookDryRunResultLedgerRow("handoff_packet", "Handoff packet", dryRun.handoffPacketDigest, dryRun.counts.handoffPacketCheckedCount),
+    providerWebhookDryRunResultLedgerRow("decision_receipt", "Decision receipt", dryRun.decisionReceiptDigest, dryRun.counts.decisionReceiptCheckedCount),
+    providerWebhookDryRunResultLedgerRow("release_gate", "Release gate", dryRun.releaseGateDigest, dryRun.counts.gateCheckedCount),
+    providerWebhookDryRunResultLedgerRow("reconciliation", "Attestation reconciliation", dryRun.reconciliationDigest, dryRun.counts.reconciliationCheckedCount),
+    providerWebhookDryRunResultLedgerRow("attestation_audit", "Attestation audit", dryRun.attestationAuditDigest, dryRun.counts.attestationAuditCheckedCount),
+    providerWebhookDryRunResultLedgerRow("closure_ledger", "Closure ledger", dryRun.closureLedgerDigest, dryRun.counts.closureLedgerCheckedCount),
+    providerWebhookDryRunResultLedgerRow("certification", "Release certification", dryRun.certificationDigest, dryRun.counts.releaseCertificationCheckedCount),
+    providerWebhookDryRunResultLedgerRow("verification", "Release verification", dryRun.verificationDigest, dryRun.counts.releaseVerificationCheckedCount),
+    providerWebhookDryRunResultLedgerRow("release_evidence", "Release evidence", dryRun.releaseEvidenceDigest, dryRun.counts.releaseEvidenceCheckedCount),
+    providerWebhookDryRunResultLedgerRow("external_calls", "External calls", dryRun.acceptanceRecordDigest, dryRun.externalCalls)
+  ];
+  const finalReadinessRows: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["finalReadinessRows"] = [
+    providerWebhookDryRunFinalReadinessRow("dryrun_passed", "Dry-run passed", dryRun.noopExecutionDryRunDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("execution_mode_no_op", "Execution mode no-op", dryRun.noopExecutionDryRunDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("acceptance_acknowledged", "Acceptance acknowledged", dryRun.acceptanceRecordDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("handoff_ready", "Handoff ready", dryRun.handoffPacketDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("release_decision_go", "Release decision go", dryRun.decisionReceiptDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("gate_ready", "Release gate ready", dryRun.releaseGateDigest, 1),
+    providerWebhookDryRunFinalReadinessRow("safe_digests", "Safe digests", dryRun.safeDigest, 13),
+    providerWebhookDryRunFinalReadinessRow("no_state_mutation", "No result ledger state mutation", dryRun.noopExecutionDryRunDigest, 0),
+    providerWebhookDryRunFinalReadinessRow("external_calls_zero", "External calls zero", dryRun.noopExecutionDryRunDigest, 0)
+  ];
+  return {
+    ledgerKind: "qa-handoff-locked-archive-certified-release-dryrun-result-ledger",
+    ledgerStatus: "recorded",
+    dryRunStatus: dryRun.dryRunStatus,
+    executionMode: dryRun.executionMode,
+    acceptanceStatus: dryRun.acceptanceStatus,
+    handoffStatus: dryRun.handoffStatus,
+    releaseDecision: dryRun.releaseDecision,
+    packetStatus: dryRun.packetStatus,
+    receiptStatus: dryRun.receiptStatus,
+    gateStatus: dryRun.gateStatus,
+    goNoGoDecision: dryRun.goNoGoDecision,
+    releaseReadinessStatus: dryRun.releaseReadinessStatus,
+    reconciliationStatus: dryRun.reconciliationStatus,
+    attestationStatus: dryRun.attestationStatus,
+    ledgerStatusFromClosure: dryRun.ledgerStatus,
+    certificationStatus: dryRun.certificationStatus,
+    verificationStatus: dryRun.verificationStatus,
+    digestChainStatus: dryRun.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-dryrun-result-ledger.json",
+    safeDigest: "sha256:safeqahandoffcertifiedreleasedryrunresultledger",
+    dryRunResultLedgerDigest: "sha256:safeqahandoffcertifiedreleasedryrunresultledger",
+    noopExecutionDryRunDigest: dryRun.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: dryRun.acceptanceRecordDigest,
+    handoffPacketDigest: dryRun.handoffPacketDigest,
+    decisionReceiptDigest: dryRun.decisionReceiptDigest,
+    releaseGateDigest: dryRun.releaseGateDigest,
+    reconciliationDigest: dryRun.reconciliationDigest,
+    attestationAuditDigest: dryRun.attestationAuditDigest,
+    closureLedgerDigest: dryRun.closureLedgerDigest,
+    certificationDigest: dryRun.certificationDigest,
+    verificationDigest: dryRun.verificationDigest,
+    releaseEvidenceDigest: dryRun.releaseEvidenceDigest,
+    operatorChecklist: dryRun.operatorChecklist,
+    acknowledgedChecklist: dryRun.acknowledgedChecklist,
+    executionChecklist: dryRun.executionChecklist,
+    dryRunRows: dryRun.dryRunRows,
+    executionPlanRows: dryRun.executionPlanRows,
+    resultLedgerRows,
+    finalReadinessRows,
+    releaseOwnerSummary: dryRun.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: dryRun.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: dryRun.inheritedCertificationChecklist,
+    inheritedGateChecklist: dryRun.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: dryRun.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: dryRun.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: dryRun.inheritedAcceptanceSummary,
+    inheritedNoopDryRunSummary: {
+      dryRunStatus: dryRun.dryRunStatus,
+      executionMode: dryRun.executionMode,
+      acceptanceStatus: dryRun.acceptanceStatus,
+      handoffStatus: dryRun.handoffStatus,
+      releaseDecision: dryRun.releaseDecision,
+      checklistAcknowledged: dryRun.releaseOwnerSummary.checklistAcknowledged,
+      dryRunRowCount: dryRun.counts.dryRunRowCount,
+      dryRunRowPassedCount: dryRun.counts.dryRunRowPassedCount,
+      executionPlanRowCount: dryRun.counts.executionPlanRowCount,
+      executionPlanReadyCount: dryRun.counts.executionPlanReadyCount,
+      externalCallsZero: true,
+      safeDigest: dryRun.safeDigest
+    },
+    inheritedBlockingReasons: dryRun.inheritedBlockingReasons,
+    inheritedExceptionRows: dryRun.inheritedExceptionRows,
+    counts: {
+      ...dryRun.counts,
+      dryRunResultLedgerCheckedCount: 1,
+      dryRunResultLedgerMutationCount: 0,
+      resultLedgerRowCount: resultLedgerRows.length,
+      resultLedgerRowRecordedCount: resultLedgerRows.length,
+      finalReadinessRowCount: finalReadinessRows.length,
+      finalReadinessReadyCount: finalReadinessRows.length
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookNoopExecutionChecklistItem(
   key: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionChecklist"][number]["key"],
   label: string,
   safeDigest: string
 ): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionChecklist"][number] {
   return { key, label, checklistStatus: "complete", safeDigest, complete: true };
+}
+
+function providerWebhookDryRunResultLedgerRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["resultLedgerRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number
+): ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["resultLedgerRows"][number] {
+  return { key, label, rowStatus: "recorded", safeDigest, checkedCount, complete: true };
+}
+
+function providerWebhookDryRunFinalReadinessRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["finalReadinessRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number
+): ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger["finalReadinessRows"][number] {
+  return { key, label, readinessStatus: "ready", safeDigest, checkedCount, complete: true };
 }
 
 function providerWebhookNoopDryRunRow(
