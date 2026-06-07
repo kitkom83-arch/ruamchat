@@ -4163,6 +4163,113 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseGateSchema = z.object
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseGate = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema = z.enum([
+  "issued",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema = z.enum([
+  "go",
+  "no_go"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecision = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptRowSchema = z.object({
+  key: z.enum([
+    "release_gate",
+    "release_decision",
+    "release_readiness",
+    "reconciliation",
+    "attestation",
+    "closure_ledger",
+    "certification",
+    "verification",
+    "digest_chain",
+    "prerequisite_checklist",
+    "certification_checklist",
+    "gate_checklist",
+    "external_calls"
+  ]),
+  label: z.string().min(1),
+  receiptRowStatus: z.enum(["confirmed", "issued", "blocked"]),
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema = z.object({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-decision-receipt"),
+  receiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema,
+  releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+  gateStatus: providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema,
+  goNoGoDecision: providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema,
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  reconciliationStatus: z.enum(["complete", "aligned"]),
+  attestationStatus: z.literal("complete"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  decisionReceiptDigest: z.string().min(1),
+  releaseGateDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffReleaseCertificationSchema.shape.certificationChecklist,
+  inheritedGateChecklist: providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.shape.gateChecklist,
+  inheritedReconciliationSummary: providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.shape.inheritedReconciliationSummary,
+  inheritedBlockingReasons: z.array(providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonSchema),
+  inheritedExceptionRows: z.array(providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionSchema),
+  receiptRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptRowSchema).min(1),
+  receiptSummary: z.object({
+    receiptRowCount: z.number().int().nonnegative(),
+    completeReceiptRowCount: z.number().int().nonnegative(),
+    releaseGateReady: z.boolean(),
+    releaseDecisionGo: z.boolean(),
+    prerequisiteChecklistComplete: z.boolean(),
+    certificationChecklistComplete: z.boolean(),
+    gateChecklistComplete: z.boolean(),
+    noBlockingReasons: z.boolean(),
+    noExceptionRows: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    closureLedgerCheckedCount: z.number().int().nonnegative(),
+    attestationAuditCheckedCount: z.number().int().nonnegative(),
+    reconciliationCheckedCount: z.number().int().nonnegative(),
+    gateCheckedCount: z.number().int().nonnegative(),
+    decisionReceiptCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    reconciliationRowCount: z.number().int().nonnegative(),
+    reconciliationAlignedRowCount: z.number().int().nonnegative(),
+    reconciliationExceptionRowCount: z.number().int().nonnegative(),
+    gateChecklistPassedCount: z.number().int().nonnegative(),
+    gateChecklistTotalCount: z.number().int().nonnegative(),
+    blockingReasonCount: z.number().int().nonnegative(),
+    exceptionRowCount: z.number().int().nonnegative(),
+    receiptRowCount: z.number().int().nonnegative(),
+    receiptRowCompleteCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

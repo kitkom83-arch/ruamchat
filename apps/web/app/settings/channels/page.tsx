@@ -2,7 +2,7 @@
 
 import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -33,6 +33,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData,
+  loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData,
   loadSettingsProviderWebhookReviewQaHandoffRetentionManifestData,
@@ -177,6 +178,9 @@ export default function ChannelSettingsPage() {
   const [reviewQaHandoffCertifiedReleaseGate, setReviewQaHandoffCertifiedReleaseGate] = useState<ProviderWebhookReviewQaHandoffCertifiedReleaseGate | null>(null);
   const [qaHandoffCertifiedReleaseGateLoading, setQaHandoffCertifiedReleaseGateLoading] = useState(false);
   const [qaHandoffCertifiedReleaseGateError, setQaHandoffCertifiedReleaseGateError] = useState("");
+  const [reviewQaHandoffCertifiedReleaseDecisionReceipt, setReviewQaHandoffCertifiedReleaseDecisionReceipt] = useState<ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt | null>(null);
+  const [qaHandoffCertifiedReleaseDecisionReceiptLoading, setQaHandoffCertifiedReleaseDecisionReceiptLoading] = useState(false);
+  const [qaHandoffCertifiedReleaseDecisionReceiptError, setQaHandoffCertifiedReleaseDecisionReceiptError] = useState("");
   const [reviewClosureReportRedactionAudit, setReviewClosureReportRedactionAudit] = useState<ProviderWebhookReviewExportRedactionAudit | null>(null);
   const [closureReportRedactionAuditLoading, setClosureReportRedactionAuditLoading] = useState(false);
   const [closureReportRedactionAuditError, setClosureReportRedactionAuditError] = useState("");
@@ -263,6 +267,8 @@ export default function ChannelSettingsPage() {
     setProviderError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
     loadSettingsProviderReadinessData(dataMode)
       .then((data) => {
         if (!active) return;
@@ -288,6 +294,8 @@ export default function ChannelSettingsPage() {
     setUnmatchedInboundError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
     let refreshedItems: ProviderWebhookUnmatchedInboundItem[] = [];
     const [eventsResult, unmatchedResult] = await Promise.allSettled([
       loadSettingsProviderWebhookEventsData(dataMode),
@@ -468,6 +476,8 @@ export default function ChannelSettingsPage() {
     setQaHandoffArchiveReleaseAttestationReconciliationError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
   }, [reviewQaHandoffArchiveReleaseClosureLedger]);
 
   useEffect(() => {
@@ -476,12 +486,16 @@ export default function ChannelSettingsPage() {
     setQaHandoffArchiveReleaseAttestationReconciliationError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
   }, [reviewQaHandoffArchiveReleaseAttestationAudit]);
 
   useEffect(() => {
     if (reviewQaHandoffArchiveReleaseAttestationReconciliation) return;
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
   }, [reviewQaHandoffArchiveReleaseAttestationReconciliation]);
 
   async function loadCandidates(unmatchedInboundId: string) {
@@ -1056,6 +1070,8 @@ export default function ChannelSettingsPage() {
     setReviewQaHandoffArchiveReleaseAttestationAudit(null);
     setReviewQaHandoffArchiveReleaseAttestationReconciliation(null);
     setReviewQaHandoffCertifiedReleaseGate(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
     try {
       const result = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData(dataMode, {
         ...unmatchedFilters,
@@ -1078,6 +1094,8 @@ export default function ChannelSettingsPage() {
     setReviewQaHandoffArchiveReleaseAttestationAudit(null);
     setReviewQaHandoffArchiveReleaseAttestationReconciliation(null);
     setReviewQaHandoffCertifiedReleaseGate(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
     try {
       const result = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData(dataMode, {
         ...unmatchedFilters,
@@ -1098,6 +1116,8 @@ export default function ChannelSettingsPage() {
     setQaHandoffCertifiedReleaseGateError("");
     setReviewQaHandoffArchiveReleaseAttestationReconciliation(null);
     setReviewQaHandoffCertifiedReleaseGate(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
     try {
       const result = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData(dataMode, {
         ...unmatchedFilters,
@@ -1116,6 +1136,8 @@ export default function ChannelSettingsPage() {
     setQaHandoffCertifiedReleaseGateLoading(true);
     setQaHandoffCertifiedReleaseGateError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
     try {
       const result = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData(dataMode, {
         ...unmatchedFilters,
@@ -1124,9 +1146,28 @@ export default function ChannelSettingsPage() {
       setReviewQaHandoffCertifiedReleaseGate(result.releaseGate);
     } catch (reason) {
       setReviewQaHandoffCertifiedReleaseGate(null);
+      setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
       setQaHandoffCertifiedReleaseGateError(`QA Archive Certified Release Gate API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook QA archive certified release gate"}`);
     } finally {
       setQaHandoffCertifiedReleaseGateLoading(false);
+    }
+  }
+
+  async function loadReviewQaHandoffCertifiedReleaseDecisionReceipt() {
+    setQaHandoffCertifiedReleaseDecisionReceiptLoading(true);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    try {
+      const result = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData(dataMode, {
+        ...unmatchedFilters,
+        ...triageSavedViewFilters
+      });
+      setReviewQaHandoffCertifiedReleaseDecisionReceipt(result.decisionReceipt);
+    } catch (reason) {
+      setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+      setQaHandoffCertifiedReleaseDecisionReceiptError(`QA Archive Certified Release Decision Receipt API error: ${reason instanceof Error ? reason.message : "Unable to load provider webhook QA archive certified release decision receipt"}`);
+    } finally {
+      setQaHandoffCertifiedReleaseDecisionReceiptLoading(false);
     }
   }
 
@@ -1576,6 +1617,8 @@ export default function ChannelSettingsPage() {
     setQaHandoffArchiveReleaseAttestationReconciliationError("");
     setReviewQaHandoffCertifiedReleaseGate(null);
     setQaHandoffCertifiedReleaseGateError("");
+    setReviewQaHandoffCertifiedReleaseDecisionReceipt(null);
+    setQaHandoffCertifiedReleaseDecisionReceiptError("");
     setTriageSavedViewFilters({});
     setUnmatchedFilters({
       ...defaultUnmatchedFilters,
@@ -1794,6 +1837,9 @@ export default function ChannelSettingsPage() {
         reviewQaHandoffCertifiedReleaseGate={reviewQaHandoffCertifiedReleaseGate}
         reviewQaHandoffCertifiedReleaseGateLoading={qaHandoffCertifiedReleaseGateLoading}
         reviewQaHandoffCertifiedReleaseGateError={qaHandoffCertifiedReleaseGateError}
+        reviewQaHandoffCertifiedReleaseDecisionReceipt={reviewQaHandoffCertifiedReleaseDecisionReceipt}
+        reviewQaHandoffCertifiedReleaseDecisionReceiptLoading={qaHandoffCertifiedReleaseDecisionReceiptLoading}
+        reviewQaHandoffCertifiedReleaseDecisionReceiptError={qaHandoffCertifiedReleaseDecisionReceiptError}
         reviewClosureReportRedactionAudit={reviewClosureReportRedactionAudit}
         reviewClosureReportRedactionAuditLoading={closureReportRedactionAuditLoading}
         reviewClosureReportRedactionAuditError={closureReportRedactionAuditError}
@@ -1885,6 +1931,7 @@ export default function ChannelSettingsPage() {
         onLoadReviewQaHandoffArchiveReleaseAttestationAudit={loadReviewQaHandoffArchiveReleaseAttestationAudit}
         onLoadReviewQaHandoffArchiveReleaseAttestationReconciliation={loadReviewQaHandoffArchiveReleaseAttestationReconciliation}
         onLoadReviewQaHandoffCertifiedReleaseGate={loadReviewQaHandoffCertifiedReleaseGate}
+        onLoadReviewQaHandoffCertifiedReleaseDecisionReceipt={loadReviewQaHandoffCertifiedReleaseDecisionReceipt}
         onLoadClosureReportRedactionAudit={loadClosureReportRedactionAudit}
         onLoadClosureExportIntegrity={loadClosureExportIntegrity}
         onLoadHistory={loadHistory}
