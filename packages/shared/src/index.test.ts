@@ -60,6 +60,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -1087,6 +1088,88 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseDryRunResultLedger = providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({
+      ledgerKind: "qa-handoff-locked-archive-certified-release-dryrun-result-ledger",
+      ledgerStatus: "recorded",
+      dryRunStatus: certifiedReleaseNoopExecutionDryRun.dryRunStatus,
+      executionMode: certifiedReleaseNoopExecutionDryRun.executionMode,
+      acceptanceStatus: certifiedReleaseNoopExecutionDryRun.acceptanceStatus,
+      handoffStatus: certifiedReleaseNoopExecutionDryRun.handoffStatus,
+      releaseDecision: certifiedReleaseNoopExecutionDryRun.releaseDecision,
+      packetStatus: certifiedReleaseNoopExecutionDryRun.packetStatus,
+      receiptStatus: certifiedReleaseNoopExecutionDryRun.receiptStatus,
+      gateStatus: certifiedReleaseNoopExecutionDryRun.gateStatus,
+      goNoGoDecision: certifiedReleaseNoopExecutionDryRun.goNoGoDecision,
+      releaseReadinessStatus: certifiedReleaseNoopExecutionDryRun.releaseReadinessStatus,
+      reconciliationStatus: certifiedReleaseNoopExecutionDryRun.reconciliationStatus,
+      attestationStatus: certifiedReleaseNoopExecutionDryRun.attestationStatus,
+      ledgerStatusFromClosure: certifiedReleaseNoopExecutionDryRun.ledgerStatus,
+      certificationStatus: certifiedReleaseNoopExecutionDryRun.certificationStatus,
+      verificationStatus: certifiedReleaseNoopExecutionDryRun.verificationStatus,
+      digestChainStatus: certifiedReleaseNoopExecutionDryRun.digestChainStatus,
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-dryrun-result-ledger.json",
+      safeDigest: "sha256:certifiedreleasedryrunresultledger",
+      dryRunResultLedgerDigest: "sha256:certifiedreleasedryrunresultledger",
+      noopExecutionDryRunDigest: certifiedReleaseNoopExecutionDryRun.noopExecutionDryRunDigest,
+      acceptanceRecordDigest: certifiedReleaseNoopExecutionDryRun.acceptanceRecordDigest,
+      handoffPacketDigest: certifiedReleaseNoopExecutionDryRun.handoffPacketDigest,
+      decisionReceiptDigest: certifiedReleaseNoopExecutionDryRun.decisionReceiptDigest,
+      releaseGateDigest: certifiedReleaseNoopExecutionDryRun.releaseGateDigest,
+      reconciliationDigest: certifiedReleaseNoopExecutionDryRun.reconciliationDigest,
+      attestationAuditDigest: certifiedReleaseNoopExecutionDryRun.attestationAuditDigest,
+      closureLedgerDigest: certifiedReleaseNoopExecutionDryRun.closureLedgerDigest,
+      certificationDigest: certifiedReleaseNoopExecutionDryRun.certificationDigest,
+      verificationDigest: certifiedReleaseNoopExecutionDryRun.verificationDigest,
+      releaseEvidenceDigest: certifiedReleaseNoopExecutionDryRun.releaseEvidenceDigest,
+      operatorChecklist: certifiedReleaseNoopExecutionDryRun.operatorChecklist,
+      acknowledgedChecklist: certifiedReleaseNoopExecutionDryRun.acknowledgedChecklist,
+      executionChecklist: certifiedReleaseNoopExecutionDryRun.executionChecklist,
+      dryRunRows: certifiedReleaseNoopExecutionDryRun.dryRunRows,
+      executionPlanRows: certifiedReleaseNoopExecutionDryRun.executionPlanRows,
+      resultLedgerRows: [
+        { key: "noop_execution_dryrun", label: "No-op execution dry-run", rowStatus: "recorded", safeDigest: certifiedReleaseNoopExecutionDryRun.noopExecutionDryRunDigest, checkedCount: 1, complete: true },
+        { key: "acceptance_record", label: "Acceptance record", rowStatus: "recorded", safeDigest: certifiedReleaseNoopExecutionDryRun.acceptanceRecordDigest, checkedCount: 1, complete: true },
+        { key: "external_calls", label: "External calls", rowStatus: "recorded", safeDigest: certifiedReleaseNoopExecutionDryRun.acceptanceRecordDigest, checkedCount: 0, complete: true }
+      ],
+      finalReadinessRows: [
+        { key: "dryrun_passed", label: "Dry-run passed", readinessStatus: "ready", safeDigest: certifiedReleaseNoopExecutionDryRun.noopExecutionDryRunDigest, checkedCount: 1, complete: true },
+        { key: "execution_mode_no_op", label: "Execution mode no-op", readinessStatus: "ready", safeDigest: certifiedReleaseNoopExecutionDryRun.noopExecutionDryRunDigest, checkedCount: 1, complete: true },
+        { key: "external_calls_zero", label: "External calls zero", readinessStatus: "ready", safeDigest: certifiedReleaseNoopExecutionDryRun.noopExecutionDryRunDigest, checkedCount: 0, complete: true }
+      ],
+      releaseOwnerSummary: certifiedReleaseNoopExecutionDryRun.releaseOwnerSummary,
+      inheritedPrerequisiteChecklist: certifiedReleaseNoopExecutionDryRun.inheritedPrerequisiteChecklist,
+      inheritedCertificationChecklist: certifiedReleaseNoopExecutionDryRun.inheritedCertificationChecklist,
+      inheritedGateChecklist: certifiedReleaseNoopExecutionDryRun.inheritedGateChecklist,
+      inheritedDecisionReceiptSummary: certifiedReleaseNoopExecutionDryRun.inheritedDecisionReceiptSummary,
+      inheritedHandoffPacketSummary: certifiedReleaseNoopExecutionDryRun.inheritedHandoffPacketSummary,
+      inheritedAcceptanceSummary: certifiedReleaseNoopExecutionDryRun.inheritedAcceptanceSummary,
+      inheritedNoopDryRunSummary: {
+        dryRunStatus: certifiedReleaseNoopExecutionDryRun.dryRunStatus,
+        executionMode: certifiedReleaseNoopExecutionDryRun.executionMode,
+        acceptanceStatus: certifiedReleaseNoopExecutionDryRun.acceptanceStatus,
+        handoffStatus: certifiedReleaseNoopExecutionDryRun.handoffStatus,
+        releaseDecision: certifiedReleaseNoopExecutionDryRun.releaseDecision,
+        checklistAcknowledged: certifiedReleaseNoopExecutionDryRun.releaseOwnerSummary.checklistAcknowledged,
+        dryRunRowCount: certifiedReleaseNoopExecutionDryRun.counts.dryRunRowCount,
+        dryRunRowPassedCount: certifiedReleaseNoopExecutionDryRun.counts.dryRunRowPassedCount,
+        executionPlanRowCount: certifiedReleaseNoopExecutionDryRun.counts.executionPlanRowCount,
+        executionPlanReadyCount: certifiedReleaseNoopExecutionDryRun.counts.executionPlanReadyCount,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseNoopExecutionDryRun.safeDigest
+      },
+      inheritedBlockingReasons: certifiedReleaseNoopExecutionDryRun.inheritedBlockingReasons,
+      inheritedExceptionRows: certifiedReleaseNoopExecutionDryRun.inheritedExceptionRows,
+      counts: {
+        ...certifiedReleaseNoopExecutionDryRun.counts,
+        dryRunResultLedgerCheckedCount: 1,
+        dryRunResultLedgerMutationCount: 0,
+        resultLedgerRowCount: 3,
+        resultLedgerRowRecordedCount: 3,
+        finalReadinessRowCount: 3,
+        finalReadinessReadyCount: 3
+      },
+      externalCalls: 0
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -1156,6 +1239,14 @@ describe("shared contracts", () => {
     expect(certifiedReleaseNoopExecutionDryRun.releaseOwnerSummary.checklistAcknowledged).toBe(true);
     expect(certifiedReleaseNoopExecutionDryRun.inheritedAcceptanceSummary.externalCallsZero).toBe(true);
     expect(certifiedReleaseNoopExecutionDryRun.externalCalls).toBe(0);
+    expect(certifiedReleaseDryRunResultLedger.ledgerStatus).toBe("recorded");
+    expect(certifiedReleaseDryRunResultLedger.dryRunStatus).toBe("passed");
+    expect(certifiedReleaseDryRunResultLedger.executionMode).toBe("no_op");
+    expect(certifiedReleaseDryRunResultLedger.releaseDecision).toBe("go");
+    expect(certifiedReleaseDryRunResultLedger.resultLedgerRows).toHaveLength(3);
+    expect(certifiedReleaseDryRunResultLedger.finalReadinessRows).toHaveLength(3);
+    expect(certifiedReleaseDryRunResultLedger.counts.dryRunResultLedgerMutationCount).toBe(0);
+    expect(certifiedReleaseDryRunResultLedger.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -1243,6 +1334,18 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.parse({ ...certifiedReleaseNoopExecutionDryRun, rawBody: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.parse({ ...certifiedReleaseNoopExecutionDryRun, headers: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.parse({ ...certifiedReleaseNoopExecutionDryRun, stack: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, signature: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, authorization: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, cookie: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, senderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, roomId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, providerMaterial: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, rawBody: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, headers: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -1255,6 +1358,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema.parse({ ...certifiedReleaseHandoffPacket, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.parse({ ...certifiedReleaseNoopExecutionDryRun, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

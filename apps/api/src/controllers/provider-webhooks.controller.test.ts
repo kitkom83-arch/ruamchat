@@ -30,6 +30,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseDecisionReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.runReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined, { checklistAcknowledged: true, executionMode: "no_op" })).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2577,11 +2578,16 @@ describe("ProviderWebhooksController sandbox events", () => {
       executionMode: "no_op"
     });
     const noopExecutionDryRunReadback = controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, "operator-current");
+    const beforeResultLedgerRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const dryRunResultLedger = controller.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(tenantId, filters, "operator-current");
+    const afterResultLedgerRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3056,8 +3062,67 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(executedNoopExecutionDryRun.counts.noopExecutionDryRunMutationCount).toBe(1);
     expect(noopExecutionDryRunReadback.dryRunStatus).toBe("passed");
     expect(noopExecutionDryRunReadback.noopExecutionDryRunDigest).toBe(executedNoopExecutionDryRun.noopExecutionDryRunDigest);
+    expect(dryRunResultLedger).toMatchObject({
+      ledgerKind: "qa-handoff-locked-archive-certified-release-dryrun-result-ledger",
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatusFromClosure: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      noopExecutionDryRunDigest: executedNoopExecutionDryRun.noopExecutionDryRunDigest,
+      acceptanceRecordDigest: acknowledgedAcceptanceRecord.acceptanceRecordDigest,
+      handoffPacketDigest: handoffPacket.handoffPacketDigest,
+      decisionReceiptDigest: decisionReceipt.decisionReceiptDigest,
+      releaseGateDigest: releaseGate.releaseGateDigest,
+      externalCalls: 0
+    });
+    expect(dryRunResultLedger.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-dryrun-result-ledger.json");
+    expect(dryRunResultLedger.safeDigest).toMatch(/^sha256:/);
+    expect(dryRunResultLedger.dryRunResultLedgerDigest).toBe(dryRunResultLedger.safeDigest);
+    expect(dryRunResultLedger.operatorChecklist.every((entry) => entry.complete)).toBe(true);
+    expect(dryRunResultLedger.acknowledgedChecklist.every((entry) => entry.acknowledged)).toBe(true);
+    expect(dryRunResultLedger.executionChecklist.every((entry) => entry.complete)).toBe(true);
+    expect(dryRunResultLedger.dryRunRows.every((entry) => entry.complete)).toBe(true);
+    expect(dryRunResultLedger.executionPlanRows.every((entry) => entry.complete)).toBe(true);
+    expect(dryRunResultLedger.resultLedgerRows.every((entry) => entry.complete && entry.rowStatus === "recorded")).toBe(true);
+    expect(dryRunResultLedger.finalReadinessRows.every((entry) => entry.complete && entry.readinessStatus === "ready")).toBe(true);
+    expect(dryRunResultLedger.inheritedNoopDryRunSummary).toMatchObject({
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      externalCallsZero: true
+    });
+    expect(dryRunResultLedger.counts.dryRunResultLedgerCheckedCount).toBe(1);
+    expect(dryRunResultLedger.counts.dryRunResultLedgerMutationCount).toBe(0);
+    expect(dryRunResultLedger.counts.resultLedgerRowRecordedCount).toBe(dryRunResultLedger.resultLedgerRows.length);
+    expect(dryRunResultLedger.counts.finalReadinessReadyCount).toBe(dryRunResultLedger.finalReadinessRows.length);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
+    expect(afterResultLedgerRead).toMatchObject({
+      reviewStatus: beforeResultLedgerRead?.reviewStatus,
+      linkStatus: beforeResultLedgerRead?.linkStatus,
+      unmatchedStatus: beforeResultLedgerRead?.unmatchedStatus,
+      assignmentStatus: beforeResultLedgerRead?.assignmentStatus,
+      escalationStatus: beforeResultLedgerRead?.escalationStatus,
+      resolutionStatus: beforeResultLedgerRead?.resolutionStatus,
+      messagePersisted: beforeResultLedgerRead?.messagePersisted,
+      linkedConversationId: beforeResultLedgerRead?.linkedConversationId,
+      linkedMessageId: beforeResultLedgerRead?.linkedMessageId
+    });
     expect(afterNoopRead).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,
       linkStatus: beforeAcceptancePost?.linkStatus,

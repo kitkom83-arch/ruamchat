@@ -38,6 +38,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
@@ -258,6 +259,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -731,6 +733,11 @@ export async function runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecu
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger${search}`, providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
