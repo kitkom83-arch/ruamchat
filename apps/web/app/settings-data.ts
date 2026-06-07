@@ -38,6 +38,8 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
   ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -118,6 +120,8 @@ import {
   acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
+  runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
@@ -336,6 +340,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketD
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData = {
   mode: DataMode;
   acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData = {
+  mode: DataMode;
+  dryRun: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1035,6 +1044,41 @@ export async function acknowledgeSettingsProviderWebhookReviewQaHandoffCertified
   return {
     mode,
     acceptanceRecord: createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters, payload)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData> {
+  if (mode === "api") {
+    return {
+      mode,
+      dryRun: await getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters)
+    };
+  }
+
+  return {
+    mode,
+    dryRun: createMockReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters, null)
+  };
+}
+
+export async function runSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData> {
+  if (mode === "api") {
+    return {
+      mode,
+      dryRun: await runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters, payload)
+    };
+  }
+
+  return {
+    mode,
+    dryRun: createMockReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(filters, payload)
   };
 }
 
@@ -3730,6 +3774,250 @@ function mockCertifiedReleaseHandoffAcknowledgementRow(
   };
 }
 
+function createMockReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(
+  filters: ProviderWebhookReviewClosureReportFilters,
+  payload: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest | null
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun {
+  const acceptanceRecord = createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters, null);
+  const acceptanceReady = mockCertifiedReleaseNoopExecutionReady(acceptanceRecord);
+  let record = mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns.find((candidate) =>
+    candidate.acceptanceRecordDigest === acceptanceRecord.acceptanceRecordDigest
+  ) ?? null;
+  if (payload && acceptanceReady && payload.checklistAcknowledged) {
+    record = {
+      id: record?.id ?? `provider-webhook-qa-handoff-certified-release-noop-execution-dryrun-local-${mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns.length + 1}`,
+      acceptanceRecordDigest: acceptanceRecord.acceptanceRecordDigest,
+      handoffPacketDigest: acceptanceRecord.handoffPacketDigest,
+      decisionReceiptDigest: acceptanceRecord.decisionReceiptDigest,
+      releaseGateDigest: acceptanceRecord.releaseGateDigest,
+      safeDigest: `sha256:mockqahandoffcertifiedreleasenoopdryrun-${safeDigest([acceptanceRecord.acceptanceRecordDigest, payload.requestedBy ?? "", payload.dryRunReason ?? "", payload.executionMode].join(":"))}`,
+      requestedBy: safeMockReason(payload.requestedBy) ?? "safe release owner",
+      checklistAcknowledged: payload.checklistAcknowledged,
+      operatorNote: safeMockReason(payload.operatorNote) ?? null,
+      dryRunReason: safeMockReason(payload.dryRunReason) ?? "safe no-op execution readiness rehearsal",
+      executedAt: new Date().toISOString()
+    };
+    const existingIndex = mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns.findIndex((candidate) => candidate.id === record?.id);
+    if (existingIndex >= 0) mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns.splice(existingIndex, 1);
+    mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns.unshift(record);
+  }
+  return mockCertifiedReleaseNoopExecutionDryRunResponse(acceptanceRecord, record);
+}
+
+function mockCertifiedReleaseNoopExecutionReady(
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord
+) {
+  return acceptanceRecord.acceptanceStatus === "acknowledged" &&
+    acceptanceRecord.handoffStatus === "ready" &&
+    acceptanceRecord.releaseDecision === "go" &&
+    acceptanceRecord.packetStatus === "issued" &&
+    acceptanceRecord.receiptStatus === "issued" &&
+    acceptanceRecord.gateStatus === "ready" &&
+    acceptanceRecord.goNoGoDecision === "go" &&
+    acceptanceRecord.releaseReadinessStatus === "ready_for_release" &&
+    acceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged &&
+    acceptanceRecord.counts.blockingReasonCount === 0 &&
+    acceptanceRecord.counts.exceptionRowCount === 0 &&
+    acceptanceRecord.externalCalls === 0;
+}
+
+function mockCertifiedReleaseNoopExecutionDryRunResponse(
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  record: typeof mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns[number] | null
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun {
+  const acceptanceReady = mockCertifiedReleaseNoopExecutionReady(acceptanceRecord);
+  const dryRunStatus = !acceptanceReady
+    ? acceptanceRecord.acceptanceStatus === "blocked" || acceptanceRecord.releaseDecision !== "go"
+      ? "blocked"
+      : "incomplete"
+    : record?.checklistAcknowledged
+      ? "passed"
+      : "not_started";
+  const effectiveReleaseDecision = acceptanceReady ? "go" : "no_go";
+  const safeDigestValue = record?.safeDigest ?? `sha256:mockqahandoffcertifiedreleasenoopdryrun-${safeDigest(`${acceptanceRecord.acceptanceRecordDigest}:${dryRunStatus}`)}`;
+  const executionChecklist = mockCertifiedReleaseNoopExecutionChecklist(acceptanceRecord, acceptanceReady, Boolean(record?.checklistAcknowledged));
+  const dryRunRows = mockCertifiedReleaseNoopExecutionDryRunRows(acceptanceRecord, acceptanceReady);
+  const executionPlanRows = mockCertifiedReleaseNoopExecutionPlanRows(acceptanceRecord, acceptanceReady);
+  return {
+    dryRunKind: "qa-handoff-locked-archive-certified-release-noop-execution-dryrun",
+    dryRunStatus,
+    executionMode: "no_op",
+    acceptanceStatus: acceptanceRecord.acceptanceStatus,
+    handoffStatus: acceptanceRecord.handoffStatus,
+    releaseDecision: effectiveReleaseDecision,
+    packetStatus: acceptanceRecord.packetStatus,
+    receiptStatus: acceptanceRecord.receiptStatus,
+    gateStatus: acceptanceRecord.gateStatus,
+    goNoGoDecision: acceptanceReady ? acceptanceRecord.goNoGoDecision : "no_go",
+    releaseReadinessStatus: acceptanceRecord.releaseReadinessStatus,
+    reconciliationStatus: acceptanceRecord.reconciliationStatus,
+    attestationStatus: acceptanceRecord.attestationStatus,
+    ledgerStatus: acceptanceRecord.ledgerStatus,
+    certificationStatus: acceptanceRecord.certificationStatus,
+    verificationStatus: acceptanceRecord.verificationStatus,
+    digestChainStatus: acceptanceRecord.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-noop-execution-dryrun.json",
+    safeDigest: safeDigestValue,
+    noopExecutionDryRunDigest: safeDigestValue,
+    acceptanceRecordDigest: acceptanceRecord.acceptanceRecordDigest,
+    handoffPacketDigest: acceptanceRecord.handoffPacketDigest,
+    decisionReceiptDigest: acceptanceRecord.decisionReceiptDigest,
+    releaseGateDigest: acceptanceRecord.releaseGateDigest,
+    reconciliationDigest: acceptanceRecord.reconciliationDigest,
+    attestationAuditDigest: acceptanceRecord.attestationAuditDigest,
+    closureLedgerDigest: acceptanceRecord.closureLedgerDigest,
+    certificationDigest: acceptanceRecord.certificationDigest,
+    verificationDigest: acceptanceRecord.verificationDigest,
+    releaseEvidenceDigest: acceptanceRecord.releaseEvidenceDigest,
+    operatorChecklist: acceptanceRecord.operatorChecklist,
+    acknowledgedChecklist: acceptanceRecord.acknowledgedChecklist,
+    executionChecklist,
+    dryRunRows,
+    executionPlanRows,
+    releaseOwnerSummary: {
+      ...acceptanceRecord.releaseOwnerSummary,
+      requestedBy: record?.requestedBy ?? null,
+      checklistAcknowledged: record?.checklistAcknowledged ?? false,
+      dryRunReason: record?.dryRunReason ?? null,
+      executionModeNoOp: true
+    },
+    inheritedPrerequisiteChecklist: acceptanceRecord.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: acceptanceRecord.inheritedCertificationChecklist,
+    inheritedGateChecklist: acceptanceRecord.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: acceptanceRecord.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: acceptanceRecord.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: {
+      acceptanceStatus: acceptanceRecord.acceptanceStatus,
+      handoffStatus: acceptanceRecord.handoffStatus,
+      releaseDecision: effectiveReleaseDecision,
+      operatorChecklistAcknowledged: acceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged,
+      acknowledgedChecklistItemCount: acceptanceRecord.counts.acknowledgedChecklistItemCount,
+      acknowledgedChecklistCompleteCount: acceptanceRecord.counts.acknowledgedChecklistCompleteCount,
+      acknowledgementRowCount: acceptanceRecord.counts.acknowledgementRowCount,
+      acknowledgementRowCompleteCount: acceptanceRecord.counts.acknowledgementRowCompleteCount,
+      externalCallsZero: acceptanceRecord.externalCalls === 0
+    },
+    inheritedBlockingReasons: acceptanceRecord.inheritedBlockingReasons,
+    inheritedExceptionRows: acceptanceRecord.inheritedExceptionRows,
+    counts: {
+      ...acceptanceRecord.counts,
+      noopExecutionDryRunCheckedCount: 1,
+      noopExecutionDryRunMutationCount: record ? 1 : 0,
+      executionChecklistItemCount: executionChecklist.length,
+      executionChecklistCompleteCount: executionChecklist.filter((item) => item.complete).length,
+      dryRunRowCount: dryRunRows.length,
+      dryRunRowPassedCount: dryRunRows.filter((row) => row.complete).length,
+      executionPlanRowCount: executionPlanRows.length,
+      executionPlanReadyCount: executionPlanRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseNoopExecutionChecklist(
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  acceptanceReady: boolean,
+  checklistAcknowledged: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionChecklist"] {
+  return [
+    mockCertifiedReleaseNoopExecutionChecklistItem("acceptance_record_acknowledged", "Acceptance record acknowledged", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.acceptanceStatus === "acknowledged", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("handoff_ready", "Handoff ready", acceptanceRecord.handoffPacketDigest, acceptanceRecord.handoffStatus === "ready", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("release_decision_go", "Release decision go", acceptanceRecord.decisionReceiptDigest, acceptanceRecord.releaseDecision === "go", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("execution_mode_no_op", "Execution mode no-op", acceptanceRecord.acceptanceRecordDigest, true, acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("external_calls_zero", "External calls zero", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.externalCalls === 0, acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("provider_outbound_absent", "Provider outbound absent", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.externalCalls === 0, acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("notification_send_absent", "External notification sending absent", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.externalCalls === 0, acceptanceReady),
+    mockCertifiedReleaseNoopExecutionChecklistItem("source_material_absent", "Sensitive source material absent", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.externalCalls === 0 && (acceptanceReady || checklistAcknowledged), acceptanceReady)
+  ];
+}
+
+function mockCertifiedReleaseNoopExecutionChecklistItem(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionChecklist"][number]["key"],
+  label: string,
+  safeDigest: string,
+  complete: boolean,
+  acceptanceReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionChecklist"][number] {
+  return {
+    key,
+    label,
+    checklistStatus: complete ? "complete" : acceptanceReady ? "pending" : "blocked",
+    safeDigest,
+    complete
+  };
+}
+
+function mockCertifiedReleaseNoopExecutionDryRunRows(
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  acceptanceReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["dryRunRows"] {
+  return [
+    mockCertifiedReleaseNoopExecutionDryRunRow("acceptance_record", "Acceptance record", acceptanceRecord.acceptanceRecordDigest, 1, acceptanceRecord.acceptanceStatus === "acknowledged", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("handoff_packet", "Handoff packet", acceptanceRecord.handoffPacketDigest, acceptanceRecord.counts.handoffPacketCheckedCount, acceptanceRecord.handoffStatus === "ready", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("decision_receipt", "Decision receipt", acceptanceRecord.decisionReceiptDigest, acceptanceRecord.counts.decisionReceiptCheckedCount, acceptanceRecord.releaseDecision === "go", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("release_gate", "Release gate", acceptanceRecord.releaseGateDigest, acceptanceRecord.counts.gateCheckedCount, acceptanceRecord.gateStatus === "ready" && acceptanceRecord.goNoGoDecision === "go", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("reconciliation", "Attestation reconciliation", acceptanceRecord.reconciliationDigest, acceptanceRecord.counts.reconciliationCheckedCount, ["complete", "aligned"].includes(acceptanceRecord.reconciliationStatus), acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("attestation_audit", "Attestation audit", acceptanceRecord.attestationAuditDigest, acceptanceRecord.counts.attestationAuditCheckedCount, acceptanceRecord.attestationStatus === "complete", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("closure_ledger", "Closure ledger", acceptanceRecord.closureLedgerDigest, acceptanceRecord.counts.closureLedgerCheckedCount, acceptanceRecord.ledgerStatus === "certified_release_closed", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("certification", "Release certification", acceptanceRecord.certificationDigest, acceptanceRecord.counts.releaseCertificationCheckedCount, acceptanceRecord.certificationStatus === "certified", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("verification", "Release verification", acceptanceRecord.verificationDigest, acceptanceRecord.counts.releaseVerificationCheckedCount, acceptanceRecord.verificationStatus === "verified", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("release_evidence", "Release evidence", acceptanceRecord.releaseEvidenceDigest, acceptanceRecord.counts.releaseEvidenceCheckedCount, acceptanceRecord.releaseReadinessStatus === "ready_for_release", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("execution_mode", "Execution mode no-op", acceptanceRecord.acceptanceRecordDigest, 1, true, acceptanceReady),
+    mockCertifiedReleaseNoopExecutionDryRunRow("external_calls", "External calls", acceptanceRecord.acceptanceRecordDigest, acceptanceRecord.externalCalls, acceptanceRecord.externalCalls === 0, acceptanceReady)
+  ];
+}
+
+function mockCertifiedReleaseNoopExecutionDryRunRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["dryRunRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  acceptanceReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["dryRunRows"][number] {
+  return {
+    key,
+    label,
+    dryRunRowStatus: complete ? "passed" : acceptanceReady ? "pending" : "blocked",
+    safeDigest,
+    checkedCount,
+    complete
+  };
+}
+
+function mockCertifiedReleaseNoopExecutionPlanRows(
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  acceptanceReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionPlanRows"] {
+  return [
+    mockCertifiedReleaseNoopExecutionPlanRow("plan_scope", "Certified release readiness check", acceptanceRecord.acceptanceRecordDigest, 1, acceptanceReady ? "ready" : "blocked", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("release_execution", "Release execution", acceptanceRecord.acceptanceRecordDigest, 0, "no_op", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("provider_outbound", "Provider outbound", acceptanceRecord.acceptanceRecordDigest, 0, "no_op", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("external_notifications", "External notifications", acceptanceRecord.acceptanceRecordDigest, 0, "no_op", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("automation_calls", "Automation calls", acceptanceRecord.acceptanceRecordDigest, 0, "no_op", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("state_mutation", "Release state mutation", acceptanceRecord.acceptanceRecordDigest, 0, "no_op", acceptanceReady),
+    mockCertifiedReleaseNoopExecutionPlanRow("readback", "Safe readback", acceptanceRecord.acceptanceRecordDigest, 1, acceptanceReady ? "ready" : "blocked", acceptanceReady)
+  ];
+}
+
+function mockCertifiedReleaseNoopExecutionPlanRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionPlanRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  planStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionPlanRows"][number]["planStatus"],
+  complete: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun["executionPlanRows"][number] {
+  return {
+    key,
+    label,
+    planStatus,
+    safeDigest,
+    checkedCount,
+    complete
+  };
+}
+
 function createMockReleaseAttestationAuditRow(
   key: ProviderWebhookReviewQaHandoffReleaseAttestationAudit["attestationRows"][number]["key"],
   label: string,
@@ -5325,6 +5613,20 @@ const mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords: Arra
   acknowledgedByRole: string | null;
   acknowledgedByLabel: string | null;
   acknowledgedAt: string;
+}> = [];
+
+const mockProviderWebhookQaHandoffCertifiedReleaseNoopExecutionDryRuns: Array<{
+  id: string;
+  acceptanceRecordDigest: string;
+  handoffPacketDigest: string;
+  decisionReceiptDigest: string;
+  releaseGateDigest: string;
+  safeDigest: string;
+  requestedBy: string | null;
+  checklistAcknowledged: boolean;
+  operatorNote: string | null;
+  dryRunReason: string | null;
+  executedAt: string;
 }> = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {

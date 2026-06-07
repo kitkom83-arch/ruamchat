@@ -4517,6 +4517,159 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceReco
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema = z.enum([
+  "not_started",
+  "passed",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema = z.literal("no_op");
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionMode = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema = z.object({
+  requestedBy: z.string().trim().min(1).max(120).optional(),
+  checklistAcknowledged: z.boolean(),
+  operatorNote: z.string().trim().max(240).optional(),
+  dryRunReason: z.string().trim().max(160).optional(),
+  executionMode: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest = z.input<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionChecklistItemSchema = z.object({
+  key: z.enum([
+    "acceptance_record_acknowledged",
+    "handoff_ready",
+    "release_decision_go",
+    "execution_mode_no_op",
+    "external_calls_zero",
+    "provider_outbound_absent",
+    "notification_send_absent",
+    "source_material_absent"
+  ]),
+  label: z.string().min(1),
+  checklistStatus: z.enum(["complete", "pending", "blocked"]),
+  safeDigest: z.string().min(1),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionChecklistItem = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionChecklistItemSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRowSchema = z.object({
+  key: z.enum([
+    "acceptance_record",
+    "handoff_packet",
+    "decision_receipt",
+    "release_gate",
+    "reconciliation",
+    "attestation_audit",
+    "closure_ledger",
+    "certification",
+    "verification",
+    "release_evidence",
+    "execution_mode",
+    "external_calls"
+  ]),
+  label: z.string().min(1),
+  dryRunRowStatus: z.enum(["passed", "pending", "blocked", "incomplete"]),
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionPlanRowSchema = z.object({
+  key: z.enum([
+    "plan_scope",
+    "release_execution",
+    "provider_outbound",
+    "external_notifications",
+    "automation_calls",
+    "state_mutation",
+    "readback"
+  ]),
+  label: z.string().min(1),
+  planStatus: z.enum(["ready", "no_op", "blocked", "incomplete"]),
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionPlanRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionPlanRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema = z.object({
+  dryRunKind: z.literal("qa-handoff-locked-archive-certified-release-noop-execution-dryrun"),
+  dryRunStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema,
+  executionMode: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema,
+  acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema,
+  handoffStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffStatusSchema,
+  releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+  packetStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketStatusSchema,
+  receiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema,
+  gateStatus: providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema,
+  goNoGoDecision: providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema,
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  reconciliationStatus: z.enum(["complete", "aligned"]),
+  attestationStatus: z.literal("complete"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  noopExecutionDryRunDigest: z.string().min(1),
+  acceptanceRecordDigest: z.string().min(1),
+  handoffPacketDigest: z.string().min(1),
+  decisionReceiptDigest: z.string().min(1),
+  releaseGateDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  operatorChecklist: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.operatorChecklist,
+  acknowledgedChecklist: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.acknowledgedChecklist,
+  executionChecklist: z.array(providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionChecklistItemSchema).min(1),
+  dryRunRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRowSchema).min(1),
+  executionPlanRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionPlanRowSchema).min(1),
+  releaseOwnerSummary: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.releaseOwnerSummary.extend({
+    requestedBy: z.string().min(1).nullable(),
+    checklistAcknowledged: z.boolean(),
+    dryRunReason: z.string().min(1).nullable(),
+    executionModeNoOp: z.boolean()
+  }).strict(),
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedPrerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedCertificationChecklist,
+  inheritedGateChecklist: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedGateChecklist,
+  inheritedDecisionReceiptSummary: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedDecisionReceiptSummary,
+  inheritedHandoffPacketSummary: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedHandoffPacketSummary,
+  inheritedAcceptanceSummary: z.object({
+    acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema,
+    handoffStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffStatusSchema,
+    releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+    operatorChecklistAcknowledged: z.boolean(),
+    acknowledgedChecklistItemCount: z.number().int().nonnegative(),
+    acknowledgedChecklistCompleteCount: z.number().int().nonnegative(),
+    acknowledgementRowCount: z.number().int().nonnegative(),
+    acknowledgementRowCompleteCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  inheritedBlockingReasons: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedBlockingReasons,
+  inheritedExceptionRows: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.inheritedExceptionRows,
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.shape.counts.extend({
+    noopExecutionDryRunCheckedCount: z.number().int().nonnegative(),
+    noopExecutionDryRunMutationCount: z.number().int().nonnegative(),
+    executionChecklistItemCount: z.number().int().nonnegative(),
+    executionChecklistCompleteCount: z.number().int().nonnegative(),
+    dryRunRowCount: z.number().int().nonnegative(),
+    dryRunRowPassedCount: z.number().int().nonnegative(),
+    executionPlanRowCount: z.number().int().nonnegative(),
+    executionPlanReadyCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
