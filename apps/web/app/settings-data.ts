@@ -35,6 +35,7 @@ import type {
   ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
   ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -112,6 +113,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
@@ -320,6 +322,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData = {
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData = {
   mode: DataMode;
   decisionReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData = {
+  mode: DataMode;
+  handoffPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -967,6 +974,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     decisionReceipt: createMockReviewQaHandoffCertifiedReleaseDecisionReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData> {
+  if (mode === "api") {
+    return {
+      mode,
+      handoffPacket: await getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket(filters)
+    };
+  }
+
+  return {
+    mode,
+    handoffPacket: createMockReviewQaHandoffCertifiedReleaseHandoffPacket(filters)
   };
 }
 
@@ -3289,6 +3313,184 @@ function mockDecisionReceiptRow(
     receiptRowStatus,
     safeDigest,
     checkedCount,
+    complete
+  };
+}
+
+function createMockReviewQaHandoffCertifiedReleaseHandoffPacket(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket {
+  const decisionReceipt = createMockReviewQaHandoffCertifiedReleaseDecisionReceipt(filters);
+  const issued = decisionReceipt.receiptStatus === "issued" &&
+    decisionReceipt.releaseDecision === "go" &&
+    decisionReceipt.gateStatus === "ready" &&
+    decisionReceipt.goNoGoDecision === "go" &&
+    decisionReceipt.receiptSummary.noBlockingReasons &&
+    decisionReceipt.receiptSummary.noExceptionRows &&
+    decisionReceipt.externalCalls === 0;
+  const handoffRows = mockCertifiedReleaseHandoffRows(decisionReceipt, issued);
+  const runbookRows = mockCertifiedReleaseRunbookRows(decisionReceipt, issued);
+  const operatorChecklist = mockCertifiedReleaseOperatorChecklist(decisionReceipt);
+  const handoffRowCompleteCount = handoffRows.filter((row) => row.complete).length;
+  const runbookRowReadyCount = runbookRows.filter((row) => row.runbookStatus === "ready").length;
+  const operatorChecklistCompleteCount = operatorChecklist.filter((item) => item.complete).length;
+  return {
+    packetKind: "qa-handoff-locked-archive-certified-release-handoff-packet",
+    packetStatus: issued ? "issued" : "blocked",
+    handoffStatus: issued ? "ready" : "blocked",
+    releaseDecision: decisionReceipt.releaseDecision,
+    receiptStatus: decisionReceipt.receiptStatus,
+    gateStatus: decisionReceipt.gateStatus,
+    goNoGoDecision: decisionReceipt.goNoGoDecision,
+    releaseReadinessStatus: decisionReceipt.releaseReadinessStatus,
+    reconciliationStatus: decisionReceipt.reconciliationStatus,
+    attestationStatus: decisionReceipt.attestationStatus,
+    ledgerStatus: decisionReceipt.ledgerStatus,
+    certificationStatus: decisionReceipt.certificationStatus,
+    verificationStatus: decisionReceipt.verificationStatus,
+    digestChainStatus: decisionReceipt.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-handoff-packet.json",
+    safeDigest: "sha256:mockqahandoffcertifiedreleasehandoffpacket",
+    handoffPacketDigest: "sha256:mockqahandoffcertifiedreleasehandoffpacket",
+    decisionReceiptDigest: decisionReceipt.decisionReceiptDigest,
+    releaseGateDigest: decisionReceipt.releaseGateDigest,
+    reconciliationDigest: decisionReceipt.reconciliationDigest,
+    attestationAuditDigest: decisionReceipt.attestationAuditDigest,
+    closureLedgerDigest: decisionReceipt.closureLedgerDigest,
+    certificationDigest: decisionReceipt.certificationDigest,
+    verificationDigest: decisionReceipt.verificationDigest,
+    releaseEvidenceDigest: decisionReceipt.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: decisionReceipt.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: decisionReceipt.inheritedCertificationChecklist,
+    inheritedGateChecklist: decisionReceipt.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: decisionReceipt.receiptSummary,
+    inheritedReconciliationSummary: decisionReceipt.inheritedReconciliationSummary,
+    inheritedBlockingReasons: decisionReceipt.inheritedBlockingReasons,
+    inheritedExceptionRows: decisionReceipt.inheritedExceptionRows,
+    handoffRows,
+    runbookRows,
+    operatorChecklist,
+    releaseOwnerSummary: {
+      ownerRole: "release owner",
+      handoffReady: issued,
+      releaseDecisionGo: decisionReceipt.releaseDecision === "go",
+      blockingReasonCount: decisionReceipt.counts.blockingReasonCount,
+      exceptionRowCount: decisionReceipt.counts.exceptionRowCount,
+      externalCallsZero: decisionReceipt.externalCalls === 0,
+      safeDigest: decisionReceipt.decisionReceiptDigest
+    },
+    counts: {
+      ...decisionReceipt.counts,
+      handoffPacketCheckedCount: 1,
+      handoffRowCount: handoffRows.length,
+      handoffRowCompleteCount,
+      runbookRowCount: runbookRows.length,
+      runbookRowReadyCount,
+      operatorChecklistItemCount: operatorChecklist.length,
+      operatorChecklistCompleteCount
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseHandoffRows(
+  decisionReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  issued: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"] {
+  return [
+    mockCertifiedReleaseHandoffRow("decision_receipt", "Certified release decision receipt", decisionReceipt.decisionReceiptDigest, decisionReceipt.counts.decisionReceiptCheckedCount, decisionReceipt.receiptStatus === "issued", decisionReceipt.receiptStatus === "issued" ? "ready" : "blocked"),
+    mockCertifiedReleaseHandoffRow("release_gate", "Certified release gate", decisionReceipt.releaseGateDigest, decisionReceipt.counts.gateCheckedCount, decisionReceipt.gateStatus === "ready"),
+    mockCertifiedReleaseHandoffRow("release_decision", "GO release decision", decisionReceipt.decisionReceiptDigest, 1, decisionReceipt.releaseDecision === "go" && issued, decisionReceipt.releaseDecision === "go" ? "ready" : "blocked"),
+    mockCertifiedReleaseHandoffRow("release_readiness", "Release readiness", decisionReceipt.releaseEvidenceDigest, decisionReceipt.counts.releaseEvidenceCheckedCount, decisionReceipt.releaseReadinessStatus === "ready_for_release"),
+    mockCertifiedReleaseHandoffRow("reconciliation", "Attestation reconciliation", decisionReceipt.reconciliationDigest, decisionReceipt.counts.reconciliationCheckedCount, ["aligned", "complete"].includes(decisionReceipt.reconciliationStatus)),
+    mockCertifiedReleaseHandoffRow("attestation", "Attestation audit", decisionReceipt.attestationAuditDigest, decisionReceipt.counts.attestationAuditCheckedCount, decisionReceipt.attestationStatus === "complete"),
+    mockCertifiedReleaseHandoffRow("closure_ledger", "Closure ledger", decisionReceipt.closureLedgerDigest, decisionReceipt.counts.closureLedgerCheckedCount, decisionReceipt.ledgerStatus === "certified_release_closed"),
+    mockCertifiedReleaseHandoffRow("certification", "Release certification", decisionReceipt.certificationDigest, decisionReceipt.counts.releaseCertificationCheckedCount, decisionReceipt.certificationStatus === "certified"),
+    mockCertifiedReleaseHandoffRow("verification", "Release verification", decisionReceipt.verificationDigest, decisionReceipt.counts.releaseVerificationCheckedCount, decisionReceipt.verificationStatus === "verified"),
+    mockCertifiedReleaseHandoffRow("digest_chain", "Digest chain", decisionReceipt.reconciliationDigest, 1, decisionReceipt.digestChainStatus === "confirmed"),
+    mockCertifiedReleaseHandoffRow("prerequisite_checklist", "Prerequisite checklist", decisionReceipt.releaseEvidenceDigest, decisionReceipt.counts.prerequisiteTotalCount, Object.values(decisionReceipt.inheritedPrerequisiteChecklist).every(Boolean)),
+    mockCertifiedReleaseHandoffRow("certification_checklist", "Certification checklist", decisionReceipt.certificationDigest, decisionReceipt.counts.certificationChecklistTotalCount, Object.values(decisionReceipt.inheritedCertificationChecklist).every(Boolean)),
+    mockCertifiedReleaseHandoffRow("gate_checklist", "Release gate checklist", decisionReceipt.releaseGateDigest, decisionReceipt.counts.gateChecklistTotalCount, decisionReceipt.receiptSummary.gateChecklistComplete),
+    mockCertifiedReleaseHandoffRow("blocking_reasons", "Blocking reasons", decisionReceipt.decisionReceiptDigest, decisionReceipt.counts.blockingReasonCount, decisionReceipt.counts.blockingReasonCount === 0, decisionReceipt.counts.blockingReasonCount === 0 ? "confirmed" : "blocked"),
+    mockCertifiedReleaseHandoffRow("exceptions", "Exception rows", decisionReceipt.reconciliationDigest, decisionReceipt.counts.exceptionRowCount, decisionReceipt.counts.exceptionRowCount === 0, decisionReceipt.counts.exceptionRowCount === 0 ? "confirmed" : "blocked"),
+    mockCertifiedReleaseHandoffRow("external_calls", "External calls", decisionReceipt.decisionReceiptDigest, decisionReceipt.externalCalls, decisionReceipt.externalCalls === 0 && decisionReceipt.receiptSummary.externalCallsZero)
+  ];
+}
+
+function mockCertifiedReleaseHandoffRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  handoffRowStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number]["handoffRowStatus"] = complete ? "confirmed" : "blocked"
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number] {
+  return {
+    key,
+    label,
+    handoffRowStatus,
+    safeDigest,
+    checkedCount,
+    complete
+  };
+}
+
+function mockCertifiedReleaseRunbookRows(
+  decisionReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  issued: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"] {
+  const status = issued ? "ready" : "blocked";
+  return [
+    mockCertifiedReleaseRunbookRow("confirm_decision_receipt", "Confirm certified decision receipt", status, decisionReceipt.decisionReceiptDigest, "release owner", issued),
+    mockCertifiedReleaseRunbookRow("confirm_release_gate", "Confirm certified release gate", status, decisionReceipt.releaseGateDigest, "release owner", issued),
+    mockCertifiedReleaseRunbookRow("confirm_operator_checklist", "Confirm operator checklist", status, decisionReceipt.decisionReceiptDigest, "operator", issued),
+    mockCertifiedReleaseRunbookRow("release_handoff", "Proceed with safe release handoff", status, decisionReceipt.decisionReceiptDigest, "release owner", issued),
+    mockCertifiedReleaseRunbookRow("monitor_release", "Monitor safe release evidence", status, decisionReceipt.releaseEvidenceDigest, "operator", issued),
+    mockCertifiedReleaseRunbookRow("exception_hold", "Hold release on blocking exceptions", decisionReceipt.inheritedBlockingReasons.length === 0 && decisionReceipt.inheritedExceptionRows.length === 0 ? "ready" : "blocked", decisionReceipt.reconciliationDigest, "release owner", decisionReceipt.inheritedBlockingReasons.length === 0 && decisionReceipt.inheritedExceptionRows.length === 0)
+  ];
+}
+
+function mockCertifiedReleaseRunbookRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"][number]["key"],
+  label: string,
+  runbookStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"][number]["runbookStatus"],
+  safeDigest: string,
+  ownerRole: string,
+  complete: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"][number] {
+  return {
+    key,
+    label,
+    runbookStatus,
+    safeDigest,
+    ownerRole,
+    complete
+  };
+}
+
+function mockCertifiedReleaseOperatorChecklist(
+  decisionReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"] {
+  return [
+    mockCertifiedReleaseOperatorChecklistItem("decision_receipt_issued", "Decision receipt issued", decisionReceipt.decisionReceiptDigest, decisionReceipt.receiptStatus === "issued"),
+    mockCertifiedReleaseOperatorChecklistItem("release_gate_ready", "Release gate ready", decisionReceipt.releaseGateDigest, decisionReceipt.gateStatus === "ready" && decisionReceipt.goNoGoDecision === "go"),
+    mockCertifiedReleaseOperatorChecklistItem("no_blocking_reasons", "No blocking reasons", decisionReceipt.decisionReceiptDigest, decisionReceipt.inheritedBlockingReasons.length === 0),
+    mockCertifiedReleaseOperatorChecklistItem("no_exceptions", "No exception rows", decisionReceipt.reconciliationDigest, decisionReceipt.inheritedExceptionRows.length === 0),
+    mockCertifiedReleaseOperatorChecklistItem("external_calls_zero", "External calls zero", decisionReceipt.decisionReceiptDigest, decisionReceipt.externalCalls === 0 && decisionReceipt.receiptSummary.externalCallsZero),
+    mockCertifiedReleaseOperatorChecklistItem("provider_outbound_absent", "Provider outbound absent", decisionReceipt.decisionReceiptDigest, decisionReceipt.externalCalls === 0),
+    mockCertifiedReleaseOperatorChecklistItem("source_material_absent", "Sensitive source material absent", decisionReceipt.decisionReceiptDigest, decisionReceipt.externalCalls === 0)
+  ];
+}
+
+function mockCertifiedReleaseOperatorChecklistItem(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"][number]["key"],
+  label: string,
+  safeDigest: string,
+  complete: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"][number] {
+  return {
+    key,
+    label,
+    checklistStatus: complete ? "complete" : "blocked",
+    safeDigest,
     complete
   };
 }

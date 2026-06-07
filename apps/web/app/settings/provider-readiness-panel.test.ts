@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -56,6 +56,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffArchiveReleaseAttestationReconciliation: providerWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation(),
       reviewQaHandoffCertifiedReleaseGate: providerWebhookReviewQaHandoffCertifiedReleaseGate(),
       reviewQaHandoffCertifiedReleaseDecisionReceipt: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt(),
+      reviewQaHandoffCertifiedReleaseHandoffPacket: providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacket(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -307,6 +308,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Load attestation reconciliation");
     expect(html).toContain("Load certified release gate");
     expect(html).toContain("Load certified release decision receipt");
+    expect(html).toContain("Load certified release handoff packet");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
     expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
@@ -326,6 +328,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA archive release attestation reconciliation: reconciliationStatus=aligned; attestationStatus=complete; ledgerStatus=certified_release_closed; certificationStatus=certified; releaseReadinessStatus=ready_for_release; verificationStatus=verified; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-archive-release-attestation-reconciliation.json; safeDigest=sha256:safeqahandoffarchivereleaseattestationreconciliation; attestationAuditDigest=sha256:safeqahandoffarchivereleaseattestationaudit; reconciliationDigest=sha256:safeqahandoffarchivereleaseattestationreconciliation; reconciliationRows=8/8; exceptions=0; prerequisites=16/16; certificationChecks=13/13; reconciliationCheckedCount=1; externalCalls=0");
     expect(html).toContain("QA archive certified release gate: gateStatus=ready; goNoGoDecision=go; releaseReadinessStatus=ready_for_release; reconciliationStatus=aligned; attestationStatus=complete; ledgerStatus=certified_release_closed; certificationStatus=certified; verificationStatus=verified; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-certified-release-gate.json; safeDigest=sha256:safeqahandoffcertifiedreleasegate; releaseGateDigest=sha256:safeqahandoffcertifiedreleasegate; reconciliationDigest=sha256:safeqahandoffarchivereleaseattestationreconciliation; gateChecklist=12/12; blockingReasons=0; blockingReasonCodes=none; exceptions=0; gateCheckedCount=1; externalCalls=0");
     expect(html).toContain("QA archive certified release decision receipt: receiptStatus=issued; releaseDecision=go; gateStatus=ready; goNoGoDecision=go; releaseReadinessStatus=ready_for_release; reconciliationStatus=aligned; attestationStatus=complete; ledgerStatus=certified_release_closed; certificationStatus=certified; verificationStatus=verified; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-certified-release-decision-receipt.json; safeDigest=sha256:safeqahandoffcertifiedreleasedecisionreceipt; decisionReceiptDigest=sha256:safeqahandoffcertifiedreleasedecisionreceipt; releaseGateDigest=sha256:safeqahandoffcertifiedreleasegate; receiptRows=13/13; gateChecklist=12/12; blockingReasons=0; blockingReasonCodes=none; exceptions=0; decisionReceiptCheckedCount=1; externalCalls=0");
+    expect(html).toContain("QA archive certified release handoff packet: packetStatus=issued; handoffStatus=ready; releaseDecision=go; receiptStatus=issued; gateStatus=ready; goNoGoDecision=go; releaseReadinessStatus=ready_for_release; reconciliationStatus=aligned; attestationStatus=complete; ledgerStatus=certified_release_closed; certificationStatus=certified; verificationStatus=verified; digestChainStatus=confirmed; safeFilename=provider-webhook-review-qa-handoff-certified-release-handoff-packet.json; safeDigest=sha256:safeqahandoffcertifiedreleasehandoffpacket; handoffPacketDigest=sha256:safeqahandoffcertifiedreleasehandoffpacket; decisionReceiptDigest=sha256:safeqahandoffcertifiedreleasedecisionreceipt; releaseGateDigest=sha256:safeqahandoffcertifiedreleasegate; handoffRows=16/16; runbookRows=6/6; operatorChecklist=7/7; operatorChecklistItems=decision_receipt_issued:complete,release_gate_ready:complete,no_blocking_reasons:complete,no_exceptions:complete,external_calls_zero:complete,provider_outbound_absent:complete,source_material_absent:complete; runbookRowStatuses=confirm_decision_receipt:ready,confirm_release_gate:ready,confirm_operator_checklist:ready,release_handoff:ready,monitor_release:ready,exception_hold:ready; blockingReasons=0; blockingReasonCodes=none; exceptions=0; releaseOwner=release owner; handoffPacketCheckedCount=1; externalCalls=0");
     expect(html).toContain("QA archive integrity digest chain");
     expect(html).toContain("digestChainLinkCount=6");
     expect(html).toContain("QA retention audit checklist");
@@ -583,6 +586,9 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseDecisionReceipt: null,
       reviewQaHandoffCertifiedReleaseDecisionReceiptLoading: false,
       reviewQaHandoffCertifiedReleaseDecisionReceiptError: "QA Archive Certified Release Decision Receipt API error: Failed to fetch",
+      reviewQaHandoffCertifiedReleaseHandoffPacket: null,
+      reviewQaHandoffCertifiedReleaseHandoffPacketLoading: false,
+      reviewQaHandoffCertifiedReleaseHandoffPacketError: "QA Archive Certified Release Handoff Packet API error: Failed to fetch",
       reviewClosureReportRedactionAudit: null,
       reviewClosureReportRedactionAuditLoading: false,
       reviewClosureReportRedactionAuditError: "Closure Report Redaction Audit API error: Failed to fetch",
@@ -631,6 +637,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA Archive Release Attestation Reconciliation API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Gate API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Decision Receipt API error: Failed to fetch");
+    expect(html).toContain("QA Archive Certified Release Handoff Packet API error: Failed to fetch");
     expect(html).toContain("Closure Report Redaction Audit API error: Failed to fetch");
     expect(html).toContain("Closure Export Integrity API error: Failed to fetch");
     expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
@@ -652,6 +659,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).not.toContain("QA archive release attestation audit: attestationStatus=");
     expect(html).not.toContain("QA archive certified release gate: gateStatus=");
     expect(html).not.toContain("QA archive certified release decision receipt: receiptStatus=");
+    expect(html).not.toContain("QA archive certified release handoff packet: packetStatus=");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-bundle-export.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-locked-archive-integrity.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-retention-audit.json");
@@ -2520,6 +2528,149 @@ function providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt(): Provid
       receiptRowCompleteCount: receiptRows.length
     },
     externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacket(): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket {
+  const decisionReceipt = providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt();
+  const handoffRows: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"] = [
+    providerWebhookHandoffPacketRow("decision_receipt", "Certified release decision receipt", decisionReceipt.decisionReceiptDigest, 1, "ready"),
+    providerWebhookHandoffPacketRow("release_gate", "Certified release gate", decisionReceipt.releaseGateDigest, 1),
+    providerWebhookHandoffPacketRow("release_decision", "GO release decision", decisionReceipt.decisionReceiptDigest, 1, "ready"),
+    providerWebhookHandoffPacketRow("release_readiness", "Release readiness", decisionReceipt.releaseEvidenceDigest, 1),
+    providerWebhookHandoffPacketRow("reconciliation", "Attestation reconciliation", decisionReceipt.reconciliationDigest, 1),
+    providerWebhookHandoffPacketRow("attestation", "Attestation audit", decisionReceipt.attestationAuditDigest, 1),
+    providerWebhookHandoffPacketRow("closure_ledger", "Closure ledger", decisionReceipt.closureLedgerDigest, 1),
+    providerWebhookHandoffPacketRow("certification", "Release certification", decisionReceipt.certificationDigest, 1),
+    providerWebhookHandoffPacketRow("verification", "Release verification", decisionReceipt.verificationDigest, 1),
+    providerWebhookHandoffPacketRow("digest_chain", "Digest chain", decisionReceipt.reconciliationDigest, 1),
+    providerWebhookHandoffPacketRow("prerequisite_checklist", "Prerequisite checklist", decisionReceipt.releaseEvidenceDigest, 16),
+    providerWebhookHandoffPacketRow("certification_checklist", "Certification checklist", decisionReceipt.certificationDigest, 13),
+    providerWebhookHandoffPacketRow("gate_checklist", "Release gate checklist", decisionReceipt.releaseGateDigest, 12),
+    providerWebhookHandoffPacketRow("blocking_reasons", "Blocking reasons", decisionReceipt.decisionReceiptDigest, 0),
+    providerWebhookHandoffPacketRow("exceptions", "Exception rows", decisionReceipt.reconciliationDigest, 0),
+    providerWebhookHandoffPacketRow("external_calls", "External calls", decisionReceipt.decisionReceiptDigest, 0)
+  ];
+  const runbookRows: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"] = [
+    providerWebhookHandoffRunbookRow("confirm_decision_receipt", "Confirm certified decision receipt", decisionReceipt.decisionReceiptDigest, "release owner"),
+    providerWebhookHandoffRunbookRow("confirm_release_gate", "Confirm certified release gate", decisionReceipt.releaseGateDigest, "release owner"),
+    providerWebhookHandoffRunbookRow("confirm_operator_checklist", "Confirm operator checklist", decisionReceipt.decisionReceiptDigest, "operator"),
+    providerWebhookHandoffRunbookRow("release_handoff", "Proceed with safe release handoff", decisionReceipt.decisionReceiptDigest, "release owner"),
+    providerWebhookHandoffRunbookRow("monitor_release", "Monitor safe release evidence", decisionReceipt.releaseEvidenceDigest, "operator"),
+    providerWebhookHandoffRunbookRow("exception_hold", "Hold release on blocking exceptions", decisionReceipt.reconciliationDigest, "release owner")
+  ];
+  const operatorChecklist: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"] = [
+    providerWebhookHandoffOperatorChecklistItem("decision_receipt_issued", "Decision receipt issued", decisionReceipt.decisionReceiptDigest),
+    providerWebhookHandoffOperatorChecklistItem("release_gate_ready", "Release gate ready", decisionReceipt.releaseGateDigest),
+    providerWebhookHandoffOperatorChecklistItem("no_blocking_reasons", "No blocking reasons", decisionReceipt.decisionReceiptDigest),
+    providerWebhookHandoffOperatorChecklistItem("no_exceptions", "No exception rows", decisionReceipt.reconciliationDigest),
+    providerWebhookHandoffOperatorChecklistItem("external_calls_zero", "External calls zero", decisionReceipt.decisionReceiptDigest),
+    providerWebhookHandoffOperatorChecklistItem("provider_outbound_absent", "Provider outbound absent", decisionReceipt.decisionReceiptDigest),
+    providerWebhookHandoffOperatorChecklistItem("source_material_absent", "Sensitive source material absent", decisionReceipt.decisionReceiptDigest)
+  ];
+  return {
+    packetKind: "qa-handoff-locked-archive-certified-release-handoff-packet",
+    packetStatus: "issued",
+    handoffStatus: "ready",
+    releaseDecision: decisionReceipt.releaseDecision,
+    receiptStatus: decisionReceipt.receiptStatus,
+    gateStatus: decisionReceipt.gateStatus,
+    goNoGoDecision: decisionReceipt.goNoGoDecision,
+    releaseReadinessStatus: decisionReceipt.releaseReadinessStatus,
+    reconciliationStatus: decisionReceipt.reconciliationStatus,
+    attestationStatus: decisionReceipt.attestationStatus,
+    ledgerStatus: decisionReceipt.ledgerStatus,
+    certificationStatus: decisionReceipt.certificationStatus,
+    verificationStatus: decisionReceipt.verificationStatus,
+    digestChainStatus: decisionReceipt.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-handoff-packet.json",
+    safeDigest: "sha256:safeqahandoffcertifiedreleasehandoffpacket",
+    handoffPacketDigest: "sha256:safeqahandoffcertifiedreleasehandoffpacket",
+    decisionReceiptDigest: decisionReceipt.decisionReceiptDigest,
+    releaseGateDigest: decisionReceipt.releaseGateDigest,
+    reconciliationDigest: decisionReceipt.reconciliationDigest,
+    attestationAuditDigest: decisionReceipt.attestationAuditDigest,
+    closureLedgerDigest: decisionReceipt.closureLedgerDigest,
+    certificationDigest: decisionReceipt.certificationDigest,
+    verificationDigest: decisionReceipt.verificationDigest,
+    releaseEvidenceDigest: decisionReceipt.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: decisionReceipt.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: decisionReceipt.inheritedCertificationChecklist,
+    inheritedGateChecklist: decisionReceipt.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: decisionReceipt.receiptSummary,
+    inheritedReconciliationSummary: decisionReceipt.inheritedReconciliationSummary,
+    inheritedBlockingReasons: decisionReceipt.inheritedBlockingReasons,
+    inheritedExceptionRows: decisionReceipt.inheritedExceptionRows,
+    handoffRows,
+    runbookRows,
+    operatorChecklist,
+    releaseOwnerSummary: {
+      ownerRole: "release owner",
+      handoffReady: true,
+      releaseDecisionGo: true,
+      blockingReasonCount: 0,
+      exceptionRowCount: 0,
+      externalCallsZero: true,
+      safeDigest: decisionReceipt.decisionReceiptDigest
+    },
+    counts: {
+      ...decisionReceipt.counts,
+      handoffPacketCheckedCount: 1,
+      handoffRowCount: handoffRows.length,
+      handoffRowCompleteCount: handoffRows.length,
+      runbookRowCount: runbookRows.length,
+      runbookRowReadyCount: runbookRows.length,
+      operatorChecklistItemCount: operatorChecklist.length,
+      operatorChecklistCompleteCount: operatorChecklist.length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookHandoffPacketRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  handoffRowStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number]["handoffRowStatus"] = "confirmed"
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["handoffRows"][number] {
+  return {
+    key,
+    label,
+    handoffRowStatus,
+    safeDigest,
+    checkedCount,
+    complete: true
+  };
+}
+
+function providerWebhookHandoffRunbookRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  ownerRole: string
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["runbookRows"][number] {
+  return {
+    key,
+    label,
+    runbookStatus: "ready",
+    safeDigest,
+    ownerRole,
+    complete: true
+  };
+}
+
+function providerWebhookHandoffOperatorChecklistItem(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"][number]["key"],
+  label: string,
+  safeDigest: string
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"][number] {
+  return {
+    key,
+    label,
+    checklistStatus: "complete",
+    safeDigest,
+    complete: true
   };
 }
 
