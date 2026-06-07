@@ -58,6 +58,7 @@ import {
   providerWebhookReviewQaHandoffReleaseAttestationAuditSchema,
   providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -724,6 +725,88 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseDecisionReceipt = providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({
+      receiptKind: "qa-handoff-locked-archive-certified-release-decision-receipt",
+      receiptStatus: "issued",
+      releaseDecision: "go",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-decision-receipt.json",
+      safeDigest: "sha256:certifiedreleasedecisionreceipt",
+      decisionReceiptDigest: "sha256:certifiedreleasedecisionreceipt",
+      releaseGateDigest: certifiedReleaseGate.releaseGateDigest,
+      reconciliationDigest: certifiedReleaseGate.reconciliationDigest,
+      attestationAuditDigest: certifiedReleaseGate.attestationAuditDigest,
+      closureLedgerDigest: certifiedReleaseGate.closureLedgerDigest,
+      certificationDigest: certifiedReleaseGate.certificationDigest,
+      verificationDigest: certifiedReleaseGate.verificationDigest,
+      releaseEvidenceDigest: certifiedReleaseGate.releaseEvidenceDigest,
+      inheritedPrerequisiteChecklist: certifiedReleaseGate.inheritedPrerequisiteChecklist,
+      inheritedCertificationChecklist: certifiedReleaseGate.inheritedCertificationChecklist,
+      inheritedGateChecklist: certifiedReleaseGate.gateChecklist,
+      inheritedReconciliationSummary: certifiedReleaseGate.inheritedReconciliationSummary,
+      inheritedBlockingReasons: certifiedReleaseGate.blockingReasons,
+      inheritedExceptionRows: certifiedReleaseGate.exceptionRows,
+      receiptRows: [
+        { key: "release_gate", label: "Certified release gate", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.releaseGateDigest, checkedCount: 1, complete: true },
+        { key: "release_decision", label: "GO release decision", receiptRowStatus: "issued", safeDigest: certifiedReleaseGate.releaseGateDigest, checkedCount: 1, complete: true },
+        { key: "release_readiness", label: "Release readiness", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.releaseEvidenceDigest, checkedCount: 1, complete: true },
+        { key: "reconciliation", label: "Attestation reconciliation", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.reconciliationDigest, checkedCount: 1, complete: true },
+        { key: "attestation", label: "Attestation audit", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.attestationAuditDigest, checkedCount: 1, complete: true },
+        { key: "closure_ledger", label: "Closure ledger", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.closureLedgerDigest, checkedCount: 1, complete: true },
+        { key: "certification", label: "Release certification", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.certificationDigest, checkedCount: 1, complete: true },
+        { key: "verification", label: "Release verification", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.verificationDigest, checkedCount: 1, complete: true },
+        { key: "digest_chain", label: "Digest chain", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.reconciliationDigest, checkedCount: 1, complete: true },
+        { key: "prerequisite_checklist", label: "Prerequisite checklist", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.releaseEvidenceDigest, checkedCount: 16, complete: true },
+        { key: "certification_checklist", label: "Certification checklist", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.certificationDigest, checkedCount: 13, complete: true },
+        { key: "gate_checklist", label: "Release gate checklist", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.releaseGateDigest, checkedCount: 12, complete: true },
+        { key: "external_calls", label: "External calls", receiptRowStatus: "confirmed", safeDigest: certifiedReleaseGate.releaseGateDigest, checkedCount: 0, complete: true }
+      ],
+      receiptSummary: {
+        receiptRowCount: 13,
+        completeReceiptRowCount: 13,
+        releaseGateReady: true,
+        releaseDecisionGo: true,
+        prerequisiteChecklistComplete: true,
+        certificationChecklistComplete: true,
+        gateChecklistComplete: true,
+        noBlockingReasons: true,
+        noExceptionRows: true,
+        externalCallsZero: true
+      },
+      counts: {
+        totalItems: certifiedReleaseGate.counts.totalItems,
+        releaseEvidenceCheckedCount: 1,
+        releaseVerificationCheckedCount: 1,
+        releaseCertificationCheckedCount: 1,
+        closureLedgerCheckedCount: 1,
+        attestationAuditCheckedCount: 1,
+        reconciliationCheckedCount: 1,
+        gateCheckedCount: 1,
+        decisionReceiptCheckedCount: 1,
+        prerequisitePassedCount: 16,
+        prerequisiteTotalCount: 16,
+        certificationChecklistPassedCount: 13,
+        certificationChecklistTotalCount: 13,
+        reconciliationRowCount: 8,
+        reconciliationAlignedRowCount: 8,
+        reconciliationExceptionRowCount: 0,
+        gateChecklistPassedCount: 12,
+        gateChecklistTotalCount: 12,
+        blockingReasonCount: 0,
+        exceptionRowCount: 0,
+        receiptRowCount: 13,
+        receiptRowCompleteCount: 13
+      },
+      externalCalls: 0
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -760,6 +843,12 @@ describe("shared contracts", () => {
     expect(certifiedReleaseGate.gateChecklist.externalCallsZero).toBe(true);
     expect(certifiedReleaseGate.blockingReasons).toHaveLength(0);
     expect(certifiedReleaseGate.externalCalls).toBe(0);
+    expect(certifiedReleaseDecisionReceipt.receiptStatus).toBe("issued");
+    expect(certifiedReleaseDecisionReceipt.releaseDecision).toBe("go");
+    expect(certifiedReleaseDecisionReceipt.releaseGateDigest).toBe(certifiedReleaseGate.releaseGateDigest);
+    expect(certifiedReleaseDecisionReceipt.receiptRows).toHaveLength(13);
+    expect(certifiedReleaseDecisionReceipt.receiptSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseDecisionReceipt.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -797,6 +886,18 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, rawBody: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, headers: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, stack: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, signature: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, authorization: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, cookie: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, senderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, roomId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, providerMaterial: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, rawBody: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, headers: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -805,6 +906,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationAuditSchema.parse({ ...releaseAttestationAudit, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

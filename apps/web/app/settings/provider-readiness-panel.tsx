@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, Bell, Check, CheckSquare, ChevronLeft, ChevronRight, Download, FileClock, FileText, Flag, Link2, ListChecks, LockKeyhole, NotebookPen, Pin, RadioTower, RotateCcw, Search, Send, ShieldCheck, SkipForward, Star, UserCheck, UserMinus, X } from "lucide-react";
-import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderReadinessProvider, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookEventType, ProviderWebhookInboundPersistenceMode, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage } from "@ai-omni/shared";
 
 type ProviderReadinessPanelProps = {
   readiness: ProviderReadiness | null;
@@ -108,6 +108,9 @@ type ProviderReadinessPanelProps = {
   reviewQaHandoffCertifiedReleaseGate?: ProviderWebhookReviewQaHandoffCertifiedReleaseGate | null;
   reviewQaHandoffCertifiedReleaseGateLoading?: boolean;
   reviewQaHandoffCertifiedReleaseGateError?: string;
+  reviewQaHandoffCertifiedReleaseDecisionReceipt?: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt | null;
+  reviewQaHandoffCertifiedReleaseDecisionReceiptLoading?: boolean;
+  reviewQaHandoffCertifiedReleaseDecisionReceiptError?: string;
   reviewClosureReportRedactionAudit?: ProviderWebhookReviewExportRedactionAudit | null;
   reviewClosureReportRedactionAuditLoading?: boolean;
   reviewClosureReportRedactionAuditError?: string;
@@ -199,6 +202,7 @@ type ProviderReadinessPanelProps = {
   onLoadReviewQaHandoffArchiveReleaseAttestationAudit?: () => Promise<void>;
   onLoadReviewQaHandoffArchiveReleaseAttestationReconciliation?: () => Promise<void>;
   onLoadReviewQaHandoffCertifiedReleaseGate?: () => Promise<void>;
+  onLoadReviewQaHandoffCertifiedReleaseDecisionReceipt?: () => Promise<void>;
   onLoadClosureReportRedactionAudit?: () => Promise<void>;
   onLoadClosureExportIntegrity?: () => Promise<void>;
   onLoadHistory?: (unmatchedInboundId: string) => Promise<void>;
@@ -352,6 +356,9 @@ export function ProviderReadinessPanel({
   reviewQaHandoffCertifiedReleaseGate = null,
   reviewQaHandoffCertifiedReleaseGateLoading = false,
   reviewQaHandoffCertifiedReleaseGateError = "",
+  reviewQaHandoffCertifiedReleaseDecisionReceipt = null,
+  reviewQaHandoffCertifiedReleaseDecisionReceiptLoading = false,
+  reviewQaHandoffCertifiedReleaseDecisionReceiptError = "",
   reviewClosureReportRedactionAudit = null,
   reviewClosureReportRedactionAuditLoading = false,
   reviewClosureReportRedactionAuditError = "",
@@ -443,6 +450,7 @@ export function ProviderReadinessPanel({
   onLoadReviewQaHandoffArchiveReleaseAttestationAudit,
   onLoadReviewQaHandoffArchiveReleaseAttestationReconciliation,
   onLoadReviewQaHandoffCertifiedReleaseGate,
+  onLoadReviewQaHandoffCertifiedReleaseDecisionReceipt,
   onLoadClosureReportRedactionAudit,
   onLoadClosureExportIntegrity,
   onLoadHistory,
@@ -1464,6 +1472,15 @@ export function ProviderReadinessPanel({
         e("button", {
           className: "webhookEventButton",
           type: "button",
+          disabled: reviewQaHandoffCertifiedReleaseDecisionReceiptLoading || !onLoadReviewQaHandoffCertifiedReleaseDecisionReceipt,
+          onClick: () => void onLoadReviewQaHandoffCertifiedReleaseDecisionReceipt?.()
+        },
+          e(FileText, { size: 15 }),
+          reviewQaHandoffCertifiedReleaseDecisionReceiptLoading ? "Loading decision receipt..." : "Load certified release decision receipt"
+        ),
+        e("button", {
+          className: "webhookEventButton",
+          type: "button",
           disabled: reviewClosureReportRedactionAuditLoading || !onLoadClosureReportRedactionAudit,
           onClick: () => void onLoadClosureReportRedactionAudit?.()
         },
@@ -1503,6 +1520,7 @@ export function ProviderReadinessPanel({
       reviewQaHandoffArchiveReleaseAttestationAuditError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffArchiveReleaseAttestationAuditError) : null,
       reviewQaHandoffArchiveReleaseAttestationReconciliationError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffArchiveReleaseAttestationReconciliationError) : null,
       reviewQaHandoffCertifiedReleaseGateError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffCertifiedReleaseGateError) : null,
+      reviewQaHandoffCertifiedReleaseDecisionReceiptError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewQaHandoffCertifiedReleaseDecisionReceiptError) : null,
       reviewClosureReportRedactionAuditError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewClosureReportRedactionAuditError) : null,
       reviewClosureExportIntegrityError ? e("div", { className: "apiErrorBox compact", role: "alert" }, reviewClosureExportIntegrityError) : null,
       reviewClosureReportLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading provider webhook closure evidence report...") : null,
@@ -1527,6 +1545,7 @@ export function ProviderReadinessPanel({
       reviewQaHandoffArchiveReleaseAttestationAuditLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading safe QA archive release attestation audit...") : null,
       reviewQaHandoffArchiveReleaseAttestationReconciliationLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading safe QA archive release attestation reconciliation...") : null,
       reviewQaHandoffCertifiedReleaseGateLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading safe QA archive certified release gate...") : null,
+      reviewQaHandoffCertifiedReleaseDecisionReceiptLoading ? e("div", { className: "apiLoadingBox compact" }, "Loading safe QA archive certified release decision receipt...") : null,
       reviewClosureReportExport ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
         `Closure report export ${reviewClosureReportExport.format}: totalItems=${reviewClosureReportExport.totalItems}; evidenceReadyCount=${reviewClosureReportExport.evidenceReadyCount}; safeFilename=${reviewClosureReportExport.safeFilename}; externalCalls=${reviewClosureReportExport.externalCalls}`
       ) : null,
@@ -1592,6 +1611,9 @@ export function ProviderReadinessPanel({
       ) : null,
       reviewQaHandoffCertifiedReleaseGate ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
         `QA archive certified release gate: gateStatus=${reviewQaHandoffCertifiedReleaseGate.gateStatus}; goNoGoDecision=${reviewQaHandoffCertifiedReleaseGate.goNoGoDecision}; releaseReadinessStatus=${reviewQaHandoffCertifiedReleaseGate.releaseReadinessStatus}; reconciliationStatus=${reviewQaHandoffCertifiedReleaseGate.reconciliationStatus}; attestationStatus=${reviewQaHandoffCertifiedReleaseGate.attestationStatus}; ledgerStatus=${reviewQaHandoffCertifiedReleaseGate.ledgerStatus}; certificationStatus=${reviewQaHandoffCertifiedReleaseGate.certificationStatus}; verificationStatus=${reviewQaHandoffCertifiedReleaseGate.verificationStatus}; digestChainStatus=${reviewQaHandoffCertifiedReleaseGate.digestChainStatus}; safeFilename=${reviewQaHandoffCertifiedReleaseGate.safeFilename}; safeDigest=${reviewQaHandoffCertifiedReleaseGate.safeDigest}; releaseGateDigest=${reviewQaHandoffCertifiedReleaseGate.releaseGateDigest}; reconciliationDigest=${reviewQaHandoffCertifiedReleaseGate.reconciliationDigest}; gateChecklist=${reviewQaHandoffCertifiedReleaseGate.counts.gateChecklistPassedCount}/${reviewQaHandoffCertifiedReleaseGate.counts.gateChecklistTotalCount}; blockingReasons=${reviewQaHandoffCertifiedReleaseGate.counts.blockingReasonCount}; blockingReasonCodes=${reviewQaHandoffCertifiedReleaseGate.blockingReasons.map((reason) => reason.code).join(",") || "none"}; exceptions=${reviewQaHandoffCertifiedReleaseGate.counts.exceptionRowCount}; gateCheckedCount=${reviewQaHandoffCertifiedReleaseGate.counts.gateCheckedCount}; externalCalls=${reviewQaHandoffCertifiedReleaseGate.externalCalls}`
+      ) : null,
+      reviewQaHandoffCertifiedReleaseDecisionReceipt ? e("div", { className: "webhookActionStatus", role: "status", "aria-live": "polite" },
+        `QA archive certified release decision receipt: receiptStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.receiptStatus}; releaseDecision=${reviewQaHandoffCertifiedReleaseDecisionReceipt.releaseDecision}; gateStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.gateStatus}; goNoGoDecision=${reviewQaHandoffCertifiedReleaseDecisionReceipt.goNoGoDecision}; releaseReadinessStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.releaseReadinessStatus}; reconciliationStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.reconciliationStatus}; attestationStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.attestationStatus}; ledgerStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.ledgerStatus}; certificationStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.certificationStatus}; verificationStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.verificationStatus}; digestChainStatus=${reviewQaHandoffCertifiedReleaseDecisionReceipt.digestChainStatus}; safeFilename=${reviewQaHandoffCertifiedReleaseDecisionReceipt.safeFilename}; safeDigest=${reviewQaHandoffCertifiedReleaseDecisionReceipt.safeDigest}; decisionReceiptDigest=${reviewQaHandoffCertifiedReleaseDecisionReceipt.decisionReceiptDigest}; releaseGateDigest=${reviewQaHandoffCertifiedReleaseDecisionReceipt.releaseGateDigest}; receiptRows=${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.receiptRowCompleteCount}/${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.receiptRowCount}; gateChecklist=${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.gateChecklistPassedCount}/${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.gateChecklistTotalCount}; blockingReasons=${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.blockingReasonCount}; blockingReasonCodes=${reviewQaHandoffCertifiedReleaseDecisionReceipt.inheritedBlockingReasons.map((reason) => reason.code).join(",") || "none"}; exceptions=${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.exceptionRowCount}; decisionReceiptCheckedCount=${reviewQaHandoffCertifiedReleaseDecisionReceipt.counts.decisionReceiptCheckedCount}; externalCalls=${reviewQaHandoffCertifiedReleaseDecisionReceipt.externalCalls}`
       ) : null,
       reviewQaHandoffLockedArchive ? e("div", { className: "webhookMetricGroups twoColumn" },
         e("div", null,

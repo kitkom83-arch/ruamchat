@@ -34,6 +34,7 @@ import type {
   ProviderWebhookReviewQaHandoffReleaseAttestationAudit,
   ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
   ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
   ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -110,6 +111,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGate,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
@@ -313,6 +315,11 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationRecon
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData = {
   mode: DataMode;
   releaseGate: ProviderWebhookReviewQaHandoffCertifiedReleaseGate;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData = {
+  mode: DataMode;
+  decisionReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -943,6 +950,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     releaseGate: createMockReviewQaHandoffCertifiedReleaseGate(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      decisionReceipt: await getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    decisionReceipt: createMockReviewQaHandoffCertifiedReleaseDecisionReceipt(filters)
   };
 }
 
@@ -3153,6 +3177,119 @@ function createMockReviewQaHandoffCertifiedReleaseGate(filters: ProviderWebhookR
       exceptionRowCount: reconciliation.exceptionRows.length
     },
     externalCalls: 0
+  };
+}
+
+function createMockReviewQaHandoffCertifiedReleaseDecisionReceipt(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt {
+  const releaseGate = createMockReviewQaHandoffCertifiedReleaseGate(filters);
+  const gateChecklistComplete = Object.values(releaseGate.gateChecklist).every(Boolean);
+  const issued = releaseGate.gateStatus === "ready" &&
+    releaseGate.goNoGoDecision === "go" &&
+    gateChecklistComplete &&
+    releaseGate.blockingReasons.length === 0 &&
+    releaseGate.exceptionRows.length === 0 &&
+    releaseGate.externalCalls === 0;
+  const receiptRows: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt["receiptRows"] = [
+    mockDecisionReceiptRow("release_gate", "Certified release gate", releaseGate.releaseGateDigest, releaseGate.counts.gateCheckedCount, releaseGate.gateStatus === "ready"),
+    mockDecisionReceiptRow("release_decision", "GO release decision", releaseGate.releaseGateDigest, 1, issued, issued ? "issued" : "blocked"),
+    mockDecisionReceiptRow("release_readiness", "Release readiness", releaseGate.releaseEvidenceDigest, releaseGate.counts.releaseEvidenceCheckedCount, releaseGate.releaseReadinessStatus === "ready_for_release"),
+    mockDecisionReceiptRow("reconciliation", "Attestation reconciliation", releaseGate.reconciliationDigest, releaseGate.counts.reconciliationCheckedCount, ["aligned", "complete"].includes(releaseGate.reconciliationStatus)),
+    mockDecisionReceiptRow("attestation", "Attestation audit", releaseGate.attestationAuditDigest, releaseGate.counts.attestationAuditCheckedCount, releaseGate.attestationStatus === "complete"),
+    mockDecisionReceiptRow("closure_ledger", "Closure ledger", releaseGate.closureLedgerDigest, releaseGate.counts.closureLedgerCheckedCount, releaseGate.ledgerStatus === "certified_release_closed"),
+    mockDecisionReceiptRow("certification", "Release certification", releaseGate.certificationDigest, releaseGate.counts.releaseCertificationCheckedCount, releaseGate.certificationStatus === "certified"),
+    mockDecisionReceiptRow("verification", "Release verification", releaseGate.verificationDigest, releaseGate.counts.releaseVerificationCheckedCount, releaseGate.verificationStatus === "verified"),
+    mockDecisionReceiptRow("digest_chain", "Digest chain", releaseGate.reconciliationDigest, 1, releaseGate.digestChainStatus === "confirmed"),
+    mockDecisionReceiptRow("prerequisite_checklist", "Prerequisite checklist", releaseGate.releaseEvidenceDigest, releaseGate.counts.prerequisiteTotalCount, Object.values(releaseGate.inheritedPrerequisiteChecklist).every(Boolean)),
+    mockDecisionReceiptRow("certification_checklist", "Certification checklist", releaseGate.certificationDigest, releaseGate.counts.certificationChecklistTotalCount, Object.values(releaseGate.inheritedCertificationChecklist).every(Boolean)),
+    mockDecisionReceiptRow("gate_checklist", "Release gate checklist", releaseGate.releaseGateDigest, releaseGate.counts.gateChecklistTotalCount, gateChecklistComplete),
+    mockDecisionReceiptRow("external_calls", "External calls", releaseGate.releaseGateDigest, releaseGate.externalCalls, releaseGate.externalCalls === 0 && releaseGate.gateChecklist.externalCallsZero)
+  ];
+  const receiptRowCompleteCount = receiptRows.filter((row) => row.complete).length;
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-decision-receipt",
+    receiptStatus: issued ? "issued" : "blocked",
+    releaseDecision: issued ? "go" : "no_go",
+    gateStatus: releaseGate.gateStatus,
+    goNoGoDecision: releaseGate.goNoGoDecision,
+    releaseReadinessStatus: releaseGate.releaseReadinessStatus,
+    reconciliationStatus: releaseGate.reconciliationStatus,
+    attestationStatus: releaseGate.attestationStatus,
+    ledgerStatus: releaseGate.ledgerStatus,
+    certificationStatus: releaseGate.certificationStatus,
+    verificationStatus: releaseGate.verificationStatus,
+    digestChainStatus: releaseGate.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-decision-receipt.json",
+    safeDigest: "sha256:mockqahandoffcertifiedreleasedecisionreceipt",
+    decisionReceiptDigest: "sha256:mockqahandoffcertifiedreleasedecisionreceipt",
+    releaseGateDigest: releaseGate.releaseGateDigest,
+    reconciliationDigest: releaseGate.reconciliationDigest,
+    attestationAuditDigest: releaseGate.attestationAuditDigest,
+    closureLedgerDigest: releaseGate.closureLedgerDigest,
+    certificationDigest: releaseGate.certificationDigest,
+    verificationDigest: releaseGate.verificationDigest,
+    releaseEvidenceDigest: releaseGate.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: releaseGate.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: releaseGate.inheritedCertificationChecklist,
+    inheritedGateChecklist: releaseGate.gateChecklist,
+    inheritedReconciliationSummary: releaseGate.inheritedReconciliationSummary,
+    inheritedBlockingReasons: releaseGate.blockingReasons,
+    inheritedExceptionRows: releaseGate.exceptionRows,
+    receiptRows,
+    receiptSummary: {
+      receiptRowCount: receiptRows.length,
+      completeReceiptRowCount: receiptRowCompleteCount,
+      releaseGateReady: releaseGate.gateStatus === "ready",
+      releaseDecisionGo: releaseGate.goNoGoDecision === "go",
+      prerequisiteChecklistComplete: Object.values(releaseGate.inheritedPrerequisiteChecklist).every(Boolean),
+      certificationChecklistComplete: Object.values(releaseGate.inheritedCertificationChecklist).every(Boolean),
+      gateChecklistComplete,
+      noBlockingReasons: releaseGate.blockingReasons.length === 0,
+      noExceptionRows: releaseGate.exceptionRows.length === 0,
+      externalCallsZero: releaseGate.externalCalls === 0
+    },
+    counts: {
+      totalItems: releaseGate.counts.totalItems,
+      releaseEvidenceCheckedCount: releaseGate.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: releaseGate.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: releaseGate.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: releaseGate.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: releaseGate.counts.attestationAuditCheckedCount,
+      reconciliationCheckedCount: releaseGate.counts.reconciliationCheckedCount,
+      gateCheckedCount: releaseGate.counts.gateCheckedCount,
+      decisionReceiptCheckedCount: 1,
+      prerequisitePassedCount: releaseGate.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: releaseGate.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: releaseGate.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: releaseGate.counts.certificationChecklistTotalCount,
+      reconciliationRowCount: releaseGate.counts.reconciliationRowCount,
+      reconciliationAlignedRowCount: releaseGate.counts.reconciliationAlignedRowCount,
+      reconciliationExceptionRowCount: releaseGate.counts.reconciliationExceptionRowCount,
+      gateChecklistPassedCount: releaseGate.counts.gateChecklistPassedCount,
+      gateChecklistTotalCount: releaseGate.counts.gateChecklistTotalCount,
+      blockingReasonCount: releaseGate.counts.blockingReasonCount,
+      exceptionRowCount: releaseGate.counts.exceptionRowCount,
+      receiptRowCount: receiptRows.length,
+      receiptRowCompleteCount
+    },
+    externalCalls: 0
+  };
+}
+
+function mockDecisionReceiptRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt["receiptRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  receiptRowStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt["receiptRows"][number]["receiptRowStatus"] = complete ? "confirmed" : "blocked"
+): ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt["receiptRows"][number] {
+  return {
+    key,
+    label,
+    receiptRowStatus,
+    safeDigest,
+    checkedCount,
+    complete
   };
 }
 
