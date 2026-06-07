@@ -53,6 +53,8 @@ import {
   type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseAttestationAudit,
   type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReason,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffReleaseVerificationDigestRow,
   type ProviderWebhookReviewQaHandoffReleaseVerificationStatus,
@@ -1395,6 +1397,16 @@ export class ProviderWebhookEventsService {
     const attestationAudit = this.getReviewQaHandoffArchiveReleaseAttestationAudit(tenantId, filters, actorUserId);
     assertQaHandoffArchiveReleaseAttestationReconciliationReady(attestationAudit);
     return qaHandoffArchiveReleaseAttestationReconciliationResponse(attestationAudit);
+  }
+
+  getReviewQaHandoffCertifiedReleaseGate(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseGate {
+    const reconciliation = this.getReviewQaHandoffArchiveReleaseAttestationReconciliation(tenantId, filters, actorUserId);
+    assertQaHandoffCertifiedReleaseGatePrerequisites(reconciliation);
+    return qaHandoffCertifiedReleaseGateResponse(reconciliation);
   }
 
   private getLockedArchiveContext(
@@ -5478,6 +5490,158 @@ function releaseAttestationReconciliationRow(
     checkedCount,
     aligned
   };
+}
+
+function assertQaHandoffCertifiedReleaseGatePrerequisites(
+  reconciliation: ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister
+) {
+  if (!["aligned", "complete"].includes(reconciliation.reconciliationStatus)) {
+    throw new ConflictException("Provider webhook QA archive release attestation reconciliation must be aligned before release gate");
+  }
+  if (reconciliation.attestationStatus !== "complete") {
+    throw new ConflictException("Provider webhook QA archive release attestation audit must be complete before release gate");
+  }
+  if (reconciliation.ledgerStatus !== "certified_release_closed") {
+    throw new ConflictException("Provider webhook QA archive release closure ledger must be certified_release_closed before release gate");
+  }
+  if (reconciliation.certificationStatus !== "certified") {
+    throw new ConflictException("Provider webhook QA archive release certification receipt must be certified before release gate");
+  }
+  if (reconciliation.releaseReadinessStatus !== "ready_for_release") {
+    throw new ConflictException("Provider webhook QA archive release readiness must be ready_for_release before release gate");
+  }
+  if (reconciliation.verificationStatus !== "verified") {
+    throw new ConflictException("Provider webhook QA archive release verification must be verified before release gate");
+  }
+  if (reconciliation.digestChainStatus !== "confirmed") {
+    throw new ConflictException("Provider webhook QA archive digest chain must be confirmed before release gate");
+  }
+  if (!Object.values(reconciliation.inheritedPrerequisiteChecklist).every(Boolean) || !reconciliation.reconciliationSummary.prerequisiteChecklistComplete) {
+    throw new ConflictException("Provider webhook QA archive release prerequisites must be complete before release gate");
+  }
+  if (!Object.values(reconciliation.inheritedCertificationChecklist).every(Boolean) || !reconciliation.reconciliationSummary.certificationChecklistComplete) {
+    throw new ConflictException("Provider webhook QA archive release certification checklist must be complete before release gate");
+  }
+  if (reconciliation.externalCalls !== 0 || !reconciliation.reconciliationSummary.externalCallsZero) {
+    throw new ConflictException("Provider webhook QA archive release gate requires externalCalls=0");
+  }
+  if (!reconciliation.reconciliationRows.every((row) => row.aligned)) {
+    throw new ConflictException("Provider webhook QA archive release attestation reconciliation rows must be aligned before release gate");
+  }
+}
+
+function qaHandoffCertifiedReleaseGateResponse(
+  reconciliation: ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister
+): ProviderWebhookReviewQaHandoffCertifiedReleaseGate {
+  const gateChecklist = {
+    prerequisiteChainComplete: true,
+    reconciliationComplete: ["aligned", "complete"].includes(reconciliation.reconciliationStatus) && reconciliation.reconciliationRows.every((row) => row.aligned),
+    attestationComplete: reconciliation.attestationStatus === "complete",
+    closureLedgerClosed: reconciliation.ledgerStatus === "certified_release_closed",
+    certificationComplete: reconciliation.certificationStatus === "certified",
+    releaseReady: reconciliation.releaseReadinessStatus === "ready_for_release",
+    verificationComplete: reconciliation.verificationStatus === "verified",
+    digestChainConfirmed: reconciliation.digestChainStatus === "confirmed" && [
+      reconciliation.releaseEvidenceDigest,
+      reconciliation.verificationDigest,
+      reconciliation.certificationDigest,
+      reconciliation.closureLedgerDigest,
+      reconciliation.attestationAuditDigest,
+      reconciliation.reconciliationDigest
+    ].every(Boolean),
+    prerequisiteChecklistComplete: Object.values(reconciliation.inheritedPrerequisiteChecklist).every(Boolean) && reconciliation.reconciliationSummary.prerequisiteChecklistComplete,
+    certificationChecklistComplete: Object.values(reconciliation.inheritedCertificationChecklist).every(Boolean) && reconciliation.reconciliationSummary.certificationChecklistComplete,
+    noBlockingExceptions: reconciliation.exceptionRows.length === 0,
+    externalCallsZero: reconciliation.externalCalls === 0 && reconciliation.reconciliationSummary.externalCallsZero
+  };
+  const blockingReasons = certifiedReleaseGateBlockingReasons(reconciliation, gateChecklist);
+  const gateReady = Object.values(gateChecklist).every(Boolean) && blockingReasons.length === 0;
+  const payload = {
+    gateKind: "qa-handoff-locked-archive-certified-release-gate" as const,
+    gateStatus: gateReady ? "ready" as const : "blocked" as const,
+    goNoGoDecision: gateReady ? "go" as const : "no_go" as const,
+    releaseReadinessStatus: "ready_for_release" as const,
+    reconciliationStatus: reconciliation.reconciliationStatus,
+    attestationStatus: "complete" as const,
+    ledgerStatus: "certified_release_closed" as const,
+    certificationStatus: "certified" as const,
+    verificationStatus: "verified" as const,
+    digestChainStatus: "confirmed" as const,
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-certified-release-gate.json"),
+    reconciliationDigest: reconciliation.reconciliationDigest,
+    attestationAuditDigest: reconciliation.attestationAuditDigest,
+    closureLedgerDigest: reconciliation.closureLedgerDigest,
+    certificationDigest: reconciliation.certificationDigest,
+    verificationDigest: reconciliation.verificationDigest,
+    releaseEvidenceDigest: reconciliation.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: reconciliation.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: reconciliation.inheritedCertificationChecklist,
+    inheritedReconciliationSummary: reconciliation.reconciliationSummary,
+    gateChecklist,
+    blockingReasons,
+    exceptionRows: reconciliation.exceptionRows,
+    counts: {
+      totalItems: reconciliation.counts.totalItems,
+      releaseEvidenceCheckedCount: reconciliation.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: reconciliation.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: reconciliation.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: reconciliation.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: reconciliation.counts.attestationAuditCheckedCount,
+      reconciliationCheckedCount: reconciliation.counts.reconciliationCheckedCount,
+      gateCheckedCount: 1,
+      prerequisitePassedCount: reconciliation.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: reconciliation.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: reconciliation.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: reconciliation.counts.certificationChecklistTotalCount,
+      reconciliationRowCount: reconciliation.counts.reconciliationRowCount,
+      reconciliationAlignedRowCount: reconciliation.counts.reconciliationAlignedRowCount,
+      reconciliationExceptionRowCount: reconciliation.counts.reconciliationExceptionRowCount,
+      gateChecklistPassedCount: Object.values(gateChecklist).filter(Boolean).length,
+      gateChecklistTotalCount: Object.keys(gateChecklist).length,
+      blockingReasonCount: blockingReasons.length,
+      exceptionRowCount: reconciliation.exceptionRows.length
+    },
+    externalCalls: 0 as const
+  };
+  const safeDigest = safeDigestForExport(payload);
+  return {
+    ...payload,
+    safeDigest,
+    releaseGateDigest: safeDigest,
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseGateBlockingReasons(
+  reconciliation: ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
+  gateChecklist: ProviderWebhookReviewQaHandoffCertifiedReleaseGate["gateChecklist"]
+): ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReason[] {
+  const reasons: ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReason[] = [];
+  const add = (
+    code: ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReason["code"],
+    label: string,
+    safeDigest = reconciliation.reconciliationDigest
+  ) => {
+    reasons.push({
+      code,
+      label,
+      status: "blocking_reason",
+      safeDigest
+    });
+  };
+  if (!gateChecklist.prerequisiteChainComplete) add("prerequisite_chain_incomplete", "Prerequisite chain is incomplete");
+  if (!gateChecklist.reconciliationComplete) add("reconciliation_not_aligned", "Attestation reconciliation is not aligned");
+  if (!gateChecklist.attestationComplete) add("attestation_incomplete", "Attestation audit is incomplete", reconciliation.attestationAuditDigest);
+  if (!gateChecklist.closureLedgerClosed) add("closure_ledger_incomplete", "Closure ledger is not certified release closed", reconciliation.closureLedgerDigest);
+  if (!gateChecklist.certificationComplete) add("certification_incomplete", "Release certification is incomplete", reconciliation.certificationDigest);
+  if (!gateChecklist.releaseReady) add("release_not_ready", "Release readiness is not ready_for_release", reconciliation.releaseEvidenceDigest);
+  if (!gateChecklist.verificationComplete) add("verification_incomplete", "Release verification is incomplete", reconciliation.verificationDigest);
+  if (!gateChecklist.digestChainConfirmed) add("digest_chain_unconfirmed", "Digest chain is not confirmed");
+  if (!gateChecklist.prerequisiteChecklistComplete) add("prerequisite_checklist_incomplete", "Prerequisite checklist is incomplete", reconciliation.releaseEvidenceDigest);
+  if (!gateChecklist.certificationChecklistComplete) add("certification_checklist_incomplete", "Certification checklist is incomplete", reconciliation.certificationDigest);
+  if (!gateChecklist.noBlockingExceptions) add("reconciliation_exception", "Attestation reconciliation has blocking exceptions");
+  if (!gateChecklist.externalCallsZero) add("external_calls_present", "External calls must remain zero");
+  return reasons;
 }
 
 function safeRoomLabel(item: ProviderWebhookUnmatchedInboundItem) {

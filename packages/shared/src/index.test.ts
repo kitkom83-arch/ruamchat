@@ -57,6 +57,7 @@ import {
   providerWebhookReviewQaHandoffReleaseCertificationSchema,
   providerWebhookReviewQaHandoffReleaseAttestationAuditSchema,
   providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -661,6 +662,68 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseGate = providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({
+      gateKind: "qa-handoff-locked-archive-certified-release-gate",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-gate.json",
+      safeDigest: "sha256:certifiedreleasegate",
+      releaseGateDigest: "sha256:certifiedreleasegate",
+      reconciliationDigest: releaseAttestationReconciliation.reconciliationDigest,
+      attestationAuditDigest: releaseAttestationReconciliation.attestationAuditDigest,
+      closureLedgerDigest: releaseAttestationReconciliation.closureLedgerDigest,
+      certificationDigest: releaseAttestationReconciliation.certificationDigest,
+      verificationDigest: releaseAttestationReconciliation.verificationDigest,
+      releaseEvidenceDigest: releaseAttestationReconciliation.releaseEvidenceDigest,
+      inheritedPrerequisiteChecklist: releaseAttestationReconciliation.inheritedPrerequisiteChecklist,
+      inheritedCertificationChecklist: releaseAttestationReconciliation.inheritedCertificationChecklist,
+      inheritedReconciliationSummary: releaseAttestationReconciliation.reconciliationSummary,
+      gateChecklist: {
+        prerequisiteChainComplete: true,
+        reconciliationComplete: true,
+        attestationComplete: true,
+        closureLedgerClosed: true,
+        certificationComplete: true,
+        releaseReady: true,
+        verificationComplete: true,
+        digestChainConfirmed: true,
+        prerequisiteChecklistComplete: true,
+        certificationChecklistComplete: true,
+        noBlockingExceptions: true,
+        externalCallsZero: true
+      },
+      blockingReasons: [],
+      exceptionRows: [],
+      counts: {
+        totalItems: releaseAttestationReconciliation.counts.totalItems,
+        releaseEvidenceCheckedCount: 1,
+        releaseVerificationCheckedCount: 1,
+        releaseCertificationCheckedCount: 1,
+        closureLedgerCheckedCount: 1,
+        attestationAuditCheckedCount: 1,
+        reconciliationCheckedCount: 1,
+        gateCheckedCount: 1,
+        prerequisitePassedCount: 16,
+        prerequisiteTotalCount: 16,
+        certificationChecklistPassedCount: 13,
+        certificationChecklistTotalCount: 13,
+        reconciliationRowCount: 8,
+        reconciliationAlignedRowCount: 8,
+        reconciliationExceptionRowCount: 0,
+        gateChecklistPassedCount: 12,
+        gateChecklistTotalCount: 12,
+        blockingReasonCount: 0,
+        exceptionRowCount: 0
+      },
+      externalCalls: 0
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -691,6 +754,12 @@ describe("shared contracts", () => {
     expect(releaseAttestationReconciliation.exceptionRows).toHaveLength(0);
     expect(releaseAttestationReconciliation.reconciliationSummary.externalCallsZero).toBe(true);
     expect(releaseAttestationReconciliation.externalCalls).toBe(0);
+    expect(certifiedReleaseGate.gateStatus).toBe("ready");
+    expect(certifiedReleaseGate.goNoGoDecision).toBe("go");
+    expect(certifiedReleaseGate.reconciliationDigest).toBe(releaseAttestationReconciliation.reconciliationDigest);
+    expect(certifiedReleaseGate.gateChecklist.externalCallsZero).toBe(true);
+    expect(certifiedReleaseGate.blockingReasons).toHaveLength(0);
+    expect(certifiedReleaseGate.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -716,6 +785,18 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, rawBody: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, headers: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, stack: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, signature: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, authorization: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, cookie: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, senderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, roomId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, providerMaterial: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, rawBody: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, headers: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -723,6 +804,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffReleaseClosureLedgerSchema.parse({ ...releaseClosureLedger, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationAuditSchema.parse({ ...releaseAttestationAudit, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {

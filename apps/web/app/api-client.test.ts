@@ -43,6 +43,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffRetentionAudit,
@@ -238,7 +239,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseCertificationResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseClosureLedgerResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseAttestationAuditResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseAttestationReconciliationResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveReleaseAttestationReconciliationResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseGateResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -253,6 +255,7 @@ describe("frontend API client", () => {
     const closureLedger = await getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger(filters);
     const attestationAudit = await getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit(filters);
     const reconciliation = await getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation(filters);
+    const releaseGate = await getProviderWebhookReviewQaHandoffCertifiedReleaseGate(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
@@ -263,6 +266,7 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate?provider=line&eventType=message.created", expect.any(Object));
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -344,7 +348,18 @@ describe("frontend API client", () => {
     expect(reconciliation.reconciliationRows).toHaveLength(8);
     expect(reconciliation.exceptionRows).toHaveLength(0);
     expect(reconciliation.reconciliationSummary.externalCallsZero).toBe(true);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(releaseGate).toMatchObject({
+      gateKind: "qa-handoff-locked-archive-certified-release-gate",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      externalCalls: 0
+    });
+    expect(releaseGate.gateChecklist.externalCallsZero).toBe(true);
+    expect(releaseGate.blockingReasons).toHaveLength(0);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -393,6 +408,12 @@ describe("frontend API client", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "release attestation reconciliation unavailable" }, 503));
 
     await expect(getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation()).rejects.toThrow("API request failed (503): release attestation reconciliation unavailable");
+  });
+
+  it("surfaces certified release gate API errors without local fallback", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse({ message: "certified release gate unavailable" }, 503));
+
+    await expect(getProviderWebhookReviewQaHandoffCertifiedReleaseGate()).rejects.toThrow("API request failed (503): certified release gate unavailable");
   });
 
   it("sends x-tenant-id for provider webhook event, unmatched list, and sandbox event create", async () => {
@@ -4126,6 +4147,72 @@ function providerWebhookArchiveReleaseAttestationReconciliationResponse() {
       reconciliationRowCount: reconciliationRows.length,
       reconciliationAlignedRowCount: reconciliationRows.length,
       reconciliationExceptionRowCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveCertifiedReleaseGateResponse() {
+  const reconciliation = providerWebhookArchiveReleaseAttestationReconciliationResponse();
+  return {
+    gateKind: "qa-handoff-locked-archive-certified-release-gate",
+    gateStatus: "ready",
+    goNoGoDecision: "go",
+    releaseReadinessStatus: "ready_for_release",
+    reconciliationStatus: "aligned",
+    attestationStatus: "complete",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-gate.json",
+    safeDigest: "sha256:safeqahandoffcertifiedreleasegate",
+    releaseGateDigest: "sha256:safeqahandoffcertifiedreleasegate",
+    reconciliationDigest: reconciliation.reconciliationDigest,
+    attestationAuditDigest: reconciliation.attestationAuditDigest,
+    closureLedgerDigest: reconciliation.closureLedgerDigest,
+    certificationDigest: reconciliation.certificationDigest,
+    verificationDigest: reconciliation.verificationDigest,
+    releaseEvidenceDigest: reconciliation.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: reconciliation.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: reconciliation.inheritedCertificationChecklist,
+    inheritedReconciliationSummary: reconciliation.reconciliationSummary,
+    gateChecklist: {
+      prerequisiteChainComplete: true,
+      reconciliationComplete: true,
+      attestationComplete: true,
+      closureLedgerClosed: true,
+      certificationComplete: true,
+      releaseReady: true,
+      verificationComplete: true,
+      digestChainConfirmed: true,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      noBlockingExceptions: true,
+      externalCallsZero: true
+    },
+    blockingReasons: [],
+    exceptionRows: [],
+    counts: {
+      totalItems: reconciliation.counts.totalItems,
+      releaseEvidenceCheckedCount: reconciliation.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: reconciliation.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: reconciliation.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: reconciliation.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: reconciliation.counts.attestationAuditCheckedCount,
+      reconciliationCheckedCount: reconciliation.counts.reconciliationCheckedCount,
+      gateCheckedCount: 1,
+      prerequisitePassedCount: reconciliation.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: reconciliation.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: reconciliation.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: reconciliation.counts.certificationChecklistTotalCount,
+      reconciliationRowCount: reconciliation.counts.reconciliationRowCount,
+      reconciliationAlignedRowCount: reconciliation.counts.reconciliationAlignedRowCount,
+      reconciliationExceptionRowCount: reconciliation.counts.reconciliationExceptionRowCount,
+      gateChecklistPassedCount: 12,
+      gateChecklistTotalCount: 12,
+      blockingReasonCount: 0,
+      exceptionRowCount: 0
     },
     externalCalls: 0
   };
