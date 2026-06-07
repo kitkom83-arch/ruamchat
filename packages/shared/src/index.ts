@@ -4062,6 +4062,107 @@ export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegis
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema = z.enum([
+  "ready",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGateStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema = z.enum([
+  "go",
+  "no_go"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGateDecision = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonCodeSchema = z.enum([
+  "prerequisite_chain_incomplete",
+  "reconciliation_not_aligned",
+  "attestation_incomplete",
+  "closure_ledger_incomplete",
+  "certification_incomplete",
+  "release_not_ready",
+  "verification_incomplete",
+  "digest_chain_unconfirmed",
+  "prerequisite_checklist_incomplete",
+  "certification_checklist_incomplete",
+  "reconciliation_exception",
+  "external_calls_present"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonCode = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonCodeSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonSchema = z.object({
+  code: providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonCodeSchema,
+  label: z.string().min(1),
+  status: z.literal("blocking_reason"),
+  safeDigest: z.string().min(1)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGateBlockingReason = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGateSchema = z.object({
+  gateKind: z.literal("qa-handoff-locked-archive-certified-release-gate"),
+  gateStatus: providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema,
+  goNoGoDecision: providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema,
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  reconciliationStatus: z.enum(["complete", "aligned"]),
+  attestationStatus: z.literal("complete"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  releaseGateDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffReleaseCertificationSchema.shape.certificationChecklist,
+  inheritedReconciliationSummary: providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.shape.reconciliationSummary,
+  gateChecklist: z.object({
+    prerequisiteChainComplete: z.boolean(),
+    reconciliationComplete: z.boolean(),
+    attestationComplete: z.boolean(),
+    closureLedgerClosed: z.boolean(),
+    certificationComplete: z.boolean(),
+    releaseReady: z.boolean(),
+    verificationComplete: z.boolean(),
+    digestChainConfirmed: z.boolean(),
+    prerequisiteChecklistComplete: z.boolean(),
+    certificationChecklistComplete: z.boolean(),
+    noBlockingExceptions: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  blockingReasons: z.array(providerWebhookReviewQaHandoffCertifiedReleaseGateBlockingReasonSchema),
+  exceptionRows: z.array(providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionSchema),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    closureLedgerCheckedCount: z.number().int().nonnegative(),
+    attestationAuditCheckedCount: z.number().int().nonnegative(),
+    reconciliationCheckedCount: z.number().int().nonnegative(),
+    gateCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    reconciliationRowCount: z.number().int().nonnegative(),
+    reconciliationAlignedRowCount: z.number().int().nonnegative(),
+    reconciliationExceptionRowCount: z.number().int().nonnegative(),
+    gateChecklistPassedCount: z.number().int().nonnegative(),
+    gateChecklistTotalCount: z.number().int().nonnegative(),
+    blockingReasonCount: z.number().int().nonnegative(),
+    exceptionRowCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGate = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGateSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

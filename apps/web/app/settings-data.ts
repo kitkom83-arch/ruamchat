@@ -33,6 +33,7 @@ import type {
   ProviderWebhookReviewQaHandoffReleaseCertification,
   ProviderWebhookReviewQaHandoffReleaseAttestationAudit,
   ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
   ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -108,6 +109,7 @@ import {
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   getProviderWebhookReviewQaHandoffArchiveIntegrity,
@@ -306,6 +308,11 @@ export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit
 export type SettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData = {
   mode: DataMode;
   reconciliation: ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData = {
+  mode: DataMode;
+  releaseGate: ProviderWebhookReviewQaHandoffCertifiedReleaseGate;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -919,6 +926,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAt
   return {
     mode,
     reconciliation: createMockReviewQaHandoffArchiveReleaseAttestationReconciliation(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData> {
+  if (mode === "api") {
+    return {
+      mode,
+      releaseGate: await getProviderWebhookReviewQaHandoffCertifiedReleaseGate(filters)
+    };
+  }
+
+  return {
+    mode,
+    releaseGate: createMockReviewQaHandoffCertifiedReleaseGate(filters)
   };
 }
 
@@ -3054,6 +3078,81 @@ function createMockReleaseAttestationReconciliationRow(
     safeDigest,
     checkedCount,
     aligned
+  };
+}
+
+function createMockReviewQaHandoffCertifiedReleaseGate(filters: ProviderWebhookReviewClosureReportFilters): ProviderWebhookReviewQaHandoffCertifiedReleaseGate {
+  const reconciliation = createMockReviewQaHandoffArchiveReleaseAttestationReconciliation(filters);
+  const gateChecklist = {
+    prerequisiteChainComplete: true,
+    reconciliationComplete: reconciliation.reconciliationStatus === "aligned" && reconciliation.reconciliationRows.every((row) => row.aligned),
+    attestationComplete: reconciliation.attestationStatus === "complete",
+    closureLedgerClosed: reconciliation.ledgerStatus === "certified_release_closed",
+    certificationComplete: reconciliation.certificationStatus === "certified",
+    releaseReady: reconciliation.releaseReadinessStatus === "ready_for_release",
+    verificationComplete: reconciliation.verificationStatus === "verified",
+    digestChainConfirmed: reconciliation.digestChainStatus === "confirmed",
+    prerequisiteChecklistComplete: Object.values(reconciliation.inheritedPrerequisiteChecklist).every(Boolean) && reconciliation.reconciliationSummary.prerequisiteChecklistComplete,
+    certificationChecklistComplete: Object.values(reconciliation.inheritedCertificationChecklist).every(Boolean) && reconciliation.reconciliationSummary.certificationChecklistComplete,
+    noBlockingExceptions: reconciliation.exceptionRows.length === 0,
+    externalCallsZero: reconciliation.externalCalls === 0 && reconciliation.reconciliationSummary.externalCallsZero
+  };
+  const gateChecklistPassedCount = Object.values(gateChecklist).filter(Boolean).length;
+  const blockingReasons: ProviderWebhookReviewQaHandoffCertifiedReleaseGate["blockingReasons"] = gateChecklist.noBlockingExceptions ? [] : [{
+    code: "reconciliation_exception",
+    label: "Attestation reconciliation has blocking exceptions",
+    status: "blocking_reason",
+    safeDigest: reconciliation.reconciliationDigest
+  }];
+  const ready = Object.values(gateChecklist).every(Boolean) && blockingReasons.length === 0;
+  return {
+    gateKind: "qa-handoff-locked-archive-certified-release-gate",
+    gateStatus: ready ? "ready" : "blocked",
+    goNoGoDecision: ready ? "go" : "no_go",
+    releaseReadinessStatus: "ready_for_release",
+    reconciliationStatus: reconciliation.reconciliationStatus,
+    attestationStatus: "complete",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-gate.json",
+    safeDigest: "sha256:mockqahandoffcertifiedreleasegate",
+    releaseGateDigest: "sha256:mockqahandoffcertifiedreleasegate",
+    reconciliationDigest: reconciliation.reconciliationDigest,
+    attestationAuditDigest: reconciliation.attestationAuditDigest,
+    closureLedgerDigest: reconciliation.closureLedgerDigest,
+    certificationDigest: reconciliation.certificationDigest,
+    verificationDigest: reconciliation.verificationDigest,
+    releaseEvidenceDigest: reconciliation.releaseEvidenceDigest,
+    inheritedPrerequisiteChecklist: reconciliation.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: reconciliation.inheritedCertificationChecklist,
+    inheritedReconciliationSummary: reconciliation.reconciliationSummary,
+    gateChecklist,
+    blockingReasons,
+    exceptionRows: reconciliation.exceptionRows,
+    counts: {
+      totalItems: reconciliation.counts.totalItems,
+      releaseEvidenceCheckedCount: reconciliation.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: reconciliation.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: reconciliation.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: reconciliation.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: reconciliation.counts.attestationAuditCheckedCount,
+      reconciliationCheckedCount: reconciliation.counts.reconciliationCheckedCount,
+      gateCheckedCount: 1,
+      prerequisitePassedCount: reconciliation.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: reconciliation.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: reconciliation.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: reconciliation.counts.certificationChecklistTotalCount,
+      reconciliationRowCount: reconciliation.counts.reconciliationRowCount,
+      reconciliationAlignedRowCount: reconciliation.counts.reconciliationAlignedRowCount,
+      reconciliationExceptionRowCount: reconciliation.counts.reconciliationExceptionRowCount,
+      gateChecklistPassedCount,
+      gateChecklistTotalCount: Object.keys(gateChecklist).length,
+      blockingReasonCount: blockingReasons.length,
+      exceptionRowCount: reconciliation.exceptionRows.length
+    },
+    externalCalls: 0
   };
 }
 
