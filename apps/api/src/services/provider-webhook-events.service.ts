@@ -60,6 +60,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1599,6 +1600,15 @@ export class ProviderWebhookEventsService {
   ): ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger {
     const dryRun = this.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, actorUserId);
     return qaHandoffCertifiedReleaseDryRunResultLedgerResponse(dryRun);
+  }
+
+  getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate {
+    const resultLedger = this.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(tenantId, filters, actorUserId);
+    return qaHandoffCertifiedReleaseFinalReadinessCertificateResponse(resultLedger);
   }
 
   private getLockedArchiveContext(
@@ -6965,6 +6975,216 @@ function certifiedReleaseDryRunDigestLinksSafe(
     dryRun.certificationDigest,
     dryRun.verificationDigest,
     dryRun.releaseEvidenceDigest
+  ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
+}
+
+function qaHandoffCertifiedReleaseFinalReadinessCertificateResponse(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate {
+  const certificateReady = certifiedReleaseFinalReadinessCertificateReady(resultLedger);
+  const certificateStatus = certifiedReleaseFinalReadinessCertificateStatus(resultLedger, certificateReady);
+  const finalReadinessStatus = certifiedReleaseFinalReadinessStatus(resultLedger, certificateReady);
+  const effectiveReleaseDecision = certificateReady ? "go" as const : "no_go" as const;
+  const effectiveGoNoGoDecision = certificateReady ? "go" as const : "no_go" as const;
+  const safeDigest = safeDigestForExport({
+    certificateKind: "qa-handoff-locked-archive-certified-release-final-readiness-certificate",
+    certificateStatus,
+    finalReadinessStatus,
+    dryRunResultLedgerDigest: resultLedger.dryRunResultLedgerDigest,
+    externalCalls: 0
+  });
+  const certificateRows = certifiedReleaseFinalReadinessCertificateRows(resultLedger, certificateReady, certificateStatus, finalReadinessStatus, safeDigest);
+  return {
+    certificateKind: "qa-handoff-locked-archive-certified-release-final-readiness-certificate",
+    certificateStatus,
+    finalReadinessStatus,
+    ledgerStatus: resultLedger.ledgerStatus,
+    dryRunStatus: resultLedger.dryRunStatus,
+    executionMode: resultLedger.executionMode,
+    acceptanceStatus: resultLedger.acceptanceStatus,
+    handoffStatus: resultLedger.handoffStatus,
+    releaseDecision: effectiveReleaseDecision,
+    packetStatus: resultLedger.packetStatus,
+    receiptStatus: resultLedger.receiptStatus,
+    gateStatus: resultLedger.gateStatus,
+    goNoGoDecision: effectiveGoNoGoDecision,
+    releaseReadinessStatus: resultLedger.releaseReadinessStatus,
+    reconciliationStatus: resultLedger.reconciliationStatus,
+    attestationStatus: resultLedger.attestationStatus,
+    ledgerStatusFromClosure: resultLedger.ledgerStatusFromClosure,
+    certificationStatus: resultLedger.certificationStatus,
+    verificationStatus: resultLedger.verificationStatus,
+    digestChainStatus: resultLedger.digestChainStatus,
+    safeFilename: safeExportFilename("provider-webhook-review-qa-handoff-certified-release-final-readiness-certificate.json"),
+    safeDigest,
+    finalReadinessCertificateDigest: safeDigest,
+    dryRunResultLedgerDigest: resultLedger.dryRunResultLedgerDigest,
+    noopExecutionDryRunDigest: resultLedger.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: resultLedger.acceptanceRecordDigest,
+    handoffPacketDigest: resultLedger.handoffPacketDigest,
+    decisionReceiptDigest: resultLedger.decisionReceiptDigest,
+    releaseGateDigest: resultLedger.releaseGateDigest,
+    reconciliationDigest: resultLedger.reconciliationDigest,
+    attestationAuditDigest: resultLedger.attestationAuditDigest,
+    closureLedgerDigest: resultLedger.closureLedgerDigest,
+    certificationDigest: resultLedger.certificationDigest,
+    verificationDigest: resultLedger.verificationDigest,
+    releaseEvidenceDigest: resultLedger.releaseEvidenceDigest,
+    operatorChecklist: resultLedger.operatorChecklist,
+    acknowledgedChecklist: resultLedger.acknowledgedChecklist,
+    executionChecklist: resultLedger.executionChecklist,
+    dryRunRows: resultLedger.dryRunRows,
+    executionPlanRows: resultLedger.executionPlanRows,
+    resultLedgerRows: resultLedger.resultLedgerRows,
+    finalReadinessRows: resultLedger.finalReadinessRows,
+    certificateRows,
+    releaseOwnerSummary: resultLedger.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: resultLedger.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: resultLedger.inheritedCertificationChecklist,
+    inheritedGateChecklist: resultLedger.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: resultLedger.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: resultLedger.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: {
+      ...resultLedger.inheritedAcceptanceSummary,
+      releaseDecision: effectiveReleaseDecision
+    },
+    inheritedNoopDryRunSummary: {
+      ...resultLedger.inheritedNoopDryRunSummary,
+      releaseDecision: effectiveReleaseDecision
+    },
+    inheritedResultLedgerSummary: {
+      ledgerStatus: resultLedger.ledgerStatus,
+      dryRunStatus: resultLedger.dryRunStatus,
+      executionMode: resultLedger.executionMode,
+      acceptanceStatus: resultLedger.acceptanceStatus,
+      handoffStatus: resultLedger.handoffStatus,
+      releaseDecision: effectiveReleaseDecision,
+      resultLedgerRowCount: resultLedger.counts.resultLedgerRowCount,
+      resultLedgerRowRecordedCount: resultLedger.counts.resultLedgerRowRecordedCount,
+      finalReadinessRowCount: resultLedger.counts.finalReadinessRowCount,
+      finalReadinessReadyCount: resultLedger.counts.finalReadinessReadyCount,
+      externalCallsZero: resultLedger.externalCalls === 0,
+      safeDigest: resultLedger.safeDigest
+    },
+    inheritedBlockingReasons: resultLedger.inheritedBlockingReasons,
+    inheritedExceptionRows: resultLedger.inheritedExceptionRows,
+    counts: {
+      ...resultLedger.counts,
+      finalReadinessCertificateCheckedCount: 1,
+      finalReadinessCertificateMutationCount: 0,
+      certificateRowCount: certificateRows.length,
+      certificateRowIssuedCount: certificateRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseFinalReadinessCertificateReady(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger
+) {
+  return resultLedger.ledgerStatus === "recorded" &&
+    resultLedger.dryRunStatus === "passed" &&
+    resultLedger.executionMode === "no_op" &&
+    resultLedger.acceptanceStatus === "acknowledged" &&
+    resultLedger.handoffStatus === "ready" &&
+    resultLedger.releaseDecision === "go" &&
+    resultLedger.packetStatus === "issued" &&
+    resultLedger.receiptStatus === "issued" &&
+    resultLedger.gateStatus === "ready" &&
+    resultLedger.goNoGoDecision === "go" &&
+    resultLedger.releaseReadinessStatus === "ready_for_release" &&
+    ["complete", "aligned"].includes(resultLedger.reconciliationStatus) &&
+    resultLedger.attestationStatus === "complete" &&
+    resultLedger.ledgerStatusFromClosure === "certified_release_closed" &&
+    resultLedger.certificationStatus === "certified" &&
+    resultLedger.verificationStatus === "verified" &&
+    resultLedger.digestChainStatus === "confirmed" &&
+    resultLedger.resultLedgerRows.every((row) => row.complete && row.rowStatus === "recorded") &&
+    resultLedger.finalReadinessRows.every((row) => row.complete && row.readinessStatus === "ready") &&
+    resultLedger.externalCalls === 0;
+}
+
+function certifiedReleaseFinalReadinessCertificateStatus(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  certificateReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateStatus"] {
+  if (certificateReady) return "issued";
+  if (resultLedger.ledgerStatus === "pending") return "pending";
+  if (resultLedger.ledgerStatus === "blocked" || resultLedger.releaseDecision !== "go" || resultLedger.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function certifiedReleaseFinalReadinessStatus(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  certificateReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["finalReadinessStatus"] {
+  if (certificateReady) return "ready";
+  if (resultLedger.ledgerStatus === "pending" || resultLedger.ledgerStatus === "incomplete") return "incomplete";
+  return "not_ready";
+}
+
+function certifiedReleaseFinalReadinessCertificateRows(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  certificateReady: boolean,
+  certificateStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateStatus"],
+  finalReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["finalReadinessStatus"],
+  finalReadinessCertificateDigest: string
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateRows"] {
+  return [
+    certifiedReleaseFinalReadinessCertificateRow("dryrun_result_ledger", "Dry-run result ledger recorded", resultLedger.dryRunResultLedgerDigest, resultLedger.counts.dryRunResultLedgerCheckedCount, resultLedger.ledgerStatus === "recorded", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("dryrun_passed", "Dry-run passed", resultLedger.noopExecutionDryRunDigest, 1, resultLedger.dryRunStatus === "passed", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("execution_mode_no_op", "Execution mode no-op", resultLedger.noopExecutionDryRunDigest, 1, resultLedger.executionMode === "no_op", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("acceptance_acknowledged", "Acceptance acknowledged", resultLedger.acceptanceRecordDigest, 1, resultLedger.acceptanceStatus === "acknowledged", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("handoff_ready", "Handoff ready", resultLedger.handoffPacketDigest, 1, resultLedger.handoffStatus === "ready", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("release_decision_go", "Release decision go", resultLedger.decisionReceiptDigest, 1, resultLedger.releaseDecision === "go", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("gate_ready", "Release gate ready", resultLedger.releaseGateDigest, 1, resultLedger.gateStatus === "ready" && resultLedger.goNoGoDecision === "go", certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("prerequisite_chain", "Prerequisite chain complete", resultLedger.safeDigest, resultLedger.counts.resultLedgerRowCount + resultLedger.counts.finalReadinessRowCount, resultLedger.resultLedgerRows.every((row) => row.complete) && resultLedger.finalReadinessRows.every((row) => row.complete), certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("safe_digests", "Safe digest chain", finalReadinessCertificateDigest, 14, certifiedReleaseFinalReadinessDigestLinksSafe(resultLedger, finalReadinessCertificateDigest), certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("no_state_mutation", "No final readiness certificate state mutation", resultLedger.dryRunResultLedgerDigest, 0, true, certificateReady, certificateStatus, finalReadinessStatus),
+    certifiedReleaseFinalReadinessCertificateRow("external_calls_zero", "External calls zero", resultLedger.dryRunResultLedgerDigest, resultLedger.externalCalls, resultLedger.externalCalls === 0, certificateReady, certificateStatus, finalReadinessStatus)
+  ];
+}
+
+function certifiedReleaseFinalReadinessCertificateRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  certificateReady: boolean,
+  certificateStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateStatus"],
+  finalReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["finalReadinessStatus"]
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate["certificateRows"][number] {
+  return {
+    key,
+    label,
+    certificateStatus: complete && certificateReady ? "issued" as const : certificateStatus,
+    finalReadinessStatus: complete && certificateReady ? "ready" as const : finalReadinessStatus,
+    safeDigest,
+    checkedCount,
+    complete: complete && certificateReady
+  };
+}
+
+function certifiedReleaseFinalReadinessDigestLinksSafe(
+  resultLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  finalReadinessCertificateDigest: string
+) {
+  return [
+    finalReadinessCertificateDigest,
+    resultLedger.safeDigest,
+    resultLedger.dryRunResultLedgerDigest,
+    resultLedger.noopExecutionDryRunDigest,
+    resultLedger.acceptanceRecordDigest,
+    resultLedger.handoffPacketDigest,
+    resultLedger.decisionReceiptDigest,
+    resultLedger.releaseGateDigest,
+    resultLedger.reconciliationDigest,
+    resultLedger.attestationAuditDigest,
+    resultLedger.closureLedgerDigest,
+    resultLedger.certificationDigest,
+    resultLedger.verificationDigest,
+    resultLedger.releaseEvidenceDigest
   ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
 }
 

@@ -31,6 +31,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.runReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(undefined, {}, undefined, { checklistAcknowledged: true, executionMode: "no_op" })).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2578,16 +2579,17 @@ describe("ProviderWebhooksController sandbox events", () => {
       executionMode: "no_op"
     });
     const noopExecutionDryRunReadback = controller.getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(tenantId, filters, "operator-current");
-    const beforeResultLedgerRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
-      .find((candidate) => candidate.id === item.id);
     const dryRunResultLedger = controller.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(tenantId, filters, "operator-current");
-    const afterResultLedgerRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+    const beforeFinalReadinessCertificateRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const finalReadinessCertificate = controller.getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(tenantId, filters, "operator-current");
+    const afterFinalReadinessCertificateRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3110,18 +3112,50 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(dryRunResultLedger.counts.dryRunResultLedgerMutationCount).toBe(0);
     expect(dryRunResultLedger.counts.resultLedgerRowRecordedCount).toBe(dryRunResultLedger.resultLedgerRows.length);
     expect(dryRunResultLedger.counts.finalReadinessReadyCount).toBe(dryRunResultLedger.finalReadinessRows.length);
+    expect(finalReadinessCertificate).toMatchObject({
+      certificateKind: "qa-handoff-locked-archive-certified-release-final-readiness-certificate",
+      certificateStatus: "issued",
+      finalReadinessStatus: "ready",
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      dryRunResultLedgerDigest: dryRunResultLedger.dryRunResultLedgerDigest,
+      externalCalls: 0
+    });
+    expect(finalReadinessCertificate.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-final-readiness-certificate.json");
+    expect(finalReadinessCertificate.finalReadinessCertificateDigest).toBe(finalReadinessCertificate.safeDigest);
+    expect(finalReadinessCertificate.resultLedgerRows.every((entry) => entry.complete && entry.rowStatus === "recorded")).toBe(true);
+    expect(finalReadinessCertificate.finalReadinessRows.every((entry) => entry.complete && entry.readinessStatus === "ready")).toBe(true);
+    expect(finalReadinessCertificate.certificateRows.every((entry) => entry.complete && entry.certificateStatus === "issued" && entry.finalReadinessStatus === "ready")).toBe(true);
+    expect(finalReadinessCertificate.inheritedResultLedgerSummary).toMatchObject({
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      releaseDecision: "go",
+      externalCallsZero: true
+    });
+    expect(finalReadinessCertificate.counts.finalReadinessCertificateCheckedCount).toBe(1);
+    expect(finalReadinessCertificate.counts.finalReadinessCertificateMutationCount).toBe(0);
+    expect(finalReadinessCertificate.counts.certificateRowIssuedCount).toBe(finalReadinessCertificate.certificateRows.length);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
-    expect(afterResultLedgerRead).toMatchObject({
-      reviewStatus: beforeResultLedgerRead?.reviewStatus,
-      linkStatus: beforeResultLedgerRead?.linkStatus,
-      unmatchedStatus: beforeResultLedgerRead?.unmatchedStatus,
-      assignmentStatus: beforeResultLedgerRead?.assignmentStatus,
-      escalationStatus: beforeResultLedgerRead?.escalationStatus,
-      resolutionStatus: beforeResultLedgerRead?.resolutionStatus,
-      messagePersisted: beforeResultLedgerRead?.messagePersisted,
-      linkedConversationId: beforeResultLedgerRead?.linkedConversationId,
-      linkedMessageId: beforeResultLedgerRead?.linkedMessageId
+    expect(afterFinalReadinessCertificateRead).toMatchObject({
+      reviewStatus: beforeFinalReadinessCertificateRead?.reviewStatus,
+      linkStatus: beforeFinalReadinessCertificateRead?.linkStatus,
+      unmatchedStatus: beforeFinalReadinessCertificateRead?.unmatchedStatus,
+      assignmentStatus: beforeFinalReadinessCertificateRead?.assignmentStatus,
+      escalationStatus: beforeFinalReadinessCertificateRead?.escalationStatus,
+      resolutionStatus: beforeFinalReadinessCertificateRead?.resolutionStatus,
+      messagePersisted: beforeFinalReadinessCertificateRead?.messagePersisted,
+      linkedConversationId: beforeFinalReadinessCertificateRead?.linkedConversationId,
+      linkedMessageId: beforeFinalReadinessCertificateRead?.linkedMessageId
     });
     expect(afterNoopRead).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,

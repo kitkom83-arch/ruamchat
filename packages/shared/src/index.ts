@@ -4796,6 +4796,122 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSch
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema = z.enum([
+  "pending",
+  "issued",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatusSchema = z.enum([
+  "ready",
+  "not_ready",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateRowSchema = z.object({
+  key: z.enum([
+    "dryrun_result_ledger",
+    "dryrun_passed",
+    "execution_mode_no_op",
+    "acceptance_acknowledged",
+    "handoff_ready",
+    "release_decision_go",
+    "gate_ready",
+    "prerequisite_chain",
+    "safe_digests",
+    "no_state_mutation",
+    "external_calls_zero"
+  ]),
+  label: z.string().min(1),
+  certificateStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema,
+  finalReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema = z.object({
+  certificateKind: z.literal("qa-handoff-locked-archive-certified-release-final-readiness-certificate"),
+  certificateStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema,
+  finalReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatusSchema,
+  ledgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerStatusSchema,
+  dryRunStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema,
+  executionMode: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema,
+  acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema,
+  handoffStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffStatusSchema,
+  releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+  packetStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketStatusSchema,
+  receiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema,
+  gateStatus: providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema,
+  goNoGoDecision: providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema,
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  reconciliationStatus: z.enum(["complete", "aligned"]),
+  attestationStatus: z.literal("complete"),
+  ledgerStatusFromClosure: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.shape.ledgerStatus,
+  certificationStatus: z.literal("certified"),
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  finalReadinessCertificateDigest: z.string().min(1),
+  dryRunResultLedgerDigest: z.string().min(1),
+  noopExecutionDryRunDigest: z.string().min(1),
+  acceptanceRecordDigest: z.string().min(1),
+  handoffPacketDigest: z.string().min(1),
+  decisionReceiptDigest: z.string().min(1),
+  releaseGateDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  operatorChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.operatorChecklist,
+  acknowledgedChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.acknowledgedChecklist,
+  executionChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.executionChecklist,
+  dryRunRows: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.dryRunRows,
+  executionPlanRows: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.executionPlanRows,
+  resultLedgerRows: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.resultLedgerRows,
+  finalReadinessRows: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.finalReadinessRows,
+  certificateRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateRowSchema).min(1),
+  releaseOwnerSummary: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.releaseOwnerSummary,
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedPrerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedCertificationChecklist,
+  inheritedGateChecklist: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedGateChecklist,
+  inheritedDecisionReceiptSummary: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedDecisionReceiptSummary,
+  inheritedHandoffPacketSummary: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedHandoffPacketSummary,
+  inheritedAcceptanceSummary: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedAcceptanceSummary,
+  inheritedNoopDryRunSummary: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedNoopDryRunSummary,
+  inheritedResultLedgerSummary: z.object({
+    ledgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerStatusSchema,
+    dryRunStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema,
+    executionMode: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema,
+    acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema,
+    handoffStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffStatusSchema,
+    releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+    resultLedgerRowCount: z.number().int().nonnegative(),
+    resultLedgerRowRecordedCount: z.number().int().nonnegative(),
+    finalReadinessRowCount: z.number().int().nonnegative(),
+    finalReadinessReadyCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean(),
+    safeDigest: z.string().min(1)
+  }).strict(),
+  inheritedBlockingReasons: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedBlockingReasons,
+  inheritedExceptionRows: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.inheritedExceptionRows,
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.shape.counts.extend({
+    finalReadinessCertificateCheckedCount: z.number().int().nonnegative(),
+    finalReadinessCertificateMutationCount: z.number().int().nonnegative(),
+    certificateRowCount: z.number().int().nonnegative(),
+    certificateRowIssuedCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

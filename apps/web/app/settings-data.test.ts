@@ -27,6 +27,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerData,
+  loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData,
   runSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData,
@@ -107,6 +108,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger: vi.fn(),
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: vi.fn(),
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: vi.fn(),
@@ -180,6 +182,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord: api.getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket: api.getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger: api.getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate: api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -253,6 +256,7 @@ beforeEach(() => {
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord.mockReset();
   api.acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord.mockReset();
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger.mockReset();
+  api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate.mockReset();
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockReset();
   api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockReset();
@@ -964,6 +968,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseNoopExecutionDryRunResponse("not_started"));
     api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseNoopExecutionDryRunResponse("passed"));
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseDryRunResultLedgerResponse());
+    api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseFinalReadinessCertificateResponse());
 
     const filters = { provider: "line", eventType: "message.created" } as const;
     const finalization = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", filters);
@@ -997,6 +1002,7 @@ describe("settings API-mode data loaders", () => {
       executionMode: "no_op"
     });
     const resultLedger = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerData("api", filters);
+    const finalReadinessCertificate = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData("api", filters);
 
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters);
     expect(api.signOffProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters, {
@@ -1029,6 +1035,7 @@ describe("settings API-mode data loaders", () => {
       executionMode: "no_op"
     });
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate).toHaveBeenCalledWith(filters);
     expect(finalization.finalization).toMatchObject({
       finalizationStatus: "ready",
       retentionSignOffStatus: "not_signed",
@@ -1198,7 +1205,19 @@ describe("settings API-mode data loaders", () => {
     expect(resultLedger.resultLedger.resultLedgerRows.length).toBeGreaterThan(0);
     expect(resultLedger.resultLedger.finalReadinessRows.length).toBeGreaterThan(0);
     expect(resultLedger.resultLedger.counts.dryRunResultLedgerMutationCount).toBe(0);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(finalReadinessCertificate.finalReadinessCertificate).toMatchObject({
+      certificateKind: "qa-handoff-locked-archive-certified-release-final-readiness-certificate",
+      certificateStatus: "issued",
+      finalReadinessStatus: "ready",
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      releaseDecision: "go",
+      externalCalls: 0
+    });
+    expect(finalReadinessCertificate.finalReadinessCertificate.certificateRows.length).toBeGreaterThan(0);
+    expect(finalReadinessCertificate.finalReadinessCertificate.counts.finalReadinessCertificateMutationCount).toBe(0);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger, finalReadinessCertificate })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("does not fallback to mock archive finalization or retention sign-off when API mode fails", async () => {
@@ -1219,6 +1238,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockRejectedValueOnce(new Error("API request failed (503): certified release no-op dry-run unavailable"));
     api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockRejectedValueOnce(new Error("API request failed (503): certified release no-op dry-run run unavailable"));
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger.mockRejectedValueOnce(new Error("API request failed (503): certified release dry-run result ledger unavailable"));
+    api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate.mockRejectedValueOnce(new Error("API request failed (503): certified release final readiness certificate unavailable"));
 
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", { provider: "line" }))
       .rejects.toThrow("archive finalization unavailable");
@@ -1258,6 +1278,8 @@ describe("settings API-mode data loaders", () => {
     })).rejects.toThrow("certified release no-op dry-run run unavailable");
     await expect(loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerData("api", { provider: "line" }))
       .rejects.toThrow("certified release dry-run result ledger unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData("api", { provider: "line" }))
+      .rejects.toThrow("certified release final readiness certificate unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -4800,6 +4822,104 @@ function providerWebhookArchiveCertifiedReleaseDryRunResultLedgerResponse() {
       finalReadinessReadyCount: finalReadinessRows.length
     },
     externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveCertifiedReleaseFinalReadinessCertificateResponse() {
+  const resultLedger = providerWebhookArchiveCertifiedReleaseDryRunResultLedgerResponse();
+  const certificateRows = [
+    providerWebhookCertifiedReleaseFinalReadinessCertificateRow("dryrun_result_ledger", "Dry-run result ledger recorded", resultLedger.dryRunResultLedgerDigest, resultLedger.counts.dryRunResultLedgerCheckedCount),
+    providerWebhookCertifiedReleaseFinalReadinessCertificateRow("dryrun_passed", "Dry-run passed", resultLedger.noopExecutionDryRunDigest, 1),
+    providerWebhookCertifiedReleaseFinalReadinessCertificateRow("external_calls_zero", "External calls zero", resultLedger.dryRunResultLedgerDigest, resultLedger.externalCalls)
+  ];
+  return {
+    certificateKind: "qa-handoff-locked-archive-certified-release-final-readiness-certificate",
+    certificateStatus: "issued",
+    finalReadinessStatus: "ready",
+    ledgerStatus: resultLedger.ledgerStatus,
+    dryRunStatus: resultLedger.dryRunStatus,
+    executionMode: resultLedger.executionMode,
+    acceptanceStatus: resultLedger.acceptanceStatus,
+    handoffStatus: resultLedger.handoffStatus,
+    releaseDecision: resultLedger.releaseDecision,
+    packetStatus: resultLedger.packetStatus,
+    receiptStatus: resultLedger.receiptStatus,
+    gateStatus: resultLedger.gateStatus,
+    goNoGoDecision: resultLedger.goNoGoDecision,
+    releaseReadinessStatus: resultLedger.releaseReadinessStatus,
+    reconciliationStatus: resultLedger.reconciliationStatus,
+    attestationStatus: resultLedger.attestationStatus,
+    ledgerStatusFromClosure: resultLedger.ledgerStatusFromClosure,
+    certificationStatus: resultLedger.certificationStatus,
+    verificationStatus: resultLedger.verificationStatus,
+    digestChainStatus: resultLedger.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-final-readiness-certificate.json",
+    safeDigest: "sha256:safeqahandoffcertifiedreleasefinalreadinesscertificate",
+    finalReadinessCertificateDigest: "sha256:safeqahandoffcertifiedreleasefinalreadinesscertificate",
+    dryRunResultLedgerDigest: resultLedger.dryRunResultLedgerDigest,
+    noopExecutionDryRunDigest: resultLedger.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: resultLedger.acceptanceRecordDigest,
+    handoffPacketDigest: resultLedger.handoffPacketDigest,
+    decisionReceiptDigest: resultLedger.decisionReceiptDigest,
+    releaseGateDigest: resultLedger.releaseGateDigest,
+    reconciliationDigest: resultLedger.reconciliationDigest,
+    attestationAuditDigest: resultLedger.attestationAuditDigest,
+    closureLedgerDigest: resultLedger.closureLedgerDigest,
+    certificationDigest: resultLedger.certificationDigest,
+    verificationDigest: resultLedger.verificationDigest,
+    releaseEvidenceDigest: resultLedger.releaseEvidenceDigest,
+    operatorChecklist: resultLedger.operatorChecklist,
+    acknowledgedChecklist: resultLedger.acknowledgedChecklist,
+    executionChecklist: resultLedger.executionChecklist,
+    dryRunRows: resultLedger.dryRunRows,
+    executionPlanRows: resultLedger.executionPlanRows,
+    resultLedgerRows: resultLedger.resultLedgerRows,
+    finalReadinessRows: resultLedger.finalReadinessRows,
+    certificateRows,
+    releaseOwnerSummary: resultLedger.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: resultLedger.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: resultLedger.inheritedCertificationChecklist,
+    inheritedGateChecklist: resultLedger.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: resultLedger.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: resultLedger.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: resultLedger.inheritedAcceptanceSummary,
+    inheritedNoopDryRunSummary: resultLedger.inheritedNoopDryRunSummary,
+    inheritedResultLedgerSummary: {
+      ledgerStatus: resultLedger.ledgerStatus,
+      dryRunStatus: resultLedger.dryRunStatus,
+      executionMode: resultLedger.executionMode,
+      acceptanceStatus: resultLedger.acceptanceStatus,
+      handoffStatus: resultLedger.handoffStatus,
+      releaseDecision: resultLedger.releaseDecision,
+      resultLedgerRowCount: resultLedger.counts.resultLedgerRowCount,
+      resultLedgerRowRecordedCount: resultLedger.counts.resultLedgerRowRecordedCount,
+      finalReadinessRowCount: resultLedger.counts.finalReadinessRowCount,
+      finalReadinessReadyCount: resultLedger.counts.finalReadinessReadyCount,
+      externalCallsZero: true,
+      safeDigest: resultLedger.safeDigest
+    },
+    inheritedBlockingReasons: resultLedger.inheritedBlockingReasons,
+    inheritedExceptionRows: resultLedger.inheritedExceptionRows,
+    counts: {
+      ...resultLedger.counts,
+      finalReadinessCertificateCheckedCount: 1,
+      finalReadinessCertificateMutationCount: 0,
+      certificateRowCount: certificateRows.length,
+      certificateRowIssuedCount: certificateRows.length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCertifiedReleaseFinalReadinessCertificateRow(key: string, label: string, safeDigest: string, checkedCount: number) {
+  return {
+    key,
+    label,
+    certificateStatus: "issued",
+    finalReadinessStatus: "ready",
+    safeDigest,
+    checkedCount,
+    complete: true
   };
 }
 
