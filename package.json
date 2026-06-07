@@ -93,6 +93,7 @@
     "smoke:sprint84": "node scripts/smoke-sprint84-provider-webhook-review-qa-archive-release-certification-receipt.mjs",
     "smoke:sprint85": "node scripts/smoke-sprint85-provider-webhook-review-qa-archive-certified-release-closure-ledger.mjs",
     "smoke:sprint86": "node scripts/smoke-sprint86-provider-webhook-review-qa-archive-certified-release-attestation-audit.mjs",
+    "smoke:sprint87": "node scripts/smoke-sprint87-provider-webhook-review-qa-archive-certified-release-attestation-reconciliation.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

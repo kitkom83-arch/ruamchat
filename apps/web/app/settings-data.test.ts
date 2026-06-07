@@ -20,6 +20,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseEvidenceData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData,
+  loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseVerificationData,
   loadSettingsProviderWebhookReviewQaHandoffRetentionAuditData,
@@ -91,6 +92,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit: vi.fn(),
+  getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: vi.fn(),
   signOffProviderWebhookReviewQaHandoffBundleReceipt: vi.fn(),
@@ -155,6 +157,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewQaHandoffArchiveReleaseEvidence: api.getProviderWebhookReviewQaHandoffArchiveReleaseEvidence,
   getProviderWebhookReviewQaHandoffArchiveReleaseCertification: api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification,
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit: api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit,
+  getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation: api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification: api.getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
   signOffProviderWebhookReviewQaHandoffBundleReceipt: api.signOffProviderWebhookReviewQaHandoffBundleReceipt,
@@ -907,6 +910,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockResolvedValueOnce(providerWebhookArchiveReleaseCertificationResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockResolvedValueOnce(providerWebhookArchiveReleaseClosureLedgerResponse());
     api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit.mockResolvedValueOnce(providerWebhookArchiveReleaseAttestationAuditResponse());
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation.mockResolvedValueOnce(providerWebhookArchiveReleaseAttestationReconciliationResponse());
 
     const filters = { provider: "line", eventType: "message.created" } as const;
     const finalization = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", filters);
@@ -920,6 +924,7 @@ describe("settings API-mode data loaders", () => {
     const releaseCertification = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseCertificationData("api", filters);
     const closureLedger = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData("api", filters);
     const attestationAudit = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData("api", filters);
+    const reconciliation = await loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData("api", filters);
 
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters);
     expect(api.signOffProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters, {
@@ -932,6 +937,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation).toHaveBeenCalledWith(filters);
     expect(finalization.finalization).toMatchObject({
       finalizationStatus: "ready",
       retentionSignOffStatus: "not_signed",
@@ -1001,7 +1007,21 @@ describe("settings API-mode data loaders", () => {
     });
     expect(attestationAudit.attestationAudit.attestationRows).toHaveLength(7);
     expect(attestationAudit.attestationAudit.counts.attestationAuditCheckedCount).toBe(1);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(reconciliation.reconciliation).toMatchObject({
+      reconciliationKind: "qa-handoff-locked-archive-release-attestation-reconciliation-register",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      attestationAuditDigest: attestationAudit.attestationAudit.safeDigest,
+      externalCalls: 0
+    });
+    expect(reconciliation.reconciliation.reconciliationRows).toHaveLength(8);
+    expect(reconciliation.reconciliation.counts.reconciliationCheckedCount).toBe(1);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("does not fallback to mock archive finalization or retention sign-off when API mode fails", async () => {
@@ -1013,6 +1033,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffArchiveReleaseCertification.mockRejectedValueOnce(new Error("API request failed (503): release certification unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockRejectedValueOnce(new Error("API request failed (503): release closure ledger unavailable"));
     api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit.mockRejectedValueOnce(new Error("API request failed (503): release attestation audit unavailable"));
+    api.getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation.mockRejectedValueOnce(new Error("API request failed (503): release attestation reconciliation unavailable"));
 
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", { provider: "line" }))
       .rejects.toThrow("archive finalization unavailable");
@@ -1030,6 +1051,8 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("release closure ledger unavailable");
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationAuditData("api", { provider: "line" }))
       .rejects.toThrow("release attestation audit unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliationData("api", { provider: "line" }))
+      .rejects.toThrow("release attestation reconciliation unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -3881,6 +3904,85 @@ function providerWebhookReleaseClosureLedgerRow(key: string, label: string, ledg
     safeDigest,
     checkedCount,
     complete: true
+  };
+}
+
+function providerWebhookArchiveReleaseAttestationReconciliationResponse() {
+  const attestationAudit = providerWebhookArchiveReleaseAttestationAuditResponse();
+  const reconciliationRows = [
+    providerWebhookReleaseAttestationReconciliationRow("release_evidence_digest", "Release evidence digest", "verified", attestationAudit.releaseEvidenceDigest, attestationAudit.counts.releaseEvidenceCheckedCount),
+    providerWebhookReleaseAttestationReconciliationRow("release_verification_digest", "Release verification digest", "verified", attestationAudit.releaseVerificationDigest, attestationAudit.counts.releaseVerificationCheckedCount),
+    providerWebhookReleaseAttestationReconciliationRow("release_certification_digest", "Release certification digest", "verified", attestationAudit.releaseCertificationDigest, attestationAudit.counts.releaseCertificationCheckedCount),
+    providerWebhookReleaseAttestationReconciliationRow("closure_ledger_digest", "Closure ledger digest", "aligned", attestationAudit.closureLedgerDigest, attestationAudit.counts.closureLedgerCheckedCount),
+    providerWebhookReleaseAttestationReconciliationRow("attestation_audit_digest", "Attestation audit digest", "attested", attestationAudit.safeDigest, attestationAudit.counts.attestationAuditCheckedCount),
+    providerWebhookReleaseAttestationReconciliationRow("prerequisite_checklist", "Prerequisite checklist", "complete", attestationAudit.closureLedgerDigest, attestationAudit.counts.prerequisitePassedCount),
+    providerWebhookReleaseAttestationReconciliationRow("certification_checklist", "Certification checklist", "complete", attestationAudit.closureLedgerDigest, attestationAudit.counts.certificationChecklistPassedCount),
+    providerWebhookReleaseAttestationReconciliationRow("external_calls", "External calls", "attested", attestationAudit.safeDigest, attestationAudit.externalCalls)
+  ];
+  return {
+    reconciliationKind: "qa-handoff-locked-archive-release-attestation-reconciliation-register",
+    reconciliationStatus: "aligned",
+    attestationStatus: "complete",
+    ledgerStatus: "certified_release_closed",
+    certificationStatus: "certified",
+    releaseReadinessStatus: "ready_for_release",
+    verificationStatus: "verified",
+    digestChainStatus: "confirmed",
+    safeFilename: "provider-webhook-review-qa-handoff-archive-release-attestation-reconciliation.json",
+    safeDigest: "sha256:safeqahandoffarchivereleaseattestationreconciliation",
+    releaseEvidenceDigest: attestationAudit.releaseEvidenceDigest,
+    verificationDigest: attestationAudit.releaseVerificationDigest,
+    certificationDigest: attestationAudit.releaseCertificationDigest,
+    closureLedgerDigest: attestationAudit.closureLedgerDigest,
+    attestationAuditDigest: attestationAudit.safeDigest,
+    reconciliationDigest: "sha256:safeqahandoffarchivereleaseattestationreconciliation",
+    reconciliationRows,
+    exceptionRows: [],
+    inheritedPrerequisiteChecklist: attestationAudit.prerequisiteChecklist,
+    inheritedCertificationChecklist: attestationAudit.certificationChecklist,
+    reconciliationSummary: {
+      reconciliationRowCount: reconciliationRows.length,
+      alignedRowCount: reconciliationRows.length,
+      exceptionRowCount: 0,
+      attestationAuditComplete: true,
+      closureLedgerClosed: true,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      allDigestsLinked: true,
+      externalCallsZero: true
+    },
+    counts: {
+      totalItems: attestationAudit.counts.totalItems,
+      releaseEvidenceCheckedCount: attestationAudit.counts.releaseEvidenceCheckedCount,
+      releaseVerificationCheckedCount: attestationAudit.counts.releaseVerificationCheckedCount,
+      releaseCertificationCheckedCount: attestationAudit.counts.releaseCertificationCheckedCount,
+      closureLedgerCheckedCount: attestationAudit.counts.closureLedgerCheckedCount,
+      attestationAuditCheckedCount: attestationAudit.counts.attestationAuditCheckedCount,
+      reconciliationCheckedCount: 1,
+      prerequisitePassedCount: attestationAudit.counts.prerequisitePassedCount,
+      prerequisiteTotalCount: attestationAudit.counts.prerequisiteTotalCount,
+      certificationChecklistPassedCount: attestationAudit.counts.certificationChecklistPassedCount,
+      certificationChecklistTotalCount: attestationAudit.counts.certificationChecklistTotalCount,
+      ledgerRowCount: attestationAudit.counts.ledgerRowCount,
+      ledgerClosedRowCount: attestationAudit.counts.ledgerClosedRowCount,
+      attestationRowCount: attestationAudit.counts.attestationRowCount,
+      attestationAttestedRowCount: attestationAudit.counts.attestationAttestedRowCount,
+      reconciliationRowCount: reconciliationRows.length,
+      reconciliationAlignedRowCount: reconciliationRows.length,
+      reconciliationExceptionRowCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReleaseAttestationReconciliationRow(key: string, label: string, reconciliationStatus: string, safeDigest: string, checkedCount: number) {
+  return {
+    key,
+    label,
+    reconciliationStatus,
+    safeDigest,
+    checkedCount,
+    aligned: true
   };
 }
 

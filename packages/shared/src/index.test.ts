@@ -56,6 +56,7 @@ import {
   providerWebhookReviewQaHandoffReleaseEvidenceSchema,
   providerWebhookReviewQaHandoffReleaseCertificationSchema,
   providerWebhookReviewQaHandoffReleaseAttestationAuditSchema,
+  providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -597,6 +598,69 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const releaseAttestationReconciliation = providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({
+      reconciliationKind: "qa-handoff-locked-archive-release-attestation-reconciliation-register",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-archive-release-attestation-reconciliation.json",
+      safeDigest: "sha256:releaseattestationreconciliation",
+      releaseEvidenceDigest: releaseAttestationAudit.releaseEvidenceDigest,
+      verificationDigest: releaseAttestationAudit.releaseVerificationDigest,
+      certificationDigest: releaseAttestationAudit.releaseCertificationDigest,
+      closureLedgerDigest: releaseAttestationAudit.closureLedgerDigest,
+      attestationAuditDigest: releaseAttestationAudit.safeDigest,
+      reconciliationDigest: "sha256:releaseattestationreconciliation",
+      reconciliationRows: [
+        { key: "release_evidence_digest", label: "Release evidence digest", reconciliationStatus: "verified", safeDigest: releaseAttestationAudit.releaseEvidenceDigest, checkedCount: 1, aligned: true },
+        { key: "release_verification_digest", label: "Release verification digest", reconciliationStatus: "verified", safeDigest: releaseAttestationAudit.releaseVerificationDigest, checkedCount: 1, aligned: true },
+        { key: "release_certification_digest", label: "Release certification digest", reconciliationStatus: "verified", safeDigest: releaseAttestationAudit.releaseCertificationDigest, checkedCount: 1, aligned: true },
+        { key: "closure_ledger_digest", label: "Closure ledger digest", reconciliationStatus: "aligned", safeDigest: releaseAttestationAudit.closureLedgerDigest, checkedCount: 1, aligned: true },
+        { key: "attestation_audit_digest", label: "Attestation audit digest", reconciliationStatus: "attested", safeDigest: releaseAttestationAudit.safeDigest, checkedCount: 1, aligned: true },
+        { key: "prerequisite_checklist", label: "Prerequisite checklist", reconciliationStatus: "complete", safeDigest: releaseAttestationAudit.closureLedgerDigest, checkedCount: 16, aligned: true },
+        { key: "certification_checklist", label: "Certification checklist", reconciliationStatus: "complete", safeDigest: releaseAttestationAudit.closureLedgerDigest, checkedCount: 13, aligned: true },
+        { key: "external_calls", label: "External calls", reconciliationStatus: "attested", safeDigest: releaseAttestationAudit.safeDigest, checkedCount: 0, aligned: true }
+      ],
+      exceptionRows: [],
+      inheritedPrerequisiteChecklist: releaseAttestationAudit.prerequisiteChecklist,
+      inheritedCertificationChecklist: releaseAttestationAudit.certificationChecklist,
+      reconciliationSummary: {
+        reconciliationRowCount: 8,
+        alignedRowCount: 8,
+        exceptionRowCount: 0,
+        attestationAuditComplete: true,
+        closureLedgerClosed: true,
+        prerequisiteChecklistComplete: true,
+        certificationChecklistComplete: true,
+        allDigestsLinked: true,
+        externalCallsZero: true
+      },
+      counts: {
+        totalItems: releaseAttestationAudit.counts.totalItems,
+        releaseEvidenceCheckedCount: 1,
+        releaseVerificationCheckedCount: 1,
+        releaseCertificationCheckedCount: 1,
+        closureLedgerCheckedCount: 1,
+        attestationAuditCheckedCount: 1,
+        reconciliationCheckedCount: 1,
+        prerequisitePassedCount: 16,
+        prerequisiteTotalCount: 16,
+        certificationChecklistPassedCount: 13,
+        certificationChecklistTotalCount: 13,
+        ledgerRowCount: 5,
+        ledgerClosedRowCount: 5,
+        attestationRowCount: 7,
+        attestationAttestedRowCount: 7,
+        reconciliationRowCount: 8,
+        reconciliationAlignedRowCount: 8,
+        reconciliationExceptionRowCount: 0
+      },
+      externalCalls: 0
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -621,6 +685,12 @@ describe("shared contracts", () => {
     expect(releaseAttestationAudit.attestationRows).toHaveLength(7);
     expect(releaseAttestationAudit.attestationSummary.externalCallsZero).toBe(true);
     expect(releaseAttestationAudit.externalCalls).toBe(0);
+    expect(releaseAttestationReconciliation.reconciliationStatus).toBe("aligned");
+    expect(releaseAttestationReconciliation.attestationAuditDigest).toBe(releaseAttestationAudit.safeDigest);
+    expect(releaseAttestationReconciliation.reconciliationRows).toHaveLength(8);
+    expect(releaseAttestationReconciliation.exceptionRows).toHaveLength(0);
+    expect(releaseAttestationReconciliation.reconciliationSummary.externalCallsZero).toBe(true);
+    expect(releaseAttestationReconciliation.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -634,12 +704,25 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffReleaseClosureLedgerSchema.parse({ ...releaseClosureLedger, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationAuditSchema.parse({ ...releaseAttestationAudit, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationAuditSchema.parse({ ...releaseAttestationAudit, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, signature: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, authorization: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, cookie: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, senderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, roomId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, providerMaterial: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, rawBody: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, headers: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseCertificationSchema.parse({ ...releaseCertification, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseClosureLedgerSchema.parse({ ...releaseClosureLedger, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseAttestationAuditSchema.parse({ ...releaseAttestationAudit, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema.parse({ ...releaseAttestationReconciliation, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {
