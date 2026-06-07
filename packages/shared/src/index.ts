@@ -3958,6 +3958,110 @@ export const providerWebhookReviewQaHandoffReleaseAttestationAuditSchema = z.obj
 }).strict();
 export type ProviderWebhookReviewQaHandoffReleaseAttestationAudit = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationAuditSchema>;
 
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowKeySchema = z.enum([
+  "release_evidence_digest",
+  "release_verification_digest",
+  "release_certification_digest",
+  "closure_ledger_digest",
+  "attestation_audit_digest",
+  "prerequisite_checklist",
+  "certification_checklist",
+  "external_calls"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRowKey = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowKeySchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowStatusSchema = z.enum([
+  "aligned",
+  "verified",
+  "complete",
+  "attested"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRowStatus = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowStatusSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowSchema = z.object({
+  key: providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowKeySchema,
+  label: z.string().min(1),
+  reconciliationStatus: providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  aligned: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRow = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionCodeSchema = z.enum([
+  "prerequisite_gap",
+  "certification_gap",
+  "attestation_gap",
+  "digest_gap",
+  "external_calls_gap"
+]);
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionCode = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionCodeSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionSchema = z.object({
+  code: providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionCodeSchema,
+  label: z.string().min(1),
+  status: z.literal("safe_exception"),
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative()
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationException = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionSchema>;
+
+export const providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema = z.object({
+  reconciliationKind: z.literal("qa-handoff-locked-archive-release-attestation-reconciliation-register"),
+  reconciliationStatus: z.literal("aligned"),
+  attestationStatus: z.literal("complete"),
+  ledgerStatus: z.literal("certified_release_closed"),
+  certificationStatus: z.literal("certified"),
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  reconciliationRows: z.array(providerWebhookReviewQaHandoffReleaseAttestationReconciliationRowSchema).min(1),
+  exceptionRows: z.array(providerWebhookReviewQaHandoffReleaseAttestationReconciliationExceptionSchema),
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffReleaseEvidenceSchema.shape.prerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffReleaseCertificationSchema.shape.certificationChecklist,
+  reconciliationSummary: z.object({
+    reconciliationRowCount: z.number().int().nonnegative(),
+    alignedRowCount: z.number().int().nonnegative(),
+    exceptionRowCount: z.number().int().nonnegative(),
+    attestationAuditComplete: z.boolean(),
+    closureLedgerClosed: z.boolean(),
+    prerequisiteChecklistComplete: z.boolean(),
+    certificationChecklistComplete: z.boolean(),
+    allDigestsLinked: z.boolean(),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: z.object({
+    totalItems: z.number().int().nonnegative(),
+    releaseEvidenceCheckedCount: z.number().int().nonnegative(),
+    releaseVerificationCheckedCount: z.number().int().nonnegative(),
+    releaseCertificationCheckedCount: z.number().int().nonnegative(),
+    closureLedgerCheckedCount: z.number().int().nonnegative(),
+    attestationAuditCheckedCount: z.number().int().nonnegative(),
+    reconciliationCheckedCount: z.number().int().nonnegative(),
+    prerequisitePassedCount: z.number().int().nonnegative(),
+    prerequisiteTotalCount: z.number().int().nonnegative(),
+    certificationChecklistPassedCount: z.number().int().nonnegative(),
+    certificationChecklistTotalCount: z.number().int().nonnegative(),
+    ledgerRowCount: z.number().int().nonnegative(),
+    ledgerClosedRowCount: z.number().int().nonnegative(),
+    attestationRowCount: z.number().int().nonnegative(),
+    attestationAttestedRowCount: z.number().int().nonnegative(),
+    reconciliationRowCount: z.number().int().nonnegative(),
+    reconciliationAlignedRowCount: z.number().int().nonnegative(),
+    reconciliationExceptionRowCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister = z.infer<typeof providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

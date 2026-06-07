@@ -25,6 +25,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.listEvents(undefined)).toThrow(BadRequestException);
     expect(() => controller.createSandboxEvent("", undefined, safePayload())).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationAudit(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationReconciliation(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2496,6 +2497,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("locked archive export is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationAudit(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationReconciliation(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2515,6 +2518,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("finalization sign-off is required before release evidence");
     expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationAudit(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffArchiveReleaseAttestationReconciliation(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
@@ -2526,9 +2531,10 @@ describe("ProviderWebhooksController sandbox events", () => {
     const releaseCertification = controller.getReviewQaHandoffArchiveReleaseCertification(tenantId, filters, "operator-current");
     const closureLedger = controller.getReviewQaHandoffArchiveReleaseClosureLedger(tenantId, filters, "operator-current");
     const attestationAudit = controller.getReviewQaHandoffArchiveReleaseAttestationAudit(tenantId, filters, "operator-current");
+    const reconciliation = controller.getReviewQaHandoffArchiveReleaseAttestationReconciliation(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2725,6 +2731,49 @@ describe("ProviderWebhooksController sandbox events", () => {
     });
     expect(attestationAudit.counts.attestationAuditCheckedCount).toBe(1);
     expect(attestationAudit.counts.attestationNeedsReviewRowCount).toBe(0);
+    expect(reconciliation).toMatchObject({
+      reconciliationKind: "qa-handoff-locked-archive-release-attestation-reconciliation-register",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      releaseReadinessStatus: "ready_for_release",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      releaseEvidenceDigest: releaseEvidence.safeDigest,
+      verificationDigest: releaseVerification.safeDigest,
+      certificationDigest: releaseCertification.safeDigest,
+      closureLedgerDigest: closureLedger.safeDigest,
+      attestationAuditDigest: attestationAudit.safeDigest,
+      externalCalls: 0
+    });
+    expect(reconciliation.safeFilename).toBe("provider-webhook-review-qa-handoff-archive-release-attestation-reconciliation.json");
+    expect(reconciliation.safeDigest).toMatch(/^sha256:/);
+    expect(reconciliation.reconciliationDigest).toBe(reconciliation.safeDigest);
+    expect(reconciliation.reconciliationRows.map((row) => row.key)).toEqual([
+      "release_evidence_digest",
+      "release_verification_digest",
+      "release_certification_digest",
+      "closure_ledger_digest",
+      "attestation_audit_digest",
+      "prerequisite_checklist",
+      "certification_checklist",
+      "external_calls"
+    ]);
+    expect(reconciliation.exceptionRows).toHaveLength(0);
+    expect(reconciliation.reconciliationSummary).toMatchObject({
+      reconciliationRowCount: 8,
+      alignedRowCount: 8,
+      exceptionRowCount: 0,
+      attestationAuditComplete: true,
+      closureLedgerClosed: true,
+      prerequisiteChecklistComplete: true,
+      certificationChecklistComplete: true,
+      allDigestsLinked: true,
+      externalCallsZero: true
+    });
+    expect(reconciliation.counts.reconciliationCheckedCount).toBe(1);
+    expect(reconciliation.counts.reconciliationExceptionRowCount).toBe(0);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,
