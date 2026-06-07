@@ -59,6 +59,7 @@ import {
   providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
@@ -897,6 +898,92 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseHandoffAcceptanceRecord = providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({
+      acceptanceKind: "qa-handoff-locked-archive-certified-release-handoff-acceptance-record",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-handoff-acceptance-record.json",
+      safeDigest: "sha256:certifiedreleasehandoffacceptance",
+      acceptanceRecordDigest: "sha256:certifiedreleasehandoffacceptance",
+      handoffPacketDigest: certifiedReleaseHandoffPacket.handoffPacketDigest,
+      decisionReceiptDigest: certifiedReleaseHandoffPacket.decisionReceiptDigest,
+      releaseGateDigest: certifiedReleaseHandoffPacket.releaseGateDigest,
+      reconciliationDigest: certifiedReleaseHandoffPacket.reconciliationDigest,
+      attestationAuditDigest: certifiedReleaseHandoffPacket.attestationAuditDigest,
+      closureLedgerDigest: certifiedReleaseHandoffPacket.closureLedgerDigest,
+      certificationDigest: certifiedReleaseHandoffPacket.certificationDigest,
+      verificationDigest: certifiedReleaseHandoffPacket.verificationDigest,
+      releaseEvidenceDigest: certifiedReleaseHandoffPacket.releaseEvidenceDigest,
+      operatorChecklist: certifiedReleaseHandoffPacket.operatorChecklist,
+      acknowledgedChecklist: certifiedReleaseHandoffPacket.operatorChecklist.map((item) => ({
+        key: item.key,
+        label: item.label,
+        acknowledgementStatus: "acknowledged" as const,
+        safeDigest: item.safeDigest,
+        acknowledged: true
+      })),
+      acknowledgementRows: [
+        { key: "handoff_packet", label: "Handoff packet", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 1, complete: true },
+        { key: "operator_checklist", label: "Operator checklist", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 7, complete: true },
+        { key: "release_owner", label: "Release owner acknowledgement", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 1, complete: true },
+        { key: "external_calls", label: "External calls", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 0, complete: true },
+        { key: "safe_source_material", label: "Sensitive source material", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 1, complete: true },
+        { key: "blocking_reasons", label: "Blocking reasons", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest, checkedCount: 0, complete: true },
+        { key: "exceptions", label: "Exception rows", acknowledgementStatus: "acknowledged", safeDigest: certifiedReleaseHandoffPacket.reconciliationDigest, checkedCount: 0, complete: true }
+      ],
+      releaseOwnerSummary: {
+        ownerRole: "release owner",
+        acknowledgedByRole: "release owner",
+        acknowledgedByLabel: "safe release owner",
+        handoffReady: true,
+        releaseDecisionGo: true,
+        operatorChecklistAcknowledged: true,
+        blockingReasonCount: 0,
+        exceptionRowCount: 0,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseHandoffPacket.handoffPacketDigest
+      },
+      inheritedPrerequisiteChecklist: certifiedReleaseHandoffPacket.inheritedPrerequisiteChecklist,
+      inheritedCertificationChecklist: certifiedReleaseHandoffPacket.inheritedCertificationChecklist,
+      inheritedGateChecklist: certifiedReleaseHandoffPacket.inheritedGateChecklist,
+      inheritedDecisionReceiptSummary: certifiedReleaseHandoffPacket.inheritedDecisionReceiptSummary,
+      inheritedHandoffPacketSummary: {
+        packetStatus: "issued",
+        handoffStatus: "ready",
+        releaseDecision: "go",
+        handoffRowCount: 16,
+        handoffRowCompleteCount: 16,
+        runbookRowCount: 6,
+        runbookRowReadyCount: 6,
+        operatorChecklistItemCount: 7,
+        operatorChecklistCompleteCount: 7,
+        externalCallsZero: true
+      },
+      inheritedBlockingReasons: certifiedReleaseHandoffPacket.inheritedBlockingReasons,
+      inheritedExceptionRows: certifiedReleaseHandoffPacket.inheritedExceptionRows,
+      counts: {
+        ...certifiedReleaseHandoffPacket.counts,
+        acceptanceRecordCheckedCount: 1,
+        acceptanceRecordMutationCount: 1,
+        acknowledgedChecklistItemCount: 7,
+        acknowledgedChecklistCompleteCount: 7,
+        acknowledgementRowCount: 7,
+        acknowledgementRowCompleteCount: 7
+      },
+      externalCalls: 0
+    });
 
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
@@ -948,6 +1035,15 @@ describe("shared contracts", () => {
     expect(certifiedReleaseHandoffPacket.operatorChecklist).toHaveLength(7);
     expect(certifiedReleaseHandoffPacket.releaseOwnerSummary.externalCallsZero).toBe(true);
     expect(certifiedReleaseHandoffPacket.externalCalls).toBe(0);
+    expect(certifiedReleaseHandoffAcceptanceRecord.acceptanceStatus).toBe("acknowledged");
+    expect(certifiedReleaseHandoffAcceptanceRecord.handoffStatus).toBe("ready");
+    expect(certifiedReleaseHandoffAcceptanceRecord.releaseDecision).toBe("go");
+    expect(certifiedReleaseHandoffAcceptanceRecord.handoffPacketDigest).toBe(certifiedReleaseHandoffPacket.handoffPacketDigest);
+    expect(certifiedReleaseHandoffAcceptanceRecord.acknowledgedChecklist).toHaveLength(7);
+    expect(certifiedReleaseHandoffAcceptanceRecord.acknowledgementRows).toHaveLength(7);
+    expect(certifiedReleaseHandoffAcceptanceRecord.inheritedHandoffPacketSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseHandoffAcceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged).toBe(true);
+    expect(certifiedReleaseHandoffAcceptanceRecord.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -1009,6 +1105,18 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema.parse({ ...certifiedReleaseHandoffPacket, rawBody: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema.parse({ ...certifiedReleaseHandoffPacket, headers: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema.parse({ ...certifiedReleaseHandoffPacket, stack: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, signature: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, authorization: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, cookie: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, senderId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, roomId: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, providerMaterial: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, rawBody: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, headers: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -1019,6 +1127,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGateSchema.parse({ ...certifiedReleaseGate, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema.parse({ ...certifiedReleaseDecisionReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema.parse({ ...certifiedReleaseHandoffPacket, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema.parse({ ...certifiedReleaseHandoffAcceptanceRecord, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {
