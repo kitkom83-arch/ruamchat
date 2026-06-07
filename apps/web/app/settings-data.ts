@@ -35,6 +35,8 @@ import type {
   ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
   ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -113,6 +115,8 @@ import {
   getProviderWebhookReviewQaHandoffArchiveReleaseAttestationReconciliation,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord,
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
   getProviderWebhookReviewQaHandoffArchiveReleaseVerification,
@@ -327,6 +331,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceip
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData = {
   mode: DataMode;
   handoffPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData = {
+  mode: DataMode;
+  acceptanceRecord: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -991,6 +1000,41 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     handoffPacket: createMockReviewQaHandoffCertifiedReleaseHandoffPacket(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData> {
+  if (mode === "api") {
+    return {
+      mode,
+      acceptanceRecord: await getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters)
+    };
+  }
+
+  return {
+    mode,
+    acceptanceRecord: createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters, null)
+  };
+}
+
+export async function acknowledgeSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {},
+  payload: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordData> {
+  if (mode === "api") {
+    return {
+      mode,
+      acceptanceRecord: await acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters, payload)
+    };
+  }
+
+  return {
+    mode,
+    acceptanceRecord: createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(filters, payload)
   };
 }
 
@@ -3495,6 +3539,197 @@ function mockCertifiedReleaseOperatorChecklistItem(
   };
 }
 
+function createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(
+  filters: ProviderWebhookReviewClosureReportFilters,
+  payload: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest | null
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord {
+  const handoffPacket = createMockReviewQaHandoffCertifiedReleaseHandoffPacket(filters);
+  const packetReady = mockCertifiedReleaseHandoffPacketReady(handoffPacket);
+  let record = mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords.find((candidate) =>
+    candidate.handoffPacketDigest === handoffPacket.handoffPacketDigest
+  ) ?? null;
+  if (payload && packetReady) {
+    const acknowledgedChecklistKeys = Array.from(new Set(payload.acknowledgedChecklistKeys));
+    record = {
+      id: record?.id ?? `provider-webhook-qa-handoff-certified-release-handoff-acceptance-local-${mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords.length + 1}`,
+      handoffPacketDigest: handoffPacket.handoffPacketDigest,
+      decisionReceiptDigest: handoffPacket.decisionReceiptDigest,
+      releaseGateDigest: handoffPacket.releaseGateDigest,
+      safeDigest: `sha256:mockqahandoffcertifiedreleasehandoffacceptance-${safeDigest([handoffPacket.handoffPacketDigest, acknowledgedChecklistKeys.join(","), payload.acknowledgedByRole ?? "", payload.acknowledgedByLabel ?? ""].join(":"))}`,
+      acknowledgedChecklistKeys,
+      acknowledgedByRole: safeMockReason(payload.acknowledgedByRole) ?? "release owner",
+      acknowledgedByLabel: safeMockReason(payload.acknowledgedByLabel) ?? "safe release owner",
+      acknowledgedAt: new Date().toISOString()
+    };
+    const existingIndex = mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords.findIndex((candidate) => candidate.id === record?.id);
+    if (existingIndex >= 0) mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords.splice(existingIndex, 1);
+    mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords.unshift(record);
+  }
+  return mockCertifiedReleaseHandoffAcceptanceRecordResponse(handoffPacket, record);
+}
+
+function mockCertifiedReleaseHandoffPacketReady(
+  handoffPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket
+) {
+  return handoffPacket.packetStatus === "issued" &&
+    handoffPacket.handoffStatus === "ready" &&
+    handoffPacket.releaseDecision === "go" &&
+    handoffPacket.receiptStatus === "issued" &&
+    handoffPacket.gateStatus === "ready" &&
+    handoffPacket.goNoGoDecision === "go" &&
+    handoffPacket.counts.blockingReasonCount === 0 &&
+    handoffPacket.counts.exceptionRowCount === 0 &&
+    handoffPacket.externalCalls === 0;
+}
+
+function mockCertifiedReleaseHandoffAcceptanceRecordResponse(
+  handoffPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  record: typeof mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords[number] | null
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord {
+  const packetReady = mockCertifiedReleaseHandoffPacketReady(handoffPacket);
+  const acknowledgedKeys = new Set(record?.acknowledgedChecklistKeys ?? []);
+  const acknowledgedChecklist = handoffPacket.operatorChecklist.map((item) =>
+    mockCertifiedReleaseHandoffAcknowledgedChecklistItem(item, acknowledgedKeys.has(item.key), packetReady)
+  );
+  const acknowledgedChecklistCompleteCount = acknowledgedChecklist.filter((item) => item.acknowledged).length;
+  const operatorChecklistAcknowledged = packetReady &&
+    acknowledgedChecklist.length > 0 &&
+    acknowledgedChecklistCompleteCount === acknowledgedChecklist.length;
+  const acknowledgementRows = mockCertifiedReleaseHandoffAcknowledgementRows(handoffPacket, record, operatorChecklistAcknowledged, packetReady);
+  const acknowledgementRowCompleteCount = acknowledgementRows.filter((row) => row.complete).length;
+  const acceptanceStatus = !packetReady
+    ? "blocked"
+    : operatorChecklistAcknowledged
+      ? "acknowledged"
+      : record
+        ? "incomplete"
+        : "not_started";
+  const safeDigestValue = record?.safeDigest ?? `sha256:mockqahandoffcertifiedreleasehandoffacceptance-${safeDigest(`${handoffPacket.handoffPacketDigest}:${acceptanceStatus}`)}`;
+  return {
+    acceptanceKind: "qa-handoff-locked-archive-certified-release-handoff-acceptance-record",
+    acceptanceStatus,
+    handoffStatus: handoffPacket.handoffStatus,
+    releaseDecision: handoffPacket.releaseDecision,
+    packetStatus: handoffPacket.packetStatus,
+    receiptStatus: handoffPacket.receiptStatus,
+    gateStatus: handoffPacket.gateStatus,
+    goNoGoDecision: handoffPacket.goNoGoDecision,
+    releaseReadinessStatus: handoffPacket.releaseReadinessStatus,
+    reconciliationStatus: handoffPacket.reconciliationStatus,
+    attestationStatus: handoffPacket.attestationStatus,
+    ledgerStatus: handoffPacket.ledgerStatus,
+    certificationStatus: handoffPacket.certificationStatus,
+    verificationStatus: handoffPacket.verificationStatus,
+    digestChainStatus: handoffPacket.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-handoff-acceptance-record.json",
+    safeDigest: safeDigestValue,
+    acceptanceRecordDigest: safeDigestValue,
+    handoffPacketDigest: handoffPacket.handoffPacketDigest,
+    decisionReceiptDigest: handoffPacket.decisionReceiptDigest,
+    releaseGateDigest: handoffPacket.releaseGateDigest,
+    reconciliationDigest: handoffPacket.reconciliationDigest,
+    attestationAuditDigest: handoffPacket.attestationAuditDigest,
+    closureLedgerDigest: handoffPacket.closureLedgerDigest,
+    certificationDigest: handoffPacket.certificationDigest,
+    verificationDigest: handoffPacket.verificationDigest,
+    releaseEvidenceDigest: handoffPacket.releaseEvidenceDigest,
+    operatorChecklist: handoffPacket.operatorChecklist,
+    acknowledgedChecklist,
+    acknowledgementRows,
+    releaseOwnerSummary: {
+      ownerRole: handoffPacket.releaseOwnerSummary.ownerRole,
+      acknowledgedByRole: record?.acknowledgedByRole ?? null,
+      acknowledgedByLabel: record?.acknowledgedByLabel ?? null,
+      handoffReady: packetReady,
+      releaseDecisionGo: handoffPacket.releaseDecision === "go",
+      operatorChecklistAcknowledged,
+      blockingReasonCount: handoffPacket.counts.blockingReasonCount,
+      exceptionRowCount: handoffPacket.counts.exceptionRowCount,
+      externalCallsZero: handoffPacket.externalCalls === 0,
+      safeDigest: handoffPacket.handoffPacketDigest
+    },
+    inheritedPrerequisiteChecklist: handoffPacket.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: handoffPacket.inheritedCertificationChecklist,
+    inheritedGateChecklist: handoffPacket.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: handoffPacket.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: {
+      packetStatus: handoffPacket.packetStatus,
+      handoffStatus: handoffPacket.handoffStatus,
+      releaseDecision: handoffPacket.releaseDecision,
+      handoffRowCount: handoffPacket.counts.handoffRowCount,
+      handoffRowCompleteCount: handoffPacket.counts.handoffRowCompleteCount,
+      runbookRowCount: handoffPacket.counts.runbookRowCount,
+      runbookRowReadyCount: handoffPacket.counts.runbookRowReadyCount,
+      operatorChecklistItemCount: handoffPacket.counts.operatorChecklistItemCount,
+      operatorChecklistCompleteCount: handoffPacket.counts.operatorChecklistCompleteCount,
+      externalCallsZero: handoffPacket.externalCalls === 0
+    },
+    inheritedBlockingReasons: handoffPacket.inheritedBlockingReasons,
+    inheritedExceptionRows: handoffPacket.inheritedExceptionRows,
+    counts: {
+      ...handoffPacket.counts,
+      acceptanceRecordCheckedCount: 1,
+      acceptanceRecordMutationCount: record ? 1 : 0,
+      acknowledgedChecklistItemCount: acknowledgedChecklist.length,
+      acknowledgedChecklistCompleteCount,
+      acknowledgementRowCount: acknowledgementRows.length,
+      acknowledgementRowCompleteCount
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseHandoffAcknowledgedChecklistItem(
+  item: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket["operatorChecklist"][number],
+  acknowledgedByRecord: boolean,
+  packetReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord["acknowledgedChecklist"][number] {
+  const acknowledged = packetReady && item.complete && acknowledgedByRecord;
+  return {
+    key: item.key,
+    label: item.label,
+    acknowledgementStatus: acknowledged ? "acknowledged" : packetReady ? "pending" : "blocked",
+    safeDigest: item.safeDigest,
+    acknowledged
+  };
+}
+
+function mockCertifiedReleaseHandoffAcknowledgementRows(
+  handoffPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
+  record: typeof mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords[number] | null,
+  operatorChecklistAcknowledged: boolean,
+  packetReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord["acknowledgementRows"] {
+  const sourceMaterialClear = handoffPacket.operatorChecklist.some((item) => item.key === "source_material_absent" && item.complete);
+  return [
+    mockCertifiedReleaseHandoffAcknowledgementRow("handoff_packet", "Handoff packet", handoffPacket.handoffPacketDigest, handoffPacket.counts.handoffPacketCheckedCount, packetReady, packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("operator_checklist", "Operator checklist", handoffPacket.handoffPacketDigest, handoffPacket.counts.operatorChecklistItemCount, operatorChecklistAcknowledged, packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("release_owner", "Release owner acknowledgement", handoffPacket.handoffPacketDigest, record ? 1 : 0, Boolean(record?.acknowledgedByRole && record?.acknowledgedByLabel), packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("external_calls", "External calls", handoffPacket.handoffPacketDigest, handoffPacket.externalCalls, handoffPacket.externalCalls === 0, packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("safe_source_material", "Sensitive source material", handoffPacket.handoffPacketDigest, 1, sourceMaterialClear, packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("blocking_reasons", "Blocking reasons", handoffPacket.handoffPacketDigest, handoffPacket.counts.blockingReasonCount, handoffPacket.counts.blockingReasonCount === 0, packetReady),
+    mockCertifiedReleaseHandoffAcknowledgementRow("exceptions", "Exception rows", handoffPacket.reconciliationDigest, handoffPacket.counts.exceptionRowCount, handoffPacket.counts.exceptionRowCount === 0, packetReady)
+  ];
+}
+
+function mockCertifiedReleaseHandoffAcknowledgementRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord["acknowledgementRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  packetReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord["acknowledgementRows"][number] {
+  return {
+    key,
+    label,
+    acknowledgementStatus: complete ? "acknowledged" : packetReady ? "pending" : "blocked",
+    safeDigest,
+    checkedCount,
+    complete
+  };
+}
+
 function createMockReleaseAttestationAuditRow(
   key: ProviderWebhookReviewQaHandoffReleaseAttestationAudit["attestationRows"][number]["key"],
   label: string,
@@ -5078,6 +5313,18 @@ const mockProviderWebhookQaHandoffLockedArchiveExports: Array<{
   safeDigest: string;
   safeFilename: string;
   exportedAt: string;
+}> = [];
+
+const mockProviderWebhookQaHandoffCertifiedReleaseHandoffAcceptanceRecords: Array<{
+  id: string;
+  handoffPacketDigest: string;
+  decisionReceiptDigest: string;
+  releaseGateDigest: string;
+  safeDigest: string;
+  acknowledgedChecklistKeys: string[];
+  acknowledgedByRole: string | null;
+  acknowledgedByLabel: string | null;
+  acknowledgedAt: string;
 }> = [];
 
 export const mockProviderWebhookCandidatesByUnmatchedId: Record<string, ProviderWebhookCandidateConversation[]> = {

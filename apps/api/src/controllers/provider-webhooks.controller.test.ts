@@ -2507,6 +2507,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("locked archive export is required before release evidence");
     expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2534,6 +2536,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("finalization sign-off is required before release evidence");
     expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
       reviewerRole: "retention reviewer",
@@ -2549,9 +2553,20 @@ describe("ProviderWebhooksController sandbox events", () => {
     const releaseGate = controller.getReviewQaHandoffCertifiedReleaseGate(tenantId, filters, "operator-current");
     const decisionReceipt = controller.getReviewQaHandoffCertifiedReleaseDecisionReceipt(tenantId, filters, "operator-current");
     const handoffPacket = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
+    const initialAcceptanceRecord = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
+    const beforeAcceptancePost = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const acknowledgedAcceptanceRecord = controller.acknowledgeReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current", {
+      acknowledgementType: "operator_checklist_acknowledgement",
+      acknowledgedByRole: "release owner",
+      acknowledgedByLabel: "safe release owner",
+      acknowledgedChecklistKeys: handoffPacket.operatorChecklist.map((entry) => entry.key)
+    });
+    const acceptedReadback = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
+    const handoffPacketAfterAcceptance = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -2908,6 +2923,74 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(handoffPacket.counts.handoffRowCompleteCount).toBe(handoffPacket.counts.handoffRowCount);
     expect(handoffPacket.counts.runbookRowReadyCount).toBe(handoffPacket.counts.runbookRowCount);
     expect(handoffPacket.counts.operatorChecklistCompleteCount).toBe(handoffPacket.counts.operatorChecklistItemCount);
+    expect(initialAcceptanceRecord).toMatchObject({
+      acceptanceKind: "qa-handoff-locked-archive-certified-release-handoff-acceptance-record",
+      acceptanceStatus: "not_started",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      externalCalls: 0
+    });
+    expect(initialAcceptanceRecord.operatorChecklist).toHaveLength(handoffPacket.operatorChecklist.length);
+    expect(initialAcceptanceRecord.acknowledgedChecklist).toHaveLength(handoffPacket.operatorChecklist.length);
+    expect(initialAcceptanceRecord.acknowledgementRows.length).toBeGreaterThan(0);
+    expect(initialAcceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged).toBe(false);
+    expect(acknowledgedAcceptanceRecord).toMatchObject({
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      releaseReadinessStatus: "ready_for_release",
+      reconciliationStatus: "aligned",
+      attestationStatus: "complete",
+      ledgerStatus: "certified_release_closed",
+      certificationStatus: "certified",
+      verificationStatus: "verified",
+      digestChainStatus: "confirmed",
+      handoffPacketDigest: handoffPacket.handoffPacketDigest,
+      decisionReceiptDigest: decisionReceipt.decisionReceiptDigest,
+      releaseGateDigest: releaseGate.releaseGateDigest,
+      externalCalls: 0
+    });
+    expect(acknowledgedAcceptanceRecord.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-handoff-acceptance-record.json");
+    expect(acknowledgedAcceptanceRecord.safeDigest).toMatch(/^sha256:/);
+    expect(acknowledgedAcceptanceRecord.acceptanceRecordDigest).toBe(acknowledgedAcceptanceRecord.safeDigest);
+    expect(acknowledgedAcceptanceRecord.acknowledgedChecklist.every((entry) => entry.acknowledged)).toBe(true);
+    expect(acknowledgedAcceptanceRecord.acknowledgementRows.every((entry) => entry.complete)).toBe(true);
+    expect(acknowledgedAcceptanceRecord.inheritedHandoffPacketSummary).toMatchObject({
+      packetStatus: "issued",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      externalCallsZero: true
+    });
+    expect(acknowledgedAcceptanceRecord.releaseOwnerSummary).toMatchObject({
+      acknowledgedByRole: "release owner",
+      acknowledgedByLabel: "safe release owner",
+      handoffReady: true,
+      operatorChecklistAcknowledged: true,
+      externalCallsZero: true
+    });
+    expect(acknowledgedAcceptanceRecord.counts.acceptanceRecordMutationCount).toBe(1);
+    expect(acceptedReadback.acceptanceStatus).toBe("acknowledged");
+    expect(acceptedReadback.acceptanceRecordDigest).toBe(acknowledgedAcceptanceRecord.acceptanceRecordDigest);
+    expect(handoffPacketAfterAcceptance).toEqual(handoffPacket);
+    expect(after).toMatchObject({
+      reviewStatus: beforeAcceptancePost?.reviewStatus,
+      linkStatus: beforeAcceptancePost?.linkStatus,
+      unmatchedStatus: beforeAcceptancePost?.unmatchedStatus,
+      assignmentStatus: beforeAcceptancePost?.assignmentStatus,
+      escalationStatus: beforeAcceptancePost?.escalationStatus,
+      resolutionStatus: beforeAcceptancePost?.resolutionStatus,
+      messagePersisted: beforeAcceptancePost?.messagePersisted,
+      linkedConversationId: beforeAcceptancePost?.linkedConversationId,
+      linkedMessageId: beforeAcceptancePost?.linkedMessageId
+    });
     vi.spyOn(service, "getReviewQaHandoffArchiveReleaseAttestationReconciliation").mockReturnValueOnce({
       ...reconciliation,
       exceptionRows: [{
@@ -2960,6 +3043,20 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(blockedHandoffPacket.inheritedBlockingReasons.map((reason) => reason.code)).toContain("reconciliation_exception");
     expect(blockedHandoffPacket.releaseOwnerSummary.handoffReady).toBe(false);
     expect(JSON.stringify(blockedHandoffPacket)).not.toMatch(/rawPayload|rawSignature|senderId|roomId|replyToken|token|secret|authorization|cookie|providerRaw|payloadJson/i);
+    vi.spyOn(service, "getReviewQaHandoffCertifiedReleaseHandoffPacket").mockReturnValueOnce(blockedHandoffPacket);
+    const blockedAcceptanceRecord = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
+    expect(blockedAcceptanceRecord).toMatchObject({
+      acceptanceStatus: "blocked",
+      handoffStatus: "blocked",
+      releaseDecision: "no_go",
+      packetStatus: "blocked",
+      receiptStatus: "blocked",
+      gateStatus: "blocked",
+      goNoGoDecision: "no_go",
+      externalCalls: 0
+    });
+    expect(blockedAcceptanceRecord.releaseOwnerSummary.operatorChecklistAcknowledged).toBe(false);
+    expect(JSON.stringify(blockedAcceptanceRecord)).not.toMatch(/rawPayload|rawSignature|senderId|roomId|replyToken|token|secret|authorization|cookie|providerRaw|payloadJson/i);
     expect(after).toMatchObject({
       reviewStatus: before?.reviewStatus,
       linkStatus: before?.linkStatus,
