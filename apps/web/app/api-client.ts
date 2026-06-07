@@ -37,6 +37,7 @@ import {
   providerWebhookReviewQaHandoffReleaseAttestationReconciliationRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseGateSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
   providerWebhookReviewQaHandoffReleaseVerificationSchema,
   providerWebhookReviewQaHandoffRetentionAuditSchema,
@@ -253,6 +254,7 @@ import {
   type ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseGate,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffReleaseClosureLedger,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
   type ProviderWebhookReviewQaHandoffRetentionAudit,
@@ -686,6 +688,11 @@ export async function getProviderWebhookReviewQaHandoffCertifiedReleaseGate(filt
 export async function getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt${search}`, providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet${search}`, providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
