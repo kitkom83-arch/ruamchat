@@ -104,6 +104,7 @@
     "smoke:sprint96": "node scripts/smoke-sprint96-provider-webhook-review-qa-archive-certified-release-rollback-rehearsal-receipt.mjs",
     "smoke:sprint95": "node scripts/smoke-sprint95-provider-webhook-review-qa-archive-certified-release-freeze-audit-register.mjs",
     "smoke:sprint97": "node scripts/smoke-sprint97-provider-webhook-review-qa-archive-certified-release-control-room-packet.mjs",
+    "smoke:sprint98": "node scripts/smoke-sprint98-provider-webhook-review-qa-archive-certified-release-cutover-checklist-receipt.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

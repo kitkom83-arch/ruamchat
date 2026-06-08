@@ -65,6 +65,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -1499,6 +1500,79 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const { packetKind: _controlRoomPacketKind, safeFilename: _controlRoomSafeFilename, safeDigest: controlRoomSafeDigest, counts: controlRoomCounts, externalCalls: _controlRoomExternalCalls, ...certifiedReleaseCutoverChecklistBase } = certifiedReleaseControlRoomPacket;
+    const cutoverChecklistReceiptRow = (
+      key: "control_room_ready" | "cutover_readiness_ready" | "rollback_rehearsal_verified" | "recovery_readiness_ready" | "rollback_readiness_ready" | "freeze_audit_recorded" | "release_frozen" | "final_readiness_ready" | "ledger_recorded" | "dry_run_passed" | "no_op_execution" | "operator_checklist_complete" | "acknowledgement_complete" | "execution_checklist_complete" | "handoff_ready" | "operator_command_ready" | "release_decision_go" | "safe_digest_chain" | "no_state_mutation" | "external_calls_zero",
+      label: string,
+      safeDigest: string,
+      checkedCount: number
+    ) => ({
+      key,
+      label,
+      cutoverChecklistStatus: "verified" as const,
+      operatorCommandStatus: "ready" as const,
+      safeDigest,
+      checkedCount,
+      complete: true
+    });
+    const operatorCommandRows = [
+      cutoverChecklistReceiptRow("operator_checklist_complete", "Operator checklist complete", certifiedReleaseControlRoomPacket.handoffPacketDigest, certifiedReleaseControlRoomPacket.counts.operatorChecklistCompleteCount),
+      cutoverChecklistReceiptRow("acknowledgement_complete", "Acknowledged checklist complete", certifiedReleaseControlRoomPacket.acceptanceRecordDigest, certifiedReleaseControlRoomPacket.counts.acknowledgedChecklistCompleteCount),
+      cutoverChecklistReceiptRow("execution_checklist_complete", "Execution checklist complete", certifiedReleaseControlRoomPacket.noopExecutionDryRunDigest, certifiedReleaseControlRoomPacket.counts.executionChecklistCompleteCount),
+      cutoverChecklistReceiptRow("handoff_ready", "Certified release handoff ready", certifiedReleaseControlRoomPacket.handoffPacketDigest, 1),
+      cutoverChecklistReceiptRow("no_op_execution", "No-op execution mode enforced", certifiedReleaseControlRoomPacket.noopExecutionDryRunDigest, 1),
+      cutoverChecklistReceiptRow("operator_command_ready", "Safe operator command handoff ready", "sha256:certifiedreleasecutoverchecklistreceipt", 1)
+    ];
+    const safeCutoverChecklistRows = [
+      cutoverChecklistReceiptRow("control_room_ready", "Control room packet ready", certifiedReleaseControlRoomPacket.controlRoomPacketDigest, certifiedReleaseControlRoomPacket.counts.controlRoomReadyCount),
+      cutoverChecklistReceiptRow("cutover_readiness_ready", "Cutover readiness ready", certifiedReleaseControlRoomPacket.controlRoomPacketDigest, certifiedReleaseControlRoomPacket.counts.cutoverChecklistReadyCount),
+      cutoverChecklistReceiptRow("rollback_rehearsal_verified", "Rollback rehearsal receipt verified", certifiedReleaseControlRoomPacket.rollbackRehearsalReceiptDigest, certifiedReleaseControlRoomPacket.counts.rollbackRehearsalVerifiedCount),
+      cutoverChecklistReceiptRow("recovery_readiness_ready", "Recovery readiness ready", certifiedReleaseControlRoomPacket.rollbackRehearsalReceiptDigest, certifiedReleaseControlRoomPacket.counts.recoveryReadinessReadyCount),
+      cutoverChecklistReceiptRow("rollback_readiness_ready", "Rollback readiness ready", certifiedReleaseControlRoomPacket.freezeAuditRegisterDigest, certifiedReleaseControlRoomPacket.counts.rollbackReadinessReadyCount),
+      cutoverChecklistReceiptRow("freeze_audit_recorded", "Freeze audit register recorded", certifiedReleaseControlRoomPacket.freezeAuditRegisterDigest, certifiedReleaseControlRoomPacket.counts.freezeAuditRegisteredCount),
+      cutoverChecklistReceiptRow("release_frozen", "Certified release frozen", certifiedReleaseControlRoomPacket.freezeAuditRegisterDigest, 1),
+      cutoverChecklistReceiptRow("final_readiness_ready", "Final readiness certificate ready", certifiedReleaseControlRoomPacket.finalReadinessCertificateDigest, certifiedReleaseControlRoomPacket.counts.finalReadinessReadyCount),
+      cutoverChecklistReceiptRow("ledger_recorded", "Dry-run result ledger recorded", certifiedReleaseControlRoomPacket.dryRunResultLedgerDigest, certifiedReleaseControlRoomPacket.counts.resultLedgerRowRecordedCount),
+      cutoverChecklistReceiptRow("dry_run_passed", "No-op execution dry-run passed", certifiedReleaseControlRoomPacket.noopExecutionDryRunDigest, certifiedReleaseControlRoomPacket.counts.dryRunRowPassedCount),
+      cutoverChecklistReceiptRow("release_decision_go", "Release decision remains go", certifiedReleaseControlRoomPacket.decisionReceiptDigest, 1),
+      cutoverChecklistReceiptRow("safe_digest_chain", "Cutover checklist receipt safe digest chain", "sha256:certifiedreleasecutoverchecklistreceipt", 19),
+      cutoverChecklistReceiptRow("no_state_mutation", "No cutover checklist receipt state mutation", certifiedReleaseControlRoomPacket.controlRoomPacketDigest, 0),
+      cutoverChecklistReceiptRow("external_calls_zero", "External calls zero", certifiedReleaseControlRoomPacket.controlRoomPacketDigest, 0)
+    ];
+    const certifiedReleaseCutoverChecklistReceipt = providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({
+      receiptKind: "qa-handoff-locked-archive-certified-release-cutover-checklist-receipt",
+      cutoverChecklistStatus: "verified",
+      operatorCommandStatus: "ready",
+      ...certifiedReleaseCutoverChecklistBase,
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-cutover-checklist-receipt.json",
+      safeDigest: "sha256:certifiedreleasecutoverchecklistreceipt",
+      cutoverChecklistReceiptDigest: "sha256:certifiedreleasecutoverchecklistreceipt",
+      operatorCommandRows,
+      safeCutoverChecklistRows,
+      inheritedControlRoomSummary: {
+        controlRoomStatus: certifiedReleaseControlRoomPacket.controlRoomStatus,
+        cutoverReadinessStatus: certifiedReleaseControlRoomPacket.cutoverReadinessStatus,
+        controlRoomRowCount: certifiedReleaseControlRoomPacket.counts.controlRoomRowCount,
+        controlRoomReadyCount: certifiedReleaseControlRoomPacket.counts.controlRoomReadyCount,
+        cutoverChecklistRowCount: certifiedReleaseControlRoomPacket.counts.cutoverChecklistRowCount,
+        cutoverChecklistReadyCount: certifiedReleaseControlRoomPacket.counts.cutoverChecklistReadyCount,
+        operatorHandoffRowCount: certifiedReleaseControlRoomPacket.counts.operatorHandoffRowCount,
+        operatorHandoffReadyCount: certifiedReleaseControlRoomPacket.counts.operatorHandoffReadyCount,
+        controlRoomPacketMutationCount: certifiedReleaseControlRoomPacket.counts.controlRoomPacketMutationCount,
+        externalCallsZero: true,
+        safeDigest: controlRoomSafeDigest
+      },
+      counts: {
+        ...controlRoomCounts,
+        cutoverChecklistReceiptCheckedCount: 1,
+        cutoverChecklistReceiptMutationCount: 0,
+        operatorCommandRowCount: operatorCommandRows.length,
+        operatorCommandReadyCount: operatorCommandRows.length,
+        safeCutoverChecklistRowCount: safeCutoverChecklistRows.length,
+        safeCutoverChecklistReadyCount: safeCutoverChecklistRows.length
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -1612,6 +1686,15 @@ describe("shared contracts", () => {
     expect(certifiedReleaseControlRoomPacket.operatorHandoffRows.every((row) => row.complete && row.controlRoomStatus === "ready" && row.cutoverReadinessStatus === "ready")).toBe(true);
     expect(certifiedReleaseControlRoomPacket.counts.controlRoomPacketMutationCount).toBe(0);
     expect(certifiedReleaseControlRoomPacket.externalCalls).toBe(0);
+    expect(certifiedReleaseCutoverChecklistReceipt.cutoverChecklistStatus).toBe("verified");
+    expect(certifiedReleaseCutoverChecklistReceipt.operatorCommandStatus).toBe("ready");
+    expect(certifiedReleaseCutoverChecklistReceipt.controlRoomPacketDigest).toBe(certifiedReleaseControlRoomPacket.controlRoomPacketDigest);
+    expect(certifiedReleaseCutoverChecklistReceipt.cutoverChecklistReceiptDigest).toBe(certifiedReleaseCutoverChecklistReceipt.safeDigest);
+    expect(certifiedReleaseCutoverChecklistReceipt.inheritedControlRoomSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseCutoverChecklistReceipt.operatorCommandRows.every((row) => row.complete && row.cutoverChecklistStatus === "verified" && row.operatorCommandStatus === "ready")).toBe(true);
+    expect(certifiedReleaseCutoverChecklistReceipt.safeCutoverChecklistRows.every((row) => row.complete && row.cutoverChecklistStatus === "verified" && row.operatorCommandStatus === "ready")).toBe(true);
+    expect(certifiedReleaseCutoverChecklistReceipt.counts.cutoverChecklistReceiptMutationCount).toBe(0);
+    expect(certifiedReleaseCutoverChecklistReceipt.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -1719,6 +1802,8 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema.parse({ ...certifiedReleaseRollbackRehearsalReceipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema.parse({ ...certifiedReleaseControlRoomPacket, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema.parse({ ...certifiedReleaseControlRoomPacket, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -1736,6 +1821,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.parse({ ...certifiedReleaseFreezeAuditRegister, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema.parse({ ...certifiedReleaseRollbackRehearsalReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema.parse({ ...certifiedReleaseControlRoomPacket, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {
