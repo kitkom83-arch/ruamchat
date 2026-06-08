@@ -5032,6 +5032,144 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSc
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptStatusSchema = z.enum([
+  "pending",
+  "verified",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseRecoveryReadinessStatusSchema = z.enum([
+  "ready",
+  "not_ready",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseRecoveryReadinessStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseRecoveryReadinessStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema = z.object({
+  key: z.enum([
+    "freeze_audit_recorded",
+    "release_frozen",
+    "rollback_readiness_ready",
+    "certificate_issued",
+    "final_readiness_ready",
+    "dry_run_noop_passed",
+    "safe_digest_chain",
+    "rollback_rehearsal_noop",
+    "recovery_owner_confirmed",
+    "recovery_plan_ready",
+    "no_state_mutation",
+    "external_calls_zero"
+  ]),
+  label: z.string().min(1),
+  rollbackRehearsalStatus: providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptStatusSchema,
+  recoveryReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseRecoveryReadinessStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema = z.object({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-rollback-rehearsal-receipt"),
+  rollbackRehearsalStatus: providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptStatusSchema,
+  recoveryReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseRecoveryReadinessStatusSchema,
+  rollbackReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseRollbackReadinessStatusSchema,
+  freezeAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterStatusSchema,
+  freezeStatus: providerWebhookReviewQaHandoffCertifiedReleaseFreezeStatusSchema,
+  certificateStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema,
+  finalReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessStatusSchema,
+  ledgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerStatusSchema,
+  dryRunStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunStatusSchema,
+  executionMode: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionModeSchema,
+  acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema,
+  handoffStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffStatusSchema,
+  releaseDecision: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptDecisionSchema,
+  packetStatus: providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketStatusSchema,
+  receiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema,
+  gateStatus: providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema,
+  goNoGoDecision: providerWebhookReviewQaHandoffCertifiedReleaseGateDecisionSchema,
+  releaseReadinessStatus: providerWebhookReviewQaHandoffReleaseReadinessStatusSchema,
+  reconciliationStatus: z.enum(["complete", "aligned"]),
+  attestationStatus: z.literal("complete"),
+  ledgerStatusFromClosure: providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.shape.ledgerStatus,
+  certificationStatus: z.literal("certified"),
+  verificationStatus: z.literal("verified"),
+  digestChainStatus: z.literal("confirmed"),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  rollbackRehearsalReceiptDigest: z.string().min(1),
+  freezeAuditRegisterDigest: z.string().min(1),
+  finalReadinessCertificateDigest: z.string().min(1),
+  dryRunResultLedgerDigest: z.string().min(1),
+  noopExecutionDryRunDigest: z.string().min(1),
+  acceptanceRecordDigest: z.string().min(1),
+  handoffPacketDigest: z.string().min(1),
+  decisionReceiptDigest: z.string().min(1),
+  releaseGateDigest: z.string().min(1),
+  reconciliationDigest: z.string().min(1),
+  attestationAuditDigest: z.string().min(1),
+  closureLedgerDigest: z.string().min(1),
+  certificationDigest: z.string().min(1),
+  verificationDigest: z.string().min(1),
+  releaseEvidenceDigest: z.string().min(1),
+  operatorChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.operatorChecklist,
+  acknowledgedChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.acknowledgedChecklist,
+  executionChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.executionChecklist,
+  dryRunRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.dryRunRows,
+  executionPlanRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.executionPlanRows,
+  resultLedgerRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.resultLedgerRows,
+  finalReadinessRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.finalReadinessRows,
+  certificateRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.certificateRows,
+  freezeAuditRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.freezeAuditRows,
+  freezeSnapshotRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema).min(1),
+  rollbackReadinessRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema).min(1),
+  rollbackRehearsalRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema).min(1),
+  recoveryPlanRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema).min(1),
+  recoveryReadinessRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptRowSchema).min(1),
+  releaseOwnerSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.releaseOwnerSummary,
+  inheritedPrerequisiteChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedPrerequisiteChecklist,
+  inheritedCertificationChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedCertificationChecklist,
+  inheritedGateChecklist: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedGateChecklist,
+  inheritedDecisionReceiptSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedDecisionReceiptSummary,
+  inheritedHandoffPacketSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedHandoffPacketSummary,
+  inheritedAcceptanceSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedAcceptanceSummary,
+  inheritedNoopDryRunSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedNoopDryRunSummary,
+  inheritedResultLedgerSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedResultLedgerSummary,
+  inheritedFinalReadinessCertificateSummary: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedFinalReadinessCertificateSummary,
+  inheritedFreezeAuditSummary: z.object({
+    freezeAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterStatusSchema,
+    freezeStatus: providerWebhookReviewQaHandoffCertifiedReleaseFreezeStatusSchema,
+    rollbackReadinessStatus: providerWebhookReviewQaHandoffCertifiedReleaseRollbackReadinessStatusSchema,
+    freezeAuditRowCount: z.number().int().nonnegative(),
+    freezeAuditRegisteredCount: z.number().int().nonnegative(),
+    rollbackPlanRowCount: z.number().int().nonnegative(),
+    rollbackPlanReadyCount: z.number().int().nonnegative(),
+    freezeAuditRegisterMutationCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean(),
+    safeDigest: z.string().min(1)
+  }).strict(),
+  inheritedBlockingReasons: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedBlockingReasons,
+  inheritedExceptionRows: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.inheritedExceptionRows,
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.shape.counts.extend({
+    rollbackRehearsalReceiptCheckedCount: z.number().int().nonnegative(),
+    rollbackRehearsalReceiptMutationCount: z.number().int().nonnegative(),
+    freezeSnapshotRowCount: z.number().int().nonnegative(),
+    freezeSnapshotVerifiedCount: z.number().int().nonnegative(),
+    rollbackReadinessRowCount: z.number().int().nonnegative(),
+    rollbackReadinessReadyCount: z.number().int().nonnegative(),
+    rollbackRehearsalRowCount: z.number().int().nonnegative(),
+    rollbackRehearsalVerifiedCount: z.number().int().nonnegative(),
+    recoveryPlanRowCount: z.number().int().nonnegative(),
+    recoveryPlanReadyCount: z.number().int().nonnegative(),
+    recoveryReadinessRowCount: z.number().int().nonnegative(),
+    recoveryReadinessReadyCount: z.number().int().nonnegative()
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

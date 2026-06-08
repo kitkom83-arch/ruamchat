@@ -101,6 +101,7 @@
     "smoke:sprint92": "node scripts/smoke-sprint92-provider-webhook-review-qa-archive-certified-release-noop-execution-dryrun.mjs",
     "smoke:sprint93": "node scripts/smoke-sprint93-provider-webhook-review-qa-archive-certified-release-dryrun-result-ledger.mjs",
     "smoke:sprint94": "node scripts/smoke-sprint94-provider-webhook-review-qa-archive-certified-release-final-readiness-certificate.mjs",
+    "smoke:sprint96": "node scripts/smoke-sprint96-provider-webhook-review-qa-archive-certified-release-rollback-rehearsal-receipt.mjs",
     "smoke:sprint95": "node scripts/smoke-sprint95-provider-webhook-review-qa-archive-certified-release-freeze-audit-register.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },

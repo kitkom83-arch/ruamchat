@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -62,6 +62,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseDryRunResultLedger: providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger(),
       reviewQaHandoffCertifiedReleaseFinalReadinessCertificate: providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(),
       reviewQaHandoffCertifiedReleaseFreezeAuditRegister: providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister(),
+      reviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt: providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -321,6 +322,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Load certified release dry-run result ledger");
     expect(html).toContain("Load certified release final readiness certificate");
     expect(html).toContain("Load certified release freeze audit register");
+    expect(html).toContain("Load certified release rollback rehearsal receipt");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
     expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
@@ -366,6 +368,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("freezeAuditRows=5/5");
     expect(html).toContain("rollbackPlanRows=5/5");
     expect(html).toContain("freezeAuditRegisterMutationCount=0");
+    expect(html).toContain("QA archive certified release rollback rehearsal receipt: rollbackRehearsalStatus=verified; recoveryReadinessStatus=ready; rollbackReadinessStatus=ready; freezeAuditStatus=recorded; freezeStatus=frozen; certificateStatus=issued; finalReadinessStatus=ready; ledgerStatus=recorded; dryRunStatus=passed; executionMode=no_op");
+    expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-rollback-rehearsal-receipt.json");
+    expect(html).toContain("freezeSnapshotRows=3/3");
+    expect(html).toContain("rollbackReadinessRows=3/3");
+    expect(html).toContain("rollbackRehearsalRows=4/4");
+    expect(html).toContain("recoveryReadinessRows=3/3");
+    expect(html).toContain("rollbackRehearsalReceiptMutationCount=0");
     expect(html).toContain("QA archive integrity digest chain");
     expect(html).toContain("digestChainLinkCount=6");
     expect(html).toContain("QA retention audit checklist");
@@ -630,6 +639,9 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordLoading: false,
       reviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordAcknowledging: false,
       reviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordError: "QA Archive Certified Release Handoff Acceptance Record API error: Failed to fetch",
+      reviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt: null,
+      reviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptLoading: false,
+      reviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptError: "QA Archive Certified Release Rollback Rehearsal Receipt API error: Failed to fetch",
       reviewClosureReportRedactionAudit: null,
       reviewClosureReportRedactionAuditLoading: false,
       reviewClosureReportRedactionAuditError: "Closure Report Redaction Audit API error: Failed to fetch",
@@ -680,6 +692,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA Archive Certified Release Decision Receipt API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Handoff Packet API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Handoff Acceptance Record API error: Failed to fetch");
+    expect(html).toContain("QA Archive Certified Release Rollback Rehearsal Receipt API error: Failed to fetch");
     expect(html).toContain("Closure Report Redaction Audit API error: Failed to fetch");
     expect(html).toContain("Closure Export Integrity API error: Failed to fetch");
     expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
@@ -703,6 +716,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).not.toContain("QA archive certified release decision receipt: receiptStatus=");
     expect(html).not.toContain("QA archive certified release handoff packet: packetStatus=");
     expect(html).not.toContain("QA archive certified release handoff acceptance record: acceptanceStatus=");
+    expect(html).not.toContain("QA archive certified release rollback rehearsal receipt: rollbackRehearsalStatus=");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-bundle-export.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-locked-archive-integrity.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-retention-audit.json");
@@ -3154,6 +3168,136 @@ function providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister(): Pr
   };
 }
 
+function providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(): ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt {
+  const freezeAuditRegister = providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister();
+  const rollbackRehearsalReceiptDigest = "sha256:safeqahandoffcertifiedreleaserollbackrehearsalreceipt";
+  const freezeSnapshotRows: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["freezeSnapshotRows"] = [
+    providerWebhookRollbackRehearsalReceiptRow("freeze_audit_recorded", "Freeze audit register recorded", freezeAuditRegister.freezeAuditRegisterDigest, freezeAuditRegister.counts.freezeAuditRegisteredCount),
+    providerWebhookRollbackRehearsalReceiptRow("release_frozen", "Certified release freeze remains frozen", freezeAuditRegister.freezeAuditRegisterDigest, 1),
+    providerWebhookRollbackRehearsalReceiptRow("safe_digest_chain", "Freeze snapshot safe digest chain", rollbackRehearsalReceiptDigest, 17)
+  ];
+  const rollbackReadinessRows: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["rollbackReadinessRows"] = [
+    providerWebhookRollbackRehearsalReceiptRow("rollback_readiness_ready", "Rollback readiness status ready", freezeAuditRegister.freezeAuditRegisterDigest, freezeAuditRegister.counts.rollbackPlanReadyCount),
+    providerWebhookRollbackRehearsalReceiptRow("recovery_owner_confirmed", "Release owner recovery readiness confirmed", freezeAuditRegister.safeDigest, 1),
+    providerWebhookRollbackRehearsalReceiptRow("safe_digest_chain", "Rollback readiness safe digest chain", rollbackRehearsalReceiptDigest, 17)
+  ];
+  const rollbackRehearsalRows: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["rollbackRehearsalRows"] = [
+    providerWebhookRollbackRehearsalReceiptRow("dry_run_noop_passed", "No-op execution dry-run passed", freezeAuditRegister.noopExecutionDryRunDigest, freezeAuditRegister.counts.dryRunRowPassedCount),
+    providerWebhookRollbackRehearsalReceiptRow("rollback_rehearsal_noop", "Rollback rehearsal receipt is read-only no-op evidence", rollbackRehearsalReceiptDigest, 1),
+    providerWebhookRollbackRehearsalReceiptRow("no_state_mutation", "No rollback rehearsal receipt state mutation", freezeAuditRegister.freezeAuditRegisterDigest, 0),
+    providerWebhookRollbackRehearsalReceiptRow("external_calls_zero", "External calls zero", freezeAuditRegister.freezeAuditRegisterDigest, 0)
+  ];
+  const recoveryPlanRows: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["recoveryPlanRows"] = [
+    providerWebhookRollbackRehearsalReceiptRow("recovery_plan_ready", "Safe recovery plan ready", freezeAuditRegister.freezeAuditRegisterDigest, freezeAuditRegister.counts.rollbackPlanReadyCount),
+    providerWebhookRollbackRehearsalReceiptRow("certificate_issued", "Final readiness certificate issued", freezeAuditRegister.finalReadinessCertificateDigest, freezeAuditRegister.counts.certificateRowIssuedCount),
+    providerWebhookRollbackRehearsalReceiptRow("final_readiness_ready", "Final readiness remains ready", freezeAuditRegister.finalReadinessCertificateDigest, freezeAuditRegister.counts.finalReadinessReadyCount)
+  ];
+  const recoveryReadinessRows: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["recoveryReadinessRows"] = [
+    providerWebhookRollbackRehearsalReceiptRow("safe_digest_chain", "Recovery readiness safe digest chain", rollbackRehearsalReceiptDigest, 17),
+    providerWebhookRollbackRehearsalReceiptRow("no_state_mutation", "No recovery readiness state mutation", freezeAuditRegister.freezeAuditRegisterDigest, 0),
+    providerWebhookRollbackRehearsalReceiptRow("external_calls_zero", "External calls zero", freezeAuditRegister.freezeAuditRegisterDigest, 0)
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-rollback-rehearsal-receipt",
+    rollbackRehearsalStatus: "verified",
+    recoveryReadinessStatus: "ready",
+    rollbackReadinessStatus: freezeAuditRegister.rollbackReadinessStatus,
+    freezeAuditStatus: freezeAuditRegister.freezeAuditStatus,
+    freezeStatus: freezeAuditRegister.freezeStatus,
+    certificateStatus: freezeAuditRegister.certificateStatus,
+    finalReadinessStatus: freezeAuditRegister.finalReadinessStatus,
+    ledgerStatus: freezeAuditRegister.ledgerStatus,
+    dryRunStatus: freezeAuditRegister.dryRunStatus,
+    executionMode: freezeAuditRegister.executionMode,
+    acceptanceStatus: freezeAuditRegister.acceptanceStatus,
+    handoffStatus: freezeAuditRegister.handoffStatus,
+    releaseDecision: freezeAuditRegister.releaseDecision,
+    packetStatus: freezeAuditRegister.packetStatus,
+    receiptStatus: freezeAuditRegister.receiptStatus,
+    gateStatus: freezeAuditRegister.gateStatus,
+    goNoGoDecision: freezeAuditRegister.goNoGoDecision,
+    releaseReadinessStatus: freezeAuditRegister.releaseReadinessStatus,
+    reconciliationStatus: freezeAuditRegister.reconciliationStatus,
+    attestationStatus: freezeAuditRegister.attestationStatus,
+    ledgerStatusFromClosure: freezeAuditRegister.ledgerStatusFromClosure,
+    certificationStatus: freezeAuditRegister.certificationStatus,
+    verificationStatus: freezeAuditRegister.verificationStatus,
+    digestChainStatus: freezeAuditRegister.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-rollback-rehearsal-receipt.json",
+    safeDigest: rollbackRehearsalReceiptDigest,
+    rollbackRehearsalReceiptDigest,
+    freezeAuditRegisterDigest: freezeAuditRegister.freezeAuditRegisterDigest,
+    finalReadinessCertificateDigest: freezeAuditRegister.finalReadinessCertificateDigest,
+    dryRunResultLedgerDigest: freezeAuditRegister.dryRunResultLedgerDigest,
+    noopExecutionDryRunDigest: freezeAuditRegister.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: freezeAuditRegister.acceptanceRecordDigest,
+    handoffPacketDigest: freezeAuditRegister.handoffPacketDigest,
+    decisionReceiptDigest: freezeAuditRegister.decisionReceiptDigest,
+    releaseGateDigest: freezeAuditRegister.releaseGateDigest,
+    reconciliationDigest: freezeAuditRegister.reconciliationDigest,
+    attestationAuditDigest: freezeAuditRegister.attestationAuditDigest,
+    closureLedgerDigest: freezeAuditRegister.closureLedgerDigest,
+    certificationDigest: freezeAuditRegister.certificationDigest,
+    verificationDigest: freezeAuditRegister.verificationDigest,
+    releaseEvidenceDigest: freezeAuditRegister.releaseEvidenceDigest,
+    operatorChecklist: freezeAuditRegister.operatorChecklist,
+    acknowledgedChecklist: freezeAuditRegister.acknowledgedChecklist,
+    executionChecklist: freezeAuditRegister.executionChecklist,
+    dryRunRows: freezeAuditRegister.dryRunRows,
+    executionPlanRows: freezeAuditRegister.executionPlanRows,
+    resultLedgerRows: freezeAuditRegister.resultLedgerRows,
+    finalReadinessRows: freezeAuditRegister.finalReadinessRows,
+    certificateRows: freezeAuditRegister.certificateRows,
+    freezeAuditRows: freezeAuditRegister.freezeAuditRows,
+    freezeSnapshotRows,
+    rollbackReadinessRows,
+    rollbackRehearsalRows,
+    recoveryPlanRows,
+    recoveryReadinessRows,
+    releaseOwnerSummary: freezeAuditRegister.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: freezeAuditRegister.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: freezeAuditRegister.inheritedCertificationChecklist,
+    inheritedGateChecklist: freezeAuditRegister.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: freezeAuditRegister.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: freezeAuditRegister.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: freezeAuditRegister.inheritedAcceptanceSummary,
+    inheritedNoopDryRunSummary: freezeAuditRegister.inheritedNoopDryRunSummary,
+    inheritedResultLedgerSummary: freezeAuditRegister.inheritedResultLedgerSummary,
+    inheritedFinalReadinessCertificateSummary: freezeAuditRegister.inheritedFinalReadinessCertificateSummary,
+    inheritedFreezeAuditSummary: {
+      freezeAuditStatus: freezeAuditRegister.freezeAuditStatus,
+      freezeStatus: freezeAuditRegister.freezeStatus,
+      rollbackReadinessStatus: freezeAuditRegister.rollbackReadinessStatus,
+      freezeAuditRowCount: freezeAuditRegister.counts.freezeAuditRowCount,
+      freezeAuditRegisteredCount: freezeAuditRegister.counts.freezeAuditRegisteredCount,
+      rollbackPlanRowCount: freezeAuditRegister.counts.rollbackPlanRowCount,
+      rollbackPlanReadyCount: freezeAuditRegister.counts.rollbackPlanReadyCount,
+      freezeAuditRegisterMutationCount: freezeAuditRegister.counts.freezeAuditRegisterMutationCount,
+      externalCallsZero: true,
+      safeDigest: freezeAuditRegister.safeDigest
+    },
+    inheritedBlockingReasons: freezeAuditRegister.inheritedBlockingReasons,
+    inheritedExceptionRows: freezeAuditRegister.inheritedExceptionRows,
+    counts: {
+      ...freezeAuditRegister.counts,
+      rollbackRehearsalReceiptCheckedCount: 1,
+      rollbackRehearsalReceiptMutationCount: 0,
+      freezeSnapshotRowCount: freezeSnapshotRows.length,
+      freezeSnapshotVerifiedCount: freezeSnapshotRows.length,
+      rollbackReadinessRowCount: rollbackReadinessRows.length,
+      rollbackReadinessReadyCount: rollbackReadinessRows.length,
+      rollbackRehearsalRowCount: rollbackRehearsalRows.length,
+      rollbackRehearsalVerifiedCount: rollbackRehearsalRows.length,
+      recoveryPlanRowCount: recoveryPlanRows.length,
+      recoveryPlanReadyCount: recoveryPlanRows.length,
+      recoveryReadinessRowCount: recoveryReadinessRows.length,
+      recoveryReadinessReadyCount: recoveryReadinessRows.length
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookFreezeAuditRegisterRow(
   key: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"][number]["key"],
   label: string,
@@ -3161,6 +3305,15 @@ function providerWebhookFreezeAuditRegisterRow(
   checkedCount: number
 ): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"][number] {
   return { key, label, freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest, checkedCount, complete: true };
+}
+
+function providerWebhookRollbackRehearsalReceiptRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["rollbackRehearsalRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number
+): ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt["rollbackRehearsalRows"][number] {
+  return { key, label, rollbackRehearsalStatus: "verified", recoveryReadinessStatus: "ready", safeDigest, checkedCount, complete: true };
 }
 
 function providerWebhookFinalReadinessCertificateRow(
