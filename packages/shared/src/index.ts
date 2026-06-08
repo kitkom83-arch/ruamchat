@@ -5336,12 +5336,27 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceip
 ]);
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptStatusSchema = z.enum([
+  "pending",
+  "issued",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptStatusSchema>;
+
 export const providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema = z.enum([
   "ready",
   "not_ready",
   "incomplete"
 ]);
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema = z.enum([
+  "ready",
+  "not_ready",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema>;
 
 export const providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptRowSchema = z.object({
   key: z.enum([
@@ -5555,6 +5570,86 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceip
   }).strict()
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRowSchema = z.object({
+  key: z.enum([
+    "operator_command_receipt_issued",
+    "go_live_authorization_ready",
+    "cutover_checklist_verified",
+    "operator_command_ready",
+    "control_room_ready",
+    "cutover_readiness_ready",
+    "rollback_rehearsal_verified",
+    "recovery_readiness_ready",
+    "rollback_readiness_ready",
+    "freeze_audit_recorded",
+    "release_frozen",
+    "certificate_issued",
+    "final_readiness_ready",
+    "ledger_recorded",
+    "dry_run_passed",
+    "no_op_execution",
+    "acceptance_acknowledged",
+    "handoff_ready",
+    "release_decision_go",
+    "packet_issued",
+    "receipt_issued",
+    "gate_ready",
+    "go_no_go_go",
+    "operator_checklist_complete",
+    "acknowledgement_complete",
+    "execution_checklist_complete",
+    "launch_window_ready",
+    "safe_launch_window_ready",
+    "safe_digest_chain",
+    "no_state_mutation",
+    "external_calls_zero"
+  ]),
+  label: z.string().min(1),
+  goLiveAuthorizationReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptStatusSchema,
+  goLiveAuthorizationStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema,
+  launchWindowStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema,
+  safeLaunchWindowStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema,
+  operatorCommandReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema,
+  operatorCommandStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptSchema = providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.extend({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-go-live-authorization-receipt"),
+  goLiveAuthorizationReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptStatusSchema,
+  launchWindowStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema,
+  safeLaunchWindowStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowStatusSchema,
+  goLiveAuthorizationReceiptDigest: z.string().min(1),
+  goLiveAuthorizationReceiptRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRowSchema).min(1),
+  launchWindowRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRowSchema).min(1),
+  safeLaunchWindowRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptRowSchema).min(1),
+  inheritedOperatorCommandSummary: z.object({
+    operatorCommandReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema,
+    goLiveAuthorizationStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema,
+    operatorCommandReceiptCheckedCount: z.number().int().nonnegative(),
+    operatorCommandReceiptMutationCount: z.number().int().nonnegative(),
+    goLiveAuthorizationReadyCount: z.number().int().nonnegative(),
+    operatorCommandReceiptIssuedCount: z.number().int().nonnegative(),
+    commandHandoffReadyCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean(),
+    safeDigest: z.string().min(1)
+  }).strict(),
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.shape.counts.extend({
+    goLiveAuthorizationReceiptCheckedCount: z.number().int().nonnegative(),
+    goLiveAuthorizationReceiptMutationCount: z.number().int().nonnegative(),
+    goLiveAuthorizationReceiptRowCount: z.number().int().nonnegative(),
+    goLiveAuthorizationReceiptIssuedCount: z.number().int().nonnegative(),
+    launchWindowRowCount: z.number().int().nonnegative(),
+    launchWindowReadyCount: z.number().int().nonnegative(),
+    safeLaunchWindowRowCount: z.number().int().nonnegative(),
+    safeLaunchWindowReadyCount: z.number().int().nonnegative()
+  }).strict()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

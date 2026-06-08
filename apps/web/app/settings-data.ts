@@ -44,6 +44,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -134,6 +135,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket,
   getProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -394,6 +396,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseCutoverCheckli
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptData = {
   mode: DataMode;
   operatorCommandReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptData = {
+  mode: DataMode;
+  goLiveAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1247,6 +1254,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     operatorCommandReceipt: createMockReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      goLiveAuthorizationReceipt: await getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    goLiveAuthorizationReceipt: createMockReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt(filters)
   };
 }
 
@@ -5364,6 +5388,193 @@ function mockCertifiedReleaseOperatorCommandReceiptDigestLinksSafe(
     cutoverChecklistReceipt.verificationDigest,
     cutoverChecklistReceipt.releaseEvidenceDigest,
     cutoverChecklistReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
+}
+
+function createMockReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt {
+  const operatorCommandReceipt = createMockReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(filters);
+  const goLiveAuthorizationReceiptReady = mockCertifiedReleaseGoLiveAuthorizationReceiptReady(operatorCommandReceipt);
+  const goLiveAuthorizationReceiptStatus = mockCertifiedReleaseGoLiveAuthorizationReceiptStatus(operatorCommandReceipt, goLiveAuthorizationReceiptReady);
+  const launchWindowStatus = goLiveAuthorizationReceiptReady ? "ready" : goLiveAuthorizationReceiptStatus === "incomplete" ? "incomplete" : "not_ready";
+  const safeLaunchWindowStatus = launchWindowStatus;
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleasegoliveauthorizationreceipt-${safeDigest(`${operatorCommandReceipt.operatorCommandReceiptDigest}:${goLiveAuthorizationReceiptStatus}:${launchWindowStatus}`)}`;
+  const goLiveAuthorizationReceiptRows = mockCertifiedReleaseGoLiveAuthorizationReceiptRows([
+    ["operator_command_receipt_issued", "Operator command receipt issued", operatorCommandReceipt.operatorCommandReceiptDigest, operatorCommandReceipt.counts.operatorCommandReceiptCheckedCount, operatorCommandReceipt.operatorCommandReceiptStatus === "issued"],
+    ["go_live_authorization_ready", "Go-live authorization prerequisite ready", operatorCommandReceipt.operatorCommandReceiptDigest, operatorCommandReceipt.counts.goLiveAuthorizationReadyCount, operatorCommandReceipt.goLiveAuthorizationStatus === "ready"],
+    ["cutover_checklist_verified", "Cutover checklist receipt verified", operatorCommandReceipt.cutoverChecklistReceiptDigest, operatorCommandReceipt.counts.cutoverChecklistReceiptCheckedCount, operatorCommandReceipt.cutoverChecklistStatus === "verified"],
+    ["operator_command_ready", "Operator command remains ready", operatorCommandReceipt.cutoverChecklistReceiptDigest, operatorCommandReceipt.counts.operatorCommandReadyCount, operatorCommandReceipt.operatorCommandStatus === "ready"],
+    ["launch_window_ready", "Safe launch window ready", safeDigestValue, 1, launchWindowStatus === "ready"],
+    ["safe_launch_window_ready", "Safe launch window register ready", safeDigestValue, 1, safeLaunchWindowStatus === "ready"],
+    ["external_calls_zero", "External calls zero", operatorCommandReceipt.safeDigest, 0, operatorCommandReceipt.externalCalls === 0],
+    ["no_state_mutation", "No go-live authorization receipt state mutation", operatorCommandReceipt.safeDigest, 0, operatorCommandReceipt.counts.operatorCommandReceiptMutationCount === 0]
+  ], goLiveAuthorizationReceiptReady, goLiveAuthorizationReceiptStatus, operatorCommandReceipt.goLiveAuthorizationStatus, launchWindowStatus, safeLaunchWindowStatus, operatorCommandReceipt);
+  const launchWindowRows = mockCertifiedReleaseGoLiveAuthorizationReceiptRows([
+    ["control_room_ready", "Control room packet ready", operatorCommandReceipt.controlRoomPacketDigest, operatorCommandReceipt.counts.controlRoomReadyCount, operatorCommandReceipt.controlRoomStatus === "ready"],
+    ["cutover_readiness_ready", "Cutover readiness ready", operatorCommandReceipt.controlRoomPacketDigest, operatorCommandReceipt.counts.cutoverChecklistReadyCount, operatorCommandReceipt.cutoverReadinessStatus === "ready"],
+    ["rollback_rehearsal_verified", "Rollback rehearsal receipt verified", operatorCommandReceipt.rollbackRehearsalReceiptDigest, operatorCommandReceipt.counts.rollbackRehearsalVerifiedCount, operatorCommandReceipt.rollbackRehearsalStatus === "verified"],
+    ["recovery_readiness_ready", "Recovery readiness ready", operatorCommandReceipt.rollbackRehearsalReceiptDigest, operatorCommandReceipt.counts.recoveryReadinessReadyCount, operatorCommandReceipt.recoveryReadinessStatus === "ready"],
+    ["rollback_readiness_ready", "Rollback readiness ready", operatorCommandReceipt.freezeAuditRegisterDigest, operatorCommandReceipt.counts.rollbackReadinessReadyCount, operatorCommandReceipt.rollbackReadinessStatus === "ready"],
+    ["freeze_audit_recorded", "Freeze audit register recorded", operatorCommandReceipt.freezeAuditRegisterDigest, operatorCommandReceipt.counts.freezeAuditRegisteredCount, operatorCommandReceipt.freezeAuditStatus === "recorded"],
+    ["release_frozen", "Certified release frozen", operatorCommandReceipt.freezeAuditRegisterDigest, 1, operatorCommandReceipt.freezeStatus === "frozen"],
+    ["certificate_issued", "Final readiness certificate issued", operatorCommandReceipt.finalReadinessCertificateDigest, 1, operatorCommandReceipt.certificateStatus === "issued"],
+    ["final_readiness_ready", "Final readiness ready", operatorCommandReceipt.finalReadinessCertificateDigest, operatorCommandReceipt.counts.finalReadinessReadyCount, operatorCommandReceipt.finalReadinessStatus === "ready"],
+    ["ledger_recorded", "Dry-run result ledger recorded", operatorCommandReceipt.dryRunResultLedgerDigest, operatorCommandReceipt.counts.resultLedgerRowRecordedCount, operatorCommandReceipt.ledgerStatus === "recorded"],
+    ["dry_run_passed", "No-op execution dry-run passed", operatorCommandReceipt.noopExecutionDryRunDigest, operatorCommandReceipt.counts.dryRunRowPassedCount, operatorCommandReceipt.dryRunStatus === "passed"],
+    ["safe_digest_chain", "Go-live authorization receipt safe digest chain", safeDigestValue, 21, mockCertifiedReleaseGoLiveAuthorizationReceiptDigestLinksSafe(operatorCommandReceipt, safeDigestValue)]
+  ], goLiveAuthorizationReceiptReady, goLiveAuthorizationReceiptStatus, operatorCommandReceipt.goLiveAuthorizationStatus, launchWindowStatus, safeLaunchWindowStatus, operatorCommandReceipt);
+  const safeLaunchWindowRows = mockCertifiedReleaseGoLiveAuthorizationReceiptRows([
+    ["no_op_execution", "No-op execution mode enforced", operatorCommandReceipt.noopExecutionDryRunDigest, 1, operatorCommandReceipt.executionMode === "no_op"],
+    ["acceptance_acknowledged", "Acceptance record acknowledged", operatorCommandReceipt.acceptanceRecordDigest, operatorCommandReceipt.counts.acknowledgedChecklistCompleteCount, operatorCommandReceipt.acceptanceStatus === "acknowledged"],
+    ["handoff_ready", "Handoff packet ready", operatorCommandReceipt.handoffPacketDigest, 1, operatorCommandReceipt.handoffStatus === "ready"],
+    ["release_decision_go", "Release decision remains go", operatorCommandReceipt.decisionReceiptDigest, 1, operatorCommandReceipt.releaseDecision === "go"],
+    ["packet_issued", "Handoff packet issued", operatorCommandReceipt.handoffPacketDigest, 1, operatorCommandReceipt.packetStatus === "issued"],
+    ["receipt_issued", "Decision receipt issued", operatorCommandReceipt.decisionReceiptDigest, 1, operatorCommandReceipt.receiptStatus === "issued"],
+    ["gate_ready", "Certified release gate ready", operatorCommandReceipt.releaseGateDigest, 1, operatorCommandReceipt.gateStatus === "ready"],
+    ["go_no_go_go", "Go/no-go decision remains go", operatorCommandReceipt.releaseGateDigest, 1, operatorCommandReceipt.goNoGoDecision === "go"],
+    ["operator_checklist_complete", "Operator checklist complete", operatorCommandReceipt.handoffPacketDigest, operatorCommandReceipt.counts.operatorChecklistCompleteCount, operatorCommandReceipt.operatorChecklist.every((item) => item.complete)],
+    ["acknowledgement_complete", "Acknowledged checklist complete", operatorCommandReceipt.acceptanceRecordDigest, operatorCommandReceipt.counts.acknowledgedChecklistCompleteCount, operatorCommandReceipt.acknowledgedChecklist.every((item) => item.acknowledged)],
+    ["execution_checklist_complete", "Execution checklist complete", operatorCommandReceipt.noopExecutionDryRunDigest, operatorCommandReceipt.counts.executionChecklistCompleteCount, operatorCommandReceipt.executionChecklist.every((item) => item.complete)]
+  ], goLiveAuthorizationReceiptReady, goLiveAuthorizationReceiptStatus, operatorCommandReceipt.goLiveAuthorizationStatus, launchWindowStatus, safeLaunchWindowStatus, operatorCommandReceipt);
+
+  return {
+    ...operatorCommandReceipt,
+    receiptKind: "qa-handoff-locked-archive-certified-release-go-live-authorization-receipt",
+    goLiveAuthorizationReceiptStatus,
+    launchWindowStatus,
+    safeLaunchWindowStatus,
+    releaseDecision: goLiveAuthorizationReceiptReady ? operatorCommandReceipt.releaseDecision : "no_go",
+    goNoGoDecision: goLiveAuthorizationReceiptReady ? operatorCommandReceipt.goNoGoDecision : "no_go",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-go-live-authorization-receipt.json",
+    safeDigest: safeDigestValue,
+    goLiveAuthorizationReceiptDigest: safeDigestValue,
+    goLiveAuthorizationReceiptRows,
+    launchWindowRows,
+    safeLaunchWindowRows,
+    inheritedOperatorCommandSummary: {
+      operatorCommandReceiptStatus: operatorCommandReceipt.operatorCommandReceiptStatus,
+      goLiveAuthorizationStatus: operatorCommandReceipt.goLiveAuthorizationStatus,
+      operatorCommandReceiptCheckedCount: operatorCommandReceipt.counts.operatorCommandReceiptCheckedCount,
+      operatorCommandReceiptMutationCount: operatorCommandReceipt.counts.operatorCommandReceiptMutationCount,
+      goLiveAuthorizationReadyCount: operatorCommandReceipt.counts.goLiveAuthorizationReadyCount,
+      operatorCommandReceiptIssuedCount: operatorCommandReceipt.counts.operatorCommandReceiptIssuedCount,
+      commandHandoffReadyCount: operatorCommandReceipt.counts.commandHandoffReadyCount,
+      externalCallsZero: operatorCommandReceipt.externalCalls === 0,
+      safeDigest: operatorCommandReceipt.safeDigest
+    },
+    counts: {
+      ...operatorCommandReceipt.counts,
+      goLiveAuthorizationReceiptCheckedCount: 1,
+      goLiveAuthorizationReceiptMutationCount: 0,
+      goLiveAuthorizationReceiptRowCount: goLiveAuthorizationReceiptRows.length,
+      goLiveAuthorizationReceiptIssuedCount: goLiveAuthorizationReceiptRows.filter((row) => row.complete).length,
+      launchWindowRowCount: launchWindowRows.length,
+      launchWindowReadyCount: launchWindowRows.filter((row) => row.complete).length,
+      safeLaunchWindowRowCount: safeLaunchWindowRows.length,
+      safeLaunchWindowReadyCount: safeLaunchWindowRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseGoLiveAuthorizationReceiptReady(
+  operatorCommandReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt
+) {
+  return operatorCommandReceipt.operatorCommandReceiptStatus === "issued" &&
+    operatorCommandReceipt.goLiveAuthorizationStatus === "ready" &&
+    operatorCommandReceipt.cutoverChecklistStatus === "verified" &&
+    operatorCommandReceipt.operatorCommandStatus === "ready" &&
+    operatorCommandReceipt.controlRoomStatus === "ready" &&
+    operatorCommandReceipt.cutoverReadinessStatus === "ready" &&
+    operatorCommandReceipt.rollbackRehearsalStatus === "verified" &&
+    operatorCommandReceipt.recoveryReadinessStatus === "ready" &&
+    operatorCommandReceipt.rollbackReadinessStatus === "ready" &&
+    operatorCommandReceipt.freezeAuditStatus === "recorded" &&
+    operatorCommandReceipt.freezeStatus === "frozen" &&
+    operatorCommandReceipt.certificateStatus === "issued" &&
+    operatorCommandReceipt.finalReadinessStatus === "ready" &&
+    operatorCommandReceipt.ledgerStatus === "recorded" &&
+    operatorCommandReceipt.dryRunStatus === "passed" &&
+    operatorCommandReceipt.executionMode === "no_op" &&
+    operatorCommandReceipt.acceptanceStatus === "acknowledged" &&
+    operatorCommandReceipt.handoffStatus === "ready" &&
+    operatorCommandReceipt.releaseDecision === "go" &&
+    operatorCommandReceipt.goNoGoDecision === "go" &&
+    operatorCommandReceipt.packetStatus === "issued" &&
+    operatorCommandReceipt.receiptStatus === "issued" &&
+    operatorCommandReceipt.gateStatus === "ready" &&
+    operatorCommandReceipt.goLiveAuthorizationRows.every((row) => row.complete) &&
+    operatorCommandReceipt.operatorCommandReceiptRows.every((row) => row.complete) &&
+    operatorCommandReceipt.commandHandoffRows.every((row) => row.complete) &&
+    operatorCommandReceipt.counts.operatorCommandReceiptMutationCount === 0 &&
+    operatorCommandReceipt.externalCalls === 0;
+}
+
+function mockCertifiedReleaseGoLiveAuthorizationReceiptStatus(
+  operatorCommandReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
+  goLiveAuthorizationReceiptReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["goLiveAuthorizationReceiptStatus"] {
+  if (goLiveAuthorizationReceiptReady) return "issued";
+  if (operatorCommandReceipt.operatorCommandReceiptStatus === "blocked" || operatorCommandReceipt.releaseDecision !== "go" || operatorCommandReceipt.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function mockCertifiedReleaseGoLiveAuthorizationReceiptRows(
+  rows: Array<[
+    ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["goLiveAuthorizationReceiptRows"][number]["key"],
+    string,
+    string,
+    number,
+    boolean
+  ]>,
+  goLiveAuthorizationReceiptReady: boolean,
+  goLiveAuthorizationReceiptStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["goLiveAuthorizationReceiptStatus"],
+  goLiveAuthorizationStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["goLiveAuthorizationStatus"],
+  launchWindowStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["launchWindowStatus"],
+  safeLaunchWindowStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["safeLaunchWindowStatus"],
+  operatorCommandReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt["goLiveAuthorizationReceiptRows"] {
+  return rows.map(([key, label, rowDigest, checkedCount, complete]) => ({
+    key,
+    label,
+    goLiveAuthorizationReceiptStatus: complete && goLiveAuthorizationReceiptReady ? "issued" : goLiveAuthorizationReceiptStatus,
+    goLiveAuthorizationStatus: complete && goLiveAuthorizationReceiptReady ? "ready" : goLiveAuthorizationStatus,
+    launchWindowStatus: complete && goLiveAuthorizationReceiptReady ? "ready" : launchWindowStatus,
+    safeLaunchWindowStatus: complete && goLiveAuthorizationReceiptReady ? "ready" : safeLaunchWindowStatus,
+    operatorCommandReceiptStatus: complete && goLiveAuthorizationReceiptReady ? "issued" : operatorCommandReceipt.operatorCommandReceiptStatus,
+    operatorCommandStatus: complete && goLiveAuthorizationReceiptReady ? "ready" : operatorCommandReceipt.operatorCommandStatus,
+    safeDigest: rowDigest,
+    checkedCount,
+    complete: complete && goLiveAuthorizationReceiptReady
+  }));
+}
+
+function mockCertifiedReleaseGoLiveAuthorizationReceiptDigestLinksSafe(
+  operatorCommandReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
+  goLiveAuthorizationReceiptDigest: string
+) {
+  return [
+    goLiveAuthorizationReceiptDigest,
+    operatorCommandReceipt.operatorCommandReceiptDigest,
+    operatorCommandReceipt.cutoverChecklistReceiptDigest,
+    operatorCommandReceipt.controlRoomPacketDigest,
+    operatorCommandReceipt.rollbackRehearsalReceiptDigest,
+    operatorCommandReceipt.freezeAuditRegisterDigest,
+    operatorCommandReceipt.finalReadinessCertificateDigest,
+    operatorCommandReceipt.dryRunResultLedgerDigest,
+    operatorCommandReceipt.noopExecutionDryRunDigest,
+    operatorCommandReceipt.acceptanceRecordDigest,
+    operatorCommandReceipt.handoffPacketDigest,
+    operatorCommandReceipt.decisionReceiptDigest,
+    operatorCommandReceipt.releaseGateDigest,
+    operatorCommandReceipt.reconciliationDigest,
+    operatorCommandReceipt.attestationAuditDigest,
+    operatorCommandReceipt.closureLedgerDigest,
+    operatorCommandReceipt.certificationDigest,
+    operatorCommandReceipt.verificationDigest,
+    operatorCommandReceipt.releaseEvidenceDigest,
+    operatorCommandReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 
