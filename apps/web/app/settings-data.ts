@@ -39,6 +39,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
   ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
   ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -124,6 +125,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -359,6 +361,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLe
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData = {
   mode: DataMode;
   finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterData = {
+  mode: DataMode;
+  freezeAuditRegister: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1127,6 +1134,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     finalReadinessCertificate: createMockReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterData> {
+  if (mode === "api") {
+    return {
+      mode,
+      freezeAuditRegister: await getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister(filters)
+    };
+  }
+
+  return {
+    mode,
+    freezeAuditRegister: createMockReviewQaHandoffCertifiedReleaseFreezeAuditRegister(filters)
   };
 }
 
@@ -4480,6 +4504,212 @@ function mockCertifiedReleaseFinalReadinessDigestLinksSafe(
     resultLedger.certificationDigest,
     resultLedger.verificationDigest,
     resultLedger.releaseEvidenceDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
+}
+
+function createMockReviewQaHandoffCertifiedReleaseFreezeAuditRegister(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister {
+  const finalReadinessCertificate = createMockReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(filters);
+  const freezeReady = mockCertifiedReleaseFreezeAuditRegisterReady(finalReadinessCertificate);
+  const freezeAuditStatus = mockCertifiedReleaseFreezeAuditRegisterStatus(finalReadinessCertificate, freezeReady);
+  const rollbackReadinessStatus = mockCertifiedReleaseRollbackReadinessStatus(finalReadinessCertificate, freezeReady);
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleasefreezeauditregister-${safeDigest(`${finalReadinessCertificate.finalReadinessCertificateDigest}:${freezeAuditStatus}:${rollbackReadinessStatus}`)}`;
+  const rollbackReadinessPlanDigest = `sha256:mockqahandoffcertifiedreleaserollbackreadinessplan-${safeDigest(`${finalReadinessCertificate.finalReadinessCertificateDigest}:${safeDigestValue}`)}`;
+  const freezeAuditRows = mockCertifiedReleaseFreezeAuditRows(finalReadinessCertificate, freezeReady, freezeAuditStatus, rollbackReadinessStatus, safeDigestValue, rollbackReadinessPlanDigest);
+  const rollbackPlanRows = mockCertifiedReleaseRollbackPlanRows(finalReadinessCertificate, freezeReady, freezeAuditStatus, rollbackReadinessStatus, safeDigestValue, rollbackReadinessPlanDigest);
+  return {
+    registerKind: "qa-handoff-locked-archive-certified-release-freeze-audit-register",
+    freezeAuditStatus,
+    freezeStatus: "frozen",
+    rollbackReadinessStatus,
+    certificateStatus: finalReadinessCertificate.certificateStatus,
+    finalReadinessStatus: finalReadinessCertificate.finalReadinessStatus,
+    ledgerStatus: finalReadinessCertificate.ledgerStatus,
+    dryRunStatus: finalReadinessCertificate.dryRunStatus,
+    executionMode: finalReadinessCertificate.executionMode,
+    acceptanceStatus: finalReadinessCertificate.acceptanceStatus,
+    handoffStatus: finalReadinessCertificate.handoffStatus,
+    releaseDecision: finalReadinessCertificate.releaseDecision,
+    packetStatus: finalReadinessCertificate.packetStatus,
+    receiptStatus: finalReadinessCertificate.receiptStatus,
+    gateStatus: finalReadinessCertificate.gateStatus,
+    goNoGoDecision: finalReadinessCertificate.goNoGoDecision,
+    releaseReadinessStatus: finalReadinessCertificate.releaseReadinessStatus,
+    reconciliationStatus: finalReadinessCertificate.reconciliationStatus,
+    attestationStatus: finalReadinessCertificate.attestationStatus,
+    ledgerStatusFromClosure: finalReadinessCertificate.ledgerStatusFromClosure,
+    certificationStatus: finalReadinessCertificate.certificationStatus,
+    verificationStatus: finalReadinessCertificate.verificationStatus,
+    digestChainStatus: finalReadinessCertificate.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-freeze-audit-register.json",
+    safeDigest: safeDigestValue,
+    freezeAuditRegisterDigest: safeDigestValue,
+    rollbackReadinessPlanDigest,
+    finalReadinessCertificateDigest: finalReadinessCertificate.finalReadinessCertificateDigest,
+    dryRunResultLedgerDigest: finalReadinessCertificate.dryRunResultLedgerDigest,
+    noopExecutionDryRunDigest: finalReadinessCertificate.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: finalReadinessCertificate.acceptanceRecordDigest,
+    handoffPacketDigest: finalReadinessCertificate.handoffPacketDigest,
+    decisionReceiptDigest: finalReadinessCertificate.decisionReceiptDigest,
+    releaseGateDigest: finalReadinessCertificate.releaseGateDigest,
+    reconciliationDigest: finalReadinessCertificate.reconciliationDigest,
+    attestationAuditDigest: finalReadinessCertificate.attestationAuditDigest,
+    closureLedgerDigest: finalReadinessCertificate.closureLedgerDigest,
+    certificationDigest: finalReadinessCertificate.certificationDigest,
+    verificationDigest: finalReadinessCertificate.verificationDigest,
+    releaseEvidenceDigest: finalReadinessCertificate.releaseEvidenceDigest,
+    operatorChecklist: finalReadinessCertificate.operatorChecklist,
+    acknowledgedChecklist: finalReadinessCertificate.acknowledgedChecklist,
+    executionChecklist: finalReadinessCertificate.executionChecklist,
+    dryRunRows: finalReadinessCertificate.dryRunRows,
+    executionPlanRows: finalReadinessCertificate.executionPlanRows,
+    resultLedgerRows: finalReadinessCertificate.resultLedgerRows,
+    finalReadinessRows: finalReadinessCertificate.finalReadinessRows,
+    certificateRows: finalReadinessCertificate.certificateRows,
+    freezeAuditRows,
+    rollbackPlanRows,
+    releaseOwnerSummary: finalReadinessCertificate.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: finalReadinessCertificate.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: finalReadinessCertificate.inheritedCertificationChecklist,
+    inheritedGateChecklist: finalReadinessCertificate.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: finalReadinessCertificate.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: finalReadinessCertificate.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: finalReadinessCertificate.inheritedAcceptanceSummary,
+    inheritedNoopDryRunSummary: finalReadinessCertificate.inheritedNoopDryRunSummary,
+    inheritedResultLedgerSummary: finalReadinessCertificate.inheritedResultLedgerSummary,
+    inheritedFinalReadinessCertificateSummary: {
+      certificateStatus: finalReadinessCertificate.certificateStatus,
+      finalReadinessStatus: finalReadinessCertificate.finalReadinessStatus,
+      certificateRowCount: finalReadinessCertificate.counts.certificateRowCount,
+      certificateRowIssuedCount: finalReadinessCertificate.counts.certificateRowIssuedCount,
+      finalReadinessCertificateMutationCount: finalReadinessCertificate.counts.finalReadinessCertificateMutationCount,
+      externalCallsZero: finalReadinessCertificate.externalCalls === 0,
+      safeDigest: finalReadinessCertificate.safeDigest
+    },
+    inheritedBlockingReasons: finalReadinessCertificate.inheritedBlockingReasons,
+    inheritedExceptionRows: finalReadinessCertificate.inheritedExceptionRows,
+    counts: {
+      ...finalReadinessCertificate.counts,
+      freezeAuditRegisterCheckedCount: 1,
+      freezeAuditRegisterMutationCount: 0,
+      freezeAuditRowCount: freezeAuditRows.length,
+      freezeAuditRegisteredCount: freezeAuditRows.filter((row) => row.complete).length,
+      rollbackPlanRowCount: rollbackPlanRows.length,
+      rollbackPlanReadyCount: rollbackPlanRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseFreezeAuditRegisterReady(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate
+) {
+  return finalReadinessCertificate.certificateStatus === "issued" &&
+    finalReadinessCertificate.finalReadinessStatus === "ready" &&
+    finalReadinessCertificate.releaseDecision === "go" &&
+    finalReadinessCertificate.goNoGoDecision === "go" &&
+    finalReadinessCertificate.certificateRows.every((row) => row.complete && row.certificateStatus === "issued" && row.finalReadinessStatus === "ready") &&
+    finalReadinessCertificate.counts.finalReadinessCertificateMutationCount === 0 &&
+    finalReadinessCertificate.externalCalls === 0;
+}
+
+function mockCertifiedReleaseFreezeAuditRegisterStatus(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  freezeReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditStatus"] {
+  if (freezeReady) return "recorded";
+  if (finalReadinessCertificate.certificateStatus === "pending") return "pending";
+  if (finalReadinessCertificate.certificateStatus === "blocked" || finalReadinessCertificate.releaseDecision !== "go" || finalReadinessCertificate.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function mockCertifiedReleaseRollbackReadinessStatus(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  freezeReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["rollbackReadinessStatus"] {
+  if (freezeReady) return "ready";
+  if (finalReadinessCertificate.certificateStatus === "pending" || finalReadinessCertificate.finalReadinessStatus === "incomplete") return "incomplete";
+  return "not_ready";
+}
+
+function mockCertifiedReleaseFreezeAuditRows(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  freezeReady: boolean,
+  freezeAuditStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditStatus"],
+  rollbackReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["rollbackReadinessStatus"],
+  freezeAuditRegisterDigest: string,
+  rollbackReadinessPlanDigest: string
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"] {
+  return [
+    mockCertifiedReleaseFreezeAuditRegisterRow("final_readiness_certificate", "Final readiness certificate issued", finalReadinessCertificate.finalReadinessCertificateDigest, 1, finalReadinessCertificate.certificateStatus === "issued" && finalReadinessCertificate.finalReadinessStatus === "ready", freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("release_freeze_scope", "Release freeze scope registered", freezeAuditRegisterDigest, finalReadinessCertificate.counts.certificateRowCount, finalReadinessCertificate.certificateRows.every((row) => row.complete), freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("safe_digests", "Freeze register safe digest chain", freezeAuditRegisterDigest, 16, mockCertifiedReleaseFreezeAuditDigestLinksSafe(finalReadinessCertificate, freezeAuditRegisterDigest, rollbackReadinessPlanDigest), freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("no_state_mutation", "No freeze audit register state mutation", finalReadinessCertificate.finalReadinessCertificateDigest, 0, true, freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("external_calls_zero", "External calls zero", finalReadinessCertificate.finalReadinessCertificateDigest, finalReadinessCertificate.externalCalls, finalReadinessCertificate.externalCalls === 0, freezeReady, freezeAuditStatus, rollbackReadinessStatus)
+  ];
+}
+
+function mockCertifiedReleaseRollbackPlanRows(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  freezeReady: boolean,
+  freezeAuditStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditStatus"],
+  rollbackReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["rollbackReadinessStatus"],
+  freezeAuditRegisterDigest: string,
+  rollbackReadinessPlanDigest: string
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["rollbackPlanRows"] {
+  return [
+    mockCertifiedReleaseFreezeAuditRegisterRow("rollback_plan_ready", "Safe rollback readiness plan ready", rollbackReadinessPlanDigest, finalReadinessCertificate.counts.finalReadinessReadyCount, finalReadinessCertificate.finalReadinessRows.every((row) => row.complete && row.readinessStatus === "ready"), freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("rollback_owner_confirmed", "Release owner rollback readiness confirmed", finalReadinessCertificate.safeDigest, 1, finalReadinessCertificate.releaseOwnerSummary.checklistAcknowledged, freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("safe_digests", "Rollback plan safe digest chain", rollbackReadinessPlanDigest, 16, mockCertifiedReleaseFreezeAuditDigestLinksSafe(finalReadinessCertificate, freezeAuditRegisterDigest, rollbackReadinessPlanDigest), freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("no_state_mutation", "No rollback readiness plan state mutation", finalReadinessCertificate.finalReadinessCertificateDigest, 0, true, freezeReady, freezeAuditStatus, rollbackReadinessStatus),
+    mockCertifiedReleaseFreezeAuditRegisterRow("external_calls_zero", "External calls zero", finalReadinessCertificate.finalReadinessCertificateDigest, finalReadinessCertificate.externalCalls, finalReadinessCertificate.externalCalls === 0, freezeReady, freezeAuditStatus, rollbackReadinessStatus)
+  ];
+}
+
+function mockCertifiedReleaseFreezeAuditRegisterRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number,
+  complete: boolean,
+  freezeReady: boolean,
+  freezeAuditStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditStatus"],
+  rollbackReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["rollbackReadinessStatus"]
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"][number] {
+  return {
+    key,
+    label,
+    freezeAuditStatus: complete && freezeReady ? "recorded" : freezeAuditStatus,
+    rollbackReadinessStatus: complete && freezeReady ? "ready" : rollbackReadinessStatus,
+    safeDigest,
+    checkedCount,
+    complete: complete && freezeReady
+  };
+}
+
+function mockCertifiedReleaseFreezeAuditDigestLinksSafe(
+  finalReadinessCertificate: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  freezeAuditRegisterDigest: string,
+  rollbackReadinessPlanDigest: string
+) {
+  return [
+    freezeAuditRegisterDigest,
+    rollbackReadinessPlanDigest,
+    finalReadinessCertificate.safeDigest,
+    finalReadinessCertificate.finalReadinessCertificateDigest,
+    finalReadinessCertificate.dryRunResultLedgerDigest,
+    finalReadinessCertificate.noopExecutionDryRunDigest,
+    finalReadinessCertificate.acceptanceRecordDigest,
+    finalReadinessCertificate.handoffPacketDigest,
+    finalReadinessCertificate.decisionReceiptDigest,
+    finalReadinessCertificate.releaseGateDigest,
+    finalReadinessCertificate.reconciliationDigest,
+    finalReadinessCertificate.attestationAuditDigest,
+    finalReadinessCertificate.closureLedgerDigest,
+    finalReadinessCertificate.certificationDigest,
+    finalReadinessCertificate.verificationDigest,
+    finalReadinessCertificate.releaseEvidenceDigest
   ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 

@@ -140,7 +140,7 @@ async function main() {
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
 
-  const missingTenantDryRun = await requestJson("GET", `${noopExecutionDryRunPath}?${filters}`, undefined, undefined);
+  const missingTenantDryRun = await requestJsonWithoutTenant("GET", `${noopExecutionDryRunPath}?${filters}`);
   record("no-op execution dry-run requires x-tenant-id", missingTenantDryRun.status >= 400 && missingTenantDryRun.status < 500);
 
   const dryRunItem = await createNoMatchItem("noop-execution-dryrun", "Safe Sprint 92 certified release no-op execution dry-run target");
@@ -375,6 +375,22 @@ async function request(method, path, body, tenantOverride = tenantId) {
 
 async function requestJson(method, path, body, tenantOverride = tenantId) {
   const response = await request(method, path, body, tenantOverride);
+  return responseJson(response);
+}
+
+async function requestJsonWithoutTenant(method, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-user-id": userId
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return responseJson(response);
+}
+
+async function responseJson(response) {
   const text = await response.text();
   let parsed = null;
   try {

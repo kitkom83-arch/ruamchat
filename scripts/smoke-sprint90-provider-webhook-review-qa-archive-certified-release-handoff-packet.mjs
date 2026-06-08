@@ -139,7 +139,7 @@ async function main() {
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
 
-  const missingTenantPacket = await requestJson("GET", `${handoffPacketPath}?${filters}`, undefined, undefined);
+  const missingTenantPacket = await requestJsonWithoutTenant("GET", `${handoffPacketPath}?${filters}`);
   record("handoff packet requires x-tenant-id", missingTenantPacket.status >= 400 && missingTenantPacket.status < 500);
 
   const handoffItem = await createNoMatchItem("handoff-packet", "Safe Sprint 90 certified release handoff packet target");
@@ -332,6 +332,22 @@ async function request(method, path, body, tenantOverride = tenantId) {
 
 async function requestJson(method, path, body, tenantOverride = tenantId) {
   const response = await request(method, path, body, tenantOverride);
+  return responseJson(response);
+}
+
+async function requestJsonWithoutTenant(method, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-user-id": userId
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return responseJson(response);
+}
+
+async function responseJson(response) {
   const text = await response.text();
   let parsed = null;
   try {

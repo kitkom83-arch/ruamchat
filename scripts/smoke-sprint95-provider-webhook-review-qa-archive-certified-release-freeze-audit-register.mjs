@@ -5,7 +5,7 @@ const baseUrl = (process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_UR
 const tenantId = process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.TENANT_ID ?? "00000000-0000-4000-8000-000000000001";
 const userId = process.env.USER_ID ?? "00000000-0000-4000-8000-000000000011";
 const signingMaterial = process.env.PROVIDER_WEBHOOK_SANDBOX_SIGNING_KEY ?? "local-provider-webhook-sandbox-signing-material";
-const runId = `sprint94-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const runId = `sprint95-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const releaseBasePath = "/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence";
 const attestationPath = `${releaseBasePath}/verification/certification/closure-ledger/attestation-audit`;
 const reconciliationPath = `${attestationPath}/reconciliation`;
@@ -16,6 +16,7 @@ const acceptanceRecordPath = `${handoffPacketPath}/acceptance-record`;
 const noopExecutionDryRunPath = `${acceptanceRecordPath}/noop-execution-dryrun`;
 const resultLedgerPath = `${noopExecutionDryRunPath}/result-ledger`;
 const finalReadinessCertificatePath = `${resultLedgerPath}/final-readiness-certificate`;
+const freezeAuditRegisterPath = `${finalReadinessCertificatePath}/freeze-audit-register`;
 const results = [];
 
 async function main() {
@@ -29,8 +30,8 @@ async function main() {
   const settingsData = readFileSync("apps/web/app/settings-data.ts", "utf8");
   const settingsPage = readFileSync("apps/web/app/settings/channels/page.tsx", "utf8");
   const providerPanel = readFileSync("apps/web/app/settings/provider-readiness-panel.tsx", "utf8");
-  const sprint94Source = {
-    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
+  const sprint95Source = {
+    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
     providerController: sourceSlice(providerController, "final-readiness-certificate", "review-closure-report/export"),
     providerService: [
       sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseDryRunResultLedger(", "private getLockedArchiveContext"),
@@ -51,10 +52,11 @@ async function main() {
     ].join("\n")
   };
 
-  record("smoke:sprint94 registered",
-    rootPackage.scripts?.["smoke:sprint94"] === "node scripts/smoke-sprint94-provider-webhook-review-qa-archive-certified-release-final-readiness-certificate.mjs"
+  record("smoke:sprint95 registered",
+    rootPackage.scripts?.["smoke:sprint95"] === "node scripts/smoke-sprint95-provider-webhook-review-qa-archive-certified-release-freeze-audit-register.mjs"
   );
-  record("Sprint 93/92/91/90/89/88/87/86/85/84/83/82/81/80/79/78/77/76/75 regression smoke scripts registered", [
+  record("Sprint 94/93/92/91/90/89/88/87/86/85/84/83/82/81/80/79/78/77/76/75 regression smoke scripts registered", [
+    ["smoke:sprint94", "node scripts/smoke-sprint94-provider-webhook-review-qa-archive-certified-release-final-readiness-certificate.mjs"],
     ["smoke:sprint93", "node scripts/smoke-sprint93-provider-webhook-review-qa-archive-certified-release-dryrun-result-ledger.mjs"],
     ["smoke:sprint92", "node scripts/smoke-sprint92-provider-webhook-review-qa-archive-certified-release-noop-execution-dryrun.mjs"],
     ["smoke:sprint91", "node scripts/smoke-sprint91-provider-webhook-review-qa-archive-certified-release-handoff-acceptance-record.mjs"],
@@ -75,82 +77,80 @@ async function main() {
     ["smoke:sprint76", "node scripts/smoke-sprint76-provider-webhook-review-qa-handoff-bundle-export.mjs"],
     ["smoke:sprint75", "node scripts/smoke-sprint75-provider-webhook-review-qa-handoff-bundle.mjs"]
   ].every(([name, command]) => rootPackage.scripts?.[name] === command));
-  record("shared final readiness certificate DTO export",
-    sprint94Source.shared.includes("providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema") &&
-    sprint94Source.shared.includes("ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate") &&
-    sprint94Source.shared.includes("certificateStatus") &&
-    sprint94Source.shared.includes("finalReadinessStatus") &&
-    sprint94Source.shared.includes("ledgerStatus") &&
-    sprint94Source.shared.includes("resultLedgerRows") &&
-    sprint94Source.shared.includes("finalReadinessRows") &&
-    sprint94Source.shared.includes("certificateRows") &&
-    sprint94Source.shared.includes("inheritedResultLedgerSummary") &&
-    sprint94Source.shared.includes("externalCalls: z.literal(0)") &&
-    sprint94Source.shared.includes(".strict()")
+  record("shared freeze audit register DTO export",
+    sprint95Source.shared.includes("providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema") &&
+    sprint95Source.shared.includes("ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister") &&
+    sprint95Source.shared.includes("freezeAuditStatus") &&
+    sprint95Source.shared.includes("freezeStatus") &&
+    sprint95Source.shared.includes("rollbackReadinessStatus") &&
+    sprint95Source.shared.includes("freezeAuditRows") &&
+    sprint95Source.shared.includes("rollbackPlanRows") &&
+    sprint95Source.shared.includes("inheritedFinalReadinessCertificateSummary") &&
+    sprint95Source.shared.includes("externalCalls: z.literal(0)") &&
+    sprint95Source.shared.includes(".strict()")
   );
-  record("backend final readiness certificate route registration",
-    providerController.includes('@Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate")') &&
-    providerController.includes("getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate")
+  record("backend freeze audit register route registration",
+    providerController.includes('@Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register")') &&
+    providerController.includes("getReviewQaHandoffCertifiedReleaseFreezeAuditRegister")
   );
-  record("service final readiness certificate implementation",
-    sprint94Source.providerService.includes("qaHandoffCertifiedReleaseFinalReadinessCertificateResponse") &&
-    sprint94Source.providerService.includes("certifiedReleaseFinalReadinessCertificateReady") &&
-    sprint94Source.providerService.includes("finalReadinessCertificateMutationCount: 0") &&
-    sprint94Source.providerService.includes("externalCalls: 0 as const")
+  record("service freeze audit register implementation",
+    sprint95Source.providerService.includes("qaHandoffCertifiedReleaseFreezeAuditRegisterResponse") &&
+    sprint95Source.providerService.includes("certifiedReleaseFreezeAuditRegisterReady") &&
+    sprint95Source.providerService.includes("freezeAuditRegisterMutationCount: 0") &&
+    sprint95Source.providerService.includes("externalCalls: 0 as const")
   );
-  record("API client final readiness certificate wiring",
-    sprint94Source.apiClient.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate") &&
-    sprint94Source.apiClient.includes("providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema") &&
-    sprint94Source.apiClient.includes("/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate")
+  record("API client freeze audit register wiring",
+    sprint95Source.apiClient.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister") &&
+    sprint95Source.apiClient.includes("providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema") &&
+    sprint95Source.apiClient.includes("/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register")
   );
-  record("settings-data final readiness certificate wiring",
-    sprint94Source.settingsData.includes("loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData") &&
-    sprint94Source.settingsData.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate") &&
-    sprint94Source.settingsData.includes("createMockReviewQaHandoffCertifiedReleaseFinalReadinessCertificate")
+  record("settings-data freeze audit register wiring",
+    sprint95Source.settingsData.includes("loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterData") &&
+    sprint95Source.settingsData.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister") &&
+    sprint95Source.settingsData.includes("createMockReviewQaHandoffCertifiedReleaseFreezeAuditRegister")
   );
-  record("provider readiness panel final readiness certificate controls/results/errors",
-    settingsPage.includes("QA Archive Certified Release Final Readiness Certificate API error") &&
-    settingsPage.includes("setReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(null)") &&
-    settingsPage.includes("onLoadReviewQaHandoffCertifiedReleaseFinalReadinessCertificate={loadReviewQaHandoffCertifiedReleaseFinalReadinessCertificate}") &&
-    providerPanel.includes("Load certified release final readiness certificate") &&
-    providerPanel.includes("QA archive certified release final readiness certificate:") &&
-    providerPanel.includes("certificateStatus=") &&
-    providerPanel.includes("finalReadinessStatus=") &&
-    providerPanel.includes("ledgerStatus=") &&
-    providerPanel.includes("dryRunStatus=") &&
-    providerPanel.includes("executionMode=") &&
-    providerPanel.includes("certificateRowStatuses=") &&
+  record("provider readiness panel freeze audit register controls/results/errors",
+    settingsPage.includes("QA Archive Certified Release Freeze Audit Register API error") &&
+    settingsPage.includes("setReviewQaHandoffCertifiedReleaseFreezeAuditRegister(null)") &&
+    settingsPage.includes("onLoadReviewQaHandoffCertifiedReleaseFreezeAuditRegister={loadReviewQaHandoffCertifiedReleaseFreezeAuditRegister}") &&
+    providerPanel.includes("Load certified release freeze audit register") &&
+    providerPanel.includes("QA archive certified release freeze audit register:") &&
+    providerPanel.includes("freezeAuditStatus=") &&
+    providerPanel.includes("freezeStatus=") &&
+    providerPanel.includes("rollbackReadinessStatus=") &&
+    providerPanel.includes("freezeAuditRowStatuses=") &&
+    providerPanel.includes("rollbackPlanRowStatuses=") &&
     providerPanel.includes("externalCalls=")
   );
   record("no DATA_MODE=api mock/local fallback markers",
-    /if \(mode === "api"\) \{\s*return \{\s*mode,\s*finalReadinessCertificate: await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate/s.test(settingsData) &&
-    !/DATA_MODE=api[\s\S]{0,180}(mock|local|fallback)|(?:mock|local|fallback)[\s\S]{0,180}DATA_MODE=api/i.test(sprint94Source.settingsData)
+    /if \(mode === "api"\) \{\s*return \{\s*mode,\s*freezeAuditRegister: await getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister/s.test(settingsData) &&
+    !/DATA_MODE=api[\s\S]{0,180}(mock|local|fallback)|(?:mock|local|fallback)[\s\S]{0,180}DATA_MODE=api/i.test(sprint95Source.settingsData)
   );
-  record("static Sprint 94 source has no provider outbound send markers", !containsProviderOutbound(sprint94Source));
-  record("static Sprint 94 source has no external notification send markers", !containsExternalNotification(sprint94Source));
-  record("static Sprint 94 source has no AI/OpenAI call markers", !containsAiCall(sprint94Source));
-  record("static Sprint 94 source has no raw provider material markers", safePayloadObject(sprint94Source));
+  record("static Sprint 95 source has no provider outbound send markers", !containsProviderOutbound(sprint95Source));
+  record("static Sprint 95 source has no external notification send markers", !containsExternalNotification(sprint95Source));
+  record("static Sprint 95 source has no AI/OpenAI call markers", !containsAiCall(sprint95Source));
+  record("static Sprint 95 source has no raw provider material markers", safePayloadObject(sprint95Source));
 
   const filters = "provider=line&eventType=message.created";
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
 
-  const missingTenantCertificate = await requestJsonWithoutTenant("GET", `${finalReadinessCertificatePath}?${filters}`);
-  record("final readiness certificate requires x-tenant-id", missingTenantCertificate.status >= 400 && missingTenantCertificate.status < 500);
+  const missingTenantRegister = await requestJsonWithoutTenant("GET", `${freezeAuditRegisterPath}?${filters}`);
+  record("freeze audit register requires x-tenant-id", missingTenantRegister.status >= 400 && missingTenantRegister.status < 500);
 
-  const ledgerItem = await createNoMatchItem("final-readiness-certificate", "Safe Sprint 94 certified release final readiness certificate target");
+  const ledgerItem = await createNoMatchItem("freeze-audit-register", "Safe Sprint 95 certified release freeze audit register target");
   record("create safe sandbox no-match item", ledgerItem?.unmatchedStatus === "review-needed");
 
-  const certificateBeforePrerequisites = await requestJson("GET", `${finalReadinessCertificatePath}?${filters}`);
+  const registerBeforePrerequisites = await requestJson("GET", `${freezeAuditRegisterPath}?${filters}`);
   const receiptSignOff = await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/receipt/sign-off?${filters}`, {
     acknowledgementType: "sign_off",
     reviewerRole: "QA reviewer",
-    reviewerLabel: "safe sprint94 reviewer"
+    reviewerLabel: "safe sprint95 reviewer"
   }));
   const lock = await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/acceptance-lock?${filters}`, {
-    lockReason: "Safe Sprint 94 certified release final readiness certificate accepted",
+    lockReason: "Safe Sprint 95 certified release freeze audit register accepted",
     acceptedByRole: "QA lead",
-    acceptedByLabel: "safe sprint94 reviewer"
+    acceptedByLabel: "safe sprint95 reviewer"
   }));
   const archive = await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive?${filters}`));
   const exportedArchive = await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/export?${filters}`));
@@ -160,7 +160,7 @@ async function main() {
   const finalization = await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?${filters}`));
   const signOff = await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?${filters}`, {
     reviewerRole: "retention reviewer",
-    reviewerLabel: "safe sprint94 reviewer"
+    reviewerLabel: "safe sprint95 reviewer"
   }));
   const receipt = await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?${filters}`));
   const releaseEvidence = await safeJson(await request("GET", `${releaseBasePath}?${filters}`));
@@ -176,14 +176,14 @@ async function main() {
   const acknowledgedRecord = await safeJson(await request("POST", `${acceptanceRecordPath}?${filters}`, {
     acknowledgementType: "operator_checklist_acknowledgement",
     acknowledgedByRole: "release owner",
-    acknowledgedByLabel: "safe sprint94 release owner",
+    acknowledgedByLabel: "safe sprint95 release owner",
     acknowledgedChecklistKeys: handoffPacket.operatorChecklist.map((item) => item.key)
   }));
   const initialDryRun = await safeJson(await request("GET", `${noopExecutionDryRunPath}?${filters}`));
   const executedDryRun = await safeJson(await request("POST", `${noopExecutionDryRunPath}?${filters}`, {
-    requestedBy: "safe sprint94 release owner",
+    requestedBy: "safe sprint95 release owner",
     checklistAcknowledged: true,
-    operatorNote: "Safe no-op execution dry-run from Sprint 94 smoke",
+    operatorNote: "Safe no-op execution dry-run from Sprint 95 smoke",
     dryRunReason: "safe no-op execution readiness rehearsal",
     executionMode: "no_op"
   }));
@@ -192,11 +192,12 @@ async function main() {
   const stateBeforeLedgerRead = unmatchedItems(beforeLedgerPage).find((item) => item.id === ledgerItem.id);
   const resultLedger = await safeJson(await request("GET", `${resultLedgerPath}?${filters}`));
   const certificate = await safeJson(await request("GET", `${finalReadinessCertificatePath}?${filters}`));
-  const afterCertificatePage = await safeJson(await request("GET", "/provider-webhooks/unmatched-inbound?provider=line&limit=25&offset=0&sortBy=receivedAt&sortOrder=desc"));
-  const stateAfterCertificateRead = unmatchedItems(afterCertificatePage).find((item) => item.id === ledgerItem.id);
-  const invalidTenantCertificate = await requestJson("GET", `${finalReadinessCertificatePath}?${filters}`, undefined, "00000000-0000-4000-8000-000000000093");
+  const register = await safeJson(await request("GET", `${freezeAuditRegisterPath}?${filters}`));
+  const afterRegisterPage = await safeJson(await request("GET", "/provider-webhooks/unmatched-inbound?provider=line&limit=25&offset=0&sortBy=receivedAt&sortOrder=desc"));
+  const stateAfterRegisterRead = unmatchedItems(afterRegisterPage).find((item) => item.id === ledgerItem.id);
+  const invalidTenantRegister = await requestJson("GET", `${freezeAuditRegisterPath}?${filters}`, undefined, "00000000-0000-4000-8000-000000000095");
 
-  record("incomplete chain returns explicit 409", certificateBeforePrerequisites.status === 409 && /required|prerequisite|lock|archive/i.test(JSON.stringify(certificateBeforePrerequisites.body)));
+  record("incomplete chain returns explicit 409", registerBeforePrerequisites.status === 409 && /required|prerequisite|lock|archive/i.test(JSON.stringify(registerBeforePrerequisites.body)));
   record("complete/load safe chain through Sprint 92 certified release no-op execution dry-run", [receiptSignOff, lock, exportedArchive, manifest, integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acknowledgedRecord, executedDryRun].every(Boolean));
   record("initial dryRunStatus not_started", safeNoopExecutionDryRunShape(initialDryRun) && initialDryRun.dryRunStatus === "not_started");
   record("POST no-op execution dry-run returns passed", safeNoopExecutionDryRunShape(executedDryRun) && executedDryRun.dryRunStatus === "passed");
@@ -255,10 +256,20 @@ async function main() {
   record("inheritedExceptionRows safe", Array.isArray(certificate.inheritedExceptionRows) && certificate.inheritedExceptionRows.every(safeAttestationReconciliationExceptionShape));
   record("counts present", Number.isInteger(certificate.counts?.finalReadinessCertificateCheckedCount) && certificate.counts?.certificateRowCount === certificate.certificateRows.length && certificate.counts?.finalReadinessCertificateMutationCount === 0);
   record("externalCalls=0", certificate.externalCalls === 0);
-  record("GET no mutation before/after final readiness certificate read", metadataOnlyStateMatches(stateBeforeLedgerRead, stateAfterCertificateRead) && certificate.counts.finalReadinessCertificateMutationCount === 0);
-  record("no review/link/message/unmatched/archive/release state mutation", metadataOnlyStateMatches(stateBeforeLedgerRead, stateAfterCertificateRead) && dryRunReadback.noopExecutionDryRunDigest === executedDryRun.noopExecutionDryRunDigest);
-  record("invalid tenant does not return mock fallback", invalidTenantCertificate.status === 409 && !JSON.stringify(invalidTenantCertificate.body).includes("mockqahandoffcertifiedreleasefinalreadinesscertificate"));
+  record("freezeAuditStatus recorded", safeFreezeAuditRegisterShape(register) && register.freezeAuditStatus === "recorded");
+  record("freezeStatus frozen", safeFreezeAuditRegisterShape(register) && register.freezeStatus === "frozen");
+  record("rollbackReadinessStatus ready", register.rollbackReadinessStatus === "ready");
+  record("freeze audit register chains to final readiness certificate", register.finalReadinessCertificateDigest === certificate.finalReadinessCertificateDigest && register.inheritedFinalReadinessCertificateSummary?.safeDigest === certificate.safeDigest);
+  record("freezeAuditRows recorded", Array.isArray(register.freezeAuditRows) && register.freezeAuditRows.length >= 5 && register.freezeAuditRows.every(safeFreezeAuditRegisterRowShape));
+  record("rollbackPlanRows ready", Array.isArray(register.rollbackPlanRows) && register.rollbackPlanRows.length >= 5 && register.rollbackPlanRows.every(safeFreezeAuditRegisterRowShape));
+  record("freeze audit counts present", Number.isInteger(register.counts?.freezeAuditRegisterCheckedCount) && register.counts?.freezeAuditRowCount === register.freezeAuditRows.length && register.counts?.rollbackPlanRowCount === register.rollbackPlanRows.length && register.counts?.freezeAuditRegisterMutationCount === 0);
+  record("safe rollback plan digest present", /^sha256:[a-z0-9]+$/i.test(register.rollbackReadinessPlanDigest));
+  record("freeze register externalCalls=0", register.externalCalls === 0);
+  record("GET no mutation before/after freeze audit register read", metadataOnlyStateMatches(stateBeforeLedgerRead, stateAfterRegisterRead) && register.counts.freezeAuditRegisterMutationCount === 0);
+  record("no review/link/message/unmatched/archive/release state mutation", metadataOnlyStateMatches(stateBeforeLedgerRead, stateAfterRegisterRead) && dryRunReadback.noopExecutionDryRunDigest === executedDryRun.noopExecutionDryRunDigest);
+  record("invalid tenant does not return mock fallback", invalidTenantRegister.status === 409 && !JSON.stringify(invalidTenantRegister.body).includes("mockqahandoffcertifiedreleasefreezeauditregister"));
   record("no stale/fake final readiness certificate", !JSON.stringify(certificate).includes("mockqahandoffcertifiedreleasefinalreadinesscertificate"));
+  record("no stale/fake freeze audit register", !JSON.stringify(register).includes("mockqahandoffcertifiedreleasefreezeauditregister"));
   record("externalCalls=0 throughout", noNonzeroExternalCalls({
     health,
     receiptSignOff,
@@ -287,15 +298,16 @@ async function main() {
     dryRunReadback,
     resultLedger,
     certificate,
-    afterCertificatePage
+    register,
+    afterRegisterPage
   }));
-  record("no provider outbound", !containsProviderOutbound({ certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
-  record("no external notification", !containsExternalNotification({ certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
-  record("no AI/OpenAI call evidence", !containsAiCall({ certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
+  record("no provider outbound", !containsProviderOutbound({ register, certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
+  record("no external notification", !containsExternalNotification({ register, certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
+  record("no AI/OpenAI call evidence", !containsAiCall({ register, certificate, resultLedger, executedDryRun, acknowledgedRecord, handoffPacket, decisionReceipt, releaseGate }));
   record("no raw provider material leakage", safePayloadObject({
-    certificateBeforePrerequisites,
-    missingTenantCertificate,
-    invalidTenantCertificate,
+    registerBeforePrerequisites,
+    missingTenantRegister,
+    invalidTenantRegister,
     receiptSignOff,
     lock,
     archive,
@@ -322,7 +334,8 @@ async function main() {
     dryRunReadback,
     resultLedger,
     certificate,
-    afterCertificatePage
+    register,
+    afterRegisterPage
   }));
 
   finish();
@@ -330,7 +343,7 @@ async function main() {
 
 async function createNoMatchItem(label, text) {
   const eventId = `${runId}-${label}-${Math.random().toString(16).slice(2)}`;
-  const payload = linePayload(`safe-no-match-room-sprint94-${label}-${runId}`, `safe-sender-sprint94-${label}`, text);
+  const payload = linePayload(`safe-no-match-room-sprint95-${label}-${runId}`, `safe-sender-sprint95-${label}`, text);
   payload[`safeMarker${label.replace(/[^a-z0-9]/gi, "")}${Date.now()}`] = true;
   const created = await safeJson(await request("POST", "/provider-webhooks/sandbox-events", {
     provider: "line",
@@ -501,6 +514,37 @@ function safeFinalReadinessCertificateShape(value) {
     value.externalCalls === 0;
 }
 
+function safeFreezeAuditRegisterShape(value) {
+  return value &&
+    value.registerKind === "qa-handoff-locked-archive-certified-release-freeze-audit-register" &&
+    ["pending", "recorded", "blocked", "incomplete"].includes(value.freezeAuditStatus) &&
+    value.freezeStatus === "frozen" &&
+    ["ready", "not_ready", "incomplete"].includes(value.rollbackReadinessStatus) &&
+    ["pending", "issued", "blocked", "incomplete"].includes(value.certificateStatus) &&
+    ["ready", "not_ready", "incomplete"].includes(value.finalReadinessStatus) &&
+    ["pending", "recorded", "blocked", "incomplete"].includes(value.ledgerStatus) &&
+    ["not_started", "passed", "blocked", "incomplete"].includes(value.dryRunStatus) &&
+    value.executionMode === "no_op" &&
+    ["go", "no_go"].includes(value.releaseDecision) &&
+    value.safeFilename === "provider-webhook-review-qa-handoff-certified-release-freeze-audit-register.json" &&
+    value.safeDigest?.startsWith("sha256:") &&
+    value.freezeAuditRegisterDigest === value.safeDigest &&
+    value.rollbackReadinessPlanDigest?.startsWith("sha256:") &&
+    value.finalReadinessCertificateDigest?.startsWith("sha256:") &&
+    Array.isArray(value.operatorChecklist) &&
+    Array.isArray(value.acknowledgedChecklist) &&
+    Array.isArray(value.executionChecklist) &&
+    Array.isArray(value.resultLedgerRows) &&
+    Array.isArray(value.finalReadinessRows) &&
+    Array.isArray(value.certificateRows) &&
+    Array.isArray(value.freezeAuditRows) &&
+    Array.isArray(value.rollbackPlanRows) &&
+    value.inheritedFinalReadinessCertificateSummary?.externalCallsZero === true &&
+    Number.isInteger(value.counts?.freezeAuditRegisterCheckedCount) &&
+    value.counts?.freezeAuditRegisterMutationCount === 0 &&
+    value.externalCalls === 0;
+}
+
 function safeOperatorChecklistItemShape(item) {
   return item &&
     typeof item.key === "string" &&
@@ -574,6 +618,17 @@ function safeCertificateRowShape(row) {
     typeof row.label === "string" &&
     ["pending", "issued", "blocked", "incomplete"].includes(row.certificateStatus) &&
     ["ready", "not_ready", "incomplete"].includes(row.finalReadinessStatus) &&
+    row.safeDigest?.startsWith("sha256:") &&
+    Number.isInteger(row.checkedCount) &&
+    typeof row.complete === "boolean";
+}
+
+function safeFreezeAuditRegisterRowShape(row) {
+  return row &&
+    typeof row.key === "string" &&
+    typeof row.label === "string" &&
+    ["pending", "recorded", "blocked", "incomplete"].includes(row.freezeAuditStatus) &&
+    ["ready", "not_ready", "incomplete"].includes(row.rollbackReadinessStatus) &&
     row.safeDigest?.startsWith("sha256:") &&
     Number.isInteger(row.checkedCount) &&
     typeof row.complete === "boolean";
@@ -662,11 +717,11 @@ function record(name, passed) {
 function finish() {
   const failed = results.filter((result) => !result.passed);
   if (failed.length > 0) {
-    console.error(`Sprint 94 smoke failed: ${failed.map((result) => result.name).join(", ")}`);
+    console.error(`Sprint 95 smoke failed: ${failed.map((result) => result.name).join(", ")}`);
     process.exitCode = 1;
     return;
   }
-  console.log("Sprint 94 smoke passed");
+  console.log("Sprint 95 smoke passed");
 }
 
 main().catch((error) => {

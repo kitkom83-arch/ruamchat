@@ -40,6 +40,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
@@ -262,6 +263,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRequest,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -745,6 +747,11 @@ export async function getProviderWebhookReviewQaHandoffCertifiedReleaseDryRunRes
 export async function getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate${search}`, providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register${search}`, providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {
