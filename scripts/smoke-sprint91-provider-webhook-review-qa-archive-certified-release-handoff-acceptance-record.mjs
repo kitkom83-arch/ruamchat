@@ -140,7 +140,7 @@ async function main() {
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
 
-  const missingTenantRecord = await requestJson("GET", `${acceptanceRecordPath}?${filters}`, undefined, undefined);
+  const missingTenantRecord = await requestJsonWithoutTenant("GET", `${acceptanceRecordPath}?${filters}`);
   record("acceptance record requires x-tenant-id", missingTenantRecord.status >= 400 && missingTenantRecord.status < 500);
 
   const acceptanceItem = await createNoMatchItem("acceptance-record", "Safe Sprint 91 certified release handoff acceptance target");
@@ -362,6 +362,22 @@ async function request(method, path, body, tenantOverride = tenantId) {
 
 async function requestJson(method, path, body, tenantOverride = tenantId) {
   const response = await request(method, path, body, tenantOverride);
+  return responseJson(response);
+}
+
+async function requestJsonWithoutTenant(method, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-user-id": userId
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return responseJson(response);
+}
+
+async function responseJson(response) {
   const text = await response.text();
   let parsed = null;
   try {

@@ -130,7 +130,7 @@ async function main() {
   const health = await safeJson(await request("GET", "/health"));
   record("GET /health reachable", health?.status === "ok" && health?.service === "api");
 
-  const missingTenantResultLedger = await requestJson("GET", `${resultLedgerPath}?${filters}`, undefined, undefined);
+  const missingTenantResultLedger = await requestJsonWithoutTenant("GET", `${resultLedgerPath}?${filters}`);
   record("dry-run result ledger requires x-tenant-id", missingTenantResultLedger.status >= 400 && missingTenantResultLedger.status < 500);
 
   const ledgerItem = await createNoMatchItem("dryrun-result-ledger", "Safe Sprint 93 certified release dry-run result ledger target");
@@ -361,6 +361,22 @@ async function request(method, path, body, tenantOverride = tenantId) {
 
 async function requestJson(method, path, body, tenantOverride = tenantId) {
   const response = await request(method, path, body, tenantOverride);
+  return responseJson(response);
+}
+
+async function requestJsonWithoutTenant(method, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      "x-user-id": userId
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return responseJson(response);
+}
+
+async function responseJson(response) {
   const text = await response.text();
   let parsed = null;
   try {

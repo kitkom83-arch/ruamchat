@@ -62,6 +62,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecordSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -1253,6 +1254,100 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseFreezeAuditRegister = providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.parse({
+      registerKind: "qa-handoff-locked-archive-certified-release-freeze-audit-register",
+      freezeAuditStatus: "recorded",
+      freezeStatus: "frozen",
+      rollbackReadinessStatus: "ready",
+      certificateStatus: certifiedReleaseFinalReadinessCertificate.certificateStatus,
+      finalReadinessStatus: certifiedReleaseFinalReadinessCertificate.finalReadinessStatus,
+      ledgerStatus: certifiedReleaseFinalReadinessCertificate.ledgerStatus,
+      dryRunStatus: certifiedReleaseFinalReadinessCertificate.dryRunStatus,
+      executionMode: certifiedReleaseFinalReadinessCertificate.executionMode,
+      acceptanceStatus: certifiedReleaseFinalReadinessCertificate.acceptanceStatus,
+      handoffStatus: certifiedReleaseFinalReadinessCertificate.handoffStatus,
+      releaseDecision: certifiedReleaseFinalReadinessCertificate.releaseDecision,
+      packetStatus: certifiedReleaseFinalReadinessCertificate.packetStatus,
+      receiptStatus: certifiedReleaseFinalReadinessCertificate.receiptStatus,
+      gateStatus: certifiedReleaseFinalReadinessCertificate.gateStatus,
+      goNoGoDecision: certifiedReleaseFinalReadinessCertificate.goNoGoDecision,
+      releaseReadinessStatus: certifiedReleaseFinalReadinessCertificate.releaseReadinessStatus,
+      reconciliationStatus: certifiedReleaseFinalReadinessCertificate.reconciliationStatus,
+      attestationStatus: certifiedReleaseFinalReadinessCertificate.attestationStatus,
+      ledgerStatusFromClosure: certifiedReleaseFinalReadinessCertificate.ledgerStatusFromClosure,
+      certificationStatus: certifiedReleaseFinalReadinessCertificate.certificationStatus,
+      verificationStatus: certifiedReleaseFinalReadinessCertificate.verificationStatus,
+      digestChainStatus: certifiedReleaseFinalReadinessCertificate.digestChainStatus,
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-freeze-audit-register.json",
+      safeDigest: "sha256:certifiedreleasefreezeauditregister",
+      freezeAuditRegisterDigest: "sha256:certifiedreleasefreezeauditregister",
+      rollbackReadinessPlanDigest: "sha256:certifiedreleaserollbackreadinessplan",
+      finalReadinessCertificateDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest,
+      dryRunResultLedgerDigest: certifiedReleaseFinalReadinessCertificate.dryRunResultLedgerDigest,
+      noopExecutionDryRunDigest: certifiedReleaseFinalReadinessCertificate.noopExecutionDryRunDigest,
+      acceptanceRecordDigest: certifiedReleaseFinalReadinessCertificate.acceptanceRecordDigest,
+      handoffPacketDigest: certifiedReleaseFinalReadinessCertificate.handoffPacketDigest,
+      decisionReceiptDigest: certifiedReleaseFinalReadinessCertificate.decisionReceiptDigest,
+      releaseGateDigest: certifiedReleaseFinalReadinessCertificate.releaseGateDigest,
+      reconciliationDigest: certifiedReleaseFinalReadinessCertificate.reconciliationDigest,
+      attestationAuditDigest: certifiedReleaseFinalReadinessCertificate.attestationAuditDigest,
+      closureLedgerDigest: certifiedReleaseFinalReadinessCertificate.closureLedgerDigest,
+      certificationDigest: certifiedReleaseFinalReadinessCertificate.certificationDigest,
+      verificationDigest: certifiedReleaseFinalReadinessCertificate.verificationDigest,
+      releaseEvidenceDigest: certifiedReleaseFinalReadinessCertificate.releaseEvidenceDigest,
+      operatorChecklist: certifiedReleaseFinalReadinessCertificate.operatorChecklist,
+      acknowledgedChecklist: certifiedReleaseFinalReadinessCertificate.acknowledgedChecklist,
+      executionChecklist: certifiedReleaseFinalReadinessCertificate.executionChecklist,
+      dryRunRows: certifiedReleaseFinalReadinessCertificate.dryRunRows,
+      executionPlanRows: certifiedReleaseFinalReadinessCertificate.executionPlanRows,
+      resultLedgerRows: certifiedReleaseFinalReadinessCertificate.resultLedgerRows,
+      finalReadinessRows: certifiedReleaseFinalReadinessCertificate.finalReadinessRows,
+      certificateRows: certifiedReleaseFinalReadinessCertificate.certificateRows,
+      freezeAuditRows: [
+        { key: "final_readiness_certificate", label: "Final readiness certificate issued", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest, checkedCount: 1, complete: true },
+        { key: "release_freeze_scope", label: "Release freeze scope registered", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: "sha256:certifiedreleasefreezeauditregister", checkedCount: certifiedReleaseFinalReadinessCertificate.counts.certificateRowCount, complete: true },
+        { key: "safe_digests", label: "Freeze register safe digest chain", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: "sha256:certifiedreleasefreezeauditregister", checkedCount: 16, complete: true },
+        { key: "no_state_mutation", label: "No freeze audit register state mutation", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest, checkedCount: 0, complete: true },
+        { key: "external_calls_zero", label: "External calls zero", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest, checkedCount: 0, complete: true }
+      ],
+      rollbackPlanRows: [
+        { key: "rollback_plan_ready", label: "Safe rollback readiness plan ready", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: "sha256:certifiedreleaserollbackreadinessplan", checkedCount: certifiedReleaseFinalReadinessCertificate.counts.finalReadinessReadyCount, complete: true },
+        { key: "rollback_owner_confirmed", label: "Release owner rollback readiness confirmed", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.safeDigest, checkedCount: 1, complete: true },
+        { key: "safe_digests", label: "Rollback plan safe digest chain", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: "sha256:certifiedreleaserollbackreadinessplan", checkedCount: 16, complete: true },
+        { key: "no_state_mutation", label: "No rollback readiness plan state mutation", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest, checkedCount: 0, complete: true },
+        { key: "external_calls_zero", label: "External calls zero", freezeAuditStatus: "recorded", rollbackReadinessStatus: "ready", safeDigest: certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest, checkedCount: 0, complete: true }
+      ],
+      releaseOwnerSummary: certifiedReleaseFinalReadinessCertificate.releaseOwnerSummary,
+      inheritedPrerequisiteChecklist: certifiedReleaseFinalReadinessCertificate.inheritedPrerequisiteChecklist,
+      inheritedCertificationChecklist: certifiedReleaseFinalReadinessCertificate.inheritedCertificationChecklist,
+      inheritedGateChecklist: certifiedReleaseFinalReadinessCertificate.inheritedGateChecklist,
+      inheritedDecisionReceiptSummary: certifiedReleaseFinalReadinessCertificate.inheritedDecisionReceiptSummary,
+      inheritedHandoffPacketSummary: certifiedReleaseFinalReadinessCertificate.inheritedHandoffPacketSummary,
+      inheritedAcceptanceSummary: certifiedReleaseFinalReadinessCertificate.inheritedAcceptanceSummary,
+      inheritedNoopDryRunSummary: certifiedReleaseFinalReadinessCertificate.inheritedNoopDryRunSummary,
+      inheritedResultLedgerSummary: certifiedReleaseFinalReadinessCertificate.inheritedResultLedgerSummary,
+      inheritedFinalReadinessCertificateSummary: {
+        certificateStatus: certifiedReleaseFinalReadinessCertificate.certificateStatus,
+        finalReadinessStatus: certifiedReleaseFinalReadinessCertificate.finalReadinessStatus,
+        certificateRowCount: certifiedReleaseFinalReadinessCertificate.counts.certificateRowCount,
+        certificateRowIssuedCount: certifiedReleaseFinalReadinessCertificate.counts.certificateRowIssuedCount,
+        finalReadinessCertificateMutationCount: certifiedReleaseFinalReadinessCertificate.counts.finalReadinessCertificateMutationCount,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseFinalReadinessCertificate.safeDigest
+      },
+      inheritedBlockingReasons: certifiedReleaseFinalReadinessCertificate.inheritedBlockingReasons,
+      inheritedExceptionRows: certifiedReleaseFinalReadinessCertificate.inheritedExceptionRows,
+      counts: {
+        ...certifiedReleaseFinalReadinessCertificate.counts,
+        freezeAuditRegisterCheckedCount: 1,
+        freezeAuditRegisterMutationCount: 0,
+        freezeAuditRowCount: 5,
+        freezeAuditRegisteredCount: 5,
+        rollbackPlanRowCount: 5,
+        rollbackPlanReadyCount: 5
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -1337,6 +1432,13 @@ describe("shared contracts", () => {
     expect(certifiedReleaseFinalReadinessCertificate.inheritedResultLedgerSummary.externalCallsZero).toBe(true);
     expect(certifiedReleaseFinalReadinessCertificate.counts.finalReadinessCertificateMutationCount).toBe(0);
     expect(certifiedReleaseFinalReadinessCertificate.externalCalls).toBe(0);
+    expect(certifiedReleaseFreezeAuditRegister.freezeAuditStatus).toBe("recorded");
+    expect(certifiedReleaseFreezeAuditRegister.freezeStatus).toBe("frozen");
+    expect(certifiedReleaseFreezeAuditRegister.rollbackReadinessStatus).toBe("ready");
+    expect(certifiedReleaseFreezeAuditRegister.finalReadinessCertificateDigest).toBe(certifiedReleaseFinalReadinessCertificate.finalReadinessCertificateDigest);
+    expect(certifiedReleaseFreezeAuditRegister.freezeAuditRows.every((row) => row.complete && row.freezeAuditStatus === "recorded" && row.rollbackReadinessStatus === "ready")).toBe(true);
+    expect(certifiedReleaseFreezeAuditRegister.rollbackPlanRows.every((row) => row.complete && row.freezeAuditStatus === "recorded" && row.rollbackReadinessStatus === "ready")).toBe(true);
+    expect(certifiedReleaseFreezeAuditRegister.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -1438,6 +1540,8 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, stack: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema.parse({ ...certifiedReleaseFinalReadinessCertificate, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema.parse({ ...certifiedReleaseFinalReadinessCertificate, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.parse({ ...certifiedReleaseFreezeAuditRegister, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.parse({ ...certifiedReleaseFreezeAuditRegister, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -1452,6 +1556,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema.parse({ ...certifiedReleaseNoopExecutionDryRun, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedgerSchema.parse({ ...certifiedReleaseDryRunResultLedger, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateSchema.parse({ ...certifiedReleaseFinalReadinessCertificate, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterSchema.parse({ ...certifiedReleaseFreezeAuditRegister, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {
