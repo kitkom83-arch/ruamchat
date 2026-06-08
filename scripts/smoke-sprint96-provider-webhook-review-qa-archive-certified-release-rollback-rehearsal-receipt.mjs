@@ -316,7 +316,13 @@ function linePayload(roomId, userIdValue, text) {
 }
 
 function signPayload(payload) {
-  return crypto.createHmac("sha256", signingMaterial).update(JSON.stringify(payload)).digest("base64");
+  return `sha256=${crypto.createHmac("sha256", signingMaterial).update(canonicalJson(payload)).digest("hex")}`;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
 }
 
 async function request(method, path, body, tenant = tenantId) {
@@ -422,7 +428,7 @@ function noNonzeroExternalCalls(value) {
 }
 
 function safePayloadObject(value) {
-  return !/"rawPayload"\s*:|rawSignature|replyToken|raw-line|raw-room|raw-sender|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|accessToken|webhookSecret/i.test(JSON.stringify(value));
+  return !/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|raw-line|raw-room|raw-sender|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|accessToken|webhookSecret/i.test(JSON.stringify(value));
 }
 
 function containsProviderOutbound(value) {

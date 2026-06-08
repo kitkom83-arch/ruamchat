@@ -41,6 +41,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
   ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister,
   ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -128,6 +129,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister,
   getProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -373,6 +375,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditReg
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptData = {
   mode: DataMode;
   rollbackRehearsalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketData = {
+  mode: DataMode;
+  controlRoomPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1175,6 +1182,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     rollbackRehearsalReceipt: createMockReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketData> {
+  if (mode === "api") {
+    return {
+      mode,
+      controlRoomPacket: await getProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket(filters)
+    };
+  }
+
+  return {
+    mode,
+    controlRoomPacket: createMockReviewQaHandoffCertifiedReleaseControlRoomPacket(filters)
   };
 }
 
@@ -4845,6 +4869,221 @@ function mockCertifiedReleaseRollbackRehearsalDigestLinksSafe(
     freezeAuditRegister.releaseEvidenceDigest,
     freezeAuditRegister.safeDigest,
     freezeAuditRegister.rollbackReadinessPlanDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
+}
+
+function createMockReviewQaHandoffCertifiedReleaseControlRoomPacket(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket {
+  const rollbackRehearsalReceipt = createMockReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(filters);
+  const controlRoomReady = mockCertifiedReleaseControlRoomReady(rollbackRehearsalReceipt);
+  const controlRoomStatus = mockCertifiedReleaseControlRoomStatus(rollbackRehearsalReceipt, controlRoomReady);
+  const cutoverReadinessStatus = controlRoomReady ? "ready" : "not_ready";
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleasecontrolroompacket-${safeDigest(`${rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest}:${controlRoomStatus}:${cutoverReadinessStatus}`)}`;
+  const controlRoomRows = mockCertifiedReleaseControlRoomRows([
+    ["rollback_rehearsal_verified", "Rollback rehearsal receipt verified", rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest, rollbackRehearsalReceipt.counts.rollbackRehearsalVerifiedCount, rollbackRehearsalReceipt.rollbackRehearsalStatus === "verified"],
+    ["recovery_readiness_ready", "Recovery readiness status ready", rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest, rollbackRehearsalReceipt.counts.recoveryReadinessReadyCount, rollbackRehearsalReceipt.recoveryReadinessStatus === "ready"],
+    ["safe_digest_chain", "Control room packet safe digest chain", safeDigestValue, 18, mockCertifiedReleaseControlRoomDigestLinksSafe(rollbackRehearsalReceipt, safeDigestValue)],
+    ["no_state_mutation", "No control room packet state mutation", rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest, 0, true],
+    ["external_calls_zero", "External calls zero", rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest, rollbackRehearsalReceipt.externalCalls, rollbackRehearsalReceipt.externalCalls === 0]
+  ], controlRoomReady, controlRoomStatus, cutoverReadinessStatus);
+  const cutoverChecklistRows = mockCertifiedReleaseControlRoomRows([
+    ["rollback_readiness_ready", "Rollback readiness remains ready", rollbackRehearsalReceipt.freezeAuditRegisterDigest, rollbackRehearsalReceipt.counts.rollbackReadinessReadyCount, rollbackRehearsalReceipt.rollbackReadinessStatus === "ready"],
+    ["freeze_audit_recorded", "Freeze audit register recorded", rollbackRehearsalReceipt.freezeAuditRegisterDigest, rollbackRehearsalReceipt.counts.freezeAuditRegisteredCount, rollbackRehearsalReceipt.freezeAuditStatus === "recorded"],
+    ["release_frozen", "Certified release remains frozen", rollbackRehearsalReceipt.freezeAuditRegisterDigest, 1, rollbackRehearsalReceipt.freezeStatus === "frozen"],
+    ["final_readiness_ready", "Final readiness remains ready", rollbackRehearsalReceipt.finalReadinessCertificateDigest, rollbackRehearsalReceipt.counts.finalReadinessReadyCount, rollbackRehearsalReceipt.finalReadinessStatus === "ready"],
+    ["go_decision_confirmed", "Go/no-go decision remains go", safeDigestValue, 1, rollbackRehearsalReceipt.releaseDecision === "go" && rollbackRehearsalReceipt.goNoGoDecision === "go"]
+  ], controlRoomReady, controlRoomStatus, cutoverReadinessStatus);
+  const operatorHandoffRows = mockCertifiedReleaseControlRoomRows([
+    ["operator_checklist_complete", "Operator checklist complete", rollbackRehearsalReceipt.handoffPacketDigest, rollbackRehearsalReceipt.counts.operatorChecklistCompleteCount, rollbackRehearsalReceipt.operatorChecklist.every((item) => item.complete)],
+    ["acknowledgement_complete", "Acknowledged checklist complete", rollbackRehearsalReceipt.acceptanceRecordDigest, rollbackRehearsalReceipt.counts.acknowledgedChecklistCompleteCount, rollbackRehearsalReceipt.acknowledgedChecklist.every((item) => item.acknowledged)],
+    ["execution_checklist_complete", "Execution checklist complete", rollbackRehearsalReceipt.noopExecutionDryRunDigest, rollbackRehearsalReceipt.counts.executionChecklistCompleteCount, rollbackRehearsalReceipt.executionChecklist.every((item) => item.complete)],
+    ["receipt_issued", "Decision receipt issued", rollbackRehearsalReceipt.decisionReceiptDigest, 1, rollbackRehearsalReceipt.receiptStatus === "issued"],
+    ["packet_issued", "Handoff packet issued", safeDigestValue, 1, rollbackRehearsalReceipt.packetStatus === "issued"]
+  ], controlRoomReady, controlRoomStatus, cutoverReadinessStatus);
+
+  return {
+    packetKind: "qa-handoff-locked-archive-certified-release-control-room-packet",
+    controlRoomStatus,
+    cutoverReadinessStatus,
+    rollbackRehearsalStatus: rollbackRehearsalReceipt.rollbackRehearsalStatus,
+    recoveryReadinessStatus: rollbackRehearsalReceipt.recoveryReadinessStatus,
+    rollbackReadinessStatus: rollbackRehearsalReceipt.rollbackReadinessStatus,
+    freezeAuditStatus: rollbackRehearsalReceipt.freezeAuditStatus,
+    freezeStatus: rollbackRehearsalReceipt.freezeStatus,
+    certificateStatus: rollbackRehearsalReceipt.certificateStatus,
+    finalReadinessStatus: rollbackRehearsalReceipt.finalReadinessStatus,
+    ledgerStatus: rollbackRehearsalReceipt.ledgerStatus,
+    dryRunStatus: rollbackRehearsalReceipt.dryRunStatus,
+    executionMode: rollbackRehearsalReceipt.executionMode,
+    acceptanceStatus: rollbackRehearsalReceipt.acceptanceStatus,
+    handoffStatus: rollbackRehearsalReceipt.handoffStatus,
+    releaseDecision: controlRoomReady ? rollbackRehearsalReceipt.releaseDecision : "no_go",
+    packetStatus: rollbackRehearsalReceipt.packetStatus,
+    receiptStatus: rollbackRehearsalReceipt.receiptStatus,
+    gateStatus: rollbackRehearsalReceipt.gateStatus,
+    goNoGoDecision: controlRoomReady ? rollbackRehearsalReceipt.goNoGoDecision : "no_go",
+    releaseReadinessStatus: rollbackRehearsalReceipt.releaseReadinessStatus,
+    reconciliationStatus: rollbackRehearsalReceipt.reconciliationStatus,
+    attestationStatus: rollbackRehearsalReceipt.attestationStatus,
+    ledgerStatusFromClosure: rollbackRehearsalReceipt.ledgerStatusFromClosure,
+    certificationStatus: rollbackRehearsalReceipt.certificationStatus,
+    verificationStatus: rollbackRehearsalReceipt.verificationStatus,
+    digestChainStatus: rollbackRehearsalReceipt.digestChainStatus,
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-control-room-packet.json",
+    safeDigest: safeDigestValue,
+    controlRoomPacketDigest: safeDigestValue,
+    rollbackRehearsalReceiptDigest: rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest,
+    freezeAuditRegisterDigest: rollbackRehearsalReceipt.freezeAuditRegisterDigest,
+    finalReadinessCertificateDigest: rollbackRehearsalReceipt.finalReadinessCertificateDigest,
+    dryRunResultLedgerDigest: rollbackRehearsalReceipt.dryRunResultLedgerDigest,
+    noopExecutionDryRunDigest: rollbackRehearsalReceipt.noopExecutionDryRunDigest,
+    acceptanceRecordDigest: rollbackRehearsalReceipt.acceptanceRecordDigest,
+    handoffPacketDigest: rollbackRehearsalReceipt.handoffPacketDigest,
+    decisionReceiptDigest: rollbackRehearsalReceipt.decisionReceiptDigest,
+    releaseGateDigest: rollbackRehearsalReceipt.releaseGateDigest,
+    reconciliationDigest: rollbackRehearsalReceipt.reconciliationDigest,
+    attestationAuditDigest: rollbackRehearsalReceipt.attestationAuditDigest,
+    closureLedgerDigest: rollbackRehearsalReceipt.closureLedgerDigest,
+    certificationDigest: rollbackRehearsalReceipt.certificationDigest,
+    verificationDigest: rollbackRehearsalReceipt.verificationDigest,
+    releaseEvidenceDigest: rollbackRehearsalReceipt.releaseEvidenceDigest,
+    operatorChecklist: rollbackRehearsalReceipt.operatorChecklist,
+    acknowledgedChecklist: rollbackRehearsalReceipt.acknowledgedChecklist,
+    executionChecklist: rollbackRehearsalReceipt.executionChecklist,
+    dryRunRows: rollbackRehearsalReceipt.dryRunRows,
+    executionPlanRows: rollbackRehearsalReceipt.executionPlanRows,
+    resultLedgerRows: rollbackRehearsalReceipt.resultLedgerRows,
+    finalReadinessRows: rollbackRehearsalReceipt.finalReadinessRows,
+    certificateRows: rollbackRehearsalReceipt.certificateRows,
+    freezeAuditRows: rollbackRehearsalReceipt.freezeAuditRows,
+    freezeSnapshotRows: rollbackRehearsalReceipt.freezeSnapshotRows,
+    rollbackReadinessRows: rollbackRehearsalReceipt.rollbackReadinessRows,
+    rollbackRehearsalRows: rollbackRehearsalReceipt.rollbackRehearsalRows,
+    recoveryPlanRows: rollbackRehearsalReceipt.recoveryPlanRows,
+    recoveryReadinessRows: rollbackRehearsalReceipt.recoveryReadinessRows,
+    controlRoomRows,
+    cutoverChecklistRows,
+    operatorHandoffRows,
+    releaseOwnerSummary: rollbackRehearsalReceipt.releaseOwnerSummary,
+    inheritedPrerequisiteChecklist: rollbackRehearsalReceipt.inheritedPrerequisiteChecklist,
+    inheritedCertificationChecklist: rollbackRehearsalReceipt.inheritedCertificationChecklist,
+    inheritedGateChecklist: rollbackRehearsalReceipt.inheritedGateChecklist,
+    inheritedDecisionReceiptSummary: rollbackRehearsalReceipt.inheritedDecisionReceiptSummary,
+    inheritedHandoffPacketSummary: rollbackRehearsalReceipt.inheritedHandoffPacketSummary,
+    inheritedAcceptanceSummary: rollbackRehearsalReceipt.inheritedAcceptanceSummary,
+    inheritedNoopDryRunSummary: rollbackRehearsalReceipt.inheritedNoopDryRunSummary,
+    inheritedResultLedgerSummary: rollbackRehearsalReceipt.inheritedResultLedgerSummary,
+    inheritedFinalReadinessCertificateSummary: rollbackRehearsalReceipt.inheritedFinalReadinessCertificateSummary,
+    inheritedFreezeAuditSummary: rollbackRehearsalReceipt.inheritedFreezeAuditSummary,
+    inheritedRollbackRehearsalSummary: {
+      rollbackRehearsalStatus: rollbackRehearsalReceipt.rollbackRehearsalStatus,
+      recoveryReadinessStatus: rollbackRehearsalReceipt.recoveryReadinessStatus,
+      rollbackRehearsalRowCount: rollbackRehearsalReceipt.counts.rollbackRehearsalRowCount,
+      rollbackRehearsalVerifiedCount: rollbackRehearsalReceipt.counts.rollbackRehearsalVerifiedCount,
+      recoveryReadinessRowCount: rollbackRehearsalReceipt.counts.recoveryReadinessRowCount,
+      recoveryReadinessReadyCount: rollbackRehearsalReceipt.counts.recoveryReadinessReadyCount,
+      rollbackRehearsalReceiptMutationCount: rollbackRehearsalReceipt.counts.rollbackRehearsalReceiptMutationCount,
+      externalCallsZero: rollbackRehearsalReceipt.externalCalls === 0,
+      safeDigest: rollbackRehearsalReceipt.safeDigest
+    },
+    inheritedBlockingReasons: rollbackRehearsalReceipt.inheritedBlockingReasons,
+    inheritedExceptionRows: rollbackRehearsalReceipt.inheritedExceptionRows,
+    counts: {
+      ...rollbackRehearsalReceipt.counts,
+      controlRoomPacketCheckedCount: 1,
+      controlRoomPacketMutationCount: 0,
+      controlRoomRowCount: controlRoomRows.length,
+      controlRoomReadyCount: controlRoomRows.filter((row) => row.complete).length,
+      cutoverChecklistRowCount: cutoverChecklistRows.length,
+      cutoverChecklistReadyCount: cutoverChecklistRows.filter((row) => row.complete).length,
+      operatorHandoffRowCount: operatorHandoffRows.length,
+      operatorHandoffReadyCount: operatorHandoffRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseControlRoomReady(
+  rollbackRehearsalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt
+) {
+  return rollbackRehearsalReceipt.rollbackRehearsalStatus === "verified" &&
+    rollbackRehearsalReceipt.recoveryReadinessStatus === "ready" &&
+    rollbackRehearsalReceipt.rollbackReadinessStatus === "ready" &&
+    rollbackRehearsalReceipt.freezeAuditStatus === "recorded" &&
+    rollbackRehearsalReceipt.freezeStatus === "frozen" &&
+    rollbackRehearsalReceipt.certificateStatus === "issued" &&
+    rollbackRehearsalReceipt.finalReadinessStatus === "ready" &&
+    rollbackRehearsalReceipt.ledgerStatus === "recorded" &&
+    rollbackRehearsalReceipt.dryRunStatus === "passed" &&
+    rollbackRehearsalReceipt.executionMode === "no_op" &&
+    rollbackRehearsalReceipt.acceptanceStatus === "acknowledged" &&
+    rollbackRehearsalReceipt.handoffStatus === "ready" &&
+    rollbackRehearsalReceipt.releaseDecision === "go" &&
+    rollbackRehearsalReceipt.goNoGoDecision === "go" &&
+    rollbackRehearsalReceipt.packetStatus === "issued" &&
+    rollbackRehearsalReceipt.receiptStatus === "issued" &&
+    rollbackRehearsalReceipt.gateStatus === "ready" &&
+    rollbackRehearsalReceipt.rollbackRehearsalRows.every((row) => row.complete && row.rollbackRehearsalStatus === "verified" && row.recoveryReadinessStatus === "ready") &&
+    rollbackRehearsalReceipt.recoveryReadinessRows.every((row) => row.complete && row.rollbackRehearsalStatus === "verified" && row.recoveryReadinessStatus === "ready") &&
+    rollbackRehearsalReceipt.counts.rollbackRehearsalReceiptMutationCount === 0 &&
+    rollbackRehearsalReceipt.externalCalls === 0;
+}
+
+function mockCertifiedReleaseControlRoomStatus(
+  rollbackRehearsalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt,
+  controlRoomReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket["controlRoomStatus"] {
+  if (controlRoomReady) return "ready";
+  if (rollbackRehearsalReceipt.rollbackRehearsalStatus === "blocked" || rollbackRehearsalReceipt.releaseDecision !== "go" || rollbackRehearsalReceipt.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function mockCertifiedReleaseControlRoomRows(
+  rows: Array<[
+    ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket["controlRoomRows"][number]["key"],
+    string,
+    string,
+    number,
+    boolean
+  ]>,
+  controlRoomReady: boolean,
+  controlRoomStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket["controlRoomStatus"],
+  cutoverReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket["cutoverReadinessStatus"]
+): ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket["controlRoomRows"] {
+  return rows.map(([key, label, rowDigest, checkedCount, complete]) => ({
+    key,
+    label,
+    controlRoomStatus: complete && controlRoomReady ? "ready" : controlRoomStatus,
+    cutoverReadinessStatus: complete && controlRoomReady ? "ready" : cutoverReadinessStatus,
+    safeDigest: rowDigest,
+    checkedCount,
+    complete: complete && controlRoomReady
+  }));
+}
+
+function mockCertifiedReleaseControlRoomDigestLinksSafe(
+  rollbackRehearsalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt,
+  controlRoomPacketDigest: string
+) {
+  return [
+    controlRoomPacketDigest,
+    rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest,
+    rollbackRehearsalReceipt.freezeAuditRegisterDigest,
+    rollbackRehearsalReceipt.finalReadinessCertificateDigest,
+    rollbackRehearsalReceipt.dryRunResultLedgerDigest,
+    rollbackRehearsalReceipt.noopExecutionDryRunDigest,
+    rollbackRehearsalReceipt.acceptanceRecordDigest,
+    rollbackRehearsalReceipt.handoffPacketDigest,
+    rollbackRehearsalReceipt.decisionReceiptDigest,
+    rollbackRehearsalReceipt.releaseGateDigest,
+    rollbackRehearsalReceipt.reconciliationDigest,
+    rollbackRehearsalReceipt.attestationAuditDigest,
+    rollbackRehearsalReceipt.closureLedgerDigest,
+    rollbackRehearsalReceipt.certificationDigest,
+    rollbackRehearsalReceipt.verificationDigest,
+    rollbackRehearsalReceipt.releaseEvidenceDigest,
+    rollbackRehearsalReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 
