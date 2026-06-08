@@ -36,6 +36,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseControlRoomPacket(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2609,11 +2610,16 @@ describe("ProviderWebhooksController sandbox events", () => {
     const cutoverChecklistReceipt = controller.getReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt(tenantId, filters, "operator-current");
     const afterCutoverChecklistReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforeOperatorCommandReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const operatorCommandReceipt = controller.getReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(tenantId, filters, "operator-current");
+    const afterOperatorCommandReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3326,6 +3332,51 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(cutoverChecklistReceipt.counts.cutoverChecklistReceiptMutationCount).toBe(0);
     expect(cutoverChecklistReceipt.counts.operatorCommandReadyCount).toBe(cutoverChecklistReceipt.operatorCommandRows.length);
     expect(cutoverChecklistReceipt.counts.safeCutoverChecklistReadyCount).toBe(cutoverChecklistReceipt.safeCutoverChecklistRows.length);
+    expect(operatorCommandReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-operator-command-receipt",
+      operatorCommandReceiptStatus: "issued",
+      goLiveAuthorizationStatus: "ready",
+      cutoverChecklistStatus: "verified",
+      operatorCommandStatus: "ready",
+      controlRoomStatus: "ready",
+      cutoverReadinessStatus: "ready",
+      rollbackRehearsalStatus: "verified",
+      recoveryReadinessStatus: "ready",
+      rollbackReadinessStatus: "ready",
+      freezeAuditStatus: "recorded",
+      freezeStatus: "frozen",
+      certificateStatus: "issued",
+      finalReadinessStatus: "ready",
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      acceptanceStatus: "acknowledged",
+      handoffStatus: "ready",
+      releaseDecision: "go",
+      packetStatus: "issued",
+      receiptStatus: "issued",
+      gateStatus: "ready",
+      goNoGoDecision: "go",
+      externalCalls: 0
+    });
+    expect(operatorCommandReceipt.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-operator-command-receipt.json");
+    expect(operatorCommandReceipt.operatorCommandReceiptDigest).toBe(operatorCommandReceipt.safeDigest);
+    expect(operatorCommandReceipt.cutoverChecklistReceiptDigest).toBe(cutoverChecklistReceipt.cutoverChecklistReceiptDigest);
+    expect(operatorCommandReceipt.goLiveAuthorizationRows.every((entry) => entry.complete && entry.operatorCommandReceiptStatus === "issued" && entry.goLiveAuthorizationStatus === "ready")).toBe(true);
+    expect(operatorCommandReceipt.operatorCommandReceiptRows.every((entry) => entry.complete && entry.operatorCommandReceiptStatus === "issued" && entry.goLiveAuthorizationStatus === "ready")).toBe(true);
+    expect(operatorCommandReceipt.commandHandoffRows.every((entry) => entry.complete && entry.operatorCommandReceiptStatus === "issued" && entry.goLiveAuthorizationStatus === "ready")).toBe(true);
+    expect(operatorCommandReceipt.inheritedCutoverChecklistSummary).toMatchObject({
+      cutoverChecklistStatus: "verified",
+      operatorCommandStatus: "ready",
+      cutoverChecklistReceiptMutationCount: 0,
+      externalCallsZero: true,
+      safeDigest: cutoverChecklistReceipt.safeDigest
+    });
+    expect(operatorCommandReceipt.counts.operatorCommandReceiptCheckedCount).toBe(1);
+    expect(operatorCommandReceipt.counts.operatorCommandReceiptMutationCount).toBe(0);
+    expect(operatorCommandReceipt.counts.goLiveAuthorizationReadyCount).toBe(operatorCommandReceipt.goLiveAuthorizationRows.length);
+    expect(operatorCommandReceipt.counts.operatorCommandReceiptIssuedCount).toBe(operatorCommandReceipt.operatorCommandReceiptRows.length);
+    expect(operatorCommandReceipt.counts.commandHandoffReadyCount).toBe(operatorCommandReceipt.commandHandoffRows.length);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(afterFinalReadinessCertificateRead).toMatchObject({
@@ -3382,6 +3433,17 @@ describe("ProviderWebhooksController sandbox events", () => {
       messagePersisted: beforeCutoverChecklistReceiptRead?.messagePersisted,
       linkedConversationId: beforeCutoverChecklistReceiptRead?.linkedConversationId,
       linkedMessageId: beforeCutoverChecklistReceiptRead?.linkedMessageId
+    });
+    expect(afterOperatorCommandReceiptRead).toMatchObject({
+      reviewStatus: beforeOperatorCommandReceiptRead?.reviewStatus,
+      linkStatus: beforeOperatorCommandReceiptRead?.linkStatus,
+      unmatchedStatus: beforeOperatorCommandReceiptRead?.unmatchedStatus,
+      assignmentStatus: beforeOperatorCommandReceiptRead?.assignmentStatus,
+      escalationStatus: beforeOperatorCommandReceiptRead?.escalationStatus,
+      resolutionStatus: beforeOperatorCommandReceiptRead?.resolutionStatus,
+      messagePersisted: beforeOperatorCommandReceiptRead?.messagePersisted,
+      linkedConversationId: beforeOperatorCommandReceiptRead?.linkedConversationId,
+      linkedMessageId: beforeOperatorCommandReceiptRead?.linkedMessageId
     });
     expect(afterNoopRead).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,

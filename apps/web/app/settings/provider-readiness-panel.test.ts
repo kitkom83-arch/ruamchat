@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -65,6 +65,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt: providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(),
       reviewQaHandoffCertifiedReleaseControlRoomPacket: providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket(),
       reviewQaHandoffCertifiedReleaseCutoverChecklistReceipt: providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt(),
+      reviewQaHandoffCertifiedReleaseOperatorCommandReceipt: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -327,6 +328,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("Load certified release rollback rehearsal receipt");
     expect(html).toContain("Load certified release control room packet");
     expect(html).toContain("Load certified release cutover checklist receipt");
+    expect(html).toContain("Load certified release operator command receipt");
     expect(html).toContain("Closure report export json: totalItems=1; evidenceReadyCount=1; safeFilename=provider-webhook-review-closure-report.json; externalCalls=0");
     expect(html).toContain("Closure report export manifest: target=closure-report-export; totalItems=1; redaction=passed; integrity=confirmed; manual QA readiness=ready; safeFilename=provider-webhook-review-closure-report.json; safeDigest=sha256:safeauditdigest; externalCalls=0");
     expect(html).toContain("QA handoff bundle: readiness=ready; totalItems=1; evidenceManifests=1; safeFilename=provider-webhook-review-qa-handoff-bundle.json; safeDigest=sha256:safeqahandoffbundle; externalCalls=0");
@@ -391,6 +393,13 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("operatorCommandRows=6/6");
     expect(html).toContain("safeCutoverChecklistRows=14/14");
     expect(html).toContain("cutoverChecklistReceiptMutationCount=0");
+    expect(html).toContain("QA archive certified release operator command receipt: operatorCommandReceiptStatus=issued; goLiveAuthorizationStatus=ready; cutoverChecklistStatus=verified; operatorCommandStatus=ready; controlRoomStatus=ready; cutoverReadinessStatus=ready");
+    expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-operator-command-receipt.json");
+    expect(html).toContain("operatorCommandReceiptDigest=sha256:safeqahandoffcertifiedreleaseoperatorcommandreceipt");
+    expect(html).toContain("goLiveAuthorizationRows=3/3");
+    expect(html).toContain("operatorCommandReceiptRows=2/2");
+    expect(html).toContain("commandHandoffRows=2/2");
+    expect(html).toContain("operatorCommandReceiptMutationCount=0");
     expect(html).toContain("QA archive integrity digest chain");
     expect(html).toContain("digestChainLinkCount=6");
     expect(html).toContain("QA retention audit checklist");
@@ -3440,6 +3449,59 @@ function providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt()
   };
 }
 
+function providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(): ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt {
+  const cutoverChecklistReceipt = providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt();
+  const operatorCommandReceiptDigest = "sha256:safeqahandoffcertifiedreleaseoperatorcommandreceipt";
+  const goLiveAuthorizationRows = [
+    providerWebhookOperatorCommandReceiptRow("cutover_checklist_verified", "Cutover checklist receipt verified", cutoverChecklistReceipt.cutoverChecklistReceiptDigest, 1),
+    providerWebhookOperatorCommandReceiptRow("operator_command_ready", "Safe operator command ready", cutoverChecklistReceipt.cutoverChecklistReceiptDigest, cutoverChecklistReceipt.counts.operatorCommandReadyCount),
+    providerWebhookOperatorCommandReceiptRow("go_live_authorization_ready", "Safe go-live authorization preview ready", operatorCommandReceiptDigest, 1)
+  ];
+  const operatorCommandReceiptRows = [
+    providerWebhookOperatorCommandReceiptRow("operator_command_receipt_issued", "Operator command receipt issued", operatorCommandReceiptDigest, 1),
+    providerWebhookOperatorCommandReceiptRow("safe_digest_chain", "Operator command receipt safe digest chain", operatorCommandReceiptDigest, 20)
+  ];
+  const commandHandoffRows = [
+    providerWebhookOperatorCommandReceiptRow("no_op_execution", "No-op execution mode enforced", cutoverChecklistReceipt.noopExecutionDryRunDigest, 1),
+    providerWebhookOperatorCommandReceiptRow("release_decision_go", "Release decision remains go", cutoverChecklistReceipt.decisionReceiptDigest, 1)
+  ];
+
+  return {
+    ...cutoverChecklistReceipt,
+    receiptKind: "qa-handoff-locked-archive-certified-release-operator-command-receipt",
+    operatorCommandReceiptStatus: "issued",
+    goLiveAuthorizationStatus: "ready",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-operator-command-receipt.json",
+    safeDigest: operatorCommandReceiptDigest,
+    operatorCommandReceiptDigest,
+    goLiveAuthorizationRows,
+    operatorCommandReceiptRows,
+    commandHandoffRows,
+    inheritedCutoverChecklistSummary: {
+      cutoverChecklistStatus: "verified",
+      operatorCommandStatus: "ready",
+      cutoverChecklistReceiptCheckedCount: 1,
+      cutoverChecklistReceiptMutationCount: 0,
+      operatorCommandReadyCount: cutoverChecklistReceipt.counts.operatorCommandReadyCount,
+      safeCutoverChecklistReadyCount: cutoverChecklistReceipt.counts.safeCutoverChecklistReadyCount,
+      externalCallsZero: true,
+      safeDigest: cutoverChecklistReceipt.safeDigest
+    },
+    counts: {
+      ...cutoverChecklistReceipt.counts,
+      operatorCommandReceiptCheckedCount: 1,
+      operatorCommandReceiptMutationCount: 0,
+      goLiveAuthorizationRowCount: goLiveAuthorizationRows.length,
+      goLiveAuthorizationReadyCount: goLiveAuthorizationRows.length,
+      operatorCommandReceiptRowCount: operatorCommandReceiptRows.length,
+      operatorCommandReceiptIssuedCount: operatorCommandReceiptRows.length,
+      commandHandoffRowCount: commandHandoffRows.length,
+      commandHandoffReadyCount: commandHandoffRows.length
+    },
+    externalCalls: 0
+  };
+}
+
 function providerWebhookFreezeAuditRegisterRow(
   key: ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister["freezeAuditRows"][number]["key"],
   label: string,
@@ -3474,6 +3536,15 @@ function providerWebhookCutoverChecklistReceiptRow(
   checkedCount: number
 ): ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt["operatorCommandRows"][number] {
   return { key, label, cutoverChecklistStatus: "verified", operatorCommandStatus: "ready", safeDigest, checkedCount, complete: true };
+}
+
+function providerWebhookOperatorCommandReceiptRow(
+  key: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt["operatorCommandReceiptRows"][number]["key"],
+  label: string,
+  safeDigest: string,
+  checkedCount: number
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt["operatorCommandReceiptRows"][number] {
+  return { key, label, operatorCommandReceiptStatus: "issued", goLiveAuthorizationStatus: "ready", cutoverChecklistStatus: "verified", operatorCommandStatus: "ready", safeDigest, checkedCount, complete: true };
 }
 
 function providerWebhookFinalReadinessCertificateRow(
