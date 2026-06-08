@@ -33,6 +33,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseDryRunResultLedger(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseFreezeAuditRegister(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2591,11 +2592,16 @@ describe("ProviderWebhooksController sandbox events", () => {
     const freezeAuditRegister = controller.getReviewQaHandoffCertifiedReleaseFreezeAuditRegister(tenantId, filters, "operator-current");
     const afterFreezeAuditRegisterRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforeRollbackRehearsalReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const rollbackRehearsalReceipt = controller.getReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(tenantId, filters, "operator-current");
+    const afterRollbackRehearsalReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3179,6 +3185,43 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(freezeAuditRegister.counts.freezeAuditRegisterMutationCount).toBe(0);
     expect(freezeAuditRegister.counts.freezeAuditRegisteredCount).toBe(freezeAuditRegister.freezeAuditRows.length);
     expect(freezeAuditRegister.counts.rollbackPlanReadyCount).toBe(freezeAuditRegister.rollbackPlanRows.length);
+    expect(rollbackRehearsalReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-rollback-rehearsal-receipt",
+      rollbackRehearsalStatus: "verified",
+      recoveryReadinessStatus: "ready",
+      rollbackReadinessStatus: "ready",
+      freezeAuditStatus: "recorded",
+      freezeStatus: "frozen",
+      certificateStatus: "issued",
+      finalReadinessStatus: "ready",
+      ledgerStatus: "recorded",
+      dryRunStatus: "passed",
+      executionMode: "no_op",
+      releaseDecision: "go",
+      freezeAuditRegisterDigest: freezeAuditRegister.freezeAuditRegisterDigest,
+      finalReadinessCertificateDigest: finalReadinessCertificate.finalReadinessCertificateDigest,
+      externalCalls: 0
+    });
+    expect(rollbackRehearsalReceipt.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-rollback-rehearsal-receipt.json");
+    expect(rollbackRehearsalReceipt.rollbackRehearsalReceiptDigest).toBe(rollbackRehearsalReceipt.safeDigest);
+    expect(rollbackRehearsalReceipt.freezeSnapshotRows.every((entry) => entry.complete && entry.rollbackRehearsalStatus === "verified" && entry.recoveryReadinessStatus === "ready")).toBe(true);
+    expect(rollbackRehearsalReceipt.rollbackReadinessRows.every((entry) => entry.complete && entry.rollbackRehearsalStatus === "verified" && entry.recoveryReadinessStatus === "ready")).toBe(true);
+    expect(rollbackRehearsalReceipt.rollbackRehearsalRows.every((entry) => entry.complete && entry.rollbackRehearsalStatus === "verified" && entry.recoveryReadinessStatus === "ready")).toBe(true);
+    expect(rollbackRehearsalReceipt.recoveryPlanRows.every((entry) => entry.complete && entry.rollbackRehearsalStatus === "verified" && entry.recoveryReadinessStatus === "ready")).toBe(true);
+    expect(rollbackRehearsalReceipt.recoveryReadinessRows.every((entry) => entry.complete && entry.rollbackRehearsalStatus === "verified" && entry.recoveryReadinessStatus === "ready")).toBe(true);
+    expect(rollbackRehearsalReceipt.inheritedFreezeAuditSummary).toMatchObject({
+      freezeAuditStatus: "recorded",
+      freezeStatus: "frozen",
+      rollbackReadinessStatus: "ready",
+      externalCallsZero: true,
+      safeDigest: freezeAuditRegister.safeDigest
+    });
+    expect(rollbackRehearsalReceipt.counts.rollbackRehearsalReceiptCheckedCount).toBe(1);
+    expect(rollbackRehearsalReceipt.counts.rollbackRehearsalReceiptMutationCount).toBe(0);
+    expect(rollbackRehearsalReceipt.counts.freezeSnapshotVerifiedCount).toBe(rollbackRehearsalReceipt.freezeSnapshotRows.length);
+    expect(rollbackRehearsalReceipt.counts.rollbackReadinessReadyCount).toBe(rollbackRehearsalReceipt.rollbackReadinessRows.length);
+    expect(rollbackRehearsalReceipt.counts.rollbackRehearsalVerifiedCount).toBe(rollbackRehearsalReceipt.rollbackRehearsalRows.length);
+    expect(rollbackRehearsalReceipt.counts.recoveryReadinessReadyCount).toBe(rollbackRehearsalReceipt.recoveryReadinessRows.length);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(afterFinalReadinessCertificateRead).toMatchObject({
@@ -3202,6 +3245,17 @@ describe("ProviderWebhooksController sandbox events", () => {
       messagePersisted: beforeFreezeAuditRegisterRead?.messagePersisted,
       linkedConversationId: beforeFreezeAuditRegisterRead?.linkedConversationId,
       linkedMessageId: beforeFreezeAuditRegisterRead?.linkedMessageId
+    });
+    expect(afterRollbackRehearsalReceiptRead).toMatchObject({
+      reviewStatus: beforeRollbackRehearsalReceiptRead?.reviewStatus,
+      linkStatus: beforeRollbackRehearsalReceiptRead?.linkStatus,
+      unmatchedStatus: beforeRollbackRehearsalReceiptRead?.unmatchedStatus,
+      assignmentStatus: beforeRollbackRehearsalReceiptRead?.assignmentStatus,
+      escalationStatus: beforeRollbackRehearsalReceiptRead?.escalationStatus,
+      resolutionStatus: beforeRollbackRehearsalReceiptRead?.resolutionStatus,
+      messagePersisted: beforeRollbackRehearsalReceiptRead?.messagePersisted,
+      linkedConversationId: beforeRollbackRehearsalReceiptRead?.linkedConversationId,
+      linkedMessageId: beforeRollbackRehearsalReceiptRead?.linkedMessageId
     });
     expect(afterNoopRead).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,

@@ -340,6 +340,15 @@ export class ProviderWebhooksController {
     return this.events.getReviewQaHandoffCertifiedReleaseFreezeAuditRegister(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
   }
 
+  @Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt")
+  getReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(
+    @Headers("x-tenant-id") tenant: string | undefined,
+    @Query() query: unknown,
+    @Headers("x-user-id") userId?: string
+  ) {
+    return this.events.getReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt(requireTenantId(tenant), parseReviewClosureReportFilters(query), userId);
+  }
+
   @Get("review-closure-report/export")
   exportReviewClosureReport(
     @Headers("x-tenant-id") tenant: string | undefined,
