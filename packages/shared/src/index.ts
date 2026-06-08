@@ -5328,6 +5328,21 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatus
 ]);
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatusSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema = z.enum([
+  "pending",
+  "issued",
+  "blocked",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema = z.enum([
+  "ready",
+  "not_ready",
+  "incomplete"
+]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema>;
+
 export const providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptRowSchema = z.object({
   key: z.enum([
     "control_room_ready",
@@ -5466,6 +5481,80 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistRecei
   externalCalls: z.literal(0)
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRowSchema = z.object({
+  key: z.enum([
+    "cutover_checklist_verified",
+    "operator_command_ready",
+    "control_room_ready",
+    "cutover_readiness_ready",
+    "rollback_rehearsal_verified",
+    "recovery_readiness_ready",
+    "rollback_readiness_ready",
+    "freeze_audit_recorded",
+    "release_frozen",
+    "certificate_issued",
+    "final_readiness_ready",
+    "ledger_recorded",
+    "dry_run_passed",
+    "no_op_execution",
+    "acceptance_acknowledged",
+    "handoff_ready",
+    "release_decision_go",
+    "packet_issued",
+    "receipt_issued",
+    "gate_ready",
+    "go_no_go_go",
+    "operator_checklist_complete",
+    "acknowledgement_complete",
+    "execution_checklist_complete",
+    "go_live_authorization_ready",
+    "operator_command_receipt_issued",
+    "safe_digest_chain",
+    "no_state_mutation",
+    "external_calls_zero"
+  ]),
+  label: z.string().min(1),
+  operatorCommandReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema,
+  goLiveAuthorizationStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema,
+  cutoverChecklistStatus: providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistStatusSchema,
+  operatorCommandStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatusSchema,
+  safeDigest: z.string().min(1),
+  checkedCount: z.number().int().nonnegative(),
+  complete: z.boolean()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema = providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.extend({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-operator-command-receipt"),
+  operatorCommandReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptStatusSchema,
+  goLiveAuthorizationStatus: providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationStatusSchema,
+  operatorCommandReceiptDigest: z.string().min(1),
+  goLiveAuthorizationRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRowSchema).min(1),
+  operatorCommandReceiptRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRowSchema).min(1),
+  commandHandoffRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptRowSchema).min(1),
+  inheritedCutoverChecklistSummary: z.object({
+    cutoverChecklistStatus: providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistStatusSchema,
+    operatorCommandStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandStatusSchema,
+    cutoverChecklistReceiptCheckedCount: z.number().int().nonnegative(),
+    cutoverChecklistReceiptMutationCount: z.number().int().nonnegative(),
+    operatorCommandReadyCount: z.number().int().nonnegative(),
+    safeCutoverChecklistReadyCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean(),
+    safeDigest: z.string().min(1)
+  }).strict(),
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.shape.counts.extend({
+    operatorCommandReceiptCheckedCount: z.number().int().nonnegative(),
+    operatorCommandReceiptMutationCount: z.number().int().nonnegative(),
+    goLiveAuthorizationRowCount: z.number().int().nonnegative(),
+    goLiveAuthorizationReadyCount: z.number().int().nonnegative(),
+    operatorCommandReceiptRowCount: z.number().int().nonnegative(),
+    operatorCommandReceiptIssuedCount: z.number().int().nonnegative(),
+    commandHandoffRowCount: z.number().int().nonnegative(),
+    commandHandoffReadyCount: z.number().int().nonnegative()
+  }).strict()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),

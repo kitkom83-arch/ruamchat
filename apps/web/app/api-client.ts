@@ -44,6 +44,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffReleaseClosureLedgerSchema,
@@ -270,6 +271,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -773,6 +775,11 @@ export async function getProviderWebhookReviewQaHandoffCertifiedReleaseControlRo
 export async function getProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt> {
   const search = providerWebhookReviewClosureReportSearch(filters);
   return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt${search}`, providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema);
+}
+
+export async function getProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt> {
+  const search = providerWebhookReviewClosureReportSearch(filters);
+  return request(`/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt${search}`, providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema);
 }
 
 export async function getProviderWebhookReviewClosureReportExport(filters: ProviderWebhookReviewClosureReportFilters = {}): Promise<ProviderWebhookReviewClosureReportExport> {

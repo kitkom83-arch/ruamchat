@@ -66,6 +66,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -85,7 +86,8 @@ import {
   slaMetricSchema,
   slaStateSchema,
   updateCustomer360ConsentRequestSchema,
-  updateCustomer360ProfileRequestSchema
+  updateCustomer360ProfileRequestSchema,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1573,6 +1575,64 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const operatorCommandReceiptRow = (
+      key: ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt["operatorCommandReceiptRows"][number]["key"],
+      label: string,
+      safeDigest: string,
+      checkedCount: number
+    ) => ({
+      key,
+      label,
+      operatorCommandReceiptStatus: "issued" as const,
+      goLiveAuthorizationStatus: "ready" as const,
+      cutoverChecklistStatus: "verified" as const,
+      operatorCommandStatus: "ready" as const,
+      safeDigest,
+      checkedCount,
+      complete: true
+    });
+    const certifiedReleaseOperatorCommandReceipt = providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.parse({
+      ...certifiedReleaseCutoverChecklistReceipt,
+      receiptKind: "qa-handoff-locked-archive-certified-release-operator-command-receipt",
+      operatorCommandReceiptStatus: "issued",
+      goLiveAuthorizationStatus: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-operator-command-receipt.json",
+      safeDigest: "sha256:certifiedreleaseoperatorcommandreceipt",
+      operatorCommandReceiptDigest: "sha256:certifiedreleaseoperatorcommandreceipt",
+      goLiveAuthorizationRows: [
+        operatorCommandReceiptRow("cutover_checklist_verified", "Cutover checklist receipt verified", "sha256:certifiedreleasecutoverchecklistreceipt", 1),
+        operatorCommandReceiptRow("go_live_authorization_ready", "Safe go-live authorization preview ready", "sha256:certifiedreleaseoperatorcommandreceipt", 1)
+      ],
+      operatorCommandReceiptRows: [
+        operatorCommandReceiptRow("operator_command_receipt_issued", "Operator command receipt issued", "sha256:certifiedreleaseoperatorcommandreceipt", 1),
+        operatorCommandReceiptRow("safe_digest_chain", "Operator command receipt safe digest chain", "sha256:certifiedreleaseoperatorcommandreceipt", 20)
+      ],
+      commandHandoffRows: [
+        operatorCommandReceiptRow("no_op_execution", "No-op execution mode enforced", certifiedReleaseCutoverChecklistReceipt.noopExecutionDryRunDigest, 1),
+        operatorCommandReceiptRow("release_decision_go", "Release decision remains go", certifiedReleaseCutoverChecklistReceipt.decisionReceiptDigest, 1)
+      ],
+      inheritedCutoverChecklistSummary: {
+        cutoverChecklistStatus: "verified",
+        operatorCommandStatus: "ready",
+        cutoverChecklistReceiptCheckedCount: 1,
+        cutoverChecklistReceiptMutationCount: 0,
+        operatorCommandReadyCount: operatorCommandRows.length,
+        safeCutoverChecklistReadyCount: safeCutoverChecklistRows.length,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseCutoverChecklistReceipt.safeDigest
+      },
+      counts: {
+        ...certifiedReleaseCutoverChecklistReceipt.counts,
+        operatorCommandReceiptCheckedCount: 1,
+        operatorCommandReceiptMutationCount: 0,
+        goLiveAuthorizationRowCount: 2,
+        goLiveAuthorizationReadyCount: 2,
+        operatorCommandReceiptRowCount: 2,
+        operatorCommandReceiptIssuedCount: 2,
+        commandHandoffRowCount: 2,
+        commandHandoffReadyCount: 2
+      }
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -1695,6 +1755,13 @@ describe("shared contracts", () => {
     expect(certifiedReleaseCutoverChecklistReceipt.safeCutoverChecklistRows.every((row) => row.complete && row.cutoverChecklistStatus === "verified" && row.operatorCommandStatus === "ready")).toBe(true);
     expect(certifiedReleaseCutoverChecklistReceipt.counts.cutoverChecklistReceiptMutationCount).toBe(0);
     expect(certifiedReleaseCutoverChecklistReceipt.externalCalls).toBe(0);
+    expect(certifiedReleaseOperatorCommandReceipt.operatorCommandReceiptStatus).toBe("issued");
+    expect(certifiedReleaseOperatorCommandReceipt.goLiveAuthorizationStatus).toBe("ready");
+    expect(certifiedReleaseOperatorCommandReceipt.operatorCommandReceiptDigest).toBe(certifiedReleaseOperatorCommandReceipt.safeDigest);
+    expect(certifiedReleaseOperatorCommandReceipt.inheritedCutoverChecklistSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseOperatorCommandReceipt.operatorCommandReceiptRows.every((row) => row.complete && row.operatorCommandReceiptStatus === "issued" && row.goLiveAuthorizationStatus === "ready")).toBe(true);
+    expect(certifiedReleaseOperatorCommandReceipt.counts.operatorCommandReceiptMutationCount).toBe(0);
+    expect(certifiedReleaseOperatorCommandReceipt.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
@@ -1804,6 +1871,8 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema.parse({ ...certifiedReleaseControlRoomPacket, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.parse({ ...certifiedReleaseOperatorCommandReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.parse({ ...certifiedReleaseOperatorCommandReceipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseEvidenceSchema.parse({ ...releaseEvidence, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffReleaseVerificationSchema.parse({ ...releaseVerification, externalCalls: 1 })).toThrow();
@@ -1822,6 +1891,7 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceiptSchema.parse({ ...certifiedReleaseRollbackRehearsalReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseControlRoomPacketSchema.parse({ ...certifiedReleaseControlRoomPacket, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceiptSchema.parse({ ...certifiedReleaseCutoverChecklistReceipt, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema.parse({ ...certifiedReleaseOperatorCommandReceipt, externalCalls: 1 })).toThrow();
   });
 
   it("validates provider webhook closure evidence and report DTOs", () => {
