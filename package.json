@@ -108,6 +108,7 @@
     "smoke:sprint99": "node scripts/smoke-sprint99-provider-webhook-review-qa-archive-certified-release-operator-command-receipt.mjs",
     "smoke:sprint100": "node scripts/smoke-sprint100-provider-webhook-review-qa-archive-certified-release-go-live-authorization-receipt.mjs",
     "smoke:sprint101": "node scripts/smoke-sprint101-provider-webhook-review-qa-archive-certified-release-launch-window-confirmation-receipt.mjs",
+    "smoke:sprint102": "node scripts/smoke-sprint102-provider-webhook-review-qa-archive-certified-release-go-live-hold-release-authorization-receipt.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

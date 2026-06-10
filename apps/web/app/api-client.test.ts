@@ -57,6 +57,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -270,7 +271,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseCutoverChecklistReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseOperatorCommandReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseGoLiveAuthorizationReceiptResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseLaunchWindowConfirmationReceiptResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseLaunchWindowConfirmationReceiptResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -312,6 +314,7 @@ describe("frontend API client", () => {
     const operatorCommandReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(filters);
     const goLiveAuthorizationReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt(filters);
     const launchWindowConfirmationReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt(filters);
+    const goLiveHoldReleaseAuthorizationReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
@@ -338,12 +341,16 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(goLiveAuthorizationReceipt.goLiveAuthorizationReceiptStatus).toBe("issued");
     expect(goLiveAuthorizationReceipt.launchWindowStatus).toBe("ready");
     expect(goLiveAuthorizationReceipt.externalCalls).toBe(0);
     expect(launchWindowConfirmationReceipt.launchWindowConfirmationStatus).toBe("confirmed");
     expect(launchWindowConfirmationReceipt.goLiveHoldStatus).toBe("ready");
     expect(launchWindowConfirmationReceipt.externalCalls).toBe(0);
+    expect(goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus).toBe("authorized");
+    expect(goLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus).toBe("ready");
+    expect(goLiveHoldReleaseAuthorizationReceipt.externalCalls).toBe(0);
     expectTenantHeaderForAll(fetchMock);
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit)?.body))).toMatchObject({
       action: "sign_off",
@@ -5639,6 +5646,60 @@ function providerWebhookArchiveCertifiedReleaseLaunchWindowConfirmationReceiptRe
 
 function providerWebhookCertifiedReleaseLaunchWindowConfirmationReceiptRow(key: string, label: string, safeDigest: string, checkedCount: number) {
   return { key, label, launchWindowConfirmationStatus: "confirmed", goLiveHoldStatus: "ready", goLiveAuthorizationReceiptStatus: "issued", goLiveAuthorizationStatus: "ready", launchWindowStatus: "ready", safeLaunchWindowStatus: "ready", operatorCommandReceiptStatus: "issued", operatorCommandStatus: "ready", safeDigest, checkedCount, complete: true };
+}
+
+function providerWebhookArchiveCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptResponse() {
+  const launchWindowConfirmationReceipt = providerWebhookArchiveCertifiedReleaseLaunchWindowConfirmationReceiptResponse();
+  const goLiveHoldReleaseAuthorizationReceiptDigest = "sha256:safeqahandoffcertifiedreleasegoliveholdreleaseauthorizationreceipt";
+  const goLiveHoldReleaseAuthorizationRows = [
+    providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow("launch_window_confirmation_confirmed", "Launch window confirmation receipt confirmed", launchWindowConfirmationReceipt.launchWindowConfirmationReceiptDigest, 1),
+    providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow("go_live_hold_release_authorized", "Safe go-live hold release authorization issued", goLiveHoldReleaseAuthorizationReceiptDigest, 1)
+  ];
+  const launchApprovalRows = [
+    providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow("operator_command_receipt_issued", "Operator command receipt issued", launchWindowConfirmationReceipt.operatorCommandReceiptDigest, 1),
+    providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow("launch_approval_ready", "Launch approval register ready", goLiveHoldReleaseAuthorizationReceiptDigest, 1),
+    providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow("safe_digest_chain", "Go-live hold release authorization receipt safe digest chain", goLiveHoldReleaseAuthorizationReceiptDigest, 23)
+  ];
+
+  return {
+    ...launchWindowConfirmationReceipt,
+    receiptKind: "qa-handoff-locked-archive-certified-release-go-live-hold-release-authorization-receipt",
+    goLiveHoldReleaseAuthorizationStatus: "authorized",
+    launchApprovalStatus: "ready",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-go-live-hold-release-authorization-receipt.json",
+    safeDigest: goLiveHoldReleaseAuthorizationReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceiptDigest,
+    goLiveHoldReleaseAuthorizationRows,
+    launchApprovalRows,
+    inheritedLaunchWindowConfirmationSummary: {
+      launchWindowConfirmationStatus: "confirmed",
+      goLiveHoldStatus: "ready",
+      goLiveAuthorizationReceiptStatus: "issued",
+      goLiveAuthorizationStatus: "ready",
+      launchWindowStatus: "ready",
+      safeLaunchWindowStatus: "ready",
+      launchWindowConfirmationReceiptCheckedCount: 1,
+      launchWindowConfirmationReceiptMutationCount: 0,
+      launchWindowConfirmationConfirmedCount: launchWindowConfirmationReceipt.launchWindowConfirmationRows.length,
+      goLiveHoldReadyCount: launchWindowConfirmationReceipt.goLiveHoldRows.length,
+      externalCallsZero: true,
+      safeDigest: launchWindowConfirmationReceipt.safeDigest
+    },
+    counts: {
+      ...launchWindowConfirmationReceipt.counts,
+      goLiveHoldReleaseAuthorizationReceiptCheckedCount: 1,
+      goLiveHoldReleaseAuthorizationReceiptMutationCount: 0,
+      goLiveHoldReleaseAuthorizationRowCount: goLiveHoldReleaseAuthorizationRows.length,
+      goLiveHoldReleaseAuthorizationAuthorizedCount: goLiveHoldReleaseAuthorizationRows.length,
+      launchApprovalRowCount: launchApprovalRows.length,
+      launchApprovalReadyCount: launchApprovalRows.length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptRow(key: string, label: string, safeDigest: string, checkedCount: number) {
+  return { key, label, goLiveHoldReleaseAuthorizationStatus: "authorized", launchApprovalStatus: "ready", launchWindowConfirmationStatus: "confirmed", goLiveHoldStatus: "ready", goLiveAuthorizationReceiptStatus: "issued", goLiveAuthorizationStatus: "ready", launchWindowStatus: "ready", safeLaunchWindowStatus: "ready", operatorCommandReceiptStatus: "issued", operatorCommandStatus: "ready", safeDigest, checkedCount, complete: true };
 }
 
 function providerWebhookCertifiedReleaseFinalReadinessCertificateRow(key: string, label: string, safeDigest: string, checkedCount: number) {
