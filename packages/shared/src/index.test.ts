@@ -69,6 +69,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -91,7 +92,8 @@ import {
   updateCustomer360ProfileRequestSchema,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
-  type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1758,6 +1760,68 @@ describe("shared contracts", () => {
         goLiveHoldReadyCount: 2
       }
     });
+    const goLiveHoldReleaseAuthorizationRow = (
+      key: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt["goLiveHoldReleaseAuthorizationRows"][number]["key"],
+      label: string,
+      safeDigest: string,
+      checkedCount: number
+    ) => ({
+      key,
+      label,
+      goLiveHoldReleaseAuthorizationStatus: "authorized" as const,
+      launchApprovalStatus: "ready" as const,
+      launchWindowConfirmationStatus: "confirmed" as const,
+      goLiveHoldStatus: "ready" as const,
+      goLiveAuthorizationReceiptStatus: "issued" as const,
+      goLiveAuthorizationStatus: "ready" as const,
+      launchWindowStatus: "ready" as const,
+      safeLaunchWindowStatus: "ready" as const,
+      operatorCommandReceiptStatus: "issued" as const,
+      operatorCommandStatus: "ready" as const,
+      safeDigest,
+      checkedCount,
+      complete: true
+    });
+    const certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt = providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema.parse({
+      ...certifiedReleaseLaunchWindowConfirmationReceipt,
+      receiptKind: "qa-handoff-locked-archive-certified-release-go-live-hold-release-authorization-receipt",
+      goLiveHoldReleaseAuthorizationStatus: "authorized",
+      launchApprovalStatus: "ready",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-go-live-hold-release-authorization-receipt.json",
+      safeDigest: "sha256:certifiedreleasegoliveholdreleaseauthorizationreceipt",
+      goLiveHoldReleaseAuthorizationReceiptDigest: "sha256:certifiedreleasegoliveholdreleaseauthorizationreceipt",
+      goLiveHoldReleaseAuthorizationRows: [
+        goLiveHoldReleaseAuthorizationRow("launch_window_confirmation_confirmed", "Launch window confirmation receipt confirmed", certifiedReleaseLaunchWindowConfirmationReceipt.launchWindowConfirmationReceiptDigest, 1),
+        goLiveHoldReleaseAuthorizationRow("go_live_hold_release_authorized", "Safe go-live hold release authorization issued", "sha256:certifiedreleasegoliveholdreleaseauthorizationreceipt", 1)
+      ],
+      launchApprovalRows: [
+        goLiveHoldReleaseAuthorizationRow("launch_approval_ready", "Launch approval register ready", "sha256:certifiedreleasegoliveholdreleaseauthorizationreceipt", 1),
+        goLiveHoldReleaseAuthorizationRow("safe_digest_chain", "Go-live hold release authorization receipt safe digest chain", "sha256:certifiedreleasegoliveholdreleaseauthorizationreceipt", 23)
+      ],
+      inheritedLaunchWindowConfirmationSummary: {
+        launchWindowConfirmationStatus: "confirmed",
+        goLiveHoldStatus: "ready",
+        goLiveAuthorizationReceiptStatus: "issued",
+        goLiveAuthorizationStatus: "ready",
+        launchWindowStatus: "ready",
+        safeLaunchWindowStatus: "ready",
+        launchWindowConfirmationReceiptCheckedCount: 1,
+        launchWindowConfirmationReceiptMutationCount: 0,
+        launchWindowConfirmationConfirmedCount: 2,
+        goLiveHoldReadyCount: 2,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseLaunchWindowConfirmationReceipt.safeDigest
+      },
+      counts: {
+        ...certifiedReleaseLaunchWindowConfirmationReceipt.counts,
+        goLiveHoldReleaseAuthorizationReceiptCheckedCount: 1,
+        goLiveHoldReleaseAuthorizationReceiptMutationCount: 0,
+        goLiveHoldReleaseAuthorizationRowCount: 2,
+        goLiveHoldReleaseAuthorizationAuthorizedCount: 2,
+        launchApprovalRowCount: 2,
+        launchApprovalReadyCount: 2
+      }
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -1911,6 +1975,17 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceiptSchema.parse({ ...certifiedReleaseLaunchWindowConfirmationReceipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceiptSchema.parse({ ...certifiedReleaseLaunchWindowConfirmationReceipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceiptSchema.parse({ ...certifiedReleaseLaunchWindowConfirmationReceipt, externalCalls: 1 })).toThrow();
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus).toBe("authorized");
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus).toBe("ready");
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest).toBe(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.safeDigest);
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.inheritedLaunchWindowConfirmationSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationRows.every((row) => row.complete && row.goLiveHoldReleaseAuthorizationStatus === "authorized" && row.launchApprovalStatus === "ready")).toBe(true);
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.launchApprovalRows.every((row) => row.complete && row.launchApprovalStatus === "ready")).toBe(true);
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptMutationCount).toBe(0);
+    expect(certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt.externalCalls).toBe(0);
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema.parse({ ...certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema.parse({ ...certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, token: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema.parse({ ...certifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();

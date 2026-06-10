@@ -39,6 +39,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseOperatorCommandReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2627,11 +2628,16 @@ describe("ProviderWebhooksController sandbox events", () => {
     const launchWindowConfirmationReceipt = controller.getReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt(tenantId, filters, "operator-current");
     const afterLaunchWindowConfirmationReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforeGoLiveHoldReleaseAuthorizationReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const goLiveHoldReleaseAuthorizationReceipt = controller.getReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(tenantId, filters, "operator-current");
+    const afterGoLiveHoldReleaseAuthorizationReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3457,6 +3463,42 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(launchWindowConfirmationReceipt.counts.launchWindowConfirmationReceiptMutationCount).toBe(0);
     expect(launchWindowConfirmationReceipt.counts.launchWindowConfirmationConfirmedCount).toBe(launchWindowConfirmationReceipt.launchWindowConfirmationRows.length);
     expect(launchWindowConfirmationReceipt.counts.goLiveHoldReadyCount).toBe(launchWindowConfirmationReceipt.goLiveHoldRows.length);
+    expect(goLiveHoldReleaseAuthorizationReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-go-live-hold-release-authorization-receipt",
+      goLiveHoldReleaseAuthorizationStatus: "authorized",
+      launchApprovalStatus: "ready",
+      launchWindowConfirmationStatus: "confirmed",
+      goLiveHoldStatus: "ready",
+      goLiveAuthorizationReceiptStatus: "issued",
+      goLiveAuthorizationStatus: "ready",
+      launchWindowStatus: "ready",
+      safeLaunchWindowStatus: "ready",
+      operatorCommandReceiptStatus: "issued",
+      operatorCommandStatus: "ready",
+      cutoverChecklistStatus: "verified",
+      controlRoomStatus: "ready",
+      cutoverReadinessStatus: "ready",
+      releaseDecision: "go",
+      goNoGoDecision: "go",
+      executionMode: "no_op",
+      externalCalls: 0
+    });
+    expect(goLiveHoldReleaseAuthorizationReceipt.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-go-live-hold-release-authorization-receipt.json");
+    expect(goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest).toBe(goLiveHoldReleaseAuthorizationReceipt.safeDigest);
+    expect(goLiveHoldReleaseAuthorizationReceipt.launchWindowConfirmationReceiptDigest).toBe(launchWindowConfirmationReceipt.launchWindowConfirmationReceiptDigest);
+    expect(goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationRows.every((entry) => entry.complete && entry.goLiveHoldReleaseAuthorizationStatus === "authorized" && entry.launchApprovalStatus === "ready")).toBe(true);
+    expect(goLiveHoldReleaseAuthorizationReceipt.launchApprovalRows.every((entry) => entry.complete && entry.goLiveHoldReleaseAuthorizationStatus === "authorized" && entry.launchApprovalStatus === "ready")).toBe(true);
+    expect(goLiveHoldReleaseAuthorizationReceipt.inheritedLaunchWindowConfirmationSummary).toMatchObject({
+      launchWindowConfirmationStatus: "confirmed",
+      goLiveHoldStatus: "ready",
+      launchWindowConfirmationReceiptMutationCount: 0,
+      externalCallsZero: true,
+      safeDigest: launchWindowConfirmationReceipt.safeDigest
+    });
+    expect(goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptCheckedCount).toBe(1);
+    expect(goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptMutationCount).toBe(0);
+    expect(goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationAuthorizedCount).toBe(goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationRows.length);
+    expect(goLiveHoldReleaseAuthorizationReceipt.counts.launchApprovalReadyCount).toBe(goLiveHoldReleaseAuthorizationReceipt.launchApprovalRows.length);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(afterFinalReadinessCertificateRead).toMatchObject({
@@ -3546,6 +3588,17 @@ describe("ProviderWebhooksController sandbox events", () => {
       messagePersisted: beforeLaunchWindowConfirmationReceiptRead?.messagePersisted,
       linkedConversationId: beforeLaunchWindowConfirmationReceiptRead?.linkedConversationId,
       linkedMessageId: beforeLaunchWindowConfirmationReceiptRead?.linkedMessageId
+    });
+    expect(afterGoLiveHoldReleaseAuthorizationReceiptRead).toMatchObject({
+      reviewStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.reviewStatus,
+      linkStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.linkStatus,
+      unmatchedStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.unmatchedStatus,
+      assignmentStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.assignmentStatus,
+      escalationStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.escalationStatus,
+      resolutionStatus: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.resolutionStatus,
+      messagePersisted: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.messagePersisted,
+      linkedConversationId: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.linkedConversationId,
+      linkedMessageId: beforeGoLiveHoldReleaseAuthorizationReceiptRead?.linkedMessageId
     });
     expect(afterNoopRead).toMatchObject({
       reviewStatus: beforeAcceptancePost?.reviewStatus,
