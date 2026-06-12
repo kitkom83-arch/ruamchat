@@ -20,10 +20,11 @@ const operatorCommandReceiptPath = `${cutoverChecklistReceiptPath}/operator-comm
 const goLiveAuthorizationReceiptPath = `${operatorCommandReceiptPath}/go-live-authorization-receipt`;
 const launchWindowConfirmationReceiptPath = `${goLiveAuthorizationReceiptPath}/launch-window-confirmation-receipt`;
 const goLiveHoldReleaseAuthorizationReceiptPath = `${releaseBasePath}/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt`;
+const launchApprovalReceiptPath = `${goLiveHoldReleaseAuthorizationReceiptPath}/launch-approval-receipt`;
 const tenantId = process.env.SMOKE_TENANT_ID ?? process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.TENANT_ID ?? "00000000-0000-4000-8000-000000000001";
 const userId = process.env.USER_ID ?? "00000000-0000-4000-8000-000000000011";
 const signingMaterial = process.env.PROVIDER_WEBHOOK_SANDBOX_SIGNING_KEY ?? "local-provider-webhook-sandbox-signing-material";
-const runId = `sprint102-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const runId = `sprint103-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const results = [];
 
 function read(path) {
@@ -212,6 +213,62 @@ function safeGoLiveHoldReleaseAuthorizationReceiptShape(value) {
     !containsRawLeak(value);
 }
 
+function safeLaunchApprovalReceiptShape(value) {
+  return value?.receiptKind === "qa-handoff-locked-archive-certified-release-launch-approval-receipt" &&
+    value.launchApprovalReceiptStatus === "issued" &&
+    value.noExecutionGuardStatus === "retained" &&
+    value.launchApprovalStatus === "ready" &&
+    value.goLiveHoldReleaseAuthorizationStatus === "authorized" &&
+    value.launchWindowConfirmationStatus === "confirmed" &&
+    value.goLiveHoldStatus === "ready" &&
+    value.goLiveAuthorizationReceiptStatus === "issued" &&
+    value.goLiveAuthorizationStatus === "ready" &&
+    value.launchWindowStatus === "ready" &&
+    value.safeLaunchWindowStatus === "ready" &&
+    value.executionMode === "no_op" &&
+    value.acceptanceStatus === "acknowledged" &&
+    value.handoffStatus === "ready" &&
+    value.releaseDecision === "go" &&
+    value.goNoGoDecision === "go" &&
+    value.packetStatus === "issued" &&
+    value.receiptStatus === "issued" &&
+    value.gateStatus === "ready" &&
+    value.releaseReadinessStatus === "ready_for_release" &&
+    (value.reconciliationStatus === "complete" || value.reconciliationStatus === "aligned") &&
+    value.attestationStatus === "complete" &&
+    value.certificationStatus === "certified" &&
+    value.verificationStatus === "verified" &&
+    value.digestChainStatus === "confirmed" &&
+    /^sha256:[a-z0-9]+$/i.test(value.safeDigest) &&
+    /^sha256:[a-z0-9]+$/i.test(value.launchApprovalReceiptDigest) &&
+    /^sha256:[a-z0-9]+$/i.test(value.goLiveHoldReleaseAuthorizationReceiptDigest) &&
+    safeRows(value.operatorCommandReceiptRows) &&
+    safeRows(value.commandHandoffRows) &&
+    safeRows(value.goLiveAuthorizationRows) &&
+    safeRows(value.goLiveAuthorizationReceiptRows) &&
+    safeRows(value.launchWindowRows) &&
+    safeRows(value.safeLaunchWindowRows) &&
+    safeRows(value.launchWindowConfirmationRows) &&
+    safeRows(value.goLiveHoldRows) &&
+    safeRows(value.goLiveHoldReleaseAuthorizationRows) &&
+    safeRows(value.launchApprovalRows) &&
+    safeRows(value.noExecutionGuardRows) &&
+    safeChecklist(value.operatorChecklist, "complete") &&
+    safeChecklist(value.acknowledgedChecklist, "acknowledged") &&
+    safeChecklist(value.executionChecklist, "complete") &&
+    value.inheritedGoLiveHoldReleaseAuthorizationSummary &&
+    Array.isArray(value.inheritedBlockingReasons) &&
+    Array.isArray(value.inheritedExceptionRows) &&
+    value.releaseOwnerSummary &&
+    value.counts?.launchApprovalReceiptCheckedCount === 1 &&
+    value.counts?.launchApprovalReceiptMutationCount === 0 &&
+    value.counts?.launchApprovalReceiptIssuedCount === value.noExecutionGuardRows.length &&
+    value.counts?.noExecutionGuardRowCount === value.noExecutionGuardRows.length &&
+    value.counts?.noExecutionGuardRetainedCount === value.noExecutionGuardRows.length &&
+    value.externalCalls === 0 &&
+    !containsRawLeak(value);
+}
+
 async function main() {
   const rootPackage = JSON.parse(read("package.json"));
   const shared = read("packages/shared/src/index.ts");
@@ -221,68 +278,66 @@ async function main() {
   const settingsData = read("apps/web/app/settings-data.ts");
   const settingsPage = read("apps/web/app/settings/channels/page.tsx");
   const providerPanel = read("apps/web/app/settings/provider-readiness-panel.tsx");
-  const sprint102Source = {
-    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
+  const sprint103Source = {
+    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
     providerController: sourceSlice(providerController, "launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt", "review-closure-report/export"),
-    providerService: sourceSlice(providerService, "qaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptResponse", "qaHandoffCertifiedReleaseCutoverChecklistReceiptResponse"),
-    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt", "getProviderWebhookReviewClosureReportExport"),
-    settingsData: sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
-    settingsPage: sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt", "loadClosureReportRedactionAudit"),
-    providerPanel: sourceSlice(providerPanel, "Load certified release go-live hold release authorization receipt", "Audit report export redaction")
+    providerService: sourceSlice(providerService, "qaHandoffCertifiedReleaseLaunchApprovalReceiptResponse", "qaHandoffCertifiedReleaseCutoverChecklistReceiptResponse"),
+    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt", "getProviderWebhookReviewClosureReportExport"),
+    settingsData: sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
+    settingsPage: sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseLaunchApprovalReceipt", "loadClosureReportRedactionAudit"),
+    providerPanel: sourceSlice(providerPanel, "Load certified release launch approval receipt", "Audit report export redaction")
   };
 
-  record("smoke:sprint102 registered",
-    rootPackage.scripts?.["smoke:sprint102"] === "node scripts/smoke-sprint102-provider-webhook-review-qa-archive-certified-release-go-live-hold-release-authorization-receipt.mjs"
+  record("smoke:sprint103 registered",
+    rootPackage.scripts?.["smoke:sprint103"] === "node scripts/smoke-sprint103-provider-webhook-review-qa-archive-certified-release-launch-approval-receipt.mjs"
   );
-  record("shared go-live hold release authorization receipt DTO export",
-    sprint102Source.shared.includes("providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema") &&
-    sprint102Source.shared.includes("ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt") &&
-    sprint102Source.shared.includes("goLiveHoldReleaseAuthorizationStatus") &&
-    sprint102Source.shared.includes("launchApprovalStatus") &&
-    sprint102Source.shared.includes("goLiveHoldReleaseAuthorizationRows") &&
-    sprint102Source.shared.includes("launchApprovalRows") &&
-    sprint102Source.shared.includes("externalCalls: z.literal(0)") &&
-    sprint102Source.shared.includes(".strict()")
+  record("shared launch approval receipt DTO export",
+    sprint103Source.shared.includes("providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema") &&
+    sprint103Source.shared.includes("ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt") &&
+    sprint103Source.shared.includes("launchApprovalReceiptStatus") &&
+    sprint103Source.shared.includes("noExecutionGuardStatus") &&
+    sprint103Source.shared.includes("noExecutionGuardRows") &&
+    sprint103Source.shared.includes("launchApprovalReceiptCheckedCount") &&
+    sprint103Source.shared.includes("externalCalls: z.literal(0)") &&
+    sprint103Source.shared.includes(".strict()")
   );
-  record("backend go-live hold release authorization route registration",
-    providerController.includes('@Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt")') &&
-    providerController.includes("getReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(requireTenantId(tenant)")
+  record("backend launch approval route registration",
+    providerController.includes('@Get("review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt")') &&
+    providerController.includes("getReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(requireTenantId(tenant)")
   );
-  record("service go-live hold release authorization receipt implementation",
-    sprint102Source.providerService.includes("qaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptResponse") &&
-    sprint102Source.providerService.includes("certifiedReleaseGoLiveHoldReleaseAuthorizationReceiptReady") &&
-    sprint102Source.providerService.includes("goLiveHoldReleaseAuthorizationReceiptMutationCount: 0") &&
-    sprint102Source.providerService.includes("externalCalls: 0 as const")
+  record("service launch approval receipt implementation",
+    sprint103Source.providerService.includes("qaHandoffCertifiedReleaseLaunchApprovalReceiptResponse") &&
+    sprint103Source.providerService.includes("launchApprovalReceiptStatus") &&
+    sprint103Source.providerService.includes("noExecutionGuardStatus") &&
+    sprint103Source.providerService.includes("launchApprovalReceiptMutationCount: 0")
   );
-  record("API client go-live hold release authorization receipt wiring",
-    sprint102Source.apiClient.includes("providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema") &&
-    sprint102Source.apiClient.includes("launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt")
+  record("API client launch approval receipt wiring",
+    sprint103Source.apiClient.includes("providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema") &&
+    sprint103Source.apiClient.includes("launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt")
   );
-  record("settings-data go-live hold release authorization receipt API mode has no fallback",
-    sprint102Source.settingsData.includes("mode === \"api\"") &&
-    sprint102Source.settingsData.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(filters)") &&
-    sprint102Source.settingsData.includes("createMockReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(filters)")
+  record("settings-data launch approval receipt API mode has no fallback",
+    sprint103Source.settingsData.includes("mode === \"api\"") &&
+    sprint103Source.settingsData.includes("getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters)") &&
+    sprint103Source.settingsData.includes("createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters)")
   );
-  record("Settings > Channels go-live hold release authorization controls/results/errors",
-    sprint102Source.settingsPage.includes("QA Archive Certified Release Go-Live Hold Release Authorization Receipt API error") &&
-    providerPanel.includes("Load certified release go-live hold release authorization receipt") &&
-    providerPanel.includes("QA archive certified release go-live hold release authorization receipt:") &&
-    providerPanel.includes("goLiveHoldReleaseAuthorizationStatus=") &&
-    providerPanel.includes("launchApprovalStatus=") &&
-    providerPanel.includes("launchWindowConfirmationStatus=") &&
-    providerPanel.includes("goLiveHoldStatus=") &&
-    providerPanel.includes("goLiveHoldReleaseAuthorizationRows=") &&
+  record("Settings > Channels launch approval controls/results/errors",
+    sprint103Source.settingsPage.includes("QA Archive Certified Release Launch Approval Receipt API error") &&
+    providerPanel.includes("Load certified release launch approval receipt") &&
+    providerPanel.includes("QA archive certified release launch approval receipt:") &&
+    providerPanel.includes("launchApprovalReceiptStatus=") &&
+    providerPanel.includes("noExecutionGuardStatus=") &&
     providerPanel.includes("launchApprovalRows=") &&
+    providerPanel.includes("noExecutionGuardRows=") &&
     providerPanel.includes("externalCalls=")
   );
-  record("stale go-live hold release authorization receipt clears on upstream reloads",
-    settingsPage.includes("clearReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt") &&
-    settingsPage.includes("setReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(null)") &&
-    settingsPage.includes("clearReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt();")
+  record("stale launch approval receipt clears on upstream reloads",
+    settingsPage.includes("clearReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt") &&
+    settingsPage.includes("setReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(null)") &&
+    settingsPage.includes("clearReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt();")
   );
-  record("static Sprint 102 source has no provider outbound send markers", !containsProviderOutbound(sprint102Source));
-  record("static Sprint 102 source has no external notification send markers", !containsExternalNotification(sprint102Source));
-  record("static Sprint 102 source has no AI/OpenAI call markers", !containsAiCall(sprint102Source));
+  record("static Sprint 103 source has no provider outbound send markers", !containsProviderOutbound(sprint103Source));
+  record("static Sprint 103 source has no external notification send markers", !containsExternalNotification(sprint103Source));
+  record("static Sprint 103 source has no AI/OpenAI call markers", !containsAiCall(sprint103Source));
 
   const filters = "provider=line&eventType=message.created";
   const health = await getJson("/health").catch((error) => ({ status: 0, body: null, error }));
@@ -292,21 +347,24 @@ async function main() {
   }
   record("GET /health", true);
 
-  const missingTenantReceipt = await requestJsonWithoutTenant("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
-  record("go-live hold release authorization receipt requires x-tenant-id", missingTenantReceipt.status >= 400 && missingTenantReceipt.status < 500);
+  const missingTenantGoLiveHoldReceipt = await requestJsonWithoutTenant("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
+  record("go-live hold release authorization receipt requires x-tenant-id", missingTenantGoLiveHoldReceipt.status >= 400 && missingTenantGoLiveHoldReceipt.status < 500);
 
-  const goLiveHoldItem = await createNoMatchItem("go-live-hold-release-authorization-receipt", "Safe Sprint 102 certified release go-live hold release authorization receipt target");
-  record("create safe sandbox no-match item", goLiveHoldItem?.unmatchedStatus === "review-needed");
+  const missingTenantLaunchApprovalReceipt = await requestJsonWithoutTenant("GET", `${launchApprovalReceiptPath}?${filters}`);
+  record("launch approval receipt requires x-tenant-id", missingTenantLaunchApprovalReceipt.status >= 400 && missingTenantLaunchApprovalReceipt.status < 500);
+
+  const launchApprovalItem = await createNoMatchItem("launch-approval-receipt", "Safe Sprint 103 certified release launch approval receipt target");
+  record("create safe sandbox no-match item", launchApprovalItem?.unmatchedStatus === "review-needed");
 
   await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/receipt/sign-off?${filters}`, {
     acknowledgementType: "sign_off",
     reviewerRole: "QA reviewer",
-    reviewerLabel: "safe sprint102 reviewer"
+    reviewerLabel: "safe sprint103 reviewer"
   }));
   await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/acceptance-lock?${filters}`, {
-    lockReason: "Safe Sprint 102 certified release go-live hold release authorization receipt accepted",
+    lockReason: "Safe Sprint 103 certified release launch approval receipt accepted",
     acceptedByRole: "QA lead",
-    acceptedByLabel: "safe sprint102 reviewer"
+    acceptedByLabel: "safe sprint103 reviewer"
   }));
   await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive?${filters}`));
   await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/export?${filters}`));
@@ -316,7 +374,7 @@ async function main() {
   await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?${filters}`));
   await safeJson(await request("POST", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?${filters}`, {
     reviewerRole: "retention reviewer",
-    reviewerLabel: "safe sprint102 reviewer"
+    reviewerLabel: "safe sprint103 reviewer"
   }));
   await safeJson(await request("GET", `/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/receipt?${filters}`));
   await safeJson(await request("GET", `${releaseBasePath}?${filters}`));
@@ -332,14 +390,14 @@ async function main() {
   await safeJson(await request("POST", `${acceptanceRecordPath}?${filters}`, {
     acknowledgementType: "operator_checklist_acknowledgement",
     acknowledgedByRole: "release owner",
-    acknowledgedByLabel: "safe sprint102 release owner",
+    acknowledgedByLabel: "safe sprint103 release owner",
     acknowledgedChecklistKeys: Array.isArray(handoffPacket?.operatorChecklist) ? handoffPacket.operatorChecklist.map((item) => item.key) : []
   }));
   await safeJson(await request("GET", `${noopExecutionDryRunPath}?${filters}`));
   await safeJson(await request("POST", `${noopExecutionDryRunPath}?${filters}`, {
-    requestedBy: "safe sprint102 release owner",
+    requestedBy: "safe sprint103 release owner",
     checklistAcknowledged: true,
-    operatorNote: "Safe no-op execution dry-run from Sprint 102 smoke",
+    operatorNote: "Safe no-op execution dry-run from Sprint 103 smoke",
     dryRunReason: "safe no-op execution readiness rehearsal",
     executionMode: "no_op"
   }));
@@ -354,28 +412,34 @@ async function main() {
   await safeJson(await request("GET", `${goLiveAuthorizationReceiptPath}?${filters}`));
   await safeJson(await request("GET", `${launchWindowConfirmationReceiptPath}?${filters}`));
 
-  const first = await requestJson("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
-  record("GET Sprint 102 go-live hold release authorization receipt endpoint", first.status === 200 && safeGoLiveHoldReleaseAuthorizationReceiptShape(first.body), first.status === 200 ? "" : `status=${first.status}`);
+  const goLiveHoldFirst = await requestJson("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
+  record("GET Sprint 102 go-live hold release authorization receipt endpoint", goLiveHoldFirst.status === 200 && safeGoLiveHoldReleaseAuthorizationReceiptShape(goLiveHoldFirst.body), goLiveHoldFirst.status === 200 ? "" : `status=${goLiveHoldFirst.status}`);
 
-  const second = await requestJson("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
-  record("GET Sprint 102 go-live hold release authorization receipt no mutation repeat read", first.status === 200 && second.status === 200 && JSON.stringify(first.body) === JSON.stringify(second.body));
+  const goLiveHoldSecond = await requestJson("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`);
+  record("GET Sprint 102 go-live hold release authorization receipt no mutation repeat read", goLiveHoldFirst.status === 200 && goLiveHoldSecond.status === 200 && JSON.stringify(goLiveHoldFirst.body) === JSON.stringify(goLiveHoldSecond.body));
 
-  const invalidTenant = await requestJson("GET", `${goLiveHoldReleaseAuthorizationReceiptPath}?${filters}`, undefined, "00000000-0000-4000-8000-000000000102");
-  record("invalid tenant access does not return mock fallback", invalidTenant.status === 409 || (invalidTenant.status === 200 && invalidTenant.body?.receiptKind === "qa-handoff-locked-archive-certified-release-go-live-hold-release-authorization-receipt" && !String(invalidTenant.body?.goLiveHoldReleaseAuthorizationReceiptDigest ?? "").includes("fake")));
+  const first = await requestJson("GET", `${launchApprovalReceiptPath}?${filters}`);
+  record("GET Sprint 103 launch approval receipt endpoint", first.status === 200 && safeLaunchApprovalReceiptShape(first.body), first.status === 200 ? "" : `status=${first.status}`);
 
-  record("no stale/fake go-live hold release authorization receipt", !String(first.body?.goLiveHoldReleaseAuthorizationReceiptDigest ?? "").includes("fake") && first.body?.receiptKind === "qa-handoff-locked-archive-certified-release-go-live-hold-release-authorization-receipt");
+  const second = await requestJson("GET", `${launchApprovalReceiptPath}?${filters}`);
+  record("GET Sprint 103 launch approval receipt no mutation repeat read", first.status === 200 && second.status === 200 && JSON.stringify(first.body) === JSON.stringify(second.body));
+
+  const invalidTenant = await requestJson("GET", `${launchApprovalReceiptPath}?${filters}`, undefined, "00000000-0000-4000-8000-000000000103");
+  record("invalid tenant access does not return mock fallback", invalidTenant.status === 409 || (invalidTenant.status === 200 && invalidTenant.body?.receiptKind === "qa-handoff-locked-archive-certified-release-launch-approval-receipt" && !String(invalidTenant.body?.launchApprovalReceiptDigest ?? "").includes("fake")));
+
+  record("no stale/fake launch approval receipt", !String(first.body?.launchApprovalReceiptDigest ?? "").includes("fake") && first.body?.receiptKind === "qa-handoff-locked-archive-certified-release-launch-approval-receipt");
   record("no raw provider material leakage", first.body && !containsRawLeak(first.body));
   record("externalCalls = 0", first.body?.externalCalls === 0);
-  record("no provider outbound", !containsProviderOutbound(sprint102Source));
-  record("no external notification sending", !containsExternalNotification(sprint102Source));
-  record("no AI/OpenAI call", !containsAiCall(sprint102Source));
+  record("no provider outbound", !containsProviderOutbound(sprint103Source));
+  record("no external notification sending", !containsExternalNotification(sprint103Source));
+  record("no AI/OpenAI call", !containsAiCall(sprint103Source));
 
   return finish();
 }
 
 async function createNoMatchItem(label, text) {
   const eventId = `${runId}-${label}-${Math.random().toString(16).slice(2)}`;
-  const payload = linePayload(`safe-no-match-room-sprint102-${label}-${runId}`, `safe-sender-sprint102-${label}`, text);
+  const payload = linePayload(`safe-no-match-room-sprint103-${label}-${runId}`, `safe-sender-sprint103-${label}`, text);
   payload[`safeMarker${label.replace(/[^a-z0-9]/gi, "")}${Date.now()}`] = true;
   const created = await safeJson(await request("POST", "/provider-webhooks/sandbox-events", {
     provider: "line",
@@ -394,7 +458,7 @@ async function createNoMatchItem(label, text) {
 
 function linePayload(roomId, userIdValue, text) {
   return {
-    destination: "safe-sprint102-destination",
+    destination: "safe-sprint103-destination",
     events: [{
       type: "message",
       mode: "active",
@@ -463,10 +527,10 @@ function unmatchedItems(page) {
 function finish() {
   const failed = results.filter((result) => !result.pass);
   if (failed.length > 0) {
-    console.error(`smoke:sprint102 failed ${failed.length}/${results.length} checks`);
+    console.error(`smoke:sprint103 failed ${failed.length}/${results.length} checks`);
     process.exit(1);
   }
-  console.log(`smoke:sprint102 passed ${results.length}/${results.length} checks`);
+  console.log(`smoke:sprint103 passed ${results.length}/${results.length} checks`);
 }
 
 await main();

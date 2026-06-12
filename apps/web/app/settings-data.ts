@@ -47,6 +47,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -140,6 +141,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -415,6 +417,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowCo
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptData = {
   mode: DataMode;
   goLiveHoldReleaseAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptData = {
+  mode: DataMode;
+  launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1319,6 +1326,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     goLiveHoldReleaseAuthorizationReceipt: createMockReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      launchApprovalReceipt: await getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    launchApprovalReceipt: createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters)
   };
 }
 
@@ -5903,6 +5927,58 @@ function createMockReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorization
   };
 }
 
+function createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt {
+  const goLiveHoldReleaseAuthorizationReceipt = createMockReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt(filters);
+  const launchApprovalReceiptReady = mockCertifiedReleaseLaunchApprovalReceiptReady(goLiveHoldReleaseAuthorizationReceipt);
+  const launchApprovalReceiptStatus = mockCertifiedReleaseLaunchApprovalReceiptStatus(goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceiptReady);
+  const noExecutionGuardStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["noExecutionGuardStatus"] = "retained";
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleaselaunchapprovalreceipt-${safeDigest(`${goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest}:${launchApprovalReceiptStatus}:${noExecutionGuardStatus}`)}`;
+  const noExecutionGuardRows = mockCertifiedReleaseLaunchApprovalReceiptRows([
+    ["go_live_hold_release_authorized", "Go-live hold release authorization remains authorized", goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest, goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptCheckedCount, goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus === "authorized"],
+    ["launch_approval_receipt_issued", "Launch approval receipt issued", safeDigestValue, 1, launchApprovalReceiptStatus === "issued"],
+    ["no_execution_guard_retained", "No execution guard retained", goLiveHoldReleaseAuthorizationReceipt.safeDigest, 1, noExecutionGuardStatus === "retained"],
+    ["launch_approval_ready", "Launch approval remains ready", goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest, goLiveHoldReleaseAuthorizationReceipt.counts.launchApprovalReadyCount, goLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus === "ready"],
+    ["external_calls_zero", "External calls zero", goLiveHoldReleaseAuthorizationReceipt.safeDigest, 0, goLiveHoldReleaseAuthorizationReceipt.externalCalls === 0],
+    ["no_state_mutation", "No launch approval receipt state mutation", goLiveHoldReleaseAuthorizationReceipt.safeDigest, 0, goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptMutationCount === 0],
+    ["safe_digest_chain", "Launch approval receipt safe digest chain", safeDigestValue, 24, mockCertifiedReleaseLaunchApprovalReceiptDigestLinksSafe(goLiveHoldReleaseAuthorizationReceipt, safeDigestValue)]
+  ], launchApprovalReceiptReady, launchApprovalReceiptStatus, noExecutionGuardStatus, goLiveHoldReleaseAuthorizationReceipt);
+
+  return {
+    ...goLiveHoldReleaseAuthorizationReceipt,
+    receiptKind: "qa-handoff-locked-archive-certified-release-launch-approval-receipt",
+    launchApprovalReceiptStatus,
+    noExecutionGuardStatus,
+    releaseDecision: launchApprovalReceiptReady ? goLiveHoldReleaseAuthorizationReceipt.releaseDecision : "no_go",
+    goNoGoDecision: launchApprovalReceiptReady ? goLiveHoldReleaseAuthorizationReceipt.goNoGoDecision : "no_go",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-launch-approval-receipt.json",
+    safeDigest: safeDigestValue,
+    launchApprovalReceiptDigest: safeDigestValue,
+    noExecutionGuardRows,
+    inheritedGoLiveHoldReleaseAuthorizationSummary: {
+      goLiveHoldReleaseAuthorizationStatus: goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus,
+      launchApprovalStatus: goLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus,
+      goLiveHoldReleaseAuthorizationReceiptCheckedCount: goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptCheckedCount,
+      goLiveHoldReleaseAuthorizationReceiptMutationCount: goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptMutationCount,
+      goLiveHoldReleaseAuthorizationAuthorizedCount: goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationAuthorizedCount,
+      launchApprovalRowCount: goLiveHoldReleaseAuthorizationReceipt.counts.launchApprovalRowCount,
+      launchApprovalReadyCount: goLiveHoldReleaseAuthorizationReceipt.counts.launchApprovalReadyCount,
+      externalCallsZero: goLiveHoldReleaseAuthorizationReceipt.externalCalls === 0,
+      safeDigest: goLiveHoldReleaseAuthorizationReceipt.safeDigest
+    },
+    counts: {
+      ...goLiveHoldReleaseAuthorizationReceipt.counts,
+      launchApprovalReceiptCheckedCount: 1,
+      launchApprovalReceiptMutationCount: 0,
+      launchApprovalReceiptIssuedCount: noExecutionGuardRows.filter((row) => row.complete).length,
+      noExecutionGuardRowCount: noExecutionGuardRows.length,
+      noExecutionGuardRetainedCount: noExecutionGuardRows.filter((row) => row.noExecutionGuardStatus === "retained").length
+    },
+    externalCalls: 0
+  };
+}
+
 function mockCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptReady(
   launchWindowConfirmationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt
 ) {
@@ -6008,6 +6084,126 @@ function mockCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptDigestLinksSaf
     launchWindowConfirmationReceipt.verificationDigest,
     launchWindowConfirmationReceipt.releaseEvidenceDigest,
     launchWindowConfirmationReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
+}
+
+function mockCertifiedReleaseLaunchApprovalReceiptReady(
+  goLiveHoldReleaseAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt
+) {
+  return goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus === "authorized" &&
+    goLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.launchWindowConfirmationStatus === "confirmed" &&
+    goLiveHoldReleaseAuthorizationReceipt.goLiveHoldStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.goLiveAuthorizationReceiptStatus === "issued" &&
+    goLiveHoldReleaseAuthorizationReceipt.goLiveAuthorizationStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.launchWindowStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.safeLaunchWindowStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.operatorCommandReceiptStatus === "issued" &&
+    goLiveHoldReleaseAuthorizationReceipt.operatorCommandStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.cutoverChecklistStatus === "verified" &&
+    goLiveHoldReleaseAuthorizationReceipt.controlRoomStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.cutoverReadinessStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.rollbackRehearsalStatus === "verified" &&
+    goLiveHoldReleaseAuthorizationReceipt.recoveryReadinessStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.rollbackReadinessStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.freezeAuditStatus === "recorded" &&
+    goLiveHoldReleaseAuthorizationReceipt.freezeStatus === "frozen" &&
+    goLiveHoldReleaseAuthorizationReceipt.certificateStatus === "issued" &&
+    goLiveHoldReleaseAuthorizationReceipt.finalReadinessStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.ledgerStatus === "recorded" &&
+    goLiveHoldReleaseAuthorizationReceipt.dryRunStatus === "passed" &&
+    goLiveHoldReleaseAuthorizationReceipt.executionMode === "no_op" &&
+    goLiveHoldReleaseAuthorizationReceipt.acceptanceStatus === "acknowledged" &&
+    goLiveHoldReleaseAuthorizationReceipt.handoffStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.releaseDecision === "go" &&
+    goLiveHoldReleaseAuthorizationReceipt.goNoGoDecision === "go" &&
+    goLiveHoldReleaseAuthorizationReceipt.packetStatus === "issued" &&
+    goLiveHoldReleaseAuthorizationReceipt.receiptStatus === "issued" &&
+    goLiveHoldReleaseAuthorizationReceipt.gateStatus === "ready" &&
+    goLiveHoldReleaseAuthorizationReceipt.releaseReadinessStatus === "ready_for_release" &&
+    (goLiveHoldReleaseAuthorizationReceipt.reconciliationStatus === "complete" || goLiveHoldReleaseAuthorizationReceipt.reconciliationStatus === "aligned") &&
+    goLiveHoldReleaseAuthorizationReceipt.attestationStatus === "complete" &&
+    goLiveHoldReleaseAuthorizationReceipt.ledgerStatusFromClosure === "certified_release_closed" &&
+    goLiveHoldReleaseAuthorizationReceipt.certificationStatus === "certified" &&
+    goLiveHoldReleaseAuthorizationReceipt.verificationStatus === "verified" &&
+    goLiveHoldReleaseAuthorizationReceipt.digestChainStatus === "confirmed" &&
+    goLiveHoldReleaseAuthorizationReceipt.launchApprovalRows.every((row) => row.complete && row.launchApprovalStatus === "ready") &&
+    goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationRows.every((row) => row.complete && row.goLiveHoldReleaseAuthorizationStatus === "authorized") &&
+    goLiveHoldReleaseAuthorizationReceipt.counts.goLiveHoldReleaseAuthorizationReceiptMutationCount === 0 &&
+    goLiveHoldReleaseAuthorizationReceipt.externalCalls === 0;
+}
+
+function mockCertifiedReleaseLaunchApprovalReceiptStatus(
+  goLiveHoldReleaseAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
+  launchApprovalReceiptReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["launchApprovalReceiptStatus"] {
+  if (launchApprovalReceiptReady) return "issued";
+  if (goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus === "blocked" || goLiveHoldReleaseAuthorizationReceipt.releaseDecision !== "go" || goLiveHoldReleaseAuthorizationReceipt.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function mockCertifiedReleaseLaunchApprovalReceiptRows(
+  rows: Array<[
+    ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["noExecutionGuardRows"][number]["key"],
+    string,
+    string,
+    number,
+    boolean
+  ]>,
+  launchApprovalReceiptReady: boolean,
+  launchApprovalReceiptStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["launchApprovalReceiptStatus"],
+  noExecutionGuardStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["noExecutionGuardStatus"],
+  goLiveHoldReleaseAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt["noExecutionGuardRows"] {
+  return rows.map(([key, label, rowDigest, checkedCount, complete]) => ({
+    key,
+    label,
+    goLiveHoldReleaseAuthorizationStatus: complete && launchApprovalReceiptReady ? "authorized" : goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationStatus,
+    launchApprovalStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.launchApprovalStatus,
+    launchApprovalReceiptStatus: complete && launchApprovalReceiptReady ? "issued" : launchApprovalReceiptStatus,
+    noExecutionGuardStatus: complete && launchApprovalReceiptReady ? "retained" : noExecutionGuardStatus,
+    launchWindowConfirmationStatus: complete && launchApprovalReceiptReady ? "confirmed" : goLiveHoldReleaseAuthorizationReceipt.launchWindowConfirmationStatus,
+    goLiveHoldStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.goLiveHoldStatus,
+    goLiveAuthorizationReceiptStatus: complete && launchApprovalReceiptReady ? "issued" : goLiveHoldReleaseAuthorizationReceipt.goLiveAuthorizationReceiptStatus,
+    goLiveAuthorizationStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.goLiveAuthorizationStatus,
+    launchWindowStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.launchWindowStatus,
+    safeLaunchWindowStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.safeLaunchWindowStatus,
+    operatorCommandReceiptStatus: complete && launchApprovalReceiptReady ? "issued" : goLiveHoldReleaseAuthorizationReceipt.operatorCommandReceiptStatus,
+    operatorCommandStatus: complete && launchApprovalReceiptReady ? "ready" : goLiveHoldReleaseAuthorizationReceipt.operatorCommandStatus,
+    safeDigest: rowDigest,
+    checkedCount,
+    complete: complete && launchApprovalReceiptReady
+  }));
+}
+
+function mockCertifiedReleaseLaunchApprovalReceiptDigestLinksSafe(
+  goLiveHoldReleaseAuthorizationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
+  launchApprovalReceiptDigest: string
+) {
+  return [
+    launchApprovalReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.goLiveHoldReleaseAuthorizationReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.launchWindowConfirmationReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.goLiveAuthorizationReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.operatorCommandReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.cutoverChecklistReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.controlRoomPacketDigest,
+    goLiveHoldReleaseAuthorizationReceipt.rollbackRehearsalReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.freezeAuditRegisterDigest,
+    goLiveHoldReleaseAuthorizationReceipt.finalReadinessCertificateDigest,
+    goLiveHoldReleaseAuthorizationReceipt.dryRunResultLedgerDigest,
+    goLiveHoldReleaseAuthorizationReceipt.noopExecutionDryRunDigest,
+    goLiveHoldReleaseAuthorizationReceipt.acceptanceRecordDigest,
+    goLiveHoldReleaseAuthorizationReceipt.handoffPacketDigest,
+    goLiveHoldReleaseAuthorizationReceipt.decisionReceiptDigest,
+    goLiveHoldReleaseAuthorizationReceipt.releaseGateDigest,
+    goLiveHoldReleaseAuthorizationReceipt.reconciliationDigest,
+    goLiveHoldReleaseAuthorizationReceipt.attestationAuditDigest,
+    goLiveHoldReleaseAuthorizationReceipt.closureLedgerDigest,
+    goLiveHoldReleaseAuthorizationReceipt.certificationDigest,
+    goLiveHoldReleaseAuthorizationReceipt.verificationDigest,
+    goLiveHoldReleaseAuthorizationReceipt.releaseEvidenceDigest,
+    goLiveHoldReleaseAuthorizationReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 
