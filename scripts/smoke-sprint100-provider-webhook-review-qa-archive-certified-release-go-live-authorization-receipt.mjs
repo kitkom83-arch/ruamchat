@@ -3,7 +3,8 @@ import fs from "node:fs";
 const apiBaseUrl = process.env.API_BASE_URL ?? "http://localhost:4000";
 const releaseBasePath = "/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence";
 const goLiveAuthorizationReceiptPath = `${releaseBasePath}/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt`;
-const tenantId = process.env.SMOKE_TENANT_ID ?? "smoke-sprint100-tenant";
+const filters = "?provider=line&eventType=message.created";
+const tenantId = process.env.SMOKE_TENANT_ID ?? process.env.NEXT_PUBLIC_TENANT_ID ?? process.env.TENANT_ID ?? "00000000-0000-4000-8000-000000000001";
 const results = [];
 
 function read(path) {
@@ -34,7 +35,55 @@ function containsAiCall(sources) {
 }
 
 function containsRawLeak(value) {
-  return /\b(rawPayload|signature|authorization|cookie|replyToken|senderId|providerMaterial|rawBody|headers|stack|secret|token|raw webhook body|raw signature)\b/i.test(JSON.stringify(value));
+  return walkRawLeak(value);
+}
+
+function allTrueValues(value) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.values(value).length > 0 && Object.values(value).every(Boolean);
+}
+
+const rawLeakKeyNames = new Set([
+  "authorization",
+  "rawPayload",
+  "rawBody",
+  "headers",
+  "stack",
+  "secret",
+  "token",
+  "cookie",
+  "replyToken",
+  "senderId",
+  "roomId",
+  "providerMaterial"
+]);
+
+const rawLeakValuePatterns = [
+  /\bBearer\s+[A-Za-z0-9\-._~+/]+=*\b/i,
+  /\b(raw\s+payload|raw\s+body|raw\s+signature|provider\s+material|replyToken|senderId|roomId|cookie|secret|token|signature)\b/i
+];
+
+function walkRawLeak(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return rawLeakValuePatterns.some((pattern) => pattern.test(value));
+  }
+
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => walkRawLeak(item));
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value).some(([key, nested]) => rawLeakKeyNames.has(key) || walkRawLeak(nested));
+  }
+
+  return false;
 }
 
 async function getJson(path, headers = {}) {
@@ -99,20 +148,31 @@ function safeGoLiveAuthorizationReceiptShape(value) {
     Array.isArray(value.operatorChecklist) &&
     Array.isArray(value.acknowledgedChecklist) &&
     Array.isArray(value.executionChecklist) &&
-    value.inheritedPrerequisiteChecklist?.length > 0 &&
-    value.inheritedCertificationChecklist?.length > 0 &&
-    value.inheritedGateChecklist?.length > 0 &&
-    value.inheritedDecisionReceiptSummary &&
-    value.inheritedHandoffPacketSummary &&
-    value.inheritedAcceptanceSummary &&
-    value.inheritedNoopDryRunSummary &&
-    value.inheritedResultLedgerSummary &&
-    value.inheritedFinalReadinessCertificateSummary &&
-    value.inheritedFreezeAuditSummary &&
-    value.inheritedRollbackRehearsalSummary &&
-    value.inheritedControlRoomSummary &&
-    value.inheritedCutoverChecklistSummary &&
-    value.inheritedOperatorCommandSummary &&
+    allTrueValues(value.inheritedPrerequisiteChecklist) &&
+    allTrueValues(value.inheritedCertificationChecklist) &&
+    allTrueValues(value.inheritedGateChecklist) &&
+    value.inheritedDecisionReceiptSummary?.receiptRowCount === 13 &&
+    value.inheritedDecisionReceiptSummary?.releaseGateReady === true &&
+    value.inheritedHandoffPacketSummary?.packetStatus === "issued" &&
+    value.inheritedHandoffPacketSummary?.handoffStatus === "ready" &&
+    value.inheritedAcceptanceSummary?.acceptanceStatus === "acknowledged" &&
+    value.inheritedAcceptanceSummary?.handoffStatus === "ready" &&
+    value.inheritedNoopDryRunSummary?.dryRunStatus === "passed" &&
+    value.inheritedNoopDryRunSummary?.executionMode === "no_op" &&
+    value.inheritedResultLedgerSummary?.ledgerStatus === "recorded" &&
+    value.inheritedResultLedgerSummary?.dryRunStatus === "passed" &&
+    value.inheritedFinalReadinessCertificateSummary?.certificateStatus === "issued" &&
+    value.inheritedFinalReadinessCertificateSummary?.finalReadinessStatus === "ready" &&
+    value.inheritedFreezeAuditSummary?.freezeAuditStatus === "recorded" &&
+    value.inheritedFreezeAuditSummary?.freezeStatus === "frozen" &&
+    value.inheritedRollbackRehearsalSummary?.rollbackRehearsalStatus === "verified" &&
+    value.inheritedRollbackRehearsalSummary?.recoveryReadinessStatus === "ready" &&
+    value.inheritedControlRoomSummary?.controlRoomStatus === "ready" &&
+    value.inheritedControlRoomSummary?.cutoverReadinessStatus === "ready" &&
+    value.inheritedCutoverChecklistSummary?.cutoverChecklistStatus === "verified" &&
+    value.inheritedCutoverChecklistSummary?.operatorCommandStatus === "ready" &&
+    value.inheritedOperatorCommandSummary?.operatorCommandReceiptStatus === "issued" &&
+    value.inheritedOperatorCommandSummary?.goLiveAuthorizationStatus === "ready" &&
     Array.isArray(value.inheritedBlockingReasons) &&
     Array.isArray(value.inheritedExceptionRows) &&
     value.releaseOwnerSummary &&
@@ -197,13 +257,13 @@ async function main() {
   }
   record("GET /health", true);
 
-  const missingTenantReceipt = await getJson(goLiveAuthorizationReceiptPath);
+  const missingTenantReceipt = await getJson(`${goLiveAuthorizationReceiptPath}${filters}`);
   record("go-live authorization receipt requires x-tenant-id", missingTenantReceipt.status >= 400 && missingTenantReceipt.status < 500);
 
-  const first = await getJson(goLiveAuthorizationReceiptPath, { "x-tenant-id": tenantId });
+  const first = await getJson(`${goLiveAuthorizationReceiptPath}${filters}`, { "x-tenant-id": tenantId });
   record("GET Sprint 100 go-live authorization receipt endpoint", first.status === 200 && safeGoLiveAuthorizationReceiptShape(first.body), first.status === 200 ? "" : `status=${first.status}`);
 
-  const second = await getJson(goLiveAuthorizationReceiptPath, { "x-tenant-id": tenantId });
+  const second = await getJson(`${goLiveAuthorizationReceiptPath}${filters}`, { "x-tenant-id": tenantId });
   record("GET Sprint 100 go-live authorization receipt no mutation repeat read", first.status === 200 && second.status === 200 && JSON.stringify(first.body) === JSON.stringify(second.body));
 
   record("no stale/fake go-live authorization receipt", !String(first.body?.goLiveAuthorizationReceiptDigest ?? "").includes("fake") && first.body?.receiptKind === "qa-handoff-locked-archive-certified-release-go-live-authorization-receipt");

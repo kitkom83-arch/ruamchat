@@ -154,12 +154,12 @@ async function main() {
   record("releaseReadinessStatus ready_for_release", operatorCommandReceipt.releaseReadinessStatus === "ready_for_release");
   record("verificationStatus verified", operatorCommandReceipt.verificationStatus === "verified");
   record("digestChainStatus confirmed", operatorCommandReceipt.digestChainStatus === "confirmed");
-  record("prerequisite checklist complete", operatorCommandReceipt.inheritedPrerequisiteChecklist?.every((item) => item.complete));
-  record("certification checklist complete", operatorCommandReceipt.inheritedCertificationChecklist?.every((item) => item.complete));
-  record("gate checklist complete", operatorCommandReceipt.inheritedGateChecklist?.every((item) => item.complete));
-  record("decision receipt summary present", Boolean(operatorCommandReceipt.inheritedDecisionReceiptSummary?.safeDigest));
-  record("handoff packet summary present", Boolean(operatorCommandReceipt.inheritedHandoffPacketSummary?.safeDigest));
-  record("acceptance summary present", Boolean(operatorCommandReceipt.inheritedAcceptanceSummary?.safeDigest));
+  record("prerequisite checklist complete", allTrueValues(operatorCommandReceipt.inheritedPrerequisiteChecklist));
+  record("certification checklist complete", allTrueValues(operatorCommandReceipt.inheritedCertificationChecklist));
+  record("gate checklist complete", allTrueValues(operatorCommandReceipt.inheritedGateChecklist));
+  record("decision receipt summary present", operatorCommandReceipt.inheritedDecisionReceiptSummary?.receiptRowCount === 13 && operatorCommandReceipt.inheritedDecisionReceiptSummary?.releaseGateReady === true);
+  record("handoff packet summary present", operatorCommandReceipt.inheritedHandoffPacketSummary?.packetStatus === "issued" && operatorCommandReceipt.inheritedHandoffPacketSummary?.handoffStatus === "ready");
+  record("acceptance summary present", operatorCommandReceipt.inheritedAcceptanceSummary?.acceptanceStatus === "acknowledged" && operatorCommandReceipt.inheritedAcceptanceSummary?.handoffStatus === "ready");
   record("no-op dry-run summary present", Boolean(operatorCommandReceipt.inheritedNoopDryRunSummary?.safeDigest));
   record("dry-run result ledger summary present", Boolean(operatorCommandReceipt.inheritedResultLedgerSummary?.safeDigest));
   record("final readiness certificate summary present", Boolean(operatorCommandReceipt.inheritedFinalReadinessCertificateSummary?.safeDigest));
@@ -179,15 +179,15 @@ async function main() {
   record("commandHandoffRows present", operatorCommandReceipt.commandHandoffRows?.length > 0 && operatorCommandReceipt.commandHandoffRows.every((row) => row.complete));
   record("releaseOwnerSummary present", Boolean(operatorCommandReceipt.releaseOwnerSummary?.ownerRole));
   record("safe digests only", safeDigestFieldsOnly(operatorCommandReceipt));
-  record("inheritedBlockingReasons safe", Array.isArray(operatorCommandReceipt.inheritedBlockingReasons) && !JSON.stringify(operatorCommandReceipt.inheritedBlockingReasons).match(rawLeakPattern()));
-  record("inheritedExceptionRows safe", Array.isArray(operatorCommandReceipt.inheritedExceptionRows) && !JSON.stringify(operatorCommandReceipt.inheritedExceptionRows).match(rawLeakPattern()));
+  record("inheritedBlockingReasons safe", Array.isArray(operatorCommandReceipt.inheritedBlockingReasons) && !containsRawLeak(operatorCommandReceipt.inheritedBlockingReasons));
+  record("inheritedExceptionRows safe", Array.isArray(operatorCommandReceipt.inheritedExceptionRows) && !containsRawLeak(operatorCommandReceipt.inheritedExceptionRows));
   record("counts present", operatorCommandReceipt.counts && operatorCommandReceipt.counts.operatorCommandReceiptCheckedCount === 1);
   record("externalCalls = 0", operatorCommandReceipt.externalCalls === 0);
   record("GET no mutation before/after read", JSON.stringify(beforeSnapshot) === JSON.stringify(afterSnapshot));
   record("no review/link/message/unmatched/archive/release state mutation", operatorCommandReceipt.counts.operatorCommandReceiptMutationCount === 0);
   record("invalid tenant access does not return mock fallback", invalidTenantReceipt.status >= 400 && invalidTenantReceipt.status < 500);
   record("no stale/fake operator command receipt", !String(operatorCommandReceipt.operatorCommandReceiptDigest ?? "").includes("fake") && operatorCommandReceipt.receiptKind === "qa-handoff-locked-archive-certified-release-operator-command-receipt");
-  record("no raw leakage", !JSON.stringify(operatorCommandReceipt).match(rawLeakPattern()));
+  record("no raw leakage", !containsRawLeak(operatorCommandReceipt));
   record("no provider outbound", !containsProviderOutbound(sprint99Source));
   record("no external notification sending", !containsExternalNotification(sprint99Source));
   record("no AI/OpenAI call", !containsAiCall(sprint99Source));
@@ -196,8 +196,7 @@ async function main() {
 }
 
 function runSprint98Smoke() {
-  const command = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(command, ["run", "smoke:sprint98"], {
+  const result = spawnSync(process.execPath, ["scripts/smoke-sprint98-provider-webhook-review-qa-archive-certified-release-cutover-checklist-receipt.mjs"], {
     cwd: process.cwd(),
     env: process.env,
     encoding: "utf8",
@@ -285,9 +284,25 @@ function safeOperatorCommandReceiptShape(value) {
 }
 
 function safeDigestFieldsOnly(value) {
-  return Object.entries(flatten(value))
-    .filter(([key]) => /digest/i.test(key))
-    .every(([, digest]) => typeof digest !== "string" || /^sha256:[a-z0-9-]+$/i.test(digest));
+  if (value === null || value === undefined) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every((item) => safeDigestFieldsOnly(item));
+  }
+
+  if (typeof value !== "object") {
+    return true;
+  }
+
+  return Object.entries(value).every(([key, nested]) => {
+    if (/Digest$/i.test(key)) {
+      return typeof nested === "string" && /^sha256:[a-f0-9]+$/i.test(nested);
+    }
+
+    return safeDigestFieldsOnly(nested);
+  });
 }
 
 function flatten(value, prefix = "", out = {}) {
@@ -322,8 +337,56 @@ function containsAiCall(sourceMap) {
   return Object.values(sourceMap).some((source) => /\b(openai|OpenAI|chat\.completions|responses\.create|aiSuggested|llm)\b/i.test(source));
 }
 
-function rawLeakPattern() {
-  return /\b(rawPayload|signature|token|authorization|cookie|replyToken|senderId|rawRoom|providerMaterial|rawBody|headers|stack|secret|raw provider|raw webhook|raw signature)\b/i;
+function allTrueValues(value) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.values(value).length > 0 && Object.values(value).every(Boolean);
+}
+
+const rawLeakKeyNames = new Set([
+  "authorization",
+  "rawPayload",
+  "rawBody",
+  "headers",
+  "stack",
+  "secret",
+  "token",
+  "cookie",
+  "replyToken",
+  "senderId",
+  "roomId",
+  "providerMaterial"
+]);
+
+const rawLeakValuePatterns = [
+  /\bBearer\s+[A-Za-z0-9\-._~+/]+=*\b/i,
+  /\b(raw\s+payload|raw\s+body|raw\s+signature|provider\s+material|replyToken|senderId|roomId|cookie|secret|token|signature)\b/i
+];
+
+function containsRawLeak(value) {
+  return walkRawLeak(value);
+}
+
+function walkRawLeak(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return rawLeakValuePatterns.some((pattern) => pattern.test(value));
+  }
+
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => walkRawLeak(item));
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value).some(([key, nested]) => rawLeakKeyNames.has(key) || walkRawLeak(nested));
+  }
+
+  return false;
 }
 
 function isLocalBaseUrl(value) {
