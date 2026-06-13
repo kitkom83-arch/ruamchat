@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -73,6 +73,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseNoExecutionLockReceipt: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(),
       reviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket: providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket(),
       reviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt: providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(),
+      reviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger: providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -453,6 +454,14 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("operationsCustodyRows=7/7");
     expect(html).toContain("inheritedOperationsHandoffReadinessPacketSummary=ready_for_handoff/issued");
     expect(html).toContain("operationsHandoffAcceptanceMutationCount=0");
+    expect(html).toContain("Load operations custody monitoring readiness ledger");
+    expect(html).toContain("QA archive certified release operations custody monitoring readiness ledger: operationsCustodyMonitoringStatus=ready; operationsHandoffAcceptanceStatus=accepted; operationsCustodyStatus=accepted; noExecutionEvidenceStatus=confirmed; launchApprovalLockStatus=locked; tenantScopeStatus=tenant_scoped; digestContinuityStatus=confirmed; monitoringReadinessStatus=ready; noExecutionMonitoringStatus=active; providerOutboundStatus=absent; externalNotificationStatus=absent; aiCallStatus=absent; externalCalls=0");
+    expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-operations-custody-monitoring-readiness-ledger.json");
+    expect(html).toContain("operationsCustodyMonitoringLedgerDigest=sha256:safeqahandoffcertifiedreleaseoperationscustodymonitoringreadinessledger");
+    expect(html).toContain("operationsCustodyMonitoringRows=4/4");
+    expect(html).toContain("noExecutionMonitoringRows=10/10");
+    expect(html).toContain("inheritedOperationsHandoffAcceptanceReceiptSummary=accepted/accepted");
+    expect(html).toContain("operationsCustodyMonitoringMutationCount=0");
     expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-go-live-hold-release-authorization-receipt.json");
     expect(html).toContain("goLiveHoldReleaseAuthorizationReceiptDigest=sha256:safeqahandoffcertifiedreleasegoliveholdreleaseauthorizationreceipt");
     expect(html).toContain("goLiveHoldReleaseAuthorizationRows=2/2");
@@ -740,6 +749,9 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt: null,
       reviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptLoading: false,
       reviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptError: "QA Archive Certified Release Operations Handoff Acceptance Receipt API error: Failed to fetch",
+      reviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger: null,
+      reviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerLoading: false,
+      reviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerError: "QA Archive Certified Release Operations Custody Monitoring Readiness Ledger API error: Failed to fetch",
       reviewClosureReportRedactionAudit: null,
       reviewClosureReportRedactionAuditLoading: false,
       reviewClosureReportRedactionAuditError: "Closure Report Redaction Audit API error: Failed to fetch",
@@ -796,6 +808,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("QA Archive Certified Release Launch Approval No-Execution Lock Receipt API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Operations Handoff Readiness No-Execution Evidence Packet API error: Failed to fetch");
     expect(html).toContain("QA Archive Certified Release Operations Handoff Acceptance Receipt API error: Failed to fetch");
+    expect(html).toContain("QA Archive Certified Release Operations Custody Monitoring Readiness Ledger API error: Failed to fetch");
     expect(html).toContain("Closure Report Redaction Audit API error: Failed to fetch");
     expect(html).toContain("Closure Export Integrity API error: Failed to fetch");
     expect(html).toContain("Closure Evidence Export API error: Failed to fetch");
@@ -823,6 +836,7 @@ describe("ProviderReadinessPanel", () => {
     expect(html).not.toContain("QA archive certified release launch approval no-execution lock receipt: noExecutionLockReceiptStatus=");
     expect(html).not.toContain("QA archive certified release operations handoff readiness no-execution evidence packet: operationsHandoffReadinessStatus=");
     expect(html).not.toContain("QA archive certified release operations handoff acceptance receipt: operationsHandoffAcceptanceStatus=");
+    expect(html).not.toContain("QA archive certified release operations custody monitoring readiness ledger: operationsCustodyMonitoringStatus=");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-bundle-export.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-locked-archive-integrity.json");
     expect(html).not.toContain("provider-webhook-review-qa-handoff-retention-audit.json");
@@ -3981,6 +3995,76 @@ function providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptan
       operationsHandoffAcceptanceAcceptedCount: operationsHandoffAcceptanceRows.length,
       operationsCustodyRowCount: operationsCustodyRows.length,
       operationsCustodyAcceptedCount: operationsCustodyRows.length
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger {
+  const operationsHandoffAcceptanceReceipt = providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt();
+  const operationsCustodyMonitoringLedgerDigest = "sha256:safeqahandoffcertifiedreleaseoperationscustodymonitoringreadinessledger";
+  const safeFilename = "provider-webhook-review-qa-handoff-certified-release-operations-custody-monitoring-readiness-ledger.json";
+  const operationsCustodyMonitoringRows = [
+    providerWebhookOperationsHandoffEvidenceRow("operations_handoff_acceptance_receipt_confirmed", "Operations handoff acceptance receipt confirmed", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, 1),
+    providerWebhookOperationsHandoffEvidenceRow("operations_custody_accepted", "Operations custody accepted", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.operationsCustodyAcceptedCount),
+    providerWebhookOperationsHandoffEvidenceRow("operations_custody_monitoring_ready", "Operations custody monitoring ready", operationsCustodyMonitoringLedgerDigest, safeFilename, 1),
+    providerWebhookOperationsHandoffEvidenceRow("operations_custody_monitoring_ledger_issued", "Operations custody monitoring readiness ledger issued", operationsCustodyMonitoringLedgerDigest, safeFilename, 1)
+  ];
+  const noExecutionMonitoringRows = [
+    providerWebhookOperationsHandoffEvidenceRow("no_execution_monitoring_active", "No-execution monitoring active", operationsCustodyMonitoringLedgerDigest, safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("no_execution_evidence_confirmed", "No-execution evidence confirmed", operationsHandoffAcceptanceReceipt.noExecutionLockReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("launch_approval_lock_retained", "Launch approval lock retained", operationsHandoffAcceptanceReceipt.launchApprovalReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, 1),
+    providerWebhookOperationsHandoffEvidenceRow("tenant_scope_confirmed", "Tenant scope confirmed", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, 1),
+    providerWebhookOperationsHandoffEvidenceRow("digest_continuity_confirmed", "Operations custody monitoring digest continuity", operationsCustodyMonitoringLedgerDigest, safeFilename, 4),
+    providerWebhookOperationsHandoffEvidenceRow("provider_outbound_absent", "Provider outbound absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("external_notification_absent", "External notification absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("ai_call_absent", "AI call absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("execution_attempts_zero", "Execution attempts zero", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, 0),
+    providerWebhookOperationsHandoffEvidenceRow("monitoring_readiness_confirmed", "Monitoring readiness confirmed", operationsCustodyMonitoringLedgerDigest, safeFilename, 1)
+  ];
+
+  return {
+    ...operationsHandoffAcceptanceReceipt,
+    ledgerKind: "qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger",
+    operationsCustodyMonitoringStatus: "ready",
+    monitoringReadinessStatus: "ready",
+    noExecutionMonitoringStatus: "active",
+    safeFilename,
+    safeDigest: operationsCustodyMonitoringLedgerDigest,
+    operationsCustodyMonitoringLedgerDigest,
+    operationsCustodyMonitoringLedgerGeneratedAt: "2026-06-14T00:00:00.000Z",
+    operationsCustodyMonitoringRows,
+    noExecutionMonitoringRows,
+    inheritedOperationsHandoffAcceptanceReceiptSummary: {
+      operationsHandoffAcceptanceStatus: "accepted",
+      operationsCustodyStatus: "accepted",
+      noExecutionEvidenceStatus: "confirmed",
+      launchApprovalLockStatus: "locked",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      providerOutboundStatus: "absent",
+      externalNotificationStatus: "absent",
+      aiCallStatus: "absent",
+      operationsHandoffMutationCount: 0,
+      operationsHandoffAcceptanceMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true,
+      safeDigest: operationsHandoffAcceptanceReceipt.safeDigest,
+      safeFilename: operationsHandoffAcceptanceReceipt.safeFilename,
+      operationsHandoffAcceptanceReceiptDigest: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+      operationsHandoffEvidencePacketDigest: operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest
+    },
+    counts: {
+      ...operationsHandoffAcceptanceReceipt.counts,
+      operationsCustodyMonitoringCheckedCount: 1,
+      operationsCustodyMonitoringMutationCount: 0,
+      operationsCustodyMonitoringRowCount: operationsCustodyMonitoringRows.length,
+      operationsCustodyMonitoringReadyCount: operationsCustodyMonitoringRows.length,
+      noExecutionMonitoringRowCount: noExecutionMonitoringRows.length,
+      noExecutionMonitoringActiveCount: noExecutionMonitoringRows.length
     },
     externalCalls: 0
   };
