@@ -112,6 +112,7 @@
     "smoke:sprint103": "node scripts/smoke-sprint103-provider-webhook-review-qa-archive-certified-release-launch-approval-receipt.mjs",
     "smoke:sprint104": "node scripts/smoke-sprint104-provider-webhook-review-qa-archive-certified-release-launch-approval-no-execution-lock-receipt.mjs",
     "smoke:sprint105": "node scripts/smoke-sprint105-provider-webhook-certified-release-operations-handoff-readiness-no-execution-evidence-packet.mjs",
+    "smoke:sprint106": "node scripts/smoke-sprint106-provider-webhook-certified-release-operations-handoff-acceptance-receipt.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {
