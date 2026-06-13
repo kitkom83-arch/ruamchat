@@ -51,6 +51,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -148,6 +149,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -443,6 +445,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHand
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptData = {
   mode: DataMode;
   operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData = {
+  mode: DataMode;
+  operationsCustodyMonitoringReadinessLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1415,6 +1422,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     operationsHandoffAcceptanceReceipt: createMockReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData> {
+  if (mode === "api") {
+    return {
+      mode,
+      operationsCustodyMonitoringReadinessLedger: await getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(filters)
+    };
+  }
+
+  return {
+    mode,
+    operationsCustodyMonitoringReadinessLedger: createMockReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(filters)
   };
 }
 
@@ -6618,6 +6642,119 @@ function createMockReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceRec
     },
     externalCalls: 0
   };
+}
+
+function createMockReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger {
+  const operationsHandoffAcceptanceReceipt = createMockReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(filters);
+  const operationsCustodyMonitoringReady = mockCertifiedReleaseOperationsCustodyMonitoringReady(operationsHandoffAcceptanceReceipt);
+  const operationsCustodyMonitoringStatus = operationsCustodyMonitoringReady ? "ready" : operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "blocked" || operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "blocked" ? "blocked" : "incomplete";
+  const monitoringReadinessStatus = operationsCustodyMonitoringReady ? "ready" : operationsCustodyMonitoringStatus === "blocked" ? "blocked" : "incomplete";
+  const noExecutionMonitoringStatus = operationsCustodyMonitoringReady ? "active" : operationsHandoffAcceptanceReceipt.counts.executionAttemptCount > 0 ? "violated" : "incomplete";
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleaseoperationscustodymonitoringreadinessledger-${safeDigest(`${operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest}:${operationsCustodyMonitoringStatus}:${monitoringReadinessStatus}:${noExecutionMonitoringStatus}`)}`;
+  const safeFilenameValue = "provider-webhook-review-qa-handoff-certified-release-operations-custody-monitoring-readiness-ledger.json";
+  const digestContinuityStatus = mockCertifiedReleaseOperationsCustodyMonitoringDigestLinksSafe(operationsHandoffAcceptanceReceipt, safeDigestValue) ? "confirmed" : "broken";
+  const operationsCustodyMonitoringRows = mockCertifiedReleaseOperationsHandoffEvidenceRows([
+    ["operations_handoff_acceptance_receipt_confirmed", "Operations handoff acceptance receipt confirmed", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceCheckedCount, operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "accepted"],
+    ["operations_custody_accepted", "Operations custody accepted", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.operationsCustodyAcceptedCount, operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "accepted"],
+    ["operations_custody_monitoring_ready", "Operations custody monitoring ready", safeDigestValue, safeFilenameValue, 1, operationsCustodyMonitoringStatus === "ready"],
+    ["operations_custody_monitoring_ledger_issued", "Operations custody monitoring readiness ledger issued", safeDigestValue, safeFilenameValue, 1, operationsCustodyMonitoringReady]
+  ]);
+  const noExecutionMonitoringRows = mockCertifiedReleaseOperationsHandoffEvidenceRows([
+    ["no_execution_monitoring_active", "No-execution monitoring active", safeDigestValue, safeFilenameValue, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, noExecutionMonitoringStatus === "active"],
+    ["no_execution_evidence_confirmed", "No-execution evidence confirmed", operationsHandoffAcceptanceReceipt.noExecutionLockReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus === "confirmed"],
+    ["launch_approval_lock_retained", "Launch approval lock retained", operationsHandoffAcceptanceReceipt.launchApprovalReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.launchApprovalArchiveRetainedCount, operationsHandoffAcceptanceReceipt.launchApprovalLockStatus === "locked"],
+    ["tenant_scope_confirmed", "Tenant scope confirmed", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.tenantScopeCheckedCount, operationsHandoffAcceptanceReceipt.tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "Operations custody monitoring digest continuity", safeDigestValue, safeFilenameValue, operationsHandoffAcceptanceReceipt.counts.digestContinuityCheckedCount + 3, digestContinuityStatus === "confirmed"],
+    ["provider_outbound_absent", "Provider outbound absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount, operationsHandoffAcceptanceReceipt.providerOutboundStatus === "absent"],
+    ["external_notification_absent", "External notification absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount, operationsHandoffAcceptanceReceipt.externalNotificationStatus === "absent"],
+    ["ai_call_absent", "AI call absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.aiCallCount, operationsHandoffAcceptanceReceipt.aiCallStatus === "absent"],
+    ["execution_attempts_zero", "Execution attempts zero", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount === 0],
+    ["monitoring_readiness_confirmed", "Monitoring readiness confirmed", safeDigestValue, safeFilenameValue, 1, monitoringReadinessStatus === "ready"]
+  ]);
+
+  return {
+    ...operationsHandoffAcceptanceReceipt,
+    ledgerKind: "qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger",
+    operationsCustodyMonitoringStatus,
+    monitoringReadinessStatus,
+    noExecutionMonitoringStatus,
+    digestContinuityStatus,
+    safeFilename: safeFilenameValue,
+    safeDigest: safeDigestValue,
+    operationsCustodyMonitoringLedgerDigest: safeDigestValue,
+    operationsCustodyMonitoringLedgerGeneratedAt: new Date().toISOString(),
+    operationsCustodyMonitoringRows,
+    noExecutionMonitoringRows,
+    inheritedOperationsHandoffAcceptanceReceiptSummary: {
+      operationsHandoffAcceptanceStatus: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus,
+      operationsCustodyStatus: operationsHandoffAcceptanceReceipt.operationsCustodyStatus,
+      noExecutionEvidenceStatus: operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus,
+      launchApprovalLockStatus: operationsHandoffAcceptanceReceipt.launchApprovalLockStatus,
+      tenantScopeStatus: operationsHandoffAcceptanceReceipt.tenantScopeStatus,
+      digestContinuityStatus: operationsHandoffAcceptanceReceipt.digestContinuityStatus,
+      providerOutboundStatus: operationsHandoffAcceptanceReceipt.providerOutboundStatus,
+      externalNotificationStatus: operationsHandoffAcceptanceReceipt.externalNotificationStatus,
+      aiCallStatus: operationsHandoffAcceptanceReceipt.aiCallStatus,
+      operationsHandoffMutationCount: operationsHandoffAcceptanceReceipt.counts.operationsHandoffMutationCount,
+      operationsHandoffAcceptanceMutationCount: operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceMutationCount,
+      executionAttemptCount: operationsHandoffAcceptanceReceipt.counts.executionAttemptCount,
+      providerOutboundCallCount: operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount,
+      externalNotificationSendCount: operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount,
+      aiCallCount: operationsHandoffAcceptanceReceipt.counts.aiCallCount,
+      externalCallsZero: operationsHandoffAcceptanceReceipt.externalCalls === 0,
+      safeDigest: operationsHandoffAcceptanceReceipt.safeDigest,
+      safeFilename: operationsHandoffAcceptanceReceipt.safeFilename,
+      operationsHandoffAcceptanceReceiptDigest: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+      operationsHandoffEvidencePacketDigest: operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest
+    },
+    counts: {
+      ...operationsHandoffAcceptanceReceipt.counts,
+      operationsCustodyMonitoringCheckedCount: 1,
+      operationsCustodyMonitoringMutationCount: 0,
+      operationsCustodyMonitoringRowCount: operationsCustodyMonitoringRows.length,
+      operationsCustodyMonitoringReadyCount: operationsCustodyMonitoringRows.filter((row) => row.complete).length,
+      noExecutionMonitoringRowCount: noExecutionMonitoringRows.length,
+      noExecutionMonitoringActiveCount: noExecutionMonitoringRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0
+  };
+}
+
+function mockCertifiedReleaseOperationsCustodyMonitoringReady(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt
+) {
+  return operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "accepted" &&
+    operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "accepted" &&
+    operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus === "confirmed" &&
+    operationsHandoffAcceptanceReceipt.launchApprovalLockStatus === "locked" &&
+    operationsHandoffAcceptanceReceipt.tenantScopeStatus === "tenant_scoped" &&
+    operationsHandoffAcceptanceReceipt.digestContinuityStatus === "confirmed" &&
+    operationsHandoffAcceptanceReceipt.providerOutboundStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.externalNotificationStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.aiCallStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.counts.operationsHandoffMutationCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceMutationCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.executionAttemptCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.aiCallCount === 0 &&
+    operationsHandoffAcceptanceReceipt.externalCalls === 0;
+}
+
+function mockCertifiedReleaseOperationsCustodyMonitoringDigestLinksSafe(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  operationsCustodyMonitoringLedgerDigest: string
+) {
+  return [
+    operationsCustodyMonitoringLedgerDigest,
+    operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest,
+    operationsHandoffAcceptanceReceipt.noExecutionLockReceiptDigest,
+    operationsHandoffAcceptanceReceipt.launchApprovalReceiptDigest,
+    operationsHandoffAcceptanceReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 
 function mockCertifiedReleaseOperationsHandoffAcceptanceReady(

@@ -74,6 +74,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -101,7 +102,8 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
-  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2110,6 +2112,71 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseOperationsCustodyMonitoringLedgerDigest = "sha256:certifiedreleaseoperationscustodymonitoringreadinessledger";
+    const certifiedReleaseOperationsCustodyMonitoringLedgerFilename = "provider-webhook-review-qa-handoff-certified-release-operations-custody-monitoring-readiness-ledger.json";
+    const operationsCustodyMonitoringRows = [
+      operationsHandoffEvidenceRow("operations_handoff_acceptance_receipt_confirmed", "Operations handoff acceptance receipt confirmed", certifiedReleaseOperationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 1),
+      operationsHandoffEvidenceRow("operations_custody_accepted", "Operations custody accepted", certifiedReleaseOperationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, operationsCustodyRows.length),
+      operationsHandoffEvidenceRow("operations_custody_monitoring_ready", "Operations custody monitoring ready", certifiedReleaseOperationsCustodyMonitoringLedgerDigest, certifiedReleaseOperationsCustodyMonitoringLedgerFilename, 1),
+      operationsHandoffEvidenceRow("operations_custody_monitoring_ledger_issued", "Operations custody monitoring readiness ledger issued", certifiedReleaseOperationsCustodyMonitoringLedgerDigest, certifiedReleaseOperationsCustodyMonitoringLedgerFilename, 1)
+    ];
+    const noExecutionMonitoringRows = [
+      operationsHandoffEvidenceRow("no_execution_monitoring_active", "No-execution monitoring active", certifiedReleaseOperationsCustodyMonitoringLedgerDigest, certifiedReleaseOperationsCustodyMonitoringLedgerFilename, 0),
+      operationsHandoffEvidenceRow("no_execution_evidence_confirmed", "No-execution evidence confirmed", certifiedReleaseNoExecutionLockReceipt.noExecutionLockReceiptDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 0),
+      operationsHandoffEvidenceRow("launch_approval_lock_retained", "Launch approval lock retained", certifiedReleaseNoExecutionLockReceipt.launchApprovalReceiptDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 1),
+      operationsHandoffEvidenceRow("tenant_scope_confirmed", "Tenant scope confirmed", certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 1),
+      operationsHandoffEvidenceRow("digest_continuity_confirmed", "Operations custody monitoring digest continuity", certifiedReleaseOperationsCustodyMonitoringLedgerDigest, certifiedReleaseOperationsCustodyMonitoringLedgerFilename, 4),
+      operationsHandoffEvidenceRow("provider_outbound_absent", "Provider outbound absent", certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 0),
+      operationsHandoffEvidenceRow("external_notification_absent", "External notification absent", certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 0),
+      operationsHandoffEvidenceRow("ai_call_absent", "AI call absent", certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 0),
+      operationsHandoffEvidenceRow("execution_attempts_zero", "Execution attempts zero", certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest, certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename, 0),
+      operationsHandoffEvidenceRow("monitoring_readiness_confirmed", "Monitoring readiness confirmed", certifiedReleaseOperationsCustodyMonitoringLedgerDigest, certifiedReleaseOperationsCustodyMonitoringLedgerFilename, 1)
+    ];
+    const certifiedReleaseOperationsCustodyMonitoringReadinessLedger: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger = providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({
+      ...certifiedReleaseOperationsHandoffAcceptanceReceipt,
+      ledgerKind: "qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger",
+      operationsCustodyMonitoringStatus: "ready",
+      monitoringReadinessStatus: "ready",
+      noExecutionMonitoringStatus: "active",
+      safeFilename: certifiedReleaseOperationsCustodyMonitoringLedgerFilename,
+      safeDigest: certifiedReleaseOperationsCustodyMonitoringLedgerDigest,
+      operationsCustodyMonitoringLedgerDigest: certifiedReleaseOperationsCustodyMonitoringLedgerDigest,
+      operationsCustodyMonitoringLedgerGeneratedAt: "2026-06-14T00:00:00.000Z",
+      operationsCustodyMonitoringRows,
+      noExecutionMonitoringRows,
+      inheritedOperationsHandoffAcceptanceReceiptSummary: {
+        operationsHandoffAcceptanceStatus: "accepted",
+        operationsCustodyStatus: "accepted",
+        noExecutionEvidenceStatus: "confirmed",
+        launchApprovalLockStatus: "locked",
+        tenantScopeStatus: "tenant_scoped",
+        digestContinuityStatus: "confirmed",
+        providerOutboundStatus: "absent",
+        externalNotificationStatus: "absent",
+        aiCallStatus: "absent",
+        operationsHandoffMutationCount: 0,
+        operationsHandoffAcceptanceMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseOperationsHandoffAcceptanceReceipt.safeDigest,
+        safeFilename: certifiedReleaseOperationsHandoffAcceptanceReceipt.safeFilename,
+        operationsHandoffAcceptanceReceiptDigest: certifiedReleaseOperationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+        operationsHandoffEvidencePacketDigest: certifiedReleaseOperationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest
+      },
+      counts: {
+        ...certifiedReleaseOperationsHandoffAcceptanceReceipt.counts,
+        operationsCustodyMonitoringCheckedCount: 1,
+        operationsCustodyMonitoringMutationCount: 0,
+        operationsCustodyMonitoringRowCount: operationsCustodyMonitoringRows.length,
+        operationsCustodyMonitoringReadyCount: operationsCustodyMonitoringRows.length,
+        noExecutionMonitoringRowCount: noExecutionMonitoringRows.length,
+        noExecutionMonitoringActiveCount: noExecutionMonitoringRows.length
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -2342,6 +2409,30 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptSchema.parse({ ...certifiedReleaseOperationsHandoffAcceptanceReceipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptSchema.parse({ ...certifiedReleaseOperationsHandoffAcceptanceReceipt, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptSchema.parse({ ...certifiedReleaseOperationsHandoffAcceptanceReceipt, externalCalls: 1 })).toThrow();
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.ledgerKind).toBe("qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.operationsCustodyMonitoringStatus).toBe("ready");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.operationsHandoffAcceptanceStatus).toBe("accepted");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.operationsCustodyStatus).toBe("accepted");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.noExecutionEvidenceStatus).toBe("confirmed");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.launchApprovalLockStatus).toBe("locked");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.tenantScopeStatus).toBe("tenant_scoped");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.digestContinuityStatus).toBe("confirmed");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.monitoringReadinessStatus).toBe("ready");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.noExecutionMonitoringStatus).toBe("active");
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.operationsCustodyMonitoringLedgerDigest).toBe(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.safeDigest);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.inheritedOperationsHandoffAcceptanceReceiptSummary.operationsHandoffAcceptanceReceiptDigest).toBe(certifiedReleaseOperationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.inheritedOperationsHandoffAcceptanceReceiptSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.operationsCustodyMonitoringRows.every((row) => row.complete && row.status === "confirmed")).toBe(true);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.noExecutionMonitoringRows.every((row) => row.complete && row.status === "confirmed")).toBe(true);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.counts.operationsCustodyMonitoringMutationCount).toBe(0);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.counts.executionAttemptCount).toBe(0);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.counts.providerOutboundCallCount).toBe(0);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.counts.externalNotificationSendCount).toBe(0);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.counts.aiCallCount).toBe(0);
+    expect(certifiedReleaseOperationsCustodyMonitoringReadinessLedger.externalCalls).toBe(0);
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();

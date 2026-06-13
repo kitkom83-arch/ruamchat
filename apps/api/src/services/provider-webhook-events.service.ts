@@ -73,6 +73,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1741,6 +1742,18 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive certified release operations handoff acceptance receipt prerequisites are incomplete");
     }
     return qaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptResponse(operationsHandoffReadinessPacket);
+  }
+
+  getReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger {
+    const operationsHandoffAcceptanceReceipt = this.getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(tenantId, filters, actorUserId);
+    if (operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "incomplete" && operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "incomplete") {
+      throw new ConflictException("Provider webhook QA archive certified release operations custody monitoring readiness ledger prerequisites are incomplete");
+    }
+    return qaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerResponse(operationsHandoffAcceptanceReceipt);
   }
 
   private getLockedArchiveContext(
@@ -9568,6 +9581,149 @@ function certifiedReleaseOperationsHandoffAcceptanceDigestLinksSafe(
     operationsHandoffReadinessPacket.noExecutionLockReceiptDigest,
     operationsHandoffReadinessPacket.launchApprovalReceiptDigest,
     operationsHandoffReadinessPacket.safeDigest
+  ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
+}
+
+function qaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerResponse(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger {
+  const operationsCustodyMonitoringReady = certifiedReleaseOperationsCustodyMonitoringReady(operationsHandoffAcceptanceReceipt);
+  const operationsCustodyMonitoringStatus = certifiedReleaseOperationsCustodyMonitoringStatus(operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReady);
+  const monitoringReadinessStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger["monitoringReadinessStatus"] = operationsCustodyMonitoringReady ? "ready" : operationsCustodyMonitoringStatus === "blocked" ? "blocked" : "incomplete";
+  const noExecutionMonitoringStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger["noExecutionMonitoringStatus"] = operationsCustodyMonitoringReady ? "active" : operationsHandoffAcceptanceReceipt.counts.executionAttemptCount > 0 ? "violated" : "incomplete";
+  const safeDigest = safeDigestForExport({
+    ledgerKind: "qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger",
+    operationsCustodyMonitoringStatus,
+    monitoringReadinessStatus,
+    noExecutionMonitoringStatus,
+    operationsHandoffAcceptanceReceiptDigest: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffEvidencePacketDigest: operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest,
+    noExecutionEvidenceStatus: operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus,
+    launchApprovalLockStatus: operationsHandoffAcceptanceReceipt.launchApprovalLockStatus,
+    tenantScopeStatus: operationsHandoffAcceptanceReceipt.tenantScopeStatus,
+    digestContinuityStatus: operationsHandoffAcceptanceReceipt.digestContinuityStatus,
+    externalCalls: 0
+  });
+  const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-certified-release-operations-custody-monitoring-readiness-ledger.json");
+  const monitoringDigestContinuityStatus = certifiedReleaseOperationsCustodyMonitoringDigestLinksSafe(operationsHandoffAcceptanceReceipt, safeDigest) ? "confirmed" as const : "broken" as const;
+  const operationsCustodyMonitoringRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["operations_handoff_acceptance_receipt_confirmed", "Operations handoff acceptance receipt confirmed", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceCheckedCount, operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "accepted"],
+    ["operations_custody_accepted", "Operations custody accepted", operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.operationsCustodyAcceptedCount, operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "accepted"],
+    ["operations_custody_monitoring_ready", "Operations custody monitoring ready", safeDigest, safeFilename, 1, operationsCustodyMonitoringStatus === "ready"],
+    ["operations_custody_monitoring_ledger_issued", "Operations custody monitoring readiness ledger issued", safeDigest, safeFilename, 1, operationsCustodyMonitoringReady]
+  ]);
+  const noExecutionMonitoringRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["no_execution_monitoring_active", "No-execution monitoring active", safeDigest, safeFilename, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, noExecutionMonitoringStatus === "active"],
+    ["no_execution_evidence_confirmed", "No-execution evidence confirmed", operationsHandoffAcceptanceReceipt.noExecutionLockReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus === "confirmed"],
+    ["launch_approval_lock_retained", "Launch approval lock retained", operationsHandoffAcceptanceReceipt.launchApprovalReceiptDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.launchApprovalArchiveRetainedCount, operationsHandoffAcceptanceReceipt.launchApprovalLockStatus === "locked"],
+    ["tenant_scope_confirmed", "Tenant scope confirmed", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.tenantScopeCheckedCount, operationsHandoffAcceptanceReceipt.tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "Operations custody monitoring digest continuity", safeDigest, safeFilename, operationsHandoffAcceptanceReceipt.counts.digestContinuityCheckedCount + 3, monitoringDigestContinuityStatus === "confirmed"],
+    ["provider_outbound_absent", "Provider outbound absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount, operationsHandoffAcceptanceReceipt.providerOutboundStatus === "absent"],
+    ["external_notification_absent", "External notification absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount, operationsHandoffAcceptanceReceipt.externalNotificationStatus === "absent"],
+    ["ai_call_absent", "AI call absent", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.aiCallCount, operationsHandoffAcceptanceReceipt.aiCallStatus === "absent"],
+    ["execution_attempts_zero", "Execution attempts zero", operationsHandoffAcceptanceReceipt.safeDigest, operationsHandoffAcceptanceReceipt.safeFilename, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount, operationsHandoffAcceptanceReceipt.counts.executionAttemptCount === 0],
+    ["monitoring_readiness_confirmed", "Monitoring readiness confirmed", safeDigest, safeFilename, 1, monitoringReadinessStatus === "ready"]
+  ]);
+
+  return {
+    ...operationsHandoffAcceptanceReceipt,
+    ledgerKind: "qa-handoff-locked-archive-certified-release-operations-custody-monitoring-readiness-ledger",
+    operationsCustodyMonitoringStatus,
+    monitoringReadinessStatus,
+    noExecutionMonitoringStatus,
+    digestContinuityStatus: monitoringDigestContinuityStatus,
+    safeFilename,
+    safeDigest,
+    operationsCustodyMonitoringLedgerDigest: safeDigest,
+    operationsCustodyMonitoringLedgerGeneratedAt: new Date().toISOString(),
+    operationsCustodyMonitoringRows,
+    noExecutionMonitoringRows,
+    inheritedOperationsHandoffAcceptanceReceiptSummary: {
+      operationsHandoffAcceptanceStatus: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus,
+      operationsCustodyStatus: operationsHandoffAcceptanceReceipt.operationsCustodyStatus,
+      noExecutionEvidenceStatus: operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus,
+      launchApprovalLockStatus: operationsHandoffAcceptanceReceipt.launchApprovalLockStatus,
+      tenantScopeStatus: operationsHandoffAcceptanceReceipt.tenantScopeStatus,
+      digestContinuityStatus: operationsHandoffAcceptanceReceipt.digestContinuityStatus,
+      providerOutboundStatus: operationsHandoffAcceptanceReceipt.providerOutboundStatus,
+      externalNotificationStatus: operationsHandoffAcceptanceReceipt.externalNotificationStatus,
+      aiCallStatus: operationsHandoffAcceptanceReceipt.aiCallStatus,
+      operationsHandoffMutationCount: operationsHandoffAcceptanceReceipt.counts.operationsHandoffMutationCount,
+      operationsHandoffAcceptanceMutationCount: operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceMutationCount,
+      executionAttemptCount: operationsHandoffAcceptanceReceipt.counts.executionAttemptCount,
+      providerOutboundCallCount: operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount,
+      externalNotificationSendCount: operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount,
+      aiCallCount: operationsHandoffAcceptanceReceipt.counts.aiCallCount,
+      externalCallsZero: operationsHandoffAcceptanceReceipt.externalCalls === 0,
+      safeDigest: operationsHandoffAcceptanceReceipt.safeDigest,
+      safeFilename: operationsHandoffAcceptanceReceipt.safeFilename,
+      operationsHandoffAcceptanceReceiptDigest: operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+      operationsHandoffEvidencePacketDigest: operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest
+    },
+    counts: {
+      ...operationsHandoffAcceptanceReceipt.counts,
+      operationsCustodyMonitoringCheckedCount: 1,
+      operationsCustodyMonitoringMutationCount: 0,
+      operationsCustodyMonitoringRowCount: operationsCustodyMonitoringRows.length,
+      operationsCustodyMonitoringReadyCount: operationsCustodyMonitoringRows.filter((row) => row.complete).length,
+      noExecutionMonitoringRowCount: noExecutionMonitoringRows.length,
+      noExecutionMonitoringActiveCount: noExecutionMonitoringRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseOperationsCustodyMonitoringReady(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt
+) {
+  return operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "accepted" &&
+    operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "accepted" &&
+    operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus === "confirmed" &&
+    operationsHandoffAcceptanceReceipt.launchApprovalLockStatus === "locked" &&
+    operationsHandoffAcceptanceReceipt.tenantScopeStatus === "tenant_scoped" &&
+    operationsHandoffAcceptanceReceipt.digestContinuityStatus === "confirmed" &&
+    operationsHandoffAcceptanceReceipt.providerOutboundStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.externalNotificationStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.aiCallStatus === "absent" &&
+    operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsHandoffAcceptanceReceipt.operationsCustodyRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsHandoffAcceptanceReceipt.counts.operationsHandoffMutationCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceMutationCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.executionAttemptCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount === 0 &&
+    operationsHandoffAcceptanceReceipt.counts.aiCallCount === 0 &&
+    operationsHandoffAcceptanceReceipt.externalCalls === 0;
+}
+
+function certifiedReleaseOperationsCustodyMonitoringStatus(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  operationsCustodyMonitoringReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger["operationsCustodyMonitoringStatus"] {
+  if (operationsCustodyMonitoringReady) return "ready";
+  if (
+    operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceStatus === "blocked" ||
+    operationsHandoffAcceptanceReceipt.operationsCustodyStatus === "blocked" ||
+    operationsHandoffAcceptanceReceipt.noExecutionEvidenceStatus === "violated" ||
+    operationsHandoffAcceptanceReceipt.counts.executionAttemptCount > 0 ||
+    operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount > 0 ||
+    operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount > 0 ||
+    operationsHandoffAcceptanceReceipt.counts.aiCallCount > 0
+  ) return "blocked";
+  return "incomplete";
+}
+
+function certifiedReleaseOperationsCustodyMonitoringDigestLinksSafe(
+  operationsHandoffAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
+  operationsCustodyMonitoringLedgerDigest: string
+) {
+  return [
+    operationsCustodyMonitoringLedgerDigest,
+    operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest,
+    operationsHandoffAcceptanceReceipt.noExecutionLockReceiptDigest,
+    operationsHandoffAcceptanceReceipt.launchApprovalReceiptDigest,
+    operationsHandoffAcceptanceReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
 }
 
