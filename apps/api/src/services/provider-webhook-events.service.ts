@@ -71,6 +71,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1715,6 +1716,18 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive certified release launch approval no-execution lock receipt prerequisites are incomplete");
     }
     return qaHandoffCertifiedReleaseNoExecutionLockReceiptResponse(launchApprovalReceipt);
+  }
+
+  getReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket {
+    const noExecutionLockReceipt = this.getReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(tenantId, filters, actorUserId);
+    if (noExecutionLockReceipt.noExecutionLockReceiptStatus === "incomplete" && noExecutionLockReceipt.noExecutionLockStatus === "incomplete") {
+      throw new ConflictException("Provider webhook QA archive certified release operations handoff readiness prerequisites are incomplete");
+    }
+    return qaHandoffCertifiedReleaseOperationsHandoffReadinessPacketResponse(noExecutionLockReceipt);
   }
 
   private getLockedArchiveContext(
@@ -9224,6 +9237,191 @@ function certifiedReleaseNoExecutionLockReceiptDigestLinksSafe(
     launchApprovalReceipt.verificationDigest,
     launchApprovalReceipt.releaseEvidenceDigest,
     launchApprovalReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
+}
+
+function qaHandoffCertifiedReleaseOperationsHandoffReadinessPacketResponse(
+  noExecutionLockReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket {
+  const operationsHandoffReady = certifiedReleaseOperationsHandoffReadinessReady(noExecutionLockReceipt);
+  const operationsHandoffReadinessStatus = certifiedReleaseOperationsHandoffReadinessStatus(noExecutionLockReceipt, operationsHandoffReady);
+  const operationsHandoffEvidencePacketStatus = operationsHandoffReady ? "issued" as const : operationsHandoffReadinessStatus === "blocked" ? "blocked" as const : "incomplete" as const;
+  const noExecutionEvidenceStatus = noExecutionLockReceipt.noExecutionLockStatus === "locked" && noExecutionLockReceipt.counts.executionAttemptCount === 0 ? "confirmed" as const : noExecutionLockReceipt.noExecutionLockStatus === "violated" ? "violated" as const : "incomplete" as const;
+  const launchApprovalLockStatus = noExecutionLockReceipt.noExecutionLockStatus === "locked" && noExecutionLockReceipt.launchApprovalArchiveStatus === "retained" ? "locked" as const : noExecutionLockReceipt.launchApprovalArchiveStatus === "missing" ? "missing" as const : "incomplete" as const;
+  const providerOutboundStatus = noExecutionLockReceipt.counts.providerOutboundCallCount === 0 ? noExecutionLockReceipt.providerOutboundStatus : "detected" as const;
+  const externalNotificationStatus = noExecutionLockReceipt.counts.externalNotificationSendCount === 0 ? noExecutionLockReceipt.externalNotificationStatus : "detected" as const;
+  const aiCallStatus = noExecutionLockReceipt.counts.aiCallCount === 0 ? noExecutionLockReceipt.aiCallStatus : "detected" as const;
+  const digestContinuityStatus = certifiedReleaseOperationsHandoffDigestLinksSafe(noExecutionLockReceipt, noExecutionLockReceipt.noExecutionLockReceiptDigest) ? "confirmed" as const : "broken" as const;
+  const safeDigest = safeDigestForExport({
+    packetKind: "qa-handoff-locked-archive-certified-release-operations-handoff-readiness-no-execution-evidence-packet",
+    operationsHandoffReadinessStatus,
+    operationsHandoffEvidencePacketStatus,
+    noExecutionEvidenceStatus,
+    launchApprovalLockStatus,
+    digestContinuityStatus,
+    noExecutionLockReceiptDigest: noExecutionLockReceipt.noExecutionLockReceiptDigest,
+    externalCalls: 0
+  });
+  const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-certified-release-operations-handoff-readiness-no-execution-evidence-packet.json");
+  const operationsHandoffPrerequisiteRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["no_execution_lock_receipt_issued", "No-execution lock receipt issued", noExecutionLockReceipt.noExecutionLockReceiptDigest, undefined, 1, noExecutionLockReceipt.noExecutionLockReceiptStatus === "issued"],
+    ["launch_approval_lock_retained", "Launch approval lock retained", noExecutionLockReceipt.launchApprovalReceiptDigest, undefined, 1, launchApprovalLockStatus === "locked"],
+    ["tenant_scope_confirmed", "Tenant scope confirmed", noExecutionLockReceipt.safeDigest, undefined, noExecutionLockReceipt.counts.tenantScopeCheckedCount, noExecutionLockReceipt.tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "Operations handoff safe digest continuity", safeDigest, undefined, noExecutionLockReceipt.counts.digestContinuityCheckedCount + 1, digestContinuityStatus === "confirmed"]
+  ]);
+  const operationsHandoffBlockerRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["provider_outbound_absent", "Provider outbound absent", noExecutionLockReceipt.safeDigest, undefined, noExecutionLockReceipt.counts.providerOutboundCallCount, providerOutboundStatus === "absent"],
+    ["external_notification_absent", "External notification absent", noExecutionLockReceipt.safeDigest, undefined, noExecutionLockReceipt.counts.externalNotificationSendCount, externalNotificationStatus === "absent"],
+    ["ai_call_absent", "AI call absent", noExecutionLockReceipt.safeDigest, undefined, noExecutionLockReceipt.counts.aiCallCount, aiCallStatus === "absent"],
+    ["execution_attempts_zero", "Execution attempts zero", noExecutionLockReceipt.safeDigest, undefined, noExecutionLockReceipt.counts.executionAttemptCount, noExecutionLockReceipt.counts.executionAttemptCount === 0]
+  ]);
+  const operationsHandoffEvidenceRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["operations_handoff_packet_ready", "Operations handoff evidence packet ready", safeDigest, safeFilename, 1, operationsHandoffReady],
+    ["no_execution_evidence_confirmed", "No-execution evidence confirmed", noExecutionLockReceipt.noExecutionLockReceiptDigest, noExecutionLockReceipt.safeFilename, noExecutionLockReceipt.counts.noExecutionLockPassedCount, noExecutionEvidenceStatus === "confirmed"],
+    ["safe_digest_filename_recorded", "Safe digest and filename recorded", safeDigest, safeFilename, 2, /^sha256:[a-z0-9]+$/i.test(safeDigest) && safeFilename.endsWith(".json")],
+    ["human_operations_handoff_ready", "Human operations handoff ready", safeDigest, safeFilename, 1, operationsHandoffReady]
+  ]);
+
+  return {
+    ...noExecutionLockReceipt,
+    packetKind: "qa-handoff-locked-archive-certified-release-operations-handoff-readiness-no-execution-evidence-packet",
+    operationsHandoffReadinessStatus,
+    operationsHandoffEvidencePacketStatus,
+    noExecutionEvidenceStatus,
+    launchApprovalLockStatus,
+    tenantScopeStatus: noExecutionLockReceipt.tenantScopeStatus,
+    digestContinuityStatus,
+    providerOutboundStatus,
+    externalNotificationStatus,
+    aiCallStatus,
+    safeFilename,
+    safeDigest,
+    operationsHandoffEvidencePacketDigest: safeDigest,
+    operationsHandoffGeneratedAt: new Date().toISOString(),
+    operationsHandoffPrerequisiteRows,
+    operationsHandoffBlockerRows,
+    operationsHandoffEvidenceRows,
+    inheritedNoExecutionLockReceiptSummary: {
+      noExecutionLockReceiptStatus: noExecutionLockReceipt.noExecutionLockReceiptStatus,
+      noExecutionLockStatus: noExecutionLockReceipt.noExecutionLockStatus,
+      launchApprovalArchiveStatus: noExecutionLockReceipt.launchApprovalArchiveStatus,
+      tenantScopeStatus: noExecutionLockReceipt.tenantScopeStatus,
+      providerOutboundStatus: noExecutionLockReceipt.providerOutboundStatus,
+      externalNotificationStatus: noExecutionLockReceipt.externalNotificationStatus,
+      aiCallStatus: noExecutionLockReceipt.aiCallStatus,
+      noExecutionLockReceiptMutationCount: noExecutionLockReceipt.counts.noExecutionLockReceiptMutationCount,
+      executionAttemptCount: noExecutionLockReceipt.counts.executionAttemptCount,
+      providerOutboundCallCount: noExecutionLockReceipt.counts.providerOutboundCallCount,
+      externalNotificationSendCount: noExecutionLockReceipt.counts.externalNotificationSendCount,
+      aiCallCount: noExecutionLockReceipt.counts.aiCallCount,
+      externalCallsZero: noExecutionLockReceipt.externalCalls === 0,
+      safeDigest: noExecutionLockReceipt.safeDigest,
+      safeFilename: noExecutionLockReceipt.safeFilename,
+      noExecutionLockReceiptDigest: noExecutionLockReceipt.noExecutionLockReceiptDigest
+    },
+    counts: {
+      ...noExecutionLockReceipt.counts,
+      operationsHandoffReadinessCheckedCount: 1,
+      operationsHandoffMutationCount: 0,
+      operationsHandoffPrerequisiteCount: operationsHandoffPrerequisiteRows.length,
+      operationsHandoffPrerequisitePassedCount: operationsHandoffPrerequisiteRows.filter((row) => row.complete).length,
+      operationsHandoffBlockerCount: operationsHandoffBlockerRows.length,
+      operationsHandoffBlockingCount: operationsHandoffBlockerRows.filter((row) => !row.complete).length,
+      operationsHandoffEvidenceRowCount: operationsHandoffEvidenceRows.length,
+      operationsHandoffEvidenceReadyCount: operationsHandoffEvidenceRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseOperationsHandoffReadinessReady(
+  noExecutionLockReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt
+) {
+  return noExecutionLockReceipt.noExecutionLockReceiptStatus === "issued" &&
+    noExecutionLockReceipt.noExecutionLockStatus === "locked" &&
+    noExecutionLockReceipt.launchApprovalArchiveStatus === "retained" &&
+    noExecutionLockReceipt.tenantScopeStatus === "tenant_scoped" &&
+    noExecutionLockReceipt.providerOutboundStatus === "absent" &&
+    noExecutionLockReceipt.externalNotificationStatus === "absent" &&
+    noExecutionLockReceipt.aiCallStatus === "absent" &&
+    noExecutionLockReceipt.digestChainStatus === "confirmed" &&
+    noExecutionLockReceipt.noExecutionLockRows.every((row) => row.complete && row.noExecutionLockStatus === "locked") &&
+    noExecutionLockReceipt.counts.noExecutionLockReceiptMutationCount === 0 &&
+    noExecutionLockReceipt.counts.executionAttemptCount === 0 &&
+    noExecutionLockReceipt.counts.providerOutboundCallCount === 0 &&
+    noExecutionLockReceipt.counts.externalNotificationSendCount === 0 &&
+    noExecutionLockReceipt.counts.aiCallCount === 0 &&
+    noExecutionLockReceipt.externalCalls === 0;
+}
+
+function certifiedReleaseOperationsHandoffReadinessStatus(
+  noExecutionLockReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
+  operationsHandoffReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket["operationsHandoffReadinessStatus"] {
+  if (operationsHandoffReady) return "ready_for_handoff";
+  if (
+    noExecutionLockReceipt.noExecutionLockReceiptStatus === "blocked" ||
+    noExecutionLockReceipt.noExecutionLockStatus === "violated" ||
+    noExecutionLockReceipt.counts.executionAttemptCount > 0 ||
+    noExecutionLockReceipt.counts.providerOutboundCallCount > 0 ||
+    noExecutionLockReceipt.counts.externalNotificationSendCount > 0 ||
+    noExecutionLockReceipt.counts.aiCallCount > 0
+  ) return "blocked";
+  return "incomplete";
+}
+
+function certifiedReleaseOperationsHandoffEvidenceRows(
+  rows: Array<[
+    ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket["operationsHandoffEvidenceRows"][number]["key"],
+    string,
+    string,
+    string | undefined,
+    number,
+    boolean
+  ]>
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket["operationsHandoffEvidenceRows"] {
+  return rows.map(([key, label, safeDigest, safeFilename, checkedCount, complete]) => ({
+    key,
+    label,
+    redactedLabel: label,
+    status: complete ? "confirmed" as const : "blocked" as const,
+    safeDigest,
+    ...(safeFilename ? { safeFilename } : {}),
+    checkedCount,
+    complete
+  }));
+}
+
+function certifiedReleaseOperationsHandoffDigestLinksSafe(
+  noExecutionLockReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
+  operationsHandoffEvidencePacketDigest: string
+) {
+  return [
+    operationsHandoffEvidencePacketDigest,
+    noExecutionLockReceipt.noExecutionLockReceiptDigest,
+    noExecutionLockReceipt.launchApprovalReceiptDigest,
+    noExecutionLockReceipt.goLiveHoldReleaseAuthorizationReceiptDigest,
+    noExecutionLockReceipt.launchWindowConfirmationReceiptDigest,
+    noExecutionLockReceipt.goLiveAuthorizationReceiptDigest,
+    noExecutionLockReceipt.operatorCommandReceiptDigest,
+    noExecutionLockReceipt.cutoverChecklistReceiptDigest,
+    noExecutionLockReceipt.controlRoomPacketDigest,
+    noExecutionLockReceipt.rollbackRehearsalReceiptDigest,
+    noExecutionLockReceipt.freezeAuditRegisterDigest,
+    noExecutionLockReceipt.finalReadinessCertificateDigest,
+    noExecutionLockReceipt.dryRunResultLedgerDigest,
+    noExecutionLockReceipt.noopExecutionDryRunDigest,
+    noExecutionLockReceipt.acceptanceRecordDigest,
+    noExecutionLockReceipt.handoffPacketDigest,
+    noExecutionLockReceipt.decisionReceiptDigest,
+    noExecutionLockReceipt.releaseGateDigest,
+    noExecutionLockReceipt.reconciliationDigest,
+    noExecutionLockReceipt.attestationAuditDigest,
+    noExecutionLockReceipt.closureLedgerDigest,
+    noExecutionLockReceipt.certificationDigest,
+    noExecutionLockReceipt.verificationDigest,
+    noExecutionLockReceipt.releaseEvidenceDigest,
+    noExecutionLockReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
 }
 

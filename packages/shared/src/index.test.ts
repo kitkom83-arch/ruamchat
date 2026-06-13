@@ -72,6 +72,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -97,7 +98,8 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
-  type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -1969,6 +1971,84 @@ describe("shared contracts", () => {
         launchApprovalArchiveRetainedCount: 1
       }
     });
+    const operationsHandoffEvidenceRow = (
+      key: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket["operationsHandoffEvidenceRows"][number]["key"],
+      label: string,
+      safeDigest: string,
+      safeFilename: string | undefined,
+      checkedCount: number,
+      complete = true
+    ) => ({
+      key,
+      label,
+      redactedLabel: label,
+      status: complete ? "confirmed" as const : "blocked" as const,
+      safeDigest,
+      ...(safeFilename ? { safeFilename } : {}),
+      checkedCount,
+      complete
+    });
+    const certifiedReleaseOperationsHandoffReadinessPacket = providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema.parse({
+      ...certifiedReleaseNoExecutionLockReceipt,
+      packetKind: "qa-handoff-locked-archive-certified-release-operations-handoff-readiness-no-execution-evidence-packet",
+      operationsHandoffReadinessStatus: "ready_for_handoff",
+      operationsHandoffEvidencePacketStatus: "issued",
+      noExecutionEvidenceStatus: "confirmed",
+      launchApprovalLockStatus: "locked",
+      digestContinuityStatus: "confirmed",
+      safeFilename: "provider-webhook-review-qa-handoff-certified-release-operations-handoff-readiness-no-execution-evidence-packet.json",
+      safeDigest: "sha256:certifiedreleaseoperationshandoffreadinesspacket",
+      operationsHandoffEvidencePacketDigest: "sha256:certifiedreleaseoperationshandoffreadinesspacket",
+      operationsHandoffGeneratedAt: "2026-06-13T00:00:00.000Z",
+      operationsHandoffPrerequisiteRows: [
+        operationsHandoffEvidenceRow("no_execution_lock_receipt_issued", "No-execution lock receipt issued", certifiedReleaseNoExecutionLockReceipt.noExecutionLockReceiptDigest, undefined, 1),
+        operationsHandoffEvidenceRow("launch_approval_lock_retained", "Launch approval lock retained", certifiedReleaseNoExecutionLockReceipt.launchApprovalReceiptDigest, undefined, 1),
+        operationsHandoffEvidenceRow("tenant_scope_confirmed", "Tenant scope confirmed", certifiedReleaseNoExecutionLockReceipt.safeDigest, undefined, 1),
+        operationsHandoffEvidenceRow("digest_continuity_confirmed", "Operations handoff safe digest continuity", "sha256:certifiedreleaseoperationshandoffreadinesspacket", undefined, 2)
+      ],
+      operationsHandoffBlockerRows: [
+        operationsHandoffEvidenceRow("provider_outbound_absent", "Provider outbound absent", certifiedReleaseNoExecutionLockReceipt.safeDigest, undefined, 0),
+        operationsHandoffEvidenceRow("external_notification_absent", "External notification absent", certifiedReleaseNoExecutionLockReceipt.safeDigest, undefined, 0),
+        operationsHandoffEvidenceRow("ai_call_absent", "AI call absent", certifiedReleaseNoExecutionLockReceipt.safeDigest, undefined, 0),
+        operationsHandoffEvidenceRow("execution_attempts_zero", "Execution attempts zero", certifiedReleaseNoExecutionLockReceipt.safeDigest, undefined, 0)
+      ],
+      operationsHandoffEvidenceRows: [
+        operationsHandoffEvidenceRow("operations_handoff_packet_ready", "Operations handoff evidence packet ready", "sha256:certifiedreleaseoperationshandoffreadinesspacket", "provider-webhook-review-qa-handoff-certified-release-operations-handoff-readiness-no-execution-evidence-packet.json", 1),
+        operationsHandoffEvidenceRow("no_execution_evidence_confirmed", "No-execution evidence confirmed", certifiedReleaseNoExecutionLockReceipt.noExecutionLockReceiptDigest, certifiedReleaseNoExecutionLockReceipt.safeFilename, 8),
+        operationsHandoffEvidenceRow("safe_digest_filename_recorded", "Safe digest and filename recorded", "sha256:certifiedreleaseoperationshandoffreadinesspacket", "provider-webhook-review-qa-handoff-certified-release-operations-handoff-readiness-no-execution-evidence-packet.json", 2),
+        operationsHandoffEvidenceRow("human_operations_handoff_ready", "Human operations handoff ready", "sha256:certifiedreleaseoperationshandoffreadinesspacket", "provider-webhook-review-qa-handoff-certified-release-operations-handoff-readiness-no-execution-evidence-packet.json", 1)
+      ],
+      inheritedNoExecutionLockReceiptSummary: {
+        noExecutionLockReceiptStatus: "issued",
+        noExecutionLockStatus: "locked",
+        launchApprovalArchiveStatus: "retained",
+        tenantScopeStatus: "tenant_scoped",
+        providerOutboundStatus: "absent",
+        externalNotificationStatus: "absent",
+        aiCallStatus: "absent",
+        noExecutionLockReceiptMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0,
+        externalCallsZero: true,
+        safeDigest: certifiedReleaseNoExecutionLockReceipt.safeDigest,
+        safeFilename: certifiedReleaseNoExecutionLockReceipt.safeFilename,
+        noExecutionLockReceiptDigest: certifiedReleaseNoExecutionLockReceipt.noExecutionLockReceiptDigest
+      },
+      counts: {
+        ...certifiedReleaseNoExecutionLockReceipt.counts,
+        operationsHandoffReadinessCheckedCount: 1,
+        operationsHandoffMutationCount: 0,
+        operationsHandoffPrerequisiteCount: 4,
+        operationsHandoffPrerequisitePassedCount: 4,
+        operationsHandoffBlockerCount: 4,
+        operationsHandoffBlockingCount: 0,
+        operationsHandoffEvidenceRowCount: 4,
+        operationsHandoffEvidenceReadyCount: 4
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -2162,6 +2242,24 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema.parse({ ...certifiedReleaseNoExecutionLockReceipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema.parse({ ...certifiedReleaseNoExecutionLockReceipt, token: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema.parse({ ...certifiedReleaseNoExecutionLockReceipt, externalCalls: 1 })).toThrow();
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.operationsHandoffReadinessStatus).toBe("ready_for_handoff");
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus).toBe("issued");
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.noExecutionEvidenceStatus).toBe("confirmed");
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.launchApprovalLockStatus).toBe("locked");
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.digestContinuityStatus).toBe("confirmed");
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest).toBe(certifiedReleaseOperationsHandoffReadinessPacket.safeDigest);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.inheritedNoExecutionLockReceiptSummary.externalCallsZero).toBe(true);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.operationsHandoffPrerequisiteRows.every((row) => row.complete && row.status === "confirmed")).toBe(true);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.operationsHandoffBlockerRows.every((row) => row.complete && row.status === "confirmed")).toBe(true);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.counts.operationsHandoffMutationCount).toBe(0);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.counts.operationsHandoffBlockingCount).toBe(0);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.counts.providerOutboundCallCount).toBe(0);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.counts.externalNotificationSendCount).toBe(0);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.counts.aiCallCount).toBe(0);
+    expect(certifiedReleaseOperationsHandoffReadinessPacket.externalCalls).toBe(0);
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema.parse({ ...certifiedReleaseOperationsHandoffReadinessPacket, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema.parse({ ...certifiedReleaseOperationsHandoffReadinessPacket, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacketSchema.parse({ ...certifiedReleaseOperationsHandoffReadinessPacket, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
