@@ -475,13 +475,19 @@ function sourceSlice(source, startMarker, endMarker) {
   return source.slice(start, end === -1 ? undefined : end);
 }
 
-function containsProviderOutbound(value) {
-  return /line\.push|telegram\.send|facebook\.send|instagram\.send|replyToken(?:Send|ProviderSend)|providerOutbound(?:Call|Send|Sent)|outboundProviderCall|pushMessage|sendMessageToProvider/i.test(serialized(value));
+function containsProviderOutbound(sources) {
+  return Object.values(sources).some((source) =>
+    /\b(sendMessage|replyMessage|pushMessage|providerOutbound|sendProvider|callProviderApi)\s*\(/i.test(source)
+  );
 }
 
-function containsExternalNotification(value) {
-  return /notification\.sent|sendNotification|externalNotification|webhookNotify|slack\.send|email\.send|sms\.send/i.test(serialized(value));
+
+function containsExternalNotification(sources) {
+  return Object.values(sources).some((source) =>
+    /\b(sendNotification|sendExternalNotification|notifyExternal|dispatchNotification|externalNotification)\s*\(/i.test(source)
+  );
 }
+
 
 function containsAiCall(value) {
   return /openai|ai\.call|chat\.completions|responses\.create|generateText|modelInvoke|llm/i.test(serialized(value));

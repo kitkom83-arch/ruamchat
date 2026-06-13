@@ -319,13 +319,19 @@ function safePayloadObject(value) {
   return !/reply-token-must-not-return|message-id-must-not-return|providerRaw|payloadJson|"rawPayload"\s*:|"rawSignature"\s*:|"authorization"\s*:|"cookie"\s*:|"accessToken"\s*:|"webhookSecret"\s*:|"providerSecret"\s*:|raw sender|raw room|"senderId"\s*:|"roomId"\s*:|safe-no-match-room-sprint80|safe-sender-sprint80|sha256=.*|line\.push|telegram\.send|facebook\.send|instagram\.send|outbound\.sent|outbound\.queued|openai|ai\.call|notification\.sent/i.test(JSON.stringify(value));
 }
 
-function containsProviderOutbound(value) {
-  return /line\.push|telegram\.send|facebook\.send|instagram\.send|outbound\.sent|outbound\.queued|reply api|push api|send api/i.test(JSON.stringify(value));
+function containsProviderOutbound(sources) {
+  return Object.values(sources).some((source) =>
+    /\b(sendMessage|replyMessage|pushMessage|providerOutbound|sendProvider|callProviderApi)\s*\(/i.test(source)
+  );
 }
 
-function containsExternalNotification(value) {
-  return /notification\.sent|email\.sent|sms\.sent|webhook\.notify|slack/i.test(JSON.stringify(value));
+
+function containsExternalNotification(sources) {
+  return Object.values(sources).some((source) =>
+    /\b(sendNotification|sendExternalNotification|notifyExternal|dispatchNotification|externalNotification)\s*\(/i.test(source)
+  );
 }
+
 
 function containsAiCall(value) {
   return /openai|ai\.call|chat_completion|responses\.create|embeddings/i.test(JSON.stringify(value));

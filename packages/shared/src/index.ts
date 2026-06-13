@@ -5893,6 +5893,76 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptStatusSchema = z.enum(["pending", "issued", "blocked", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockStatusSchema = z.enum(["locked", "violated", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalArchiveStatusSchema = z.enum(["retained", "missing", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema = z.enum(["tenant_scoped", "missing", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema = z.enum(["absent", "detected", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema = z.enum(["absent", "detected", "incomplete"]);
+export const providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema = z.enum(["absent", "detected", "incomplete"]);
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptRowSchema = providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptRowSchema.extend({
+  key: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptRowSchema.shape.key.or(z.enum([
+    "launch_approval_receipt_archived",
+    "no_execution_lock_retained",
+    "no_mutation_lock_retained",
+    "provider_outbound_absent",
+    "external_notification_absent",
+    "ai_call_absent",
+    "tenant_scope_retained",
+    "digest_continuity_confirmed"
+  ])),
+  noExecutionLockReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptStatusSchema,
+  noExecutionLockStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockStatusSchema,
+  launchApprovalArchiveStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalArchiveStatusSchema,
+  tenantScopeStatus: providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema,
+  providerOutboundStatus: providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema,
+  externalNotificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema,
+  aiCallStatus: providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema,
+  digestChainStatus: providerWebhookReviewQaHandoffDigestChainStatusSchema
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema = providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema.extend({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-launch-approval-no-execution-lock-receipt"),
+  noExecutionLockReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptStatusSchema,
+  noExecutionLockStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockStatusSchema,
+  launchApprovalArchiveStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalArchiveStatusSchema,
+  tenantScopeStatus: providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema,
+  providerOutboundStatus: providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema,
+  externalNotificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema,
+  aiCallStatus: providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema,
+  noExecutionLockReceiptDigest: z.string().min(1),
+  noExecutionLockRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptRowSchema).min(1),
+  externalCalls: z.literal(0),
+  inheritedLaunchApprovalReceiptSummary: z.object({
+    launchApprovalReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptStatusSchema,
+    noExecutionGuardStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionGuardStatusSchema,
+    launchApprovalStatus: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalStatusSchema,
+    launchApprovalReceiptCheckedCount: z.number().int().nonnegative(),
+    launchApprovalReceiptMutationCount: z.number().int().nonnegative(),
+    launchApprovalReceiptIssuedCount: z.number().int().nonnegative(),
+    noExecutionGuardRetainedCount: z.number().int().nonnegative(),
+    externalCallsZero: z.boolean(),
+    safeDigest: z.string().min(1),
+    launchApprovalReceiptDigest: z.string().min(1)
+  }).strict(),
+  counts: providerWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptSchema.shape.counts.extend({
+    noExecutionLockReceiptCheckedCount: z.number().int().nonnegative(),
+    noExecutionLockReceiptMutationCount: z.number().int().nonnegative(),
+    noExecutionLockRowCount: z.number().int().nonnegative(),
+    noExecutionLockPassedCount: z.number().int().nonnegative(),
+    executionAttemptCount: z.number().int().nonnegative(),
+    providerOutboundCallCount: z.number().int().nonnegative(),
+    externalNotificationSendCount: z.number().int().nonnegative(),
+    aiCallCount: z.number().int().nonnegative(),
+    tenantScopeCheckedCount: z.number().int().nonnegative(),
+    digestContinuityCheckedCount: z.number().int().nonnegative(),
+    launchApprovalArchiveRetainedCount: z.number().int().nonnegative()
+  }).strict()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
