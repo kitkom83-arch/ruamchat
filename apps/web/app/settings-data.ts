@@ -48,6 +48,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -142,6 +143,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -422,6 +424,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldRele
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceiptData = {
   mode: DataMode;
   launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptData = {
+  mode: DataMode;
+  noExecutionLockReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1343,6 +1350,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     launchApprovalReceipt: createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      noExecutionLockReceipt: await getProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    noExecutionLockReceipt: createMockReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(filters)
   };
 }
 
@@ -5979,6 +6003,76 @@ function createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(
   };
 }
 
+function createMockReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt {
+  const launchApprovalReceipt = createMockReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(filters);
+  const noExecutionLockReady = mockCertifiedReleaseNoExecutionLockReceiptReady(launchApprovalReceipt);
+  const noExecutionLockReceiptStatus = mockCertifiedReleaseNoExecutionLockReceiptStatus(launchApprovalReceipt, noExecutionLockReady);
+  const noExecutionLockStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockStatus"] = noExecutionLockReady ? "locked" : "incomplete";
+  const launchApprovalArchiveStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["launchApprovalArchiveStatus"] = noExecutionLockReady ? "retained" : "incomplete";
+  const tenantScopeStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["tenantScopeStatus"] = "tenant_scoped";
+  const providerOutboundStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["providerOutboundStatus"] = "absent";
+  const externalNotificationStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["externalNotificationStatus"] = "absent";
+  const aiCallStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["aiCallStatus"] = "absent";
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleasenoexecutionlockreceipt-${safeDigest(`${launchApprovalReceipt.launchApprovalReceiptDigest}:${noExecutionLockReceiptStatus}:${noExecutionLockStatus}`)}`;
+  const noExecutionLockRows = mockCertifiedReleaseNoExecutionLockReceiptRows([
+    ["launch_approval_receipt_archived", "Launch approval receipt remains archived", launchApprovalReceipt.launchApprovalReceiptDigest, 1, launchApprovalReceipt.launchApprovalReceiptStatus === "issued" && launchApprovalReceipt.noExecutionGuardStatus === "retained"],
+    ["no_execution_lock_retained", "No execution lock retained", safeDigestValue, 0, launchApprovalReceipt.executionMode === "no_op"],
+    ["no_mutation_lock_retained", "No launch approval lock mutation", launchApprovalReceipt.safeDigest, launchApprovalReceipt.counts.launchApprovalReceiptMutationCount, launchApprovalReceipt.counts.launchApprovalReceiptMutationCount === 0],
+    ["provider_outbound_absent", "Provider outbound absent", launchApprovalReceipt.safeDigest, 0, true],
+    ["external_notification_absent", "External notification absent", launchApprovalReceipt.safeDigest, 0, true],
+    ["ai_call_absent", "AI call absent", launchApprovalReceipt.safeDigest, 0, true],
+    ["tenant_scope_retained", "Tenant scope retained", launchApprovalReceipt.safeDigest, 1, tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "No-execution lock receipt safe digest continuity", safeDigestValue, 25, mockCertifiedReleaseNoExecutionLockReceiptDigestLinksSafe(launchApprovalReceipt, safeDigestValue)]
+  ], noExecutionLockReady, noExecutionLockReceiptStatus, noExecutionLockStatus, launchApprovalArchiveStatus, tenantScopeStatus, providerOutboundStatus, externalNotificationStatus, aiCallStatus, launchApprovalReceipt);
+
+  return {
+    ...launchApprovalReceipt,
+    receiptKind: "qa-handoff-locked-archive-certified-release-launch-approval-no-execution-lock-receipt",
+    noExecutionLockReceiptStatus,
+    noExecutionLockStatus,
+    launchApprovalArchiveStatus,
+    tenantScopeStatus,
+    providerOutboundStatus,
+    externalNotificationStatus,
+    aiCallStatus,
+    releaseDecision: noExecutionLockReady ? launchApprovalReceipt.releaseDecision : "no_go",
+    goNoGoDecision: noExecutionLockReady ? launchApprovalReceipt.goNoGoDecision : "no_go",
+    safeFilename: "provider-webhook-review-qa-handoff-certified-release-launch-approval-no-execution-lock-receipt.json",
+    safeDigest: safeDigestValue,
+    noExecutionLockReceiptDigest: safeDigestValue,
+    noExecutionLockRows,
+    inheritedLaunchApprovalReceiptSummary: {
+      launchApprovalReceiptStatus: launchApprovalReceipt.launchApprovalReceiptStatus,
+      noExecutionGuardStatus: launchApprovalReceipt.noExecutionGuardStatus,
+      launchApprovalStatus: launchApprovalReceipt.launchApprovalStatus,
+      launchApprovalReceiptCheckedCount: launchApprovalReceipt.counts.launchApprovalReceiptCheckedCount,
+      launchApprovalReceiptMutationCount: launchApprovalReceipt.counts.launchApprovalReceiptMutationCount,
+      launchApprovalReceiptIssuedCount: launchApprovalReceipt.counts.launchApprovalReceiptIssuedCount,
+      noExecutionGuardRetainedCount: launchApprovalReceipt.counts.noExecutionGuardRetainedCount,
+      externalCallsZero: launchApprovalReceipt.externalCalls === 0,
+      safeDigest: launchApprovalReceipt.safeDigest,
+      launchApprovalReceiptDigest: launchApprovalReceipt.launchApprovalReceiptDigest
+    },
+    counts: {
+      ...launchApprovalReceipt.counts,
+      noExecutionLockReceiptCheckedCount: 1,
+      noExecutionLockReceiptMutationCount: 0,
+      noExecutionLockRowCount: noExecutionLockRows.length,
+      noExecutionLockPassedCount: noExecutionLockRows.filter((row) => row.complete).length,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      tenantScopeCheckedCount: tenantScopeStatus === "tenant_scoped" ? 1 : 0,
+      digestContinuityCheckedCount: noExecutionLockRows.some((row) => row.key === "digest_continuity_confirmed" && row.complete) ? 1 : 0,
+      launchApprovalArchiveRetainedCount: launchApprovalArchiveStatus === "retained" ? 1 : 0
+    },
+    externalCalls: 0
+  };
+}
+
 function mockCertifiedReleaseGoLiveHoldReleaseAuthorizationReceiptReady(
   launchWindowConfirmationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt
 ) {
@@ -6204,6 +6298,120 @@ function mockCertifiedReleaseLaunchApprovalReceiptDigestLinksSafe(
     goLiveHoldReleaseAuthorizationReceipt.verificationDigest,
     goLiveHoldReleaseAuthorizationReceipt.releaseEvidenceDigest,
     goLiveHoldReleaseAuthorizationReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
+}
+
+function mockCertifiedReleaseNoExecutionLockReceiptReady(
+  launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt
+) {
+  return launchApprovalReceipt.launchApprovalReceiptStatus === "issued" &&
+    launchApprovalReceipt.noExecutionGuardStatus === "retained" &&
+    launchApprovalReceipt.launchApprovalStatus === "ready" &&
+    launchApprovalReceipt.goLiveHoldReleaseAuthorizationStatus === "authorized" &&
+    launchApprovalReceipt.launchWindowConfirmationStatus === "confirmed" &&
+    launchApprovalReceipt.goLiveHoldStatus === "ready" &&
+    launchApprovalReceipt.goLiveAuthorizationReceiptStatus === "issued" &&
+    launchApprovalReceipt.goLiveAuthorizationStatus === "ready" &&
+    launchApprovalReceipt.launchWindowStatus === "ready" &&
+    launchApprovalReceipt.safeLaunchWindowStatus === "ready" &&
+    launchApprovalReceipt.executionMode === "no_op" &&
+    launchApprovalReceipt.releaseDecision === "go" &&
+    launchApprovalReceipt.goNoGoDecision === "go" &&
+    launchApprovalReceipt.gateStatus === "ready" &&
+    launchApprovalReceipt.releaseReadinessStatus === "ready_for_release" &&
+    launchApprovalReceipt.certificationStatus === "certified" &&
+    launchApprovalReceipt.verificationStatus === "verified" &&
+    launchApprovalReceipt.digestChainStatus === "confirmed" &&
+    launchApprovalReceipt.noExecutionGuardRows.every((row) => row.complete && row.noExecutionGuardStatus === "retained") &&
+    launchApprovalReceipt.counts.launchApprovalReceiptMutationCount === 0 &&
+    launchApprovalReceipt.externalCalls === 0;
+}
+
+function mockCertifiedReleaseNoExecutionLockReceiptStatus(
+  launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
+  noExecutionLockReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockReceiptStatus"] {
+  if (noExecutionLockReady) return "issued";
+  if (launchApprovalReceipt.launchApprovalReceiptStatus === "blocked" || launchApprovalReceipt.releaseDecision !== "go" || launchApprovalReceipt.goNoGoDecision !== "go") return "blocked";
+  return "incomplete";
+}
+
+function mockCertifiedReleaseNoExecutionLockReceiptRows(
+  rows: Array<[
+    ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockRows"][number]["key"],
+    string,
+    string,
+    number,
+    boolean
+  ]>,
+  noExecutionLockReady: boolean,
+  noExecutionLockReceiptStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockReceiptStatus"],
+  noExecutionLockStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockStatus"],
+  launchApprovalArchiveStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["launchApprovalArchiveStatus"],
+  tenantScopeStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["tenantScopeStatus"],
+  providerOutboundStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["providerOutboundStatus"],
+  externalNotificationStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["externalNotificationStatus"],
+  aiCallStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["aiCallStatus"],
+  launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt["noExecutionLockRows"] {
+  return rows.map(([key, label, rowDigest, checkedCount, complete]) => ({
+    key,
+    label,
+    goLiveHoldReleaseAuthorizationStatus: complete && noExecutionLockReady ? "authorized" : launchApprovalReceipt.goLiveHoldReleaseAuthorizationStatus,
+    launchApprovalStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.launchApprovalStatus,
+    launchApprovalReceiptStatus: complete && noExecutionLockReady ? "issued" : launchApprovalReceipt.launchApprovalReceiptStatus,
+    noExecutionGuardStatus: complete && noExecutionLockReady ? "retained" : launchApprovalReceipt.noExecutionGuardStatus,
+    noExecutionLockReceiptStatus: complete && noExecutionLockReady ? "issued" : noExecutionLockReceiptStatus,
+    noExecutionLockStatus: complete && noExecutionLockReady ? "locked" : noExecutionLockStatus,
+    launchApprovalArchiveStatus: complete && noExecutionLockReady ? "retained" : launchApprovalArchiveStatus,
+    tenantScopeStatus: complete && noExecutionLockReady ? "tenant_scoped" : tenantScopeStatus,
+    providerOutboundStatus: complete && noExecutionLockReady ? "absent" : providerOutboundStatus,
+    externalNotificationStatus: complete && noExecutionLockReady ? "absent" : externalNotificationStatus,
+    aiCallStatus: complete && noExecutionLockReady ? "absent" : aiCallStatus,
+    digestChainStatus: complete && noExecutionLockReady ? "confirmed" : launchApprovalReceipt.digestChainStatus,
+    launchWindowConfirmationStatus: complete && noExecutionLockReady ? "confirmed" : launchApprovalReceipt.launchWindowConfirmationStatus,
+    goLiveHoldStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.goLiveHoldStatus,
+    goLiveAuthorizationReceiptStatus: complete && noExecutionLockReady ? "issued" : launchApprovalReceipt.goLiveAuthorizationReceiptStatus,
+    goLiveAuthorizationStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.goLiveAuthorizationStatus,
+    launchWindowStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.launchWindowStatus,
+    safeLaunchWindowStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.safeLaunchWindowStatus,
+    operatorCommandReceiptStatus: complete && noExecutionLockReady ? "issued" : launchApprovalReceipt.operatorCommandReceiptStatus,
+    operatorCommandStatus: complete && noExecutionLockReady ? "ready" : launchApprovalReceipt.operatorCommandStatus,
+    safeDigest: rowDigest,
+    checkedCount,
+    complete: complete && noExecutionLockReady
+  }));
+}
+
+function mockCertifiedReleaseNoExecutionLockReceiptDigestLinksSafe(
+  launchApprovalReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
+  noExecutionLockReceiptDigest: string
+) {
+  return [
+    noExecutionLockReceiptDigest,
+    launchApprovalReceipt.launchApprovalReceiptDigest,
+    launchApprovalReceipt.goLiveHoldReleaseAuthorizationReceiptDigest,
+    launchApprovalReceipt.launchWindowConfirmationReceiptDigest,
+    launchApprovalReceipt.goLiveAuthorizationReceiptDigest,
+    launchApprovalReceipt.operatorCommandReceiptDigest,
+    launchApprovalReceipt.cutoverChecklistReceiptDigest,
+    launchApprovalReceipt.controlRoomPacketDigest,
+    launchApprovalReceipt.rollbackRehearsalReceiptDigest,
+    launchApprovalReceipt.freezeAuditRegisterDigest,
+    launchApprovalReceipt.finalReadinessCertificateDigest,
+    launchApprovalReceipt.dryRunResultLedgerDigest,
+    launchApprovalReceipt.noopExecutionDryRunDigest,
+    launchApprovalReceipt.acceptanceRecordDigest,
+    launchApprovalReceipt.handoffPacketDigest,
+    launchApprovalReceipt.decisionReceiptDigest,
+    launchApprovalReceipt.releaseGateDigest,
+    launchApprovalReceipt.reconciliationDigest,
+    launchApprovalReceipt.attestationAuditDigest,
+    launchApprovalReceipt.closureLedgerDigest,
+    launchApprovalReceipt.certificationDigest,
+    launchApprovalReceipt.verificationDigest,
+    launchApprovalReceipt.releaseEvidenceDigest,
+    launchApprovalReceipt.safeDigest
   ].every((value) => /^sha256:[a-z0-9-]+$/i.test(value));
 }
 
