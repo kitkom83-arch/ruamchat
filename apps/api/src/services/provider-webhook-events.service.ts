@@ -72,6 +72,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1728,6 +1729,18 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive certified release operations handoff readiness prerequisites are incomplete");
     }
     return qaHandoffCertifiedReleaseOperationsHandoffReadinessPacketResponse(noExecutionLockReceipt);
+  }
+
+  getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt {
+    const operationsHandoffReadinessPacket = this.getReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket(tenantId, filters, actorUserId);
+    if (operationsHandoffReadinessPacket.operationsHandoffReadinessStatus === "incomplete" && operationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus === "incomplete") {
+      throw new ConflictException("Provider webhook QA archive certified release operations handoff acceptance receipt prerequisites are incomplete");
+    }
+    return qaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptResponse(operationsHandoffReadinessPacket);
   }
 
   private getLockedArchiveContext(
@@ -9422,6 +9435,139 @@ function certifiedReleaseOperationsHandoffDigestLinksSafe(
     noExecutionLockReceipt.verificationDigest,
     noExecutionLockReceipt.releaseEvidenceDigest,
     noExecutionLockReceipt.safeDigest
+  ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
+}
+
+function qaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptResponse(
+  operationsHandoffReadinessPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt {
+  const operationsHandoffAcceptanceReady = certifiedReleaseOperationsHandoffAcceptanceReady(operationsHandoffReadinessPacket);
+  const operationsHandoffAcceptanceStatus = certifiedReleaseOperationsHandoffAcceptanceStatus(operationsHandoffReadinessPacket, operationsHandoffAcceptanceReady);
+  const operationsCustodyStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt["operationsCustodyStatus"] = operationsHandoffAcceptanceReady ? "accepted" : operationsHandoffAcceptanceStatus === "blocked" ? "blocked" : "incomplete";
+  const safeDigest = safeDigestForExport({
+    receiptKind: "qa-handoff-locked-archive-certified-release-operations-handoff-acceptance-receipt",
+    operationsHandoffAcceptanceStatus,
+    operationsCustodyStatus,
+    operationsHandoffEvidencePacketDigest: operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest,
+    noExecutionEvidenceStatus: operationsHandoffReadinessPacket.noExecutionEvidenceStatus,
+    launchApprovalLockStatus: operationsHandoffReadinessPacket.launchApprovalLockStatus,
+    tenantScopeStatus: operationsHandoffReadinessPacket.tenantScopeStatus,
+    digestContinuityStatus: operationsHandoffReadinessPacket.digestContinuityStatus,
+    externalCalls: 0
+  });
+  const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-certified-release-operations-handoff-acceptance-receipt.json");
+  const acceptanceDigestContinuityStatus = certifiedReleaseOperationsHandoffAcceptanceDigestLinksSafe(operationsHandoffReadinessPacket, safeDigest) ? "confirmed" as const : "broken" as const;
+  const operationsHandoffAcceptanceRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["operations_handoff_packet_issued", "Operations handoff evidence packet issued", operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest, operationsHandoffReadinessPacket.safeFilename, 1, operationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus === "issued"],
+    ["operations_handoff_readiness_confirmed", "Operations handoff readiness confirmed", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.operationsHandoffEvidenceReadyCount, operationsHandoffReadinessPacket.operationsHandoffReadinessStatus === "ready_for_handoff"],
+    ["no_execution_evidence_confirmed", "No-execution evidence confirmed", operationsHandoffReadinessPacket.noExecutionLockReceiptDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.executionAttemptCount, operationsHandoffReadinessPacket.noExecutionEvidenceStatus === "confirmed"],
+    ["operations_handoff_acceptance_receipt_issued", "Operations handoff acceptance receipt issued", safeDigest, safeFilename, 1, operationsHandoffAcceptanceReady]
+  ]);
+  const operationsCustodyRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["operations_custody_accepted", "Operations custody accepted", safeDigest, safeFilename, 1, operationsCustodyStatus === "accepted"],
+    ["tenant_scope_confirmed", "Tenant scope confirmed", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.tenantScopeCheckedCount, operationsHandoffReadinessPacket.tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "Operations handoff acceptance digest continuity", safeDigest, safeFilename, operationsHandoffReadinessPacket.counts.digestContinuityCheckedCount + 2, acceptanceDigestContinuityStatus === "confirmed"],
+    ["provider_outbound_absent", "Provider outbound absent", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.providerOutboundCallCount, operationsHandoffReadinessPacket.providerOutboundStatus === "absent"],
+    ["external_notification_absent", "External notification absent", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.externalNotificationSendCount, operationsHandoffReadinessPacket.externalNotificationStatus === "absent"],
+    ["ai_call_absent", "AI call absent", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.aiCallCount, operationsHandoffReadinessPacket.aiCallStatus === "absent"],
+    ["execution_attempts_zero", "Execution attempts zero", operationsHandoffReadinessPacket.safeDigest, operationsHandoffReadinessPacket.safeFilename, operationsHandoffReadinessPacket.counts.executionAttemptCount, operationsHandoffReadinessPacket.counts.executionAttemptCount === 0]
+  ]);
+
+  return {
+    ...operationsHandoffReadinessPacket,
+    receiptKind: "qa-handoff-locked-archive-certified-release-operations-handoff-acceptance-receipt",
+    operationsHandoffAcceptanceStatus,
+    operationsCustodyStatus,
+    digestContinuityStatus: acceptanceDigestContinuityStatus,
+    safeFilename,
+    safeDigest,
+    operationsHandoffAcceptanceReceiptDigest: safeDigest,
+    operationsHandoffAcceptedAt: new Date().toISOString(),
+    operationsHandoffAcceptanceRows,
+    operationsCustodyRows,
+    inheritedOperationsHandoffReadinessPacketSummary: {
+      operationsHandoffReadinessStatus: operationsHandoffReadinessPacket.operationsHandoffReadinessStatus,
+      operationsHandoffEvidencePacketStatus: operationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus,
+      noExecutionEvidenceStatus: operationsHandoffReadinessPacket.noExecutionEvidenceStatus,
+      launchApprovalLockStatus: operationsHandoffReadinessPacket.launchApprovalLockStatus,
+      tenantScopeStatus: operationsHandoffReadinessPacket.tenantScopeStatus,
+      digestContinuityStatus: operationsHandoffReadinessPacket.digestContinuityStatus,
+      providerOutboundStatus: operationsHandoffReadinessPacket.providerOutboundStatus,
+      externalNotificationStatus: operationsHandoffReadinessPacket.externalNotificationStatus,
+      aiCallStatus: operationsHandoffReadinessPacket.aiCallStatus,
+      operationsHandoffMutationCount: operationsHandoffReadinessPacket.counts.operationsHandoffMutationCount,
+      executionAttemptCount: operationsHandoffReadinessPacket.counts.executionAttemptCount,
+      providerOutboundCallCount: operationsHandoffReadinessPacket.counts.providerOutboundCallCount,
+      externalNotificationSendCount: operationsHandoffReadinessPacket.counts.externalNotificationSendCount,
+      aiCallCount: operationsHandoffReadinessPacket.counts.aiCallCount,
+      externalCallsZero: operationsHandoffReadinessPacket.externalCalls === 0,
+      safeDigest: operationsHandoffReadinessPacket.safeDigest,
+      safeFilename: operationsHandoffReadinessPacket.safeFilename,
+      operationsHandoffEvidencePacketDigest: operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest
+    },
+    counts: {
+      ...operationsHandoffReadinessPacket.counts,
+      operationsHandoffAcceptanceCheckedCount: 1,
+      operationsHandoffAcceptanceMutationCount: 0,
+      operationsHandoffAcceptanceRowCount: operationsHandoffAcceptanceRows.length,
+      operationsHandoffAcceptanceAcceptedCount: operationsHandoffAcceptanceRows.filter((row) => row.complete).length,
+      operationsCustodyRowCount: operationsCustodyRows.length,
+      operationsCustodyAcceptedCount: operationsCustodyRows.filter((row) => row.complete).length
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseOperationsHandoffAcceptanceReady(
+  operationsHandoffReadinessPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket
+) {
+  return operationsHandoffReadinessPacket.operationsHandoffReadinessStatus === "ready_for_handoff" &&
+    operationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus === "issued" &&
+    operationsHandoffReadinessPacket.noExecutionEvidenceStatus === "confirmed" &&
+    operationsHandoffReadinessPacket.launchApprovalLockStatus === "locked" &&
+    operationsHandoffReadinessPacket.tenantScopeStatus === "tenant_scoped" &&
+    operationsHandoffReadinessPacket.digestContinuityStatus === "confirmed" &&
+    operationsHandoffReadinessPacket.providerOutboundStatus === "absent" &&
+    operationsHandoffReadinessPacket.externalNotificationStatus === "absent" &&
+    operationsHandoffReadinessPacket.aiCallStatus === "absent" &&
+    operationsHandoffReadinessPacket.operationsHandoffPrerequisiteRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsHandoffReadinessPacket.operationsHandoffBlockerRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsHandoffReadinessPacket.operationsHandoffEvidenceRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsHandoffReadinessPacket.counts.operationsHandoffMutationCount === 0 &&
+    operationsHandoffReadinessPacket.counts.executionAttemptCount === 0 &&
+    operationsHandoffReadinessPacket.counts.providerOutboundCallCount === 0 &&
+    operationsHandoffReadinessPacket.counts.externalNotificationSendCount === 0 &&
+    operationsHandoffReadinessPacket.counts.aiCallCount === 0 &&
+    operationsHandoffReadinessPacket.externalCalls === 0;
+}
+
+function certifiedReleaseOperationsHandoffAcceptanceStatus(
+  operationsHandoffReadinessPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
+  operationsHandoffAcceptanceReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt["operationsHandoffAcceptanceStatus"] {
+  if (operationsHandoffAcceptanceReady) return "accepted";
+  if (
+    operationsHandoffReadinessPacket.operationsHandoffReadinessStatus === "blocked" ||
+    operationsHandoffReadinessPacket.operationsHandoffEvidencePacketStatus === "blocked" ||
+    operationsHandoffReadinessPacket.noExecutionEvidenceStatus === "violated" ||
+    operationsHandoffReadinessPacket.counts.executionAttemptCount > 0 ||
+    operationsHandoffReadinessPacket.counts.providerOutboundCallCount > 0 ||
+    operationsHandoffReadinessPacket.counts.externalNotificationSendCount > 0 ||
+    operationsHandoffReadinessPacket.counts.aiCallCount > 0
+  ) return "blocked";
+  return "incomplete";
+}
+
+function certifiedReleaseOperationsHandoffAcceptanceDigestLinksSafe(
+  operationsHandoffReadinessPacket: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket,
+  operationsHandoffAcceptanceReceiptDigest: string
+) {
+  return [
+    operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest,
+    operationsHandoffReadinessPacket.noExecutionLockReceiptDigest,
+    operationsHandoffReadinessPacket.launchApprovalReceiptDigest,
+    operationsHandoffReadinessPacket.safeDigest
   ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
 }
 

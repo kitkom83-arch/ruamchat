@@ -43,6 +43,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2524,6 +2525,8 @@ describe("ProviderWebhooksController sandbox events", () => {
       .toThrow("locked archive export is required before release evidence");
     expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current"))
       .toThrow("locked archive export is required before release evidence");
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(tenantId, filters, "operator-current"))
+      .toThrow("locked archive export is required before release evidence");
     controller.exportReviewQaHandoffLockedArchive(tenantId, filters, "operator-current");
     const before = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
@@ -2552,6 +2555,8 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
     expect(() => controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current"))
+      .toThrow("finalization sign-off is required before release evidence");
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(tenantId, filters, "operator-current"))
       .toThrow("finalization sign-off is required before release evidence");
 
     const signOff = controller.signOffReviewQaHandoffArchiveFinalization(tenantId, filters, "operator-current", {
@@ -2651,11 +2656,16 @@ describe("ProviderWebhooksController sandbox events", () => {
     const operationsHandoffReadinessPacket = controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket(tenantId, filters, "operator-current");
     const afterOperationsHandoffReadinessPacketRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforeOperationsHandoffAcceptanceReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const operationsHandoffAcceptanceReceipt = controller.getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt(tenantId, filters, "operator-current");
+    const afterOperationsHandoffAcceptanceReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -3617,10 +3627,55 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(operationsHandoffReadinessPacket.counts.providerOutboundCallCount).toBe(0);
     expect(operationsHandoffReadinessPacket.counts.externalNotificationSendCount).toBe(0);
     expect(operationsHandoffReadinessPacket.counts.aiCallCount).toBe(0);
+    expect(operationsHandoffAcceptanceReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-operations-handoff-acceptance-receipt",
+      operationsHandoffAcceptanceStatus: "accepted",
+      operationsCustodyStatus: "accepted",
+      noExecutionEvidenceStatus: "confirmed",
+      launchApprovalLockStatus: "locked",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      providerOutboundStatus: "absent",
+      externalNotificationStatus: "absent",
+      aiCallStatus: "absent",
+      externalCalls: 0
+    });
+    expect(operationsHandoffAcceptanceReceipt.safeFilename).toBe("provider-webhook-review-qa-handoff-certified-release-operations-handoff-acceptance-receipt.json");
+    expect(operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceReceiptDigest).toBe(operationsHandoffAcceptanceReceipt.safeDigest);
+    expect(operationsHandoffAcceptanceReceipt.operationsHandoffEvidencePacketDigest).toBe(operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest);
+    expect(operationsHandoffAcceptanceReceipt.inheritedOperationsHandoffReadinessPacketSummary).toMatchObject({
+      operationsHandoffReadinessStatus: "ready_for_handoff",
+      operationsHandoffEvidencePacketStatus: "issued",
+      noExecutionEvidenceStatus: "confirmed",
+      launchApprovalLockStatus: "locked",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      providerOutboundStatus: "absent",
+      externalNotificationStatus: "absent",
+      aiCallStatus: "absent",
+      operationsHandoffMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true,
+      operationsHandoffEvidencePacketDigest: operationsHandoffReadinessPacket.operationsHandoffEvidencePacketDigest
+    });
+    expect(operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceRows.every((entry) => entry.complete && entry.status === "confirmed")).toBe(true);
+    expect(operationsHandoffAcceptanceReceipt.operationsCustodyRows.every((entry) => entry.complete && entry.status === "confirmed")).toBe(true);
+    expect(operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceCheckedCount).toBe(1);
+    expect(operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceMutationCount).toBe(0);
+    expect(operationsHandoffAcceptanceReceipt.counts.operationsHandoffAcceptanceAcceptedCount).toBe(operationsHandoffAcceptanceReceipt.operationsHandoffAcceptanceRows.length);
+    expect(operationsHandoffAcceptanceReceipt.counts.operationsCustodyAcceptedCount).toBe(operationsHandoffAcceptanceReceipt.operationsCustodyRows.length);
+    expect(operationsHandoffAcceptanceReceipt.counts.executionAttemptCount).toBe(0);
+    expect(operationsHandoffAcceptanceReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(operationsHandoffAcceptanceReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(operationsHandoffAcceptanceReceipt.counts.aiCallCount).toBe(0);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(beforeLaunchApprovalReceiptRead).toEqual(afterLaunchApprovalReceiptRead);
     expect(beforeOperationsHandoffReadinessPacketRead).toEqual(afterOperationsHandoffReadinessPacketRead);
+    expect(beforeOperationsHandoffAcceptanceReceiptRead).toEqual(afterOperationsHandoffAcceptanceReceiptRead);
     expect(afterFinalReadinessCertificateRead).toMatchObject({
       reviewStatus: beforeFinalReadinessCertificateRead?.reviewStatus,
       linkStatus: beforeFinalReadinessCertificateRead?.linkStatus,
