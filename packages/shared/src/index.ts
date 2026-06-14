@@ -6417,6 +6417,105 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOpera
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationStatusSchema = z.enum(["verified", "blocked", "incomplete"]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationStatusSchema = z.enum(["preserved", "blocked", "incomplete"]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationRowSchema = z.object({
+  sprintNumber: z.number().int().min(103).max(112),
+  artifactLabel: z.string().min(1),
+  artifactStatus: z.enum(["issued", "sealed", "ready", "accepted", "confirmed", "active", "locked", "tenant_scoped", "passed", "closed", "verified", "blocked", "failed", "incomplete"]),
+  safeDigest: z.string().min(1),
+  safeFilename: z.string().min(1).optional(),
+  checkedAt: z.string().min(1).optional(),
+  generatedAt: z.string().min(1).optional(),
+  externalCalls: z.literal(0),
+  executionAttemptCount: z.literal(0),
+  providerOutboundCallCount: z.literal(0),
+  externalNotificationSendCount: z.literal(0),
+  aiCallCount: z.literal(0),
+  mutationCount: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceiptSchema = z.object({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-verification-receipt"),
+  postClosurePreservationVerificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationStatusSchema,
+  finalArchiveSealPostClosurePreservationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationStatusSchema,
+  finalOperationalClosureReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalOperationalClosureReceiptStatusSchema,
+  finalArchiveSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealStatusSchema,
+  releaseClosureStatus: providerWebhookReviewQaHandoffCertifiedReleaseReleaseClosureStatusSchema,
+  finalEvidenceIndexStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexStatusSchema,
+  regressionGuardrailReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseRegressionGuardrailReceiptStatusSchema,
+  regressionGuardrailStatus: providerWebhookReviewQaHandoffCertifiedReleaseRegressionGuardrailStatusSchema,
+  finalNoExecutionEvidenceRollupStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupStatusSchema,
+  finalArchiveCustodyStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveCustodyStatusSchema,
+  operationsCustodyMonitoringCloseoutStatus: providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutStatusSchema,
+  closeoutSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseCloseoutSealStatusSchema,
+  noExecutionEvidenceStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionEvidenceStatusSchema,
+  noExecutionMonitoringStatus: providerWebhookReviewQaHandoffCertifiedReleaseNoExecutionMonitoringStatusSchema,
+  tenantScopeStatus: providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema,
+  digestContinuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseDigestContinuityStatusSchema,
+  providerOutboundStatus: providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema,
+  externalNotificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema,
+  aiCallStatus: providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  postClosurePreservationVerificationDigest: z.string().min(1),
+  finalArchiveSealOperationalClosureReceiptDigest: z.string().min(1),
+  finalArchiveSealDigest: z.string().min(1),
+  finalEvidenceIndexDigest: z.string().min(1),
+  regressionGuardrailReceiptDigest: z.string().min(1),
+  finalNoExecutionEvidenceRollupDigest: z.string().min(1),
+  generatedAt: z.string().min(1),
+  checkedAt: z.string().min(1),
+  postClosurePreservationVerificationRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationRowSchema).min(1),
+  inheritedFinalArchiveSealOperationalClosureReceiptSummary: z.object({
+    finalOperationalClosureReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalOperationalClosureReceiptStatusSchema,
+    finalArchiveSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealStatusSchema,
+    releaseClosureStatus: providerWebhookReviewQaHandoffCertifiedReleaseReleaseClosureStatusSchema,
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    finalOperationalClosureReceiptDigest: z.string().min(1),
+    finalArchiveSealDigest: z.string().min(1),
+    finalArchiveSealOperationalClosureRowCount: z.number().int().nonnegative(),
+    finalOperationalClosureReceiptMutationCount: z.literal(0),
+    finalArchiveSealMutationCount: z.literal(0),
+    finalEvidenceIndexMutationCount: z.literal(0),
+    regressionGuardrailMutationCount: z.literal(0),
+    finalNoExecutionEvidenceRollupMutationCount: z.literal(0),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0),
+    externalCallsZero: z.boolean()
+  }).strict(),
+  counts: z.object({
+    postClosurePreservationVerificationCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationVerificationMutationCount: z.literal(0),
+    finalArchiveSealPostClosurePreservationCheckedCount: z.number().int().nonnegative(),
+    finalArchiveSealPostClosurePreservationMutationCount: z.literal(0),
+    finalOperationalClosureReceiptCheckedCount: z.number().int().nonnegative(),
+    finalOperationalClosureReceiptMutationCount: z.literal(0),
+    finalArchiveSealCheckedCount: z.number().int().nonnegative(),
+    finalArchiveSealMutationCount: z.literal(0),
+    releaseClosureCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationVerificationRowCount: z.number().int().nonnegative(),
+    postClosurePreservationVerificationVerifiedCount: z.number().int().nonnegative(),
+    finalEvidenceIndexMutationCount: z.literal(0),
+    regressionGuardrailMutationCount: z.literal(0),
+    finalNoExecutionEvidenceRollupMutationCount: z.literal(0),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0)
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),
