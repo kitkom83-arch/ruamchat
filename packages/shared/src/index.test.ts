@@ -78,6 +78,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -109,7 +110,8 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup,
-  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2391,6 +2393,76 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleaseFinalArchiveSealOperationalClosureReceiptDigest = "sha256:certifiedreleasefinalarchivesealoperationalclosurereceipt";
+    const certifiedReleaseFinalArchiveSealOperationalClosureReceiptFilename = "provider-webhook-review-qa-handoff-certified-release-final-archive-seal-operational-closure-receipt.json";
+    const finalArchiveSealOperationalClosureRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt["finalArchiveSealOperationalClosureRows"] = [
+      ...finalEvidenceIndexRows,
+      { sprintNumber: 111, artifactLabel: "Sprint 111 final archive seal operational closure receipt", artifactStatus: "closed", safeDigest: certifiedReleaseFinalArchiveSealOperationalClosureReceiptDigest, safeFilename: certifiedReleaseFinalArchiveSealOperationalClosureReceiptFilename, generatedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 }
+    ];
+    const certifiedReleaseFinalArchiveSealOperationalClosureReceipt = providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema.parse({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-operational-closure-receipt",
+      finalOperationalClosureReceiptStatus: "issued",
+      finalArchiveSealStatus: "sealed",
+      releaseClosureStatus: "closed",
+      finalEvidenceIndexStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexStatus,
+      regressionGuardrailReceiptStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.regressionGuardrailReceiptStatus,
+      regressionGuardrailStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.regressionGuardrailStatus,
+      finalNoExecutionEvidenceRollupStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalNoExecutionEvidenceRollupStatus,
+      finalArchiveCustodyStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalArchiveCustodyStatus,
+      operationsCustodyMonitoringCloseoutStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.operationsCustodyMonitoringCloseoutStatus,
+      closeoutSealStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.closeoutSealStatus,
+      noExecutionEvidenceStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.noExecutionEvidenceStatus,
+      noExecutionMonitoringStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.noExecutionMonitoringStatus,
+      tenantScopeStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.tenantScopeStatus,
+      digestContinuityStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.digestContinuityStatus,
+      providerOutboundStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.providerOutboundStatus,
+      externalNotificationStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.externalNotificationStatus,
+      aiCallStatus: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.aiCallStatus,
+      safeFilename: certifiedReleaseFinalArchiveSealOperationalClosureReceiptFilename,
+      safeDigest: certifiedReleaseFinalArchiveSealOperationalClosureReceiptDigest,
+      finalOperationalClosureReceiptDigest: certifiedReleaseFinalArchiveSealOperationalClosureReceiptDigest,
+      finalArchiveSealDigest: certifiedReleaseFinalArchiveSealOperationalClosureReceiptDigest,
+      finalEvidenceIndexDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexDigest,
+      regressionGuardrailReceiptDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.regressionGuardrailReceiptDigest,
+      finalNoExecutionEvidenceRollupDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalNoExecutionEvidenceRollupDigest,
+      generatedAt: "2026-06-14T00:00:00.000Z",
+      checkedAt: "2026-06-14T00:00:00.000Z",
+      finalArchiveSealOperationalClosureRows,
+      inheritedFinalEvidenceIndexRegressionGuardrailReceiptSummary: {
+        finalEvidenceIndexStatus: "issued",
+        regressionGuardrailReceiptStatus: "issued",
+        regressionGuardrailStatus: "passed",
+        finalEvidenceIndexDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexDigest,
+        regressionGuardrailReceiptDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.regressionGuardrailReceiptDigest,
+        safeDigest: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.safeDigest,
+        safeFilename: certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.safeFilename,
+        finalEvidenceIndexMutationCount: 0,
+        regressionGuardrailMutationCount: 0,
+        finalNoExecutionEvidenceRollupMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0,
+        externalCallsZero: true
+      },
+      counts: {
+        finalOperationalClosureReceiptCheckedCount: 1,
+        finalOperationalClosureReceiptMutationCount: 0,
+        finalArchiveSealCheckedCount: 1,
+        finalArchiveSealMutationCount: 0,
+        releaseClosureCheckedCount: 1,
+        finalArchiveSealOperationalClosureRowCount: finalArchiveSealOperationalClosureRows.length,
+        finalArchiveSealOperationalClosureSealedCount: finalArchiveSealOperationalClosureRows.length,
+        finalEvidenceIndexMutationCount: 0,
+        regressionGuardrailMutationCount: 0,
+        finalNoExecutionEvidenceRollupMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -2710,6 +2782,28 @@ describe("shared contracts", () => {
     expect(certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.counts.externalNotificationSendCount).toBe(0);
     expect(certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.counts.aiCallCount).toBe(0);
     expect(certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.externalCalls).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.receiptKind).toBe("qa-handoff-locked-archive-certified-release-final-archive-seal-operational-closure-receipt");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalOperationalClosureReceiptStatus).toBe("issued");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalArchiveSealStatus).toBe("sealed");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.releaseClosureStatus).toBe("closed");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalEvidenceIndexStatus).toBe("issued");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.regressionGuardrailReceiptStatus).toBe("issued");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.regressionGuardrailStatus).toBe("passed");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalNoExecutionEvidenceRollupStatus).toBe("issued");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalArchiveCustodyStatus).toBe("sealed");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.tenantScopeStatus).toBe("tenant_scoped");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.digestContinuityStatus).toBe("confirmed");
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalOperationalClosureReceiptDigest).toBe(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.safeDigest);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalArchiveSealDigest).toBe(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.safeDigest);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalArchiveSealOperationalClosureRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111]);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.finalArchiveSealOperationalClosureRows.every((row) => row.externalCalls === 0 && row.mutationCount === 0)).toBe(true);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.finalOperationalClosureReceiptMutationCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.finalArchiveSealMutationCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.executionAttemptCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.counts.aiCallCount).toBe(0);
+    expect(certifiedReleaseFinalArchiveSealOperationalClosureReceipt.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, externalCalls: 1 })).toThrow();
@@ -2722,6 +2816,9 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptSchema.parse({ ...certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptSchema.parse({ ...certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptSchema.parse({ ...certifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema.parse({ ...certifiedReleaseFinalArchiveSealOperationalClosureReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema.parse({ ...certifiedReleaseFinalArchiveSealOperationalClosureReceipt, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema.parse({ ...certifiedReleaseFinalArchiveSealOperationalClosureReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();
