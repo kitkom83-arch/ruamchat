@@ -115,6 +115,7 @@
     "smoke:sprint106": "node scripts/smoke-sprint106-provider-webhook-certified-release-operations-handoff-acceptance-receipt.mjs",
     "smoke:sprint107": "node scripts/smoke-sprint107-provider-webhook-certified-release-operations-custody-monitoring-readiness-ledger.mjs",
     "smoke:sprint108": "node scripts/smoke-sprint108-provider-webhook-certified-release-operations-custody-monitoring-closeout-seal-receipt.mjs",
+    "smoke:sprint109": "node scripts/smoke-sprint109-provider-webhook-certified-release-final-no-execution-evidence-rollup.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {

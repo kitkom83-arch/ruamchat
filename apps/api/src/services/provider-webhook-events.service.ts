@@ -75,6 +75,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1767,6 +1768,18 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive certified release operations custody monitoring closeout seal receipt prerequisites are incomplete");
     }
     return qaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptResponse(operationsCustodyMonitoringReadinessLedger);
+  }
+
+  getReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup {
+    const operationsCustodyMonitoringCloseoutSealReceipt = this.getReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt(tenantId, filters, actorUserId);
+    if (operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus === "incomplete" && operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus === "incomplete") {
+      throw new ConflictException("Provider webhook QA archive certified release final no-execution evidence rollup prerequisites are incomplete");
+    }
+    return qaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupResponse(operationsCustodyMonitoringCloseoutSealReceipt);
   }
 
   private getLockedArchiveContext(
@@ -9881,6 +9894,168 @@ function certifiedReleaseOperationsCustodyMonitoringCloseoutDigestLinksSafe(
     operationsCustodyMonitoringReadinessLedger.noExecutionLockReceiptDigest,
     operationsCustodyMonitoringReadinessLedger.launchApprovalReceiptDigest,
     operationsCustodyMonitoringReadinessLedger.safeDigest
+  ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
+}
+
+function qaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupResponse(
+  operationsCustodyMonitoringCloseoutSealReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup {
+  const finalNoExecutionEvidenceRollupReady = certifiedReleaseFinalNoExecutionEvidenceRollupReady(operationsCustodyMonitoringCloseoutSealReceipt);
+  const finalNoExecutionEvidenceRollupStatus = certifiedReleaseFinalNoExecutionEvidenceRollupStatus(operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollupReady);
+  const finalArchiveCustodyStatus: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup["finalArchiveCustodyStatus"] = finalNoExecutionEvidenceRollupReady ? "sealed" : finalNoExecutionEvidenceRollupStatus === "blocked" ? "blocked" : "incomplete";
+  const safeDigest = safeDigestForExport({
+    rollupKind: "qa-handoff-locked-archive-certified-release-final-no-execution-evidence-rollup",
+    receiptKind: operationsCustodyMonitoringCloseoutSealReceipt.receiptKind,
+    operationsCustodyMonitoringCloseoutStatus: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus,
+    closeoutSealStatus: operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus,
+    finalNoExecutionEvidenceRollupStatus,
+    finalArchiveCustodyStatus,
+    operationsCustodyMonitoringCloseoutSealReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutSealReceiptDigest,
+    operationsCustodyMonitoringLedgerDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringLedgerDigest,
+    operationsHandoffAcceptanceReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffEvidencePacketDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffEvidencePacketDigest,
+    noExecutionLockReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptDigest,
+    launchApprovalReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptDigest,
+    externalCalls: 0
+  });
+  const safeFilename = safeExportFilename("provider-webhook-review-qa-handoff-certified-release-final-no-execution-evidence-rollup.json");
+  const finalDigestContinuityStatus = certifiedReleaseFinalNoExecutionEvidenceRollupDigestLinksSafe(operationsCustodyMonitoringCloseoutSealReceipt, safeDigest) ? "confirmed" as const : "broken" as const;
+  const finalNoExecutionEvidenceRows = certifiedReleaseOperationsHandoffEvidenceRows([
+    ["sprint_103_launch_approval_receipt_retained", "Sprint 103 launch approval receipt retained", operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.launchApprovalReceiptIssuedCount, operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptStatus === "issued"],
+    ["sprint_104_no_execution_lock_receipt_retained", "Sprint 104 no-execution lock receipt retained", operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.noExecutionLockReceiptCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptStatus === "issued" && operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockStatus === "locked"],
+    ["sprint_105_operations_handoff_packet_retained", "Sprint 105 operations handoff packet retained", operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffEvidencePacketDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffReadinessCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffEvidencePacketStatus === "issued" && operationsCustodyMonitoringCloseoutSealReceipt.noExecutionEvidenceStatus === "confirmed"],
+    ["sprint_106_operations_handoff_acceptance_retained", "Sprint 106 operations handoff acceptance retained", operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffAcceptanceCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceStatus === "accepted" && operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyStatus === "accepted"],
+    ["sprint_107_operations_custody_monitoring_retained", "Sprint 107 operations custody monitoring retained", operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringLedgerDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringStatus === "ready" && operationsCustodyMonitoringCloseoutSealReceipt.noExecutionMonitoringStatus === "active"],
+    ["sprint_108_closeout_seal_receipt_retained", "Sprint 108 closeout seal receipt retained", operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutSealReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringCloseoutCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus === "sealed" && operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus === "sealed"],
+    ["final_no_execution_evidence_rollup_issued", "Final no-execution evidence rollup issued", safeDigest, safeFilename, 1, finalNoExecutionEvidenceRollupStatus === "issued"],
+    ["final_archive_custody_sealed", "Final archive custody sealed", safeDigest, safeFilename, 1, finalArchiveCustodyStatus === "sealed"],
+    ["no_execution_evidence_confirmed", "No-execution evidence confirmed", operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount, operationsCustodyMonitoringCloseoutSealReceipt.noExecutionEvidenceStatus === "confirmed"],
+    ["no_execution_monitoring_active", "No-execution monitoring active", operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringLedgerDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount, operationsCustodyMonitoringCloseoutSealReceipt.noExecutionMonitoringStatus === "active"],
+    ["launch_approval_lock_retained", "Launch approval lock retained", operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.launchApprovalArchiveRetainedCount, operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalLockStatus === "locked"],
+    ["tenant_scope_confirmed", "Tenant scope confirmed", operationsCustodyMonitoringCloseoutSealReceipt.safeDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.tenantScopeCheckedCount, operationsCustodyMonitoringCloseoutSealReceipt.tenantScopeStatus === "tenant_scoped"],
+    ["digest_continuity_confirmed", "Final no-execution evidence rollup digest continuity", safeDigest, safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.digestContinuityCheckedCount + 5, finalDigestContinuityStatus === "confirmed"],
+    ["provider_outbound_absent", "Provider outbound absent", operationsCustodyMonitoringCloseoutSealReceipt.safeDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.providerOutboundCallCount, operationsCustodyMonitoringCloseoutSealReceipt.providerOutboundStatus === "absent"],
+    ["external_notification_absent", "External notification absent", operationsCustodyMonitoringCloseoutSealReceipt.safeDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.externalNotificationSendCount, operationsCustodyMonitoringCloseoutSealReceipt.externalNotificationStatus === "absent"],
+    ["ai_call_absent", "AI call absent", operationsCustodyMonitoringCloseoutSealReceipt.safeDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.aiCallCount, operationsCustodyMonitoringCloseoutSealReceipt.aiCallStatus === "absent"],
+    ["execution_attempts_zero", "Execution attempts zero", operationsCustodyMonitoringCloseoutSealReceipt.safeDigest, operationsCustodyMonitoringCloseoutSealReceipt.safeFilename, operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount, operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount === 0]
+  ]);
+
+  return {
+    ...operationsCustodyMonitoringCloseoutSealReceipt,
+    rollupKind: "qa-handoff-locked-archive-certified-release-final-no-execution-evidence-rollup",
+    finalNoExecutionEvidenceRollupStatus,
+    finalArchiveCustodyStatus,
+    digestContinuityStatus: finalDigestContinuityStatus,
+    safeFilename,
+    safeDigest,
+    finalNoExecutionEvidenceRollupDigest: safeDigest,
+    finalNoExecutionEvidenceRollupIssuedAt: new Date().toISOString(),
+    finalNoExecutionEvidenceRows,
+    inheritedOperationsCustodyMonitoringCloseoutSealReceiptSummary: {
+      operationsCustodyMonitoringCloseoutStatus: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus,
+      closeoutSealStatus: operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus,
+      operationsCustodyMonitoringStatus: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringStatus,
+      operationsHandoffAcceptanceStatus: operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceStatus,
+      operationsCustodyStatus: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyStatus,
+      noExecutionEvidenceStatus: operationsCustodyMonitoringCloseoutSealReceipt.noExecutionEvidenceStatus,
+      noExecutionMonitoringStatus: operationsCustodyMonitoringCloseoutSealReceipt.noExecutionMonitoringStatus,
+      launchApprovalLockStatus: operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalLockStatus,
+      tenantScopeStatus: operationsCustodyMonitoringCloseoutSealReceipt.tenantScopeStatus,
+      digestContinuityStatus: operationsCustodyMonitoringCloseoutSealReceipt.digestContinuityStatus,
+      monitoringReadinessStatus: operationsCustodyMonitoringCloseoutSealReceipt.monitoringReadinessStatus,
+      providerOutboundStatus: operationsCustodyMonitoringCloseoutSealReceipt.providerOutboundStatus,
+      externalNotificationStatus: operationsCustodyMonitoringCloseoutSealReceipt.externalNotificationStatus,
+      aiCallStatus: operationsCustodyMonitoringCloseoutSealReceipt.aiCallStatus,
+      operationsHandoffMutationCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffMutationCount,
+      operationsHandoffAcceptanceMutationCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffAcceptanceMutationCount,
+      operationsCustodyMonitoringMutationCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringMutationCount,
+      operationsCustodyMonitoringCloseoutSealMutationCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringCloseoutSealMutationCount,
+      executionAttemptCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount,
+      providerOutboundCallCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.providerOutboundCallCount,
+      externalNotificationSendCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.externalNotificationSendCount,
+      aiCallCount: operationsCustodyMonitoringCloseoutSealReceipt.counts.aiCallCount,
+      externalCallsZero: operationsCustodyMonitoringCloseoutSealReceipt.externalCalls === 0,
+      safeDigest: operationsCustodyMonitoringCloseoutSealReceipt.safeDigest,
+      safeFilename: operationsCustodyMonitoringCloseoutSealReceipt.safeFilename,
+      launchApprovalReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptDigest,
+      noExecutionLockReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptDigest,
+      operationsHandoffEvidencePacketDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffEvidencePacketDigest,
+      operationsHandoffAcceptanceReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceReceiptDigest,
+      operationsCustodyMonitoringLedgerDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringLedgerDigest,
+      operationsCustodyMonitoringCloseoutSealReceiptDigest: operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutSealReceiptDigest
+    },
+    counts: {
+      ...operationsCustodyMonitoringCloseoutSealReceipt.counts,
+      finalNoExecutionEvidenceRollupCheckedCount: 1,
+      finalNoExecutionEvidenceRollupMutationCount: 0,
+      finalNoExecutionEvidenceRollupRowCount: finalNoExecutionEvidenceRows.length,
+      finalNoExecutionEvidenceRollupIssuedCount: finalNoExecutionEvidenceRows.filter((row) => row.complete).length,
+      finalArchiveCustodySealedCount: finalNoExecutionEvidenceRows.filter((row) => row.complete && row.key === "final_archive_custody_sealed").length
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseFinalNoExecutionEvidenceRollupReady(
+  operationsCustodyMonitoringCloseoutSealReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt
+) {
+  return operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus === "sealed" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus === "sealed" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringStatus === "ready" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.monitoringReadinessStatus === "ready" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.noExecutionMonitoringStatus === "active" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceStatus === "accepted" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyStatus === "accepted" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.noExecutionEvidenceStatus === "confirmed" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalLockStatus === "locked" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.tenantScopeStatus === "tenant_scoped" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.digestContinuityStatus === "confirmed" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.providerOutboundStatus === "absent" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.externalNotificationStatus === "absent" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.aiCallStatus === "absent" &&
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutRows.every((row) => row.complete && row.status === "confirmed") &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffMutationCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsHandoffAcceptanceMutationCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringMutationCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.operationsCustodyMonitoringCloseoutSealMutationCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.providerOutboundCallCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.externalNotificationSendCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.aiCallCount === 0 &&
+    operationsCustodyMonitoringCloseoutSealReceipt.externalCalls === 0;
+}
+
+function certifiedReleaseFinalNoExecutionEvidenceRollupStatus(
+  operationsCustodyMonitoringCloseoutSealReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt,
+  finalNoExecutionEvidenceRollupReady: boolean
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup["finalNoExecutionEvidenceRollupStatus"] {
+  if (finalNoExecutionEvidenceRollupReady) return "issued";
+  if (
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutStatus === "blocked" ||
+    operationsCustodyMonitoringCloseoutSealReceipt.closeoutSealStatus === "blocked" ||
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringStatus === "blocked" ||
+    operationsCustodyMonitoringCloseoutSealReceipt.noExecutionMonitoringStatus === "violated" ||
+    operationsCustodyMonitoringCloseoutSealReceipt.noExecutionEvidenceStatus === "violated" ||
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.executionAttemptCount > 0 ||
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.providerOutboundCallCount > 0 ||
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.externalNotificationSendCount > 0 ||
+    operationsCustodyMonitoringCloseoutSealReceipt.counts.aiCallCount > 0
+  ) return "blocked";
+  return "incomplete";
+}
+
+function certifiedReleaseFinalNoExecutionEvidenceRollupDigestLinksSafe(
+  operationsCustodyMonitoringCloseoutSealReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt,
+  finalNoExecutionEvidenceRollupDigest: string
+) {
+  return [
+    finalNoExecutionEvidenceRollupDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringCloseoutSealReceiptDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsCustodyMonitoringLedgerDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffAcceptanceReceiptDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.operationsHandoffEvidencePacketDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.noExecutionLockReceiptDigest,
+    operationsCustodyMonitoringCloseoutSealReceipt.launchApprovalReceiptDigest
   ].every((value) => /^sha256:[a-z0-9]+$/i.test(value));
 }
 
