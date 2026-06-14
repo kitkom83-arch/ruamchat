@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup } from "@ai-omni/shared";
+import type { ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt } from "@ai-omni/shared";
 import {
   findCannedReplyInList,
   getCannedRepliesForMode,
@@ -44,6 +44,7 @@ import {
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupData,
+  loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptData,
   loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunData,
   runSettingsProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData,
@@ -140,6 +141,7 @@ const api = vi.hoisted(() => ({
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup: vi.fn(),
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt: vi.fn(),
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: vi.fn(),
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: vi.fn(),
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: vi.fn(),
@@ -229,6 +231,7 @@ vi.mock("./api-client", () => ({
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger: api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger,
   getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt: api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup: api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt: api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun: api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger: api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -318,6 +321,7 @@ beforeEach(() => {
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger.mockReset();
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt.mockReset();
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup.mockReset();
+  api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.mockReset();
   api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockReset();
   api.runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun.mockReset();
   api.getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger.mockReset();
@@ -1045,6 +1049,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerResponse());
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptResponse());
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseFinalNoExecutionEvidenceRollupResponse());
+    api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.mockResolvedValueOnce(providerWebhookArchiveCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptResponse());
 
     const filters = { provider: "line", eventType: "message.created" } as const;
     const finalization = await loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", filters);
@@ -1094,6 +1099,7 @@ describe("settings API-mode data loaders", () => {
     const operationsCustodyMonitoringReadinessLedger = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData("api", filters);
     const operationsCustodyMonitoringCloseoutSealReceipt = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptData("api", filters);
     const finalNoExecutionEvidenceRollup = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupData("api", filters);
+    const finalEvidenceIndexRegressionGuardrailReceipt = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptData("api", filters);
 
     expect(api.getProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters);
     expect(api.signOffProviderWebhookReviewQaHandoffArchiveFinalization).toHaveBeenCalledWith(filters, {
@@ -1142,6 +1148,7 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt).toHaveBeenCalledWith(filters);
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup).toHaveBeenCalledWith(filters);
+    expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt).toHaveBeenCalledWith(filters);
     expect(finalization.finalization).toMatchObject({
       finalizationStatus: "ready",
       retentionSignOffStatus: "not_signed",
@@ -1572,7 +1579,25 @@ describe("settings API-mode data loaders", () => {
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.providerOutboundCallCount).toBe(0);
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.externalNotificationSendCount).toBe(0);
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.aiCallCount).toBe(0);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-evidence-index-regression-guardrail-receipt",
+      finalEvidenceIndexStatus: "issued",
+      regressionGuardrailReceiptStatus: "issued",
+      finalNoExecutionEvidenceRollupStatus: "issued",
+      finalArchiveCustodyStatus: "sealed",
+      operationsCustodyMonitoringCloseoutStatus: "sealed",
+      closeoutSealStatus: "sealed",
+      regressionGuardrailStatus: "passed",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      externalCalls: 0
+    });
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110]);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.executionAttemptCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.aiCallCount).toBe(0);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("does not fallback to mock archive finalization or retention sign-off when API mode fails", async () => {
@@ -1609,6 +1634,7 @@ describe("settings API-mode data loaders", () => {
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger.mockRejectedValueOnce(new Error("API request failed (503): certified release operations custody monitoring readiness ledger unavailable"));
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt.mockRejectedValueOnce(new Error("API request failed (503): certified release operations custody monitoring closeout seal receipt unavailable"));
     api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup.mockRejectedValueOnce(new Error("API request failed (503): certified release final no-execution evidence rollup unavailable"));
+    api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt.mockRejectedValueOnce(new Error("API request failed (503): certified release final evidence index regression guardrail receipt unavailable"));
 
     await expect(loadSettingsProviderWebhookReviewQaHandoffArchiveFinalizationData("api", { provider: "line" }))
       .rejects.toThrow("archive finalization unavailable");
@@ -1680,6 +1706,8 @@ describe("settings API-mode data loaders", () => {
       .rejects.toThrow("certified release operations custody monitoring closeout seal receipt unavailable");
     await expect(loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupData("api", { provider: "line" }))
       .rejects.toThrow("certified release final no-execution evidence rollup unavailable");
+    await expect(loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptData("api", { provider: "line" }))
+      .rejects.toThrow("certified release final evidence index regression guardrail receipt unavailable");
   });
 
   it("loads and mutates saved views and operator notes through API mode without local fallback", async () => {
@@ -2370,6 +2398,7 @@ describe("settings API-mode data loaders", () => {
     const operationsCustodyMonitoringReadinessLedger = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerData("mock", filters);
     const operationsCustodyMonitoringCloseoutSealReceipt = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceiptData("mock", filters);
     const finalNoExecutionEvidenceRollup = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollupData("mock", filters);
+    const finalEvidenceIndexRegressionGuardrailReceipt = await loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptData("mock", filters);
 
     expect(pending.mode).toBe("mock");
     expect(pending.acceptanceRecord).toMatchObject({
@@ -2620,6 +2649,26 @@ describe("settings API-mode data loaders", () => {
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.providerOutboundCallCount).toBe(0);
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.externalNotificationSendCount).toBe(0);
     expect(finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollup.counts.aiCallCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.mode).toBe("mock");
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-evidence-index-regression-guardrail-receipt",
+      finalEvidenceIndexStatus: "blocked",
+      regressionGuardrailReceiptStatus: "blocked",
+      finalNoExecutionEvidenceRollupStatus: "blocked",
+      finalArchiveCustodyStatus: "blocked",
+      operationsCustodyMonitoringCloseoutStatus: "blocked",
+      closeoutSealStatus: "blocked",
+      regressionGuardrailStatus: "failed",
+      tenantScopeStatus: "tenant_scoped",
+      externalCalls: 0
+    });
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.safeDigest).toContain("mockqahandoffcertifiedreleasefinalevidenceindexregressionguardrailreceipt");
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110]);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.finalEvidenceIndexMutationCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.executionAttemptCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(finalEvidenceIndexRegressionGuardrailReceipt.finalEvidenceIndexRegressionGuardrailReceipt.counts.aiCallCount).toBe(0);
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord).not.toHaveBeenCalled();
     expect(api.acknowledgeProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun).not.toHaveBeenCalled();
@@ -2641,7 +2690,8 @@ describe("settings API-mode data loaders", () => {
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt).not.toHaveBeenCalled();
     expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup).not.toHaveBeenCalled();
-    expect(JSON.stringify({ pending, acknowledged, readback, initialDryRun, executedDryRun, dryRunReadback, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
+    expect(api.getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt).not.toHaveBeenCalled();
+    expect(JSON.stringify({ pending, acknowledged, readback, initialDryRun, executedDryRun, dryRunReadback, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt })).not.toMatch(/providerRaw|payloadJson|raw-room|raw-sender|raw room|raw sender|accessToken|webhookSecret|bearer|"token"\s*:|"secret"\s*:|"replyToken"\s*:|"rawPayload"\s*:|"rawSignature"\s*:/i);
   });
 
   it("keeps mock/local assignment and escalation metadata actions available safely", async () => {
@@ -6586,6 +6636,86 @@ function providerWebhookArchiveCertifiedReleaseFinalNoExecutionEvidenceRollupRes
       finalNoExecutionEvidenceRollupRowCount: finalNoExecutionEvidenceRows.length,
       finalNoExecutionEvidenceRollupIssuedCount: finalNoExecutionEvidenceRows.length,
       finalArchiveCustodySealedCount: 1
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptResponse(): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt {
+  const finalNoExecutionEvidenceRollup = providerWebhookArchiveCertifiedReleaseFinalNoExecutionEvidenceRollupResponse();
+  const safeDigest = "sha256:safeqahandoffcertifiedreleasefinalevidenceindexregressionguardrailreceipt";
+  const safeFilename = "provider-webhook-review-qa-handoff-certified-release-final-evidence-index-regression-guardrail-receipt.json";
+  const finalEvidenceIndexRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt["finalEvidenceIndexRows"] = [
+    { sprintNumber: 103, artifactLabel: "Sprint 103 launch approval receipt", artifactStatus: "issued", safeDigest: finalNoExecutionEvidenceRollup.launchApprovalReceiptDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 104, artifactLabel: "Sprint 104 no-execution lock receipt", artifactStatus: "locked", safeDigest: finalNoExecutionEvidenceRollup.noExecutionLockReceiptDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 105, artifactLabel: "Sprint 105 operations handoff readiness packet", artifactStatus: "confirmed", safeDigest: finalNoExecutionEvidenceRollup.operationsHandoffEvidencePacketDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 106, artifactLabel: "Sprint 106 operations handoff acceptance receipt", artifactStatus: "accepted", safeDigest: finalNoExecutionEvidenceRollup.operationsHandoffAcceptanceReceiptDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 107, artifactLabel: "Sprint 107 operations custody monitoring readiness ledger", artifactStatus: "ready", safeDigest: finalNoExecutionEvidenceRollup.operationsCustodyMonitoringLedgerDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 108, artifactLabel: "Sprint 108 operations custody monitoring closeout seal receipt", artifactStatus: "sealed", safeDigest: finalNoExecutionEvidenceRollup.operationsCustodyMonitoringCloseoutSealReceiptDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 109, artifactLabel: "Sprint 109 final no-execution evidence rollup", artifactStatus: "issued", safeDigest: finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollupDigest, safeFilename: finalNoExecutionEvidenceRollup.safeFilename, checkedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 },
+    { sprintNumber: 110, artifactLabel: "Sprint 110 final evidence index regression guardrail receipt", artifactStatus: "passed", safeDigest, safeFilename, generatedAt: "2026-06-14T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 }
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-evidence-index-regression-guardrail-receipt",
+    finalEvidenceIndexStatus: "issued",
+    regressionGuardrailReceiptStatus: "issued",
+    regressionGuardrailStatus: "passed",
+    finalNoExecutionEvidenceRollupStatus: "issued",
+    finalArchiveCustodyStatus: "sealed",
+    operationsCustodyMonitoringCloseoutStatus: "sealed",
+    operationsCustodyMonitoringStatus: "ready",
+    operationsHandoffAcceptanceStatus: "accepted",
+    operationsCustodyStatus: "accepted",
+    noExecutionEvidenceStatus: "confirmed",
+    noExecutionMonitoringStatus: "active",
+    launchApprovalLockStatus: "locked",
+    tenantScopeStatus: "tenant_scoped",
+    digestContinuityStatus: "confirmed",
+    closeoutSealStatus: "sealed",
+    providerOutboundStatus: "absent",
+    externalNotificationStatus: "absent",
+    aiCallStatus: "absent",
+    safeFilename,
+    safeDigest,
+    finalEvidenceIndexDigest: safeDigest,
+    regressionGuardrailReceiptDigest: safeDigest,
+    finalNoExecutionEvidenceRollupDigest: finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollupDigest,
+    operationsCustodyMonitoringCloseoutSealReceiptDigest: finalNoExecutionEvidenceRollup.operationsCustodyMonitoringCloseoutSealReceiptDigest,
+    operationsCustodyMonitoringLedgerDigest: finalNoExecutionEvidenceRollup.operationsCustodyMonitoringLedgerDigest,
+    operationsHandoffAcceptanceReceiptDigest: finalNoExecutionEvidenceRollup.operationsHandoffAcceptanceReceiptDigest,
+    operationsHandoffEvidencePacketDigest: finalNoExecutionEvidenceRollup.operationsHandoffEvidencePacketDigest,
+    noExecutionLockReceiptDigest: finalNoExecutionEvidenceRollup.noExecutionLockReceiptDigest,
+    launchApprovalReceiptDigest: finalNoExecutionEvidenceRollup.launchApprovalReceiptDigest,
+    generatedAt: "2026-06-14T00:00:00.000Z",
+    checkedAt: "2026-06-14T00:00:00.000Z",
+    finalEvidenceIndexRows,
+    inheritedFinalNoExecutionEvidenceRollupSummary: {
+      finalNoExecutionEvidenceRollupStatus: "issued",
+      finalArchiveCustodyStatus: "sealed",
+      finalNoExecutionEvidenceRollupDigest: finalNoExecutionEvidenceRollup.finalNoExecutionEvidenceRollupDigest,
+      safeDigest: finalNoExecutionEvidenceRollup.safeDigest,
+      safeFilename: finalNoExecutionEvidenceRollup.safeFilename,
+      finalNoExecutionEvidenceRollupMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    },
+    counts: {
+      finalEvidenceIndexCheckedCount: 1,
+      finalEvidenceIndexMutationCount: 0,
+      finalEvidenceIndexRowCount: finalEvidenceIndexRows.length,
+      finalEvidenceIndexIssuedCount: finalEvidenceIndexRows.length,
+      regressionGuardrailCheckedCount: 1,
+      regressionGuardrailPassedCount: 1,
+      regressionGuardrailMutationCount: 0,
+      finalNoExecutionEvidenceRollupMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
     },
     externalCalls: 0
   };
