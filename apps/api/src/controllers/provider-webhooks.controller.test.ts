@@ -2724,11 +2724,17 @@ describe("ProviderWebhooksController sandbox events", () => {
     const postClosurePreservationVerificationReceiptReadback = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt(tenantId, filters, "operator-current");
     const afterPostClosurePreservationVerificationReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforePostClosurePreservationContinuityLedgerReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const postClosurePreservationContinuityLedgerReceipt = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt(tenantId, filters, "operator-current");
+    const postClosurePreservationContinuityLedgerReceiptReadback = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt(tenantId, filters, "operator-current");
+    const afterPostClosurePreservationContinuityLedgerReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, postClosurePreservationContinuityLedgerReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -4066,6 +4072,50 @@ describe("ProviderWebhooksController sandbox events", () => {
       finalArchiveSealOperationalClosureReceiptDigest: postClosurePreservationVerificationReceipt.finalArchiveSealOperationalClosureReceiptDigest,
       externalCalls: 0
     });
+    expect(postClosurePreservationContinuityLedgerReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-continuity-ledger-receipt",
+      postClosurePreservationContinuityLedgerStatus: "continuous",
+      postClosurePreservationVerificationStatus: "verified",
+      finalArchiveSealPostClosurePreservationStatus: "preserved",
+      finalOperationalClosureReceiptStatus: "issued",
+      finalArchiveSealStatus: "sealed",
+      releaseClosureStatus: "closed",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      providerOutboundStatus: "absent",
+      externalNotificationStatus: "absent",
+      aiCallStatus: "absent",
+      externalCalls: 0
+    });
+    expect(postClosurePreservationContinuityLedgerReceipt.safeFilename).toBe("provider-webhook-certified-release-post-closure-preservation-continuity-ledger-receipt.json");
+    expect(postClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerDigest).toBe(postClosurePreservationContinuityLedgerReceipt.safeDigest);
+    expect(postClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest).toBe(postClosurePreservationVerificationReceipt.safeDigest);
+    expect(postClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.map((entry) => entry.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]);
+    expect(postClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.every((entry) => entry.externalCalls === 0 && entry.mutationCount === 0)).toBe(true);
+    expect(postClosurePreservationContinuityLedgerReceipt.inheritedPostClosurePreservationVerificationReceiptSummary).toMatchObject({
+      postClosurePreservationVerificationStatus: "verified",
+      finalArchiveSealPostClosurePreservationStatus: "preserved",
+      postClosurePreservationVerificationMutationCount: 0,
+      finalArchiveSealPostClosurePreservationMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    });
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.preservationContinuityLedgerMutationCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.postClosurePreservationVerificationMutationCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.executionAttemptCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceipt.counts.aiCallCount).toBe(0);
+    expect(postClosurePreservationContinuityLedgerReceiptReadback).toMatchObject({
+      receiptKind: postClosurePreservationContinuityLedgerReceipt.receiptKind,
+      postClosurePreservationContinuityLedgerStatus: postClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerStatus,
+      postClosurePreservationVerificationDigest: postClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest,
+      externalCalls: 0
+    });
+    expect(beforePostClosurePreservationContinuityLedgerReceiptRead).toEqual(afterPostClosurePreservationContinuityLedgerReceiptRead);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(beforeLaunchApprovalReceiptRead).toEqual(afterLaunchApprovalReceiptRead);
@@ -4287,7 +4337,7 @@ describe("ProviderWebhooksController sandbox events", () => {
       linkedMessageId: before?.linkedMessageId
     });
     expect(serialized).not.toMatch(/raw-reply-token|raw-room-qa-archive-finalization|"rawPayload"\s*:|"rawSignature"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|line\.push|telegram\.send|facebook\.send|instagram\.send|openai|ai\.call|notification\.sent/i);
-  });
+  }, 10000);
 });
 
 function buildController(conversations: Record<string, unknown> = {

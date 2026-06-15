@@ -119,6 +119,7 @@
     "smoke:sprint110": "node scripts/smoke-sprint110-provider-webhook-certified-release-final-evidence-index-regression-guardrail-receipt.mjs",
     "smoke:sprint111": "node scripts/smoke-sprint111-provider-webhook-certified-release-final-archive-seal-operational-closure-receipt.mjs",
     "smoke:sprint112": "node scripts/smoke-sprint112-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-verification-receipt.mjs",
+    "smoke:sprint113": "node scripts/smoke-sprint113-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-continuity-ledger-receipt.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {
