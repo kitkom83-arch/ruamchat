@@ -79,6 +79,7 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   type ProviderWebhookReviewQaHandoffReleaseVerification,
@@ -1823,6 +1824,18 @@ export class ProviderWebhookEventsService {
       throw new ConflictException("Provider webhook QA archive certified release final archive seal post-closure preservation verification receipt prerequisites are incomplete");
     }
     return qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceiptResponse(finalArchiveSealOperationalClosureReceipt);
+  }
+
+  getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt(
+    tenantId: string,
+    filters: ProviderWebhookReviewClosureReportFilters = {},
+    actorUserId?: string
+  ): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt {
+    const postClosurePreservationVerificationReceipt = this.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt(tenantId, filters, actorUserId);
+    if (!certifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReady(postClosurePreservationVerificationReceipt)) {
+      throw new ConflictException("Provider webhook QA archive certified release final archive seal post-closure preservation continuity ledger receipt prerequisites are incomplete");
+    }
+    return qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptResponse(postClosurePreservationVerificationReceipt);
   }
 
   private getLockedArchiveContext(
@@ -10533,6 +10546,177 @@ function qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerific
     },
     externalCalls: 0 as const
   };
+}
+
+function qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptResponse(
+  postClosurePreservationVerificationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt {
+  const postClosurePreservationContinuityLedgerStatus = "continuous" as const;
+  const safeDigest = safeDigestForExport({
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-continuity-ledger-receipt",
+    postClosurePreservationContinuityLedgerStatus,
+    postClosurePreservationVerificationDigest: postClosurePreservationVerificationReceipt.safeDigest,
+    finalArchiveSealOperationalClosureReceiptDigest: postClosurePreservationVerificationReceipt.finalArchiveSealOperationalClosureReceiptDigest,
+    finalArchiveSealPostClosurePreservationStatus: postClosurePreservationVerificationReceipt.finalArchiveSealPostClosurePreservationStatus,
+    externalCalls: 0
+  });
+  const safeFilename = safeExportFilename("provider-webhook-certified-release-post-closure-preservation-continuity-ledger-receipt.json");
+  const now = new Date().toISOString();
+  const zeroCounts = {
+    externalCalls: 0 as const,
+    executionAttemptCount: 0 as const,
+    providerOutboundCallCount: 0 as const,
+    externalNotificationSendCount: 0 as const,
+    aiCallCount: 0 as const,
+    mutationCount: 0 as const
+  };
+  const preservationContinuityLedgerRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt["preservationContinuityLedgerRows"] = [
+    ...postClosurePreservationVerificationReceipt.postClosurePreservationVerificationRows.map((row) => ({
+      sprintNumber: row.sprintNumber,
+      artifactLabel: row.artifactLabel,
+      artifactStatus: row.artifactStatus,
+      safeDigest: row.safeDigest,
+      safeFilename: row.safeFilename,
+      checkedAt: row.checkedAt,
+      generatedAt: row.generatedAt,
+      ...zeroCounts
+    })),
+    {
+      sprintNumber: 113 as const,
+      artifactLabel: "Sprint 113 post-closure preservation continuity ledger receipt",
+      artifactStatus: postClosurePreservationContinuityLedgerStatus,
+      safeDigest,
+      safeFilename,
+      generatedAt: now,
+      checkedAt: now,
+      ...zeroCounts
+    }
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-continuity-ledger-receipt",
+    postClosurePreservationContinuityLedgerStatus,
+    postClosurePreservationVerificationStatus: postClosurePreservationVerificationReceipt.postClosurePreservationVerificationStatus,
+    finalArchiveSealPostClosurePreservationStatus: postClosurePreservationVerificationReceipt.finalArchiveSealPostClosurePreservationStatus,
+    finalOperationalClosureReceiptStatus: postClosurePreservationVerificationReceipt.finalOperationalClosureReceiptStatus,
+    finalArchiveSealStatus: postClosurePreservationVerificationReceipt.finalArchiveSealStatus,
+    releaseClosureStatus: postClosurePreservationVerificationReceipt.releaseClosureStatus,
+    finalEvidenceIndexStatus: postClosurePreservationVerificationReceipt.finalEvidenceIndexStatus,
+    regressionGuardrailReceiptStatus: postClosurePreservationVerificationReceipt.regressionGuardrailReceiptStatus,
+    regressionGuardrailStatus: postClosurePreservationVerificationReceipt.regressionGuardrailStatus,
+    finalNoExecutionEvidenceRollupStatus: postClosurePreservationVerificationReceipt.finalNoExecutionEvidenceRollupStatus,
+    finalArchiveCustodyStatus: postClosurePreservationVerificationReceipt.finalArchiveCustodyStatus,
+    operationsCustodyMonitoringCloseoutStatus: postClosurePreservationVerificationReceipt.operationsCustodyMonitoringCloseoutStatus,
+    closeoutSealStatus: postClosurePreservationVerificationReceipt.closeoutSealStatus,
+    noExecutionEvidenceStatus: postClosurePreservationVerificationReceipt.noExecutionEvidenceStatus,
+    noExecutionMonitoringStatus: postClosurePreservationVerificationReceipt.noExecutionMonitoringStatus,
+    tenantScopeStatus: postClosurePreservationVerificationReceipt.tenantScopeStatus,
+    digestContinuityStatus: postClosurePreservationVerificationReceipt.digestContinuityStatus,
+    providerOutboundStatus: postClosurePreservationVerificationReceipt.providerOutboundStatus,
+    externalNotificationStatus: postClosurePreservationVerificationReceipt.externalNotificationStatus,
+    aiCallStatus: postClosurePreservationVerificationReceipt.aiCallStatus,
+    safeFilename,
+    safeDigest,
+    postClosurePreservationContinuityLedgerDigest: safeDigest,
+    postClosurePreservationVerificationDigest: postClosurePreservationVerificationReceipt.postClosurePreservationVerificationDigest,
+    finalArchiveSealOperationalClosureReceiptDigest: postClosurePreservationVerificationReceipt.finalArchiveSealOperationalClosureReceiptDigest,
+    finalArchiveSealDigest: postClosurePreservationVerificationReceipt.finalArchiveSealDigest,
+    finalEvidenceIndexDigest: postClosurePreservationVerificationReceipt.finalEvidenceIndexDigest,
+    regressionGuardrailReceiptDigest: postClosurePreservationVerificationReceipt.regressionGuardrailReceiptDigest,
+    finalNoExecutionEvidenceRollupDigest: postClosurePreservationVerificationReceipt.finalNoExecutionEvidenceRollupDigest,
+    generatedAt: now,
+    checkedAt: now,
+    preservationContinuityLedgerRows,
+    inheritedPostClosurePreservationVerificationReceiptSummary: {
+      postClosurePreservationVerificationStatus: postClosurePreservationVerificationReceipt.postClosurePreservationVerificationStatus,
+      finalArchiveSealPostClosurePreservationStatus: postClosurePreservationVerificationReceipt.finalArchiveSealPostClosurePreservationStatus,
+      finalArchiveSealStatus: postClosurePreservationVerificationReceipt.finalArchiveSealStatus,
+      releaseClosureStatus: postClosurePreservationVerificationReceipt.releaseClosureStatus,
+      safeDigest: postClosurePreservationVerificationReceipt.safeDigest,
+      safeFilename: postClosurePreservationVerificationReceipt.safeFilename,
+      postClosurePreservationVerificationDigest: postClosurePreservationVerificationReceipt.postClosurePreservationVerificationDigest,
+      postClosurePreservationVerificationRowCount: postClosurePreservationVerificationReceipt.postClosurePreservationVerificationRows.length,
+      postClosurePreservationVerificationMutationCount: 0 as const,
+      finalArchiveSealPostClosurePreservationMutationCount: 0 as const,
+      finalOperationalClosureReceiptMutationCount: 0 as const,
+      finalArchiveSealMutationCount: 0 as const,
+      finalEvidenceIndexMutationCount: 0 as const,
+      regressionGuardrailMutationCount: 0 as const,
+      finalNoExecutionEvidenceRollupMutationCount: 0 as const,
+      executionAttemptCount: 0 as const,
+      providerOutboundCallCount: 0 as const,
+      externalNotificationSendCount: 0 as const,
+      aiCallCount: 0 as const,
+      externalCallsZero: postClosurePreservationVerificationReceipt.externalCalls === 0
+    },
+    counts: {
+      preservationContinuityLedgerCheckedCount: 1,
+      preservationContinuityLedgerMutationCount: 0 as const,
+      postClosurePreservationVerificationCheckedCount: 1,
+      postClosurePreservationVerificationMutationCount: 0 as const,
+      finalArchiveSealPostClosurePreservationCheckedCount: 1,
+      finalArchiveSealPostClosurePreservationMutationCount: 0 as const,
+      finalOperationalClosureReceiptCheckedCount: 1,
+      finalOperationalClosureReceiptMutationCount: 0 as const,
+      finalArchiveSealCheckedCount: 1,
+      finalArchiveSealMutationCount: 0 as const,
+      releaseClosureCheckedCount: 1,
+      preservationContinuityLedgerRowCount: preservationContinuityLedgerRows.length,
+      preservationContinuityLedgerContinuousCount: preservationContinuityLedgerRows.filter((row) => row.artifactStatus !== "incomplete" && row.artifactStatus !== "blocked" && row.artifactStatus !== "failed").length,
+      finalEvidenceIndexMutationCount: 0 as const,
+      regressionGuardrailMutationCount: 0 as const,
+      finalNoExecutionEvidenceRollupMutationCount: 0 as const,
+      executionAttemptCount: 0 as const,
+      providerOutboundCallCount: 0 as const,
+      externalNotificationSendCount: 0 as const,
+      aiCallCount: 0 as const
+    },
+    externalCalls: 0 as const
+  };
+}
+
+function certifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReady(
+  postClosurePreservationVerificationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt
+) {
+  return postClosurePreservationVerificationReceipt.postClosurePreservationVerificationStatus === "verified" &&
+    postClosurePreservationVerificationReceipt.finalArchiveSealPostClosurePreservationStatus === "preserved" &&
+    postClosurePreservationVerificationReceipt.finalOperationalClosureReceiptStatus === "issued" &&
+    postClosurePreservationVerificationReceipt.finalArchiveSealStatus === "sealed" &&
+    postClosurePreservationVerificationReceipt.releaseClosureStatus === "closed" &&
+    postClosurePreservationVerificationReceipt.finalEvidenceIndexStatus === "issued" &&
+    postClosurePreservationVerificationReceipt.regressionGuardrailReceiptStatus === "issued" &&
+    postClosurePreservationVerificationReceipt.regressionGuardrailStatus === "passed" &&
+    postClosurePreservationVerificationReceipt.finalNoExecutionEvidenceRollupStatus === "issued" &&
+    postClosurePreservationVerificationReceipt.finalArchiveCustodyStatus === "sealed" &&
+    postClosurePreservationVerificationReceipt.operationsCustodyMonitoringCloseoutStatus === "sealed" &&
+    postClosurePreservationVerificationReceipt.closeoutSealStatus === "sealed" &&
+    postClosurePreservationVerificationReceipt.noExecutionEvidenceStatus === "confirmed" &&
+    postClosurePreservationVerificationReceipt.noExecutionMonitoringStatus === "active" &&
+    postClosurePreservationVerificationReceipt.tenantScopeStatus === "tenant_scoped" &&
+    postClosurePreservationVerificationReceipt.digestContinuityStatus === "confirmed" &&
+    postClosurePreservationVerificationReceipt.providerOutboundStatus === "absent" &&
+    postClosurePreservationVerificationReceipt.externalNotificationStatus === "absent" &&
+    postClosurePreservationVerificationReceipt.aiCallStatus === "absent" &&
+    postClosurePreservationVerificationReceipt.postClosurePreservationVerificationRows.every((row) =>
+      row.externalCalls === 0 &&
+      row.executionAttemptCount === 0 &&
+      row.providerOutboundCallCount === 0 &&
+      row.externalNotificationSendCount === 0 &&
+      row.aiCallCount === 0 &&
+      row.mutationCount === 0
+    ) &&
+    postClosurePreservationVerificationReceipt.counts.postClosurePreservationVerificationMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.finalArchiveSealPostClosurePreservationMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.finalOperationalClosureReceiptMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.finalArchiveSealMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.finalEvidenceIndexMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.regressionGuardrailMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.finalNoExecutionEvidenceRollupMutationCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.executionAttemptCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.providerOutboundCallCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.externalNotificationSendCount === 0 &&
+    postClosurePreservationVerificationReceipt.counts.aiCallCount === 0 &&
+    postClosurePreservationVerificationReceipt.externalCalls === 0;
 }
 
 function certifiedReleaseFinalArchiveSealPostClosurePreservationReady(
