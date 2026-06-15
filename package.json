@@ -121,6 +121,7 @@
     "smoke:sprint112": "node scripts/smoke-sprint112-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-verification-receipt.mjs",
     "smoke:sprint113": "node scripts/smoke-sprint113-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-continuity-ledger-receipt.mjs",
     "smoke:sprint114": "node scripts/smoke-sprint114-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-custody-audit-receipt.mjs",
+    "smoke:sprint115": "node scripts/smoke-sprint115-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-custody-chain-seal-receipt.mjs",
     "validate:production-env": "node scripts/validate-production-env.mjs"
   },
   "devDependencies": {
