@@ -81,6 +81,7 @@ import {
   providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptSchema,
+  providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequestSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunSchema,
   providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketSchema,
@@ -115,7 +116,8 @@ import {
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt,
   type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt,
-  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt,
+  type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt
 } from "./index.js";
 
 describe("shared contracts", () => {
@@ -2633,6 +2635,76 @@ describe("shared contracts", () => {
       },
       externalCalls: 0
     });
+    const certifiedReleasePostClosurePreservationCustodyAuditReceiptDigest = "sha256:certifiedreleasepostclosurepreservationcustodyauditreceipt";
+    const certifiedReleasePostClosurePreservationCustodyAuditReceiptFilename = "provider-webhook-certified-release-post-closure-preservation-custody-audit-receipt.json";
+    const custodyAuditRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt["custodyAuditRows"] = [
+      ...preservationContinuityLedgerRows.map((row) => ({ ...row, custodyAuditStatus: "under_safe_custody" as const })),
+      { sprintNumber: 114, artifactLabel: "Sprint 114 post-closure preservation custody audit receipt", artifactStatus: "audited", custodyAuditStatus: "under_safe_custody", safeDigest: certifiedReleasePostClosurePreservationCustodyAuditReceiptDigest, safeFilename: certifiedReleasePostClosurePreservationCustodyAuditReceiptFilename, generatedAt: "2026-06-15T00:00:00.000Z", checkedAt: "2026-06-15T00:00:00.000Z", externalCalls: 0, executionAttemptCount: 0, providerOutboundCallCount: 0, externalNotificationSendCount: 0, aiCallCount: 0, mutationCount: 0 }
+    ];
+    const certifiedReleasePostClosurePreservationCustodyAuditReceipt = providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema.parse({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-audit-receipt",
+      postClosurePreservationCustodyAuditStatus: "audited",
+      postClosurePreservationContinuityLedgerStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerStatus,
+      postClosurePreservationVerificationStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationStatus,
+      finalArchiveSealPostClosurePreservationStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.finalArchiveSealPostClosurePreservationStatus,
+      finalOperationalClosureReceiptStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.finalOperationalClosureReceiptStatus,
+      finalArchiveSealStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.finalArchiveSealStatus,
+      releaseClosureStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.releaseClosureStatus,
+      tenantScopeStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.tenantScopeStatus,
+      digestContinuityStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.digestContinuityStatus,
+      providerOutboundStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.providerOutboundStatus,
+      externalNotificationStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.externalNotificationStatus,
+      aiCallStatus: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.aiCallStatus,
+      safeFilename: certifiedReleasePostClosurePreservationCustodyAuditReceiptFilename,
+      safeDigest: certifiedReleasePostClosurePreservationCustodyAuditReceiptDigest,
+      postClosurePreservationCustodyAuditDigest: certifiedReleasePostClosurePreservationCustodyAuditReceiptDigest,
+      postClosurePreservationContinuityLedgerDigest: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerDigest,
+      postClosurePreservationVerificationDigest: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest,
+      generatedAt: "2026-06-15T00:00:00.000Z",
+      checkedAt: "2026-06-15T00:00:00.000Z",
+      custodyAuditRows,
+      inheritedPostClosurePreservationContinuityLedgerReceiptSummary: {
+        postClosurePreservationContinuityLedgerStatus: "continuous",
+        postClosurePreservationVerificationStatus: "verified",
+        safeDigest: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.safeDigest,
+        safeFilename: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.safeFilename,
+        postClosurePreservationContinuityLedgerDigest: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerDigest,
+        postClosurePreservationVerificationDigest: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest,
+        preservationContinuityLedgerRowCount: certifiedReleasePostClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.length,
+        preservationContinuityLedgerMutationCount: 0,
+        postClosurePreservationVerificationMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0,
+        externalCallsZero: true
+      },
+      counts: {
+        postClosurePreservationCustodyAuditCheckedCount: 1,
+        postClosurePreservationCustodyAuditMutationCount: 0,
+        preservationContinuityLedgerCheckedCount: 1,
+        preservationContinuityLedgerMutationCount: 0,
+        postClosurePreservationVerificationCheckedCount: 1,
+        postClosurePreservationVerificationMutationCount: 0,
+        finalArchiveSealPostClosurePreservationCheckedCount: 1,
+        finalArchiveSealPostClosurePreservationMutationCount: 0,
+        finalOperationalClosureReceiptCheckedCount: 1,
+        finalOperationalClosureReceiptMutationCount: 0,
+        finalArchiveSealCheckedCount: 1,
+        finalArchiveSealMutationCount: 0,
+        releaseClosureCheckedCount: 1,
+        postClosurePreservationCustodyAuditRowCount: custodyAuditRows.length,
+        postClosurePreservationCustodyAuditSafeCount: custodyAuditRows.length,
+        finalEvidenceIndexMutationCount: 0,
+        regressionGuardrailMutationCount: 0,
+        finalNoExecutionEvidenceRollupMutationCount: 0,
+        executionAttemptCount: 0,
+        providerOutboundCallCount: 0,
+        externalNotificationSendCount: 0,
+        aiCallCount: 0
+      },
+      externalCalls: 0
+    });
     expect(finalization.finalizationStatus).toBe("ready");
     expect(request.action).toBe("sign_off");
     expect(signed.retentionSignOffStatus).toBe("signed_off");
@@ -3021,6 +3093,32 @@ describe("shared contracts", () => {
     expect(certifiedReleasePostClosurePreservationContinuityLedgerReceipt.counts.externalNotificationSendCount).toBe(0);
     expect(certifiedReleasePostClosurePreservationContinuityLedgerReceipt.counts.aiCallCount).toBe(0);
     expect(certifiedReleasePostClosurePreservationContinuityLedgerReceipt.externalCalls).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.receiptKind).toBe("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-audit-receipt");
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.postClosurePreservationCustodyAuditStatus).toBe("audited");
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.postClosurePreservationContinuityLedgerStatus).toBe("continuous");
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.digestContinuityStatus).toBe("confirmed");
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.postClosurePreservationCustodyAuditDigest).toBe(certifiedReleasePostClosurePreservationCustodyAuditReceipt.safeDigest);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.postClosurePreservationContinuityLedgerDigest).toBe(certifiedReleasePostClosurePreservationContinuityLedgerReceipt.safeDigest);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.custodyAuditRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114]);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.custodyAuditRows.every((row) => row.externalCalls === 0 && row.mutationCount === 0 && row.custodyAuditStatus === "under_safe_custody")).toBe(true);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.inheritedPostClosurePreservationContinuityLedgerReceiptSummary).toMatchObject({
+      postClosurePreservationContinuityLedgerStatus: "continuous",
+      postClosurePreservationVerificationStatus: "verified",
+      preservationContinuityLedgerMutationCount: 0,
+      postClosurePreservationVerificationMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    });
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.postClosurePreservationCustodyAuditMutationCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.preservationContinuityLedgerMutationCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.executionAttemptCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts.aiCallCount).toBe(0);
+    expect(certifiedReleasePostClosurePreservationCustodyAuditReceipt.externalCalls).toBe(0);
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerSchema.parse({ ...certifiedReleaseOperationsCustodyMonitoringReadinessLedger, externalCalls: 1 })).toThrow();
@@ -3044,6 +3142,10 @@ describe("shared contracts", () => {
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationContinuityLedgerReceipt, replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationContinuityLedgerReceipt, externalCalls: 1 })).toThrow();
     expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationContinuityLedgerReceipt, counts: { ...certifiedReleasePostClosurePreservationContinuityLedgerReceipt.counts, providerOutboundCallCount: 1 } })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationCustodyAuditReceipt, rawPayload: {} })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationCustodyAuditReceipt, replyToken: "raw" })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationCustodyAuditReceipt, externalCalls: 1 })).toThrow();
+    expect(() => providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptSchema.parse({ ...certifiedReleasePostClosurePreservationCustodyAuditReceipt, counts: { ...certifiedReleasePostClosurePreservationCustodyAuditReceipt.counts, providerOutboundCallCount: 1 } })).toThrow();
     expect(() => providerWebhookReviewQaHandoffArchiveFinalizationSchema.parse({ ...finalization, rawPayload: {} })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationSignOffRequestSchema.parse({ reviewerLabel: "safe", replyToken: "raw" })).toThrow();
     expect(() => providerWebhookReviewQaHandoffFinalizationReceiptSchema.parse({ ...receipt, token: "raw" })).toThrow();

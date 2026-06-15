@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt } from "@ai-omni/shared";
+import type { ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt } from "@ai-omni/shared";
 import {
   assignConversation,
   closeConversation,
@@ -70,6 +70,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -295,7 +296,8 @@ describe("frontend API client", () => {
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalArchiveSealOperationalClosureReceiptResponse()))
       .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceiptResponse()))
-      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptResponse()));
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptResponse()))
+      .mockResolvedValueOnce(jsonResponse(providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptResponse()));
 
     const filters = { provider: "line" as const, eventType: "message.created" as const };
     const finalization = await getProviderWebhookReviewQaHandoffArchiveFinalization(filters);
@@ -349,6 +351,7 @@ describe("frontend API client", () => {
     const finalArchiveSealOperationalClosureReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt(filters);
     const postClosurePreservationVerificationReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt(filters);
     const postClosurePreservationContinuityLedgerReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt(filters);
+    const postClosurePreservationCustodyAuditReceipt = await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt(filters);
 
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/sign-off?provider=line&eventType=message.created", expect.objectContaining({ method: "POST" }));
@@ -387,6 +390,7 @@ describe("frontend API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt/no-execution-lock-receipt/operations-handoff-readiness-no-execution-evidence-packet/operations-handoff-acceptance-receipt/operations-custody-monitoring-readiness-ledger/operations-custody-monitoring-closeout-seal-receipt/final-no-execution-evidence-rollup/final-evidence-index-regression-guardrail-receipt/final-archive-seal-operational-closure-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt/no-execution-lock-receipt/operations-handoff-readiness-no-execution-evidence-packet/operations-handoff-acceptance-receipt/operations-custody-monitoring-readiness-ledger/operations-custody-monitoring-closeout-seal-receipt/final-no-execution-evidence-rollup/final-evidence-index-regression-guardrail-receipt/final-archive-seal-operational-closure-receipt/post-closure-preservation-verification-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt/no-execution-lock-receipt/operations-handoff-readiness-no-execution-evidence-packet/operations-handoff-acceptance-receipt/operations-custody-monitoring-readiness-ledger/operations-custody-monitoring-closeout-seal-receipt/final-no-execution-evidence-rollup/final-evidence-index-regression-guardrail-receipt/final-archive-seal-operational-closure-receipt/post-closure-preservation-verification-receipt/post-closure-preservation-continuity-ledger-receipt?provider=line&eventType=message.created", expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4000/provider-webhooks/review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet/acceptance-record/noop-execution-dryrun/result-ledger/final-readiness-certificate/freeze-audit-register/rollback-rehearsal-receipt/control-room-packet/cutover-checklist-receipt/operator-command-receipt/go-live-authorization-receipt/launch-window-confirmation-receipt/go-live-hold-release-authorization-receipt/launch-approval-receipt/no-execution-lock-receipt/operations-handoff-readiness-no-execution-evidence-packet/operations-handoff-acceptance-receipt/operations-custody-monitoring-readiness-ledger/operations-custody-monitoring-closeout-seal-receipt/final-no-execution-evidence-rollup/final-evidence-index-regression-guardrail-receipt/final-archive-seal-operational-closure-receipt/post-closure-preservation-verification-receipt/post-closure-preservation-continuity-ledger-receipt/post-closure-preservation-custody-audit-receipt?provider=line&eventType=message.created", expect.any(Object));
     expect(goLiveAuthorizationReceipt.goLiveAuthorizationReceiptStatus).toBe("issued");
     expect(goLiveAuthorizationReceipt.launchWindowStatus).toBe("ready");
     expect(goLiveAuthorizationReceipt.externalCalls).toBe(0);
@@ -479,6 +483,16 @@ describe("frontend API client", () => {
     expect(postClosurePreservationContinuityLedgerReceipt.counts.externalNotificationSendCount).toBe(0);
     expect(postClosurePreservationContinuityLedgerReceipt.counts.aiCallCount).toBe(0);
     expect(postClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113]);
+    expect(postClosurePreservationCustodyAuditReceipt.postClosurePreservationCustodyAuditStatus).toBe("audited");
+    expect(postClosurePreservationCustodyAuditReceipt.postClosurePreservationContinuityLedgerStatus).toBe("continuous");
+    expect(postClosurePreservationCustodyAuditReceipt.postClosurePreservationContinuityLedgerDigest).toBe(postClosurePreservationContinuityLedgerReceipt.safeDigest);
+    expect(postClosurePreservationCustodyAuditReceipt.externalCalls).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.counts.postClosurePreservationCustodyAuditMutationCount).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.counts.executionAttemptCount).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.counts.providerOutboundCallCount).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.counts.externalNotificationSendCount).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.counts.aiCallCount).toBe(0);
+    expect(postClosurePreservationCustodyAuditReceipt.custodyAuditRows.map((row) => row.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114]);
     expect(noExecutionLockReceipt.counts.noExecutionLockReceiptMutationCount).toBe(0);
     expect(noExecutionLockReceipt.counts.executionAttemptCount).toBe(0);
     expect(noExecutionLockReceipt.counts.providerOutboundCallCount).toBe(0);
@@ -772,7 +786,7 @@ describe("frontend API client", () => {
     expect(operatorCommandReceipt.operatorCommandReceiptRows.length).toBeGreaterThan(0);
     expect(operatorCommandReceipt.commandHandoffRows.length).toBeGreaterThan(0);
     expect(operatorCommandReceipt.counts.operatorCommandReceiptMutationCount).toBe(0);
-    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, postClosurePreservationContinuityLedgerReceipt })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
+    expect(JSON.stringify({ finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, acceptanceRecord, acknowledgedRecord, noopDryRun, executedNoopDryRun, resultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, postClosurePreservationContinuityLedgerReceipt, postClosurePreservationCustodyAuditReceipt })).not.toMatch(/"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|providerRaw|payloadJson|raw-room|raw-sender/i);
   });
 
   it("surfaces archive finalization API errors without local fallback", async () => {
@@ -6691,6 +6705,99 @@ function providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreser
       releaseClosureCheckedCount: 1,
       preservationContinuityLedgerRowCount: preservationContinuityLedgerRows.length,
       preservationContinuityLedgerContinuousCount: preservationContinuityLedgerRows.length,
+      finalEvidenceIndexMutationCount: 0,
+      regressionGuardrailMutationCount: 0,
+      finalNoExecutionEvidenceRollupMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    },
+    externalCalls: 0
+  };
+}
+
+function providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceiptResponse(): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt {
+  const postClosurePreservationContinuityLedgerReceipt = providerWebhookArchiveCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceiptResponse();
+  const safeDigest = "sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodyauditreceipt";
+  const safeFilename = "provider-webhook-certified-release-post-closure-preservation-custody-audit-receipt.json";
+  const zeroCounts = {
+    externalCalls: 0 as const,
+    executionAttemptCount: 0 as const,
+    providerOutboundCallCount: 0 as const,
+    externalNotificationSendCount: 0 as const,
+    aiCallCount: 0 as const,
+    mutationCount: 0 as const
+  };
+  const custodyAuditRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt["custodyAuditRows"] = [
+    ...postClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.map((row) => ({
+      sprintNumber: row.sprintNumber,
+      artifactLabel: row.artifactLabel,
+      artifactStatus: row.artifactStatus,
+      custodyAuditStatus: "under_safe_custody" as const,
+      safeDigest: row.safeDigest,
+      safeFilename: row.safeFilename,
+      checkedAt: row.checkedAt,
+      generatedAt: row.generatedAt,
+      ...zeroCounts
+    })),
+    { sprintNumber: 114, artifactLabel: "Sprint 114 post-closure preservation custody audit receipt", artifactStatus: "audited", custodyAuditStatus: "under_safe_custody", safeDigest, safeFilename, generatedAt: "2026-06-15T00:00:00.000Z", checkedAt: "2026-06-15T00:00:00.000Z", ...zeroCounts }
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-audit-receipt",
+    postClosurePreservationCustodyAuditStatus: "audited",
+    postClosurePreservationContinuityLedgerStatus: "continuous",
+    postClosurePreservationVerificationStatus: "verified",
+    finalArchiveSealPostClosurePreservationStatus: "preserved",
+    finalOperationalClosureReceiptStatus: "issued",
+    finalArchiveSealStatus: "sealed",
+    releaseClosureStatus: "closed",
+    tenantScopeStatus: "tenant_scoped",
+    digestContinuityStatus: "confirmed",
+    providerOutboundStatus: "absent",
+    externalNotificationStatus: "absent",
+    aiCallStatus: "absent",
+    safeFilename,
+    safeDigest,
+    postClosurePreservationCustodyAuditDigest: safeDigest,
+    postClosurePreservationContinuityLedgerDigest: postClosurePreservationContinuityLedgerReceipt.safeDigest,
+    postClosurePreservationVerificationDigest: postClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest,
+    generatedAt: "2026-06-15T00:00:00.000Z",
+    checkedAt: "2026-06-15T00:00:00.000Z",
+    custodyAuditRows,
+    inheritedPostClosurePreservationContinuityLedgerReceiptSummary: {
+      postClosurePreservationContinuityLedgerStatus: "continuous",
+      postClosurePreservationVerificationStatus: "verified",
+      safeDigest: postClosurePreservationContinuityLedgerReceipt.safeDigest,
+      safeFilename: postClosurePreservationContinuityLedgerReceipt.safeFilename,
+      postClosurePreservationContinuityLedgerDigest: postClosurePreservationContinuityLedgerReceipt.postClosurePreservationContinuityLedgerDigest,
+      postClosurePreservationVerificationDigest: postClosurePreservationContinuityLedgerReceipt.postClosurePreservationVerificationDigest,
+      preservationContinuityLedgerRowCount: postClosurePreservationContinuityLedgerReceipt.preservationContinuityLedgerRows.length,
+      preservationContinuityLedgerMutationCount: 0,
+      postClosurePreservationVerificationMutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    },
+    counts: {
+      postClosurePreservationCustodyAuditCheckedCount: 1,
+      postClosurePreservationCustodyAuditMutationCount: 0,
+      preservationContinuityLedgerCheckedCount: 1,
+      preservationContinuityLedgerMutationCount: 0,
+      postClosurePreservationVerificationCheckedCount: 1,
+      postClosurePreservationVerificationMutationCount: 0,
+      finalArchiveSealPostClosurePreservationCheckedCount: 1,
+      finalArchiveSealPostClosurePreservationMutationCount: 0,
+      finalOperationalClosureReceiptCheckedCount: 1,
+      finalOperationalClosureReceiptMutationCount: 0,
+      finalArchiveSealCheckedCount: 1,
+      finalArchiveSealMutationCount: 0,
+      releaseClosureCheckedCount: 1,
+      postClosurePreservationCustodyAuditRowCount: custodyAuditRows.length,
+      postClosurePreservationCustodyAuditSafeCount: custodyAuditRows.length,
       finalEvidenceIndexMutationCount: 0,
       regressionGuardrailMutationCount: 0,
       finalNoExecutionEvidenceRollupMutationCount: 0,
