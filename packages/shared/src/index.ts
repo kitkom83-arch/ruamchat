@@ -7389,6 +7389,9 @@ export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostCl
 export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema = z.enum(["accepted", "blocked", "incomplete"]);
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealStatusSchema = z.enum(["sealed", "blocked", "incomplete"]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealStatusSchema>;
+
 export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceRowSchema = z.object({
   sprintNumber: z.number().int().min(103).max(121),
   artifactLabel: z.string().min(1),
@@ -7537,6 +7540,145 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostC
   }).strict()
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceiptSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealRowSchema = providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceRowSchema.extend({
+  sprintNumber: z.number().int().min(103).max(122),
+  acceptanceContinuitySealStatus: z.enum(["sealed_under_safe_custody", "blocked", "incomplete"]),
+  sealedAt: z.string().min(1).optional()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceiptSchema = z.object({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-audit-reconciliation-acceptance-continuity-seal-receipt"),
+  receiptStatus: z.enum(["issued", "blocked", "incomplete"]),
+  acceptanceContinuitySealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealStatusSchema,
+  acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+  reconciliationAcceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+  auditReconciliationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationStatusSchema,
+  verificationAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditStatusSchema,
+  continuityVerificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationStatusSchema,
+  continuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatusSchema,
+  custodyChainStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+  ledgerIntegrityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerStatusSchema,
+  noExecutionStatus: z.enum(["confirmed", "blocked", "incomplete"]),
+  redactionStatus: providerWebhookReviewExportRedactionAuditStatusSchema,
+  tenantScopeStatus: providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema,
+  digestContinuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseDigestContinuityStatusSchema,
+  providerOutboundStatus: providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema,
+  externalNotificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema,
+  aiCallStatus: providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema,
+  externalCalls: z.literal(0),
+  sourceSprint: z.literal(121),
+  derivedFrom: z.object({
+    sourceSprint: z.literal(121),
+    receiptKind: z.literal("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-audit-reconciliation-acceptance-receipt"),
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    reconciliationAcceptanceDigest: z.string().min(1),
+    sprint120ReceiptDigest: z.string().min(1),
+    sprint119ReceiptDigest: z.string().min(1),
+    sprint118ReceiptDigest: z.string().min(1),
+    sprint117ReceiptDigest: z.string().min(1),
+    rowRangeStart: z.literal(103),
+    rowRangeEnd: z.literal(121),
+    rowCount: z.number().int().nonnegative(),
+    externalCallsZero: z.literal(true)
+  }).strict(),
+  sealedFrom: z.object({
+    sprint121ReceiptDigest: z.string().min(1),
+    sprint120ReceiptDigest: z.string().min(1),
+    sprint119ReceiptDigest: z.string().min(1),
+    sprint118ReceiptDigest: z.string().min(1),
+    sprint117ReceiptDigest: z.string().min(1),
+    sprint121DerivedFromSprint120: z.literal(true),
+    sprint120DerivedFromSprint119: z.literal(true),
+    sprint119DerivedFromSprint118: z.literal(true),
+    sprint118DerivedFromSprint117: z.literal(true),
+    acceptanceRowCount: z.number().int().nonnegative(),
+    externalCallsZero: z.literal(true)
+  }).strict(),
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  acceptanceContinuitySealDigest: z.string().min(1),
+  sprint121ReceiptDigest: z.string().min(1),
+  sprint120ReceiptDigest: z.string().min(1),
+  sprint119ReceiptDigest: z.string().min(1),
+  sprint118ReceiptDigest: z.string().min(1),
+  sprint117ReceiptDigest: z.string().min(1),
+  generatedAt: z.string().min(1),
+  sealedAt: z.string().min(1),
+  failClosedReason: z.string().min(1).optional(),
+  safeSummary: z.object({
+    receiptStatus: z.enum(["issued", "blocked", "incomplete"]),
+    acceptanceContinuitySealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealStatusSchema,
+    acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+    reconciliationAcceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+    auditReconciliationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationStatusSchema,
+    verificationAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditStatusSchema,
+    continuityVerificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationStatusSchema,
+    continuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatusSchema,
+    custodyChainStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+    ledgerIntegrityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerStatusSchema,
+    noExecutionStatus: z.enum(["confirmed", "blocked", "incomplete"]),
+    externalCallsZero: z.literal(true),
+    rawProviderMaterialAbsent: z.literal(true)
+  }).strict(),
+  noExecutionFlags: z.object({
+    externalCallsZero: z.literal(true),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0)
+  }).strict(),
+  continuitySealRows: z.array(providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealRowSchema),
+  inheritedSprint121ReconciliationAcceptanceReceiptSummary: z.object({
+    receiptStatus: z.enum(["issued", "blocked", "incomplete"]),
+    acceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+    reconciliationAcceptanceStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceStatusSchema,
+    auditReconciliationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationStatusSchema,
+    verificationAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditStatusSchema,
+    continuityVerificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationStatusSchema,
+    custodyChainStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+    ledgerIntegrityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerStatusSchema,
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    reconciliationAcceptanceDigest: z.string().min(1),
+    sprint120ReceiptDigest: z.string().min(1),
+    sprint119ReceiptDigest: z.string().min(1),
+    sprint118ReceiptDigest: z.string().min(1),
+    sprint117ReceiptDigest: z.string().min(1),
+    acceptanceRowCount: z.number().int().nonnegative(),
+    mutationCount: z.literal(0),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0),
+    externalCallsZero: z.literal(true)
+  }).strict(),
+  counts: z.object({
+    acceptanceContinuitySealCheckedCount: z.number().int().nonnegative(),
+    acceptanceContinuitySealMutationCount: z.literal(0),
+    sprint121ReconciliationAcceptanceReceiptCheckedCount: z.number().int().nonnegative(),
+    sprint121ReconciliationAcceptanceReceiptMutationCount: z.literal(0),
+    sprint120AuditReconciliationReceiptCheckedCount: z.number().int().nonnegative(),
+    sprint120AuditReconciliationReceiptMutationCount: z.literal(0),
+    sprint119ContinuityVerificationAuditReceiptCheckedCount: z.number().int().nonnegative(),
+    sprint119ContinuityVerificationAuditReceiptMutationCount: z.literal(0),
+    sprint118ContinuityVerificationReceiptCheckedCount: z.number().int().nonnegative(),
+    sprint118ContinuityVerificationReceiptMutationCount: z.literal(0),
+    sprint117ContinuityReceiptCheckedCount: z.number().int().nonnegative(),
+    sprint117ContinuityReceiptMutationCount: z.literal(0),
+    acceptanceRowCount: z.number().int().nonnegative(),
+    acceptanceSafeCount: z.number().int().nonnegative(),
+    continuitySealRowCount: z.number().int().nonnegative(),
+    continuitySealSafeCount: z.number().int().nonnegative(),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0)
+  }).strict()
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceiptSchema>;
 
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
