@@ -6900,6 +6900,128 @@ export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostC
 }).strict();
 export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceiptSchema>;
 
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatusSchema = z.enum(["continuity_confirmed", "blocked", "incomplete"]);
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatus = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatusSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityRowSchema = z.object({
+  sprintNumber: z.number().int().min(103).max(117),
+  artifactLabel: z.string().min(1),
+  artifactStatus: z.enum(["issued", "sealed", "ready", "accepted", "confirmed", "active", "locked", "tenant_scoped", "passed", "closed", "verified", "continuous", "audited", "integrity_confirmed", "continuity_confirmed", "blocked", "failed", "incomplete"]),
+  custodyAuditStatus: z.enum(["under_safe_custody", "blocked", "incomplete"]),
+  custodyChainSealStatus: z.enum(["sealed_under_safe_custody", "blocked", "incomplete"]),
+  custodyChainIntegrityLedgerStatus: z.enum(["integrity_confirmed_under_safe_custody", "blocked", "incomplete"]),
+  custodyChainIntegrityLedgerContinuityStatus: z.enum(["continuity_confirmed_under_safe_custody", "blocked", "incomplete"]),
+  safeDigest: z.string().min(1),
+  safeFilename: z.string().min(1).optional(),
+  checkedAt: z.string().min(1).optional(),
+  generatedAt: z.string().min(1).optional(),
+  externalCalls: z.literal(0),
+  executionAttemptCount: z.literal(0),
+  providerOutboundCallCount: z.literal(0),
+  externalNotificationSendCount: z.literal(0),
+  aiCallCount: z.literal(0),
+  mutationCount: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityRow = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityRowSchema>;
+
+export const providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceiptSchema = z.object({
+  receiptKind: z.literal("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-receipt"),
+  postClosurePreservationCustodyChainIntegrityLedgerContinuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityStatusSchema,
+  postClosurePreservationCustodyChainIntegrityLedgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerStatusSchema,
+  postClosurePreservationCustodyChainSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+  postClosurePreservationCustodyAuditStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditStatusSchema,
+  postClosurePreservationContinuityLedgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerStatusSchema,
+  postClosurePreservationVerificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationStatusSchema,
+  finalArchiveSealPostClosurePreservationStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationStatusSchema,
+  finalOperationalClosureReceiptStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalOperationalClosureReceiptStatusSchema,
+  finalArchiveSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealStatusSchema,
+  releaseClosureStatus: providerWebhookReviewQaHandoffCertifiedReleaseReleaseClosureStatusSchema,
+  redactionStatus: providerWebhookReviewExportRedactionAuditStatusSchema,
+  tenantScopeStatus: providerWebhookReviewQaHandoffCertifiedReleaseTenantScopeStatusSchema,
+  digestContinuityStatus: providerWebhookReviewQaHandoffCertifiedReleaseDigestContinuityStatusSchema,
+  providerOutboundStatus: providerWebhookReviewQaHandoffCertifiedReleaseProviderOutboundStatusSchema,
+  externalNotificationStatus: providerWebhookReviewQaHandoffCertifiedReleaseExternalNotificationStatusSchema,
+  aiCallStatus: providerWebhookReviewQaHandoffCertifiedReleaseAiCallStatusSchema,
+  safeFilename: z.string().min(1),
+  safeDigest: z.string().min(1),
+  postClosurePreservationCustodyChainIntegrityLedgerContinuityDigest: z.string().min(1),
+  postClosurePreservationCustodyChainIntegrityLedgerDigest: z.string().min(1),
+  postClosurePreservationCustodyChainSealDigest: z.string().min(1),
+  generatedAt: z.string().min(1),
+  checkedAt: z.string().min(1),
+  sprint116ReceiptReference: z.object({
+    receiptKind: z.literal("qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-receipt"),
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    postClosurePreservationCustodyChainIntegrityLedgerDigest: z.string().min(1),
+    rowRangeStart: z.literal(103),
+    rowRangeEnd: z.literal(116),
+    rowCount: z.number().int().nonnegative(),
+    externalCallsZero: z.literal(true)
+  }).strict(),
+  sealedArchiveReference: z.object({
+    postClosurePreservationCustodyChainSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    postClosurePreservationCustodyChainSealDigest: z.string().min(1)
+  }).strict(),
+  noExecutionFlags: z.object({
+    externalCallsZero: z.literal(true),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0)
+  }).strict(),
+  safeRowSummaries: z.array(providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityRowSchema).min(1),
+  inheritedPostClosurePreservationCustodyChainIntegrityLedgerReceiptSummary: z.object({
+    postClosurePreservationCustodyChainIntegrityLedgerStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerStatusSchema,
+    postClosurePreservationCustodyChainSealStatus: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealStatusSchema,
+    safeDigest: z.string().min(1),
+    safeFilename: z.string().min(1),
+    postClosurePreservationCustodyChainIntegrityLedgerDigest: z.string().min(1),
+    postClosurePreservationCustodyChainSealDigest: z.string().min(1),
+    custodyChainIntegrityLedgerRowCount: z.number().int().nonnegative(),
+    postClosurePreservationCustodyChainIntegrityLedgerMutationCount: z.literal(0),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0),
+    externalCallsZero: z.literal(true)
+  }).strict(),
+  counts: z.object({
+    postClosurePreservationCustodyChainIntegrityLedgerContinuityCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationCustodyChainIntegrityLedgerContinuityMutationCount: z.literal(0),
+    postClosurePreservationCustodyChainIntegrityLedgerCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationCustodyChainIntegrityLedgerMutationCount: z.literal(0),
+    postClosurePreservationCustodyChainSealCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationCustodyChainSealMutationCount: z.literal(0),
+    postClosurePreservationCustodyAuditCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationCustodyAuditMutationCount: z.literal(0),
+    preservationContinuityLedgerCheckedCount: z.number().int().nonnegative(),
+    preservationContinuityLedgerMutationCount: z.literal(0),
+    postClosurePreservationVerificationCheckedCount: z.number().int().nonnegative(),
+    postClosurePreservationVerificationMutationCount: z.literal(0),
+    finalArchiveSealPostClosurePreservationCheckedCount: z.number().int().nonnegative(),
+    finalArchiveSealPostClosurePreservationMutationCount: z.literal(0),
+    finalOperationalClosureReceiptCheckedCount: z.number().int().nonnegative(),
+    finalOperationalClosureReceiptMutationCount: z.literal(0),
+    finalArchiveSealCheckedCount: z.number().int().nonnegative(),
+    finalArchiveSealMutationCount: z.literal(0),
+    releaseClosureCheckedCount: z.number().int().nonnegative(),
+    custodyChainIntegrityLedgerContinuityRowCount: z.number().int().nonnegative(),
+    custodyChainIntegrityLedgerContinuitySafeCount: z.number().int().nonnegative(),
+    finalEvidenceIndexMutationCount: z.literal(0),
+    regressionGuardrailMutationCount: z.literal(0),
+    finalNoExecutionEvidenceRollupMutationCount: z.literal(0),
+    executionAttemptCount: z.literal(0),
+    providerOutboundCallCount: z.literal(0),
+    externalNotificationSendCount: z.literal(0),
+    aiCallCount: z.literal(0)
+  }).strict(),
+  externalCalls: z.literal(0)
+}).strict();
+export type ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt = z.infer<typeof providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceiptSchema>;
+
 export const providerWebhookUnmatchedInboundBulkReviewRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1)).min(1).max(50),
   reviewStatus: z.enum(["reviewed", "skipped"]),

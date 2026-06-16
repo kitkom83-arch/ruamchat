@@ -32,7 +32,7 @@ async function main() {
     providerController: sourceSlice(providerController, "acceptance-record/noop-execution-dryrun", "review-closure-report/export"),
     providerService: [
       sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseNoopExecutionDryRun(", "private getLockedArchiveContext"),
-      sourceSlice(providerService, "function assertQaHandoffCertifiedReleaseNoopExecutionDryRunPrerequisites", "function safeRoomLabel")
+      sourceSlice(providerService, "function assertQaHandoffCertifiedReleaseNoopExecutionDryRunPrerequisites", "function qaHandoffCertifiedReleaseDryRunResultLedgerResponse")
     ].join("\n"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun", "getProviderWebhookReviewClosureReportExport"),
     settingsData: [

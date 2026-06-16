@@ -146,7 +146,7 @@ async function run() {
     shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
     providerController: sourceSlice(providerController, "final-no-execution-evidence-rollup/final-evidence-index-regression-guardrail-receipt", "@Get(\"review-closure-report/export\")"),
     providerServiceMethod: sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt", "private getLockedArchiveContext"),
-    providerServiceHelper: sourceSlice(providerService, "function qaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptResponse", "function certifiedReleaseFinalEvidenceIndexRegressionGuardrailPassed"),
+    providerServiceHelper: sourceSlice(providerService, "function qaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptResponse", "function qaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceiptResponse"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt", "getProviderWebhookReviewClosureReportExport"),
     settingsData: sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceiptData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
     settingsDataMock: sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt", "function mockCertifiedReleaseFinalEvidenceIndexRegressionGuardrailPassed"),

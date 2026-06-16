@@ -252,7 +252,7 @@ async function main() {
   const serviceResponse = sourceSlice(
     providerService,
     "function qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceiptResponse(",
-    "function certifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReady("
+    "function qaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceiptResponse("
   );
   const settingsDataLoader = sourceSlice(
     settingsData,

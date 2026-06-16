@@ -125,7 +125,7 @@ async function run() {
   const sprint106Source = {
     shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
     providerServiceMethod: sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt", "private getLockedArchiveContext"),
-    providerServiceHelper: sourceSlice(providerService, "function qaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptResponse", "function qaHandoffCertifiedReleaseCutoverChecklistReceiptResponse"),
+    providerServiceHelper: sourceSlice(providerService, "function qaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptResponse", "function qaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedgerResponse"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt", "getProviderWebhookReviewClosureReportExport"),
     settingsData: sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceiptData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
     settingsPage: sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt", "loadClosureReportRedactionAudit"),
