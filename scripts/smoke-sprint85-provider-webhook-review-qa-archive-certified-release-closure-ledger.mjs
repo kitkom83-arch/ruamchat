@@ -25,7 +25,7 @@ async function main() {
     providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger", "review-closure-report/export"),
     providerService: [
       sourceSlice(providerService, "getReviewQaHandoffArchiveReleaseClosureLedger(", "private getLockedArchiveContext"),
-      sourceSlice(providerService, "function assertQaHandoffArchiveReleaseClosureLedgerReady", "function safeRoomLabel")
+      sourceSlice(providerService, "function assertQaHandoffArchiveReleaseClosureLedgerReady", "function assertQaHandoffArchiveReleaseAttestationAuditReady")
     ].join("\n"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger", "getProviderWebhookReviewClosureReportExport"),
     settingsData: sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffArchiveReleaseClosureLedgerData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),

@@ -34,7 +34,7 @@ async function main() {
     providerController: sourceSlice(providerController, "final-readiness-certificate", "review-closure-report/export"),
     providerService: [
       sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseDryRunResultLedger(", "private getLockedArchiveContext"),
-      sourceSlice(providerService, "function qaHandoffCertifiedReleaseFinalReadinessCertificateResponse", "function safeRoomLabel")
+      sourceSlice(providerService, "function qaHandoffCertifiedReleaseFinalReadinessCertificateResponse", "function qaHandoffCertifiedReleaseFreezeAuditRegisterResponse")
     ].join("\n"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate", "getProviderWebhookReviewClosureReportExport"),
     settingsData: [

@@ -26,7 +26,7 @@ async function main() {
     providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit", "review-closure-report/export"),
     providerService: [
       sourceSlice(providerService, "getReviewQaHandoffArchiveReleaseAttestationAudit(", "private getLockedArchiveContext"),
-      sourceSlice(providerService, "function assertQaHandoffArchiveReleaseAttestationAuditReady", "function safeRoomLabel")
+      sourceSlice(providerService, "function assertQaHandoffArchiveReleaseAttestationAuditReady", "function assertQaHandoffArchiveReleaseAttestationReconciliationReady")
     ].join("\n"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffArchiveReleaseAttestationAudit", "getProviderWebhookReviewClosureReportExport"),
     settingsData: [
