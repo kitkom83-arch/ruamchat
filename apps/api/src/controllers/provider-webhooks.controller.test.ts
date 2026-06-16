@@ -56,6 +56,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
     expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
+    expect(() => controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt(undefined, {}, undefined)).toThrow(BadRequestException);
   });
 
   it("stores and returns only safe sandbox event DTO fields", async () => {
@@ -2774,11 +2775,17 @@ describe("ProviderWebhooksController sandbox events", () => {
     const postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceiptReadback = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt(tenantId, filters, "operator-current");
     const afterPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
+    const beforePostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
+    const postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt(tenantId, filters, "operator-current");
+    const postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptReadback = controller.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt(tenantId, filters, "operator-current");
+    const afterPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptRead = listUnmatchedItems(controller, tenantId, { limit: 25 })
+      .find((candidate) => candidate.id === item.id);
     const acceptanceRecordAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord(tenantId, filters, "operator-current");
     const handoffPacketAfterNoopExecutionDryRun = controller.getReviewQaHandoffCertifiedReleaseHandoffPacket(tenantId, filters, "operator-current");
     const after = listUnmatchedItems(controller, tenantId, { limit: 25 })
       .find((candidate) => candidate.id === item.id);
-    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, postClosurePreservationContinuityLedgerReceipt, postClosurePreservationCustodyAuditReceipt, postClosurePreservationCustodyChainSealReceipt, postClosurePreservationCustodyChainIntegrityLedgerReceipt, postClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
+    const serialized = JSON.stringify({ integrity, retentionAudit, finalization, signOff, receipt, releaseEvidence, releaseVerification, releaseCertification, closureLedger, attestationAudit, reconciliation, releaseGate, decisionReceipt, handoffPacket, initialAcceptanceRecord, acknowledgedAcceptanceRecord, acceptedReadback, handoffPacketAfterAcceptance, initialNoopExecutionDryRun, executedNoopExecutionDryRun, noopExecutionDryRunReadback, dryRunResultLedger, finalReadinessCertificate, freezeAuditRegister, rollbackRehearsalReceipt, controlRoomPacket, cutoverChecklistReceipt, operatorCommandReceipt, goLiveAuthorizationReceipt, launchWindowConfirmationReceipt, goLiveHoldReleaseAuthorizationReceipt, launchApprovalReceipt, noExecutionLockReceipt, operationsHandoffReadinessPacket, operationsHandoffAcceptanceReceipt, operationsCustodyMonitoringReadinessLedger, operationsCustodyMonitoringCloseoutSealReceipt, finalNoExecutionEvidenceRollup, finalEvidenceIndexRegressionGuardrailReceipt, finalArchiveSealOperationalClosureReceipt, postClosurePreservationVerificationReceipt, postClosurePreservationContinuityLedgerReceipt, postClosurePreservationCustodyAuditReceipt, postClosurePreservationCustodyChainSealReceipt, postClosurePreservationCustodyChainIntegrityLedgerReceipt, postClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt, acceptanceRecordAfterNoopExecutionDryRun, handoffPacketAfterNoopExecutionDryRun, after });
 
     expect(finalization).toMatchObject({
       finalizationStatus: "ready",
@@ -4374,6 +4381,48 @@ describe("ProviderWebhooksController sandbox events", () => {
       },
       externalCalls: 0
     });
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt).toMatchObject({
+      receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-audit-receipt",
+      receiptStatus: "issued",
+      auditStatus: "audited",
+      verificationStatus: "verified",
+      continuityStatus: "continuity_confirmed",
+      custodyChainStatus: "sealed",
+      ledgerIntegrityStatus: "integrity_confirmed",
+      noExecutionStatus: "confirmed",
+      sourceSprint: 118,
+      redactionStatus: "passed",
+      tenantScopeStatus: "tenant_scoped",
+      digestContinuityStatus: "confirmed",
+      providerOutboundStatus: "absent",
+      externalNotificationStatus: "absent",
+      aiCallStatus: "absent",
+      externalCalls: 0
+    });
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.safeFilename).toBe("provider-webhook-certified-release-custody-chain-integrity-ledger-continuity-verification-audit-receipt.json");
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.continuityVerificationAuditDigest).toBe(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.safeDigest);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.derivedFrom.safeDigest).toBe(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt.safeDigest);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.sprint118ReceiptDigest).toBe(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt.safeDigest);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.sprint117ReceiptDigest).toBe(postClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt.safeDigest);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.auditRows.map((entry) => entry.sprintNumber)).toEqual([103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.auditRows.every((entry) => entry.externalCalls === 0 && entry.mutationCount === 0 && entry.custodyChainStatus === "sealed_under_safe_custody" && entry.ledgerIntegrityStatus === "integrity_confirmed_under_safe_custody" && entry.continuityStatus === "continuity_confirmed_under_safe_custody" && entry.verificationStatus === "verified_under_safe_custody" && entry.auditStatus === "audited_under_safe_custody")).toBe(true);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.counts.auditRowCount).toBe(17);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.counts.auditSafeCount).toBe(17);
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.noExecutionFlags).toMatchObject({
+      externalCallsZero: true,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    });
+    expect(postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptReadback).toMatchObject({
+      receiptKind: postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.receiptKind,
+      receiptStatus: postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt.receiptStatus,
+      derivedFrom: {
+        safeDigest: postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt.safeDigest
+      },
+      externalCalls: 0
+    });
     vi.spyOn(service, "getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt")
       .mockReturnValueOnce({ ...postClosurePreservationCustodyChainIntegrityLedgerReceipt, postClosurePreservationCustodyChainIntegrityLedgerStatus: "incomplete" });
     expect(() => service.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt(tenantId, filters, "operator-current"))
@@ -4390,6 +4439,14 @@ describe("ProviderWebhooksController sandbox events", () => {
       .mockReturnValueOnce({ ...postClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, externalCalls: 1 as 0 });
     expect(() => service.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt(tenantId, filters, "operator-current"))
       .toThrow("post-closure preservation custody chain integrity ledger continuity verification receipt prerequisites are incomplete");
+    vi.spyOn(service, "getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt")
+      .mockReturnValueOnce({ ...postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, receiptStatus: "incomplete" });
+    expect(() => service.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt(tenantId, filters, "operator-current"))
+      .toThrow("post-closure preservation custody chain integrity ledger continuity verification audit receipt prerequisites are incomplete");
+    vi.spyOn(service, "getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt")
+      .mockReturnValueOnce({ ...postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, externalCalls: 1 as 0 });
+    expect(() => service.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt(tenantId, filters, "operator-current"))
+      .toThrow("post-closure preservation custody chain integrity ledger continuity verification audit receipt prerequisites are incomplete");
     vi.spyOn(service, "getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt")
       .mockReturnValueOnce({ ...postClosurePreservationContinuityLedgerReceipt, postClosurePreservationContinuityLedgerStatus: "incomplete" });
     expect(() => service.getReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt(tenantId, filters, "operator-current"))
@@ -4408,6 +4465,7 @@ describe("ProviderWebhooksController sandbox events", () => {
     expect(beforePostClosurePreservationCustodyChainIntegrityLedgerReceiptRead).toEqual(afterPostClosurePreservationCustodyChainIntegrityLedgerReceiptRead);
     expect(beforePostClosurePreservationCustodyChainIntegrityLedgerContinuityReceiptRead).toEqual(afterPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceiptRead);
     expect(beforePostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceiptRead).toEqual(afterPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceiptRead);
+    expect(beforePostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptRead).toEqual(afterPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceiptRead);
     expect(acceptanceRecordAfterNoopExecutionDryRun).toEqual(acceptedReadback);
     expect(handoffPacketAfterNoopExecutionDryRun).toEqual(handoffPacketAfterAcceptance);
     expect(beforeLaunchApprovalReceiptRead).toEqual(afterLaunchApprovalReceiptRead);
