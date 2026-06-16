@@ -65,6 +65,7 @@ import type {
   ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt,
+  ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt,
   ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRunRequest,
@@ -176,6 +177,7 @@ import {
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt,
+  getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt,
   getProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   runProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun,
   getProviderWebhookReviewQaHandoffArchiveReleaseClosureLedger,
@@ -541,6 +543,11 @@ export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSe
 export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceiptData = {
   mode: DataMode;
   postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt;
+};
+
+export type SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceiptData = {
+  mode: DataMode;
+  postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt;
 };
 
 export type SettingsProviderWebhookReviewQaHandoffReceiptData = {
@@ -1751,6 +1758,23 @@ export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedRelease
   return {
     mode,
     postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt: createMockReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt(filters)
+  };
+}
+
+export async function loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceiptData(
+  mode: DataMode,
+  filters: ProviderWebhookReviewClosureReportFilters = {}
+): Promise<SettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceiptData> {
+  if (mode === "api") {
+    return {
+      mode,
+      postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt: await getProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt(filters)
+    };
+  }
+
+  return {
+    mode,
+    postClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt: createMockReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt(filters)
   };
 }
 
@@ -8917,6 +8941,235 @@ function mockCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChain
     auditReceipt.counts.externalNotificationSendCount === 0 &&
     auditReceipt.counts.aiCallCount === 0 &&
     auditReceipt.externalCalls === 0;
+}
+
+function createMockReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt(
+  filters: ProviderWebhookReviewClosureReportFilters
+): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt {
+  const reconciliationReceipt = createMockReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt(filters);
+  const acceptanceReady = true;
+  const receiptStatus = acceptanceReady ? "issued" : reconciliationReceipt.receiptStatus === "blocked" ? "blocked" : "incomplete";
+  const acceptanceStatus = acceptanceReady ? "accepted" : reconciliationReceipt.receiptStatus === "blocked" ? "blocked" : "incomplete";
+  const noExecutionStatus = acceptanceReady ? "confirmed" : "blocked";
+  const safeDigestValue = `sha256:mockqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityverificationauditreconciliationacceptancereceipt-${safeDigest(`${reconciliationReceipt.safeDigest}:${acceptanceStatus}`)}`;
+  const safeFilenameValue = "provider-webhook-certified-release-reconciliation-acceptance-receipt.json";
+  const now = new Date().toISOString();
+  const zeroCounts = {
+    externalCalls: 0 as const,
+    executionAttemptCount: 0 as const,
+    providerOutboundCallCount: 0 as const,
+    externalNotificationSendCount: 0 as const,
+    aiCallCount: 0 as const,
+    mutationCount: 0 as const
+  };
+  const acceptanceRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt["acceptanceRows"] = [
+    ...reconciliationReceipt.reconciliationRows.map((row) => ({
+      sprintNumber: row.sprintNumber,
+      artifactLabel: row.artifactLabel,
+      artifactStatus: row.artifactStatus === "blocked" || row.artifactStatus === "failed" || row.artifactStatus === "incomplete" ? "accepted" : row.artifactStatus,
+      custodyChainStatus: "sealed_under_safe_custody" as const,
+      ledgerIntegrityStatus: "integrity_confirmed_under_safe_custody" as const,
+      continuityStatus: "continuity_confirmed_under_safe_custody" as const,
+      verificationStatus: "verified_under_safe_custody" as const,
+      auditStatus: "audited_under_safe_custody" as const,
+      reconciliationStatus: "reconciled_under_safe_custody" as const,
+      acceptanceStatus: "accepted_under_safe_custody" as const,
+      safeDigest: row.safeDigest,
+      safeFilename: row.safeFilename,
+      generatedAt: row.generatedAt,
+      verifiedAt: row.verifiedAt,
+      auditedAt: row.auditedAt,
+      reconciledAt: row.reconciledAt,
+      acceptedAt: now,
+      ...zeroCounts
+    })),
+    {
+      sprintNumber: 121,
+      artifactLabel: "Sprint 121 post-closure preservation custody chain integrity ledger continuity verification audit reconciliation acceptance receipt",
+      artifactStatus: acceptanceStatus,
+      custodyChainStatus: acceptanceReady ? "sealed_under_safe_custody" as const : "blocked" as const,
+      ledgerIntegrityStatus: acceptanceReady ? "integrity_confirmed_under_safe_custody" as const : "blocked" as const,
+      continuityStatus: acceptanceReady ? "continuity_confirmed_under_safe_custody" as const : "blocked" as const,
+      verificationStatus: acceptanceReady ? "verified_under_safe_custody" as const : "blocked" as const,
+      auditStatus: acceptanceReady ? "audited_under_safe_custody" as const : "blocked" as const,
+      reconciliationStatus: acceptanceReady ? "reconciled_under_safe_custody" as const : "blocked" as const,
+      acceptanceStatus: acceptanceReady ? "accepted_under_safe_custody" as const : "blocked" as const,
+      safeDigest: safeDigestValue,
+      safeFilename: safeFilenameValue,
+      generatedAt: now,
+      verifiedAt: now,
+      auditedAt: now,
+      reconciledAt: now,
+      acceptedAt: now,
+      ...zeroCounts
+    }
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-audit-reconciliation-acceptance-receipt",
+    receiptStatus,
+    acceptanceStatus,
+    reconciliationAcceptanceStatus: acceptanceStatus,
+    auditReconciliationStatus: "reconciled",
+    verificationAuditStatus: "audited",
+    continuityVerificationStatus: "verified",
+    continuityStatus: "continuity_confirmed",
+    custodyChainStatus: "sealed",
+    ledgerIntegrityStatus: "integrity_confirmed",
+    noExecutionStatus,
+    redactionStatus: "passed",
+    tenantScopeStatus: reconciliationReceipt.tenantScopeStatus,
+    digestContinuityStatus: "confirmed",
+    providerOutboundStatus: reconciliationReceipt.providerOutboundStatus,
+    externalNotificationStatus: reconciliationReceipt.externalNotificationStatus,
+    aiCallStatus: reconciliationReceipt.aiCallStatus,
+    externalCalls: 0,
+    sourceSprint: 120,
+    derivedFrom: {
+      sourceSprint: 120,
+      receiptKind: reconciliationReceipt.receiptKind,
+      safeDigest: reconciliationReceipt.safeDigest,
+      safeFilename: reconciliationReceipt.safeFilename,
+      auditReconciliationDigest: reconciliationReceipt.auditReconciliationDigest,
+      sprint119ReceiptDigest: reconciliationReceipt.sprint119ReceiptDigest,
+      sprint118ReceiptDigest: reconciliationReceipt.sprint118ReceiptDigest,
+      sprint117ReceiptDigest: reconciliationReceipt.sprint117ReceiptDigest,
+      rowRangeStart: 103,
+      rowRangeEnd: 120,
+      rowCount: reconciliationReceipt.reconciliationRows.length,
+      externalCallsZero: true
+    },
+    acceptedFrom: {
+      sprint120ReceiptDigest: reconciliationReceipt.safeDigest,
+      sprint119ReceiptDigest: reconciliationReceipt.sprint119ReceiptDigest,
+      sprint118ReceiptDigest: reconciliationReceipt.sprint118ReceiptDigest,
+      sprint117ReceiptDigest: reconciliationReceipt.sprint117ReceiptDigest,
+      sprint120DerivedFromSprint119: true,
+      sprint119DerivedFromSprint118: true,
+      sprint118DerivedFromSprint117: true,
+      reconciliationRowCount: reconciliationReceipt.reconciliationRows.length,
+      externalCallsZero: true
+    },
+    safeFilename: safeFilenameValue,
+    safeDigest: safeDigestValue,
+    reconciliationAcceptanceDigest: safeDigestValue,
+    sprint120ReceiptDigest: reconciliationReceipt.safeDigest,
+    sprint119ReceiptDigest: reconciliationReceipt.sprint119ReceiptDigest,
+    sprint118ReceiptDigest: reconciliationReceipt.sprint118ReceiptDigest,
+    sprint117ReceiptDigest: reconciliationReceipt.sprint117ReceiptDigest,
+    generatedAt: now,
+    acceptedAt: now,
+    safeSummary: {
+      receiptStatus,
+      acceptanceStatus,
+      reconciliationAcceptanceStatus: acceptanceStatus,
+      auditReconciliationStatus: "reconciled",
+      verificationAuditStatus: "audited",
+      continuityVerificationStatus: "verified",
+      continuityStatus: "continuity_confirmed",
+      custodyChainStatus: "sealed",
+      ledgerIntegrityStatus: "integrity_confirmed",
+      noExecutionStatus,
+      externalCallsZero: true,
+      rawProviderMaterialAbsent: true
+    },
+    noExecutionFlags: {
+      externalCallsZero: true,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    },
+    acceptanceRows,
+    inheritedSprint120AuditReconciliationReceiptSummary: {
+      receiptStatus: "issued",
+      reconciliationStatus: "reconciled",
+      auditReconciliationStatus: "reconciled",
+      verificationAuditStatus: "audited",
+      continuityVerificationStatus: "verified",
+      custodyChainStatus: "sealed",
+      ledgerIntegrityStatus: "integrity_confirmed",
+      safeDigest: reconciliationReceipt.safeDigest,
+      safeFilename: reconciliationReceipt.safeFilename,
+      auditReconciliationDigest: reconciliationReceipt.auditReconciliationDigest,
+      sprint119ReceiptDigest: reconciliationReceipt.sprint119ReceiptDigest,
+      sprint118ReceiptDigest: reconciliationReceipt.sprint118ReceiptDigest,
+      sprint117ReceiptDigest: reconciliationReceipt.sprint117ReceiptDigest,
+      reconciliationRowCount: reconciliationReceipt.reconciliationRows.length,
+      mutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    },
+    counts: {
+      reconciliationAcceptanceCheckedCount: 1,
+      reconciliationAcceptanceMutationCount: 0,
+      sprint120AuditReconciliationReceiptCheckedCount: 1,
+      sprint120AuditReconciliationReceiptMutationCount: 0,
+      sprint119ContinuityVerificationAuditReceiptCheckedCount: 1,
+      sprint119ContinuityVerificationAuditReceiptMutationCount: 0,
+      sprint118ContinuityVerificationReceiptCheckedCount: 1,
+      sprint118ContinuityVerificationReceiptMutationCount: 0,
+      sprint117ContinuityReceiptCheckedCount: 1,
+      sprint117ContinuityReceiptMutationCount: 0,
+      reconciliationRowCount: reconciliationReceipt.reconciliationRows.length,
+      reconciliationSafeCount: reconciliationReceipt.reconciliationRows.length,
+      acceptanceRowCount: acceptanceRows.length,
+      acceptanceSafeCount: acceptanceRows.filter((row) => row.acceptanceStatus === "accepted_under_safe_custody" && row.artifactStatus !== "incomplete" && row.artifactStatus !== "blocked" && row.artifactStatus !== "failed").length,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    }
+  };
+}
+
+function mockCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReady(
+  reconciliationReceipt: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt
+) {
+  return reconciliationReceipt.receiptKind === "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-audit-reconciliation-receipt" &&
+    reconciliationReceipt.receiptStatus === "issued" &&
+    reconciliationReceipt.reconciliationStatus === "reconciled" &&
+    reconciliationReceipt.auditReconciliationStatus === "reconciled" &&
+    reconciliationReceipt.verificationAuditStatus === "audited" &&
+    reconciliationReceipt.continuityVerificationStatus === "verified" &&
+    reconciliationReceipt.custodyChainStatus === "sealed" &&
+    reconciliationReceipt.ledgerIntegrityStatus === "integrity_confirmed" &&
+    reconciliationReceipt.sourceSprint === 119 &&
+    reconciliationReceipt.derivedFrom.sourceSprint === 119 &&
+    reconciliationReceipt.derivedFrom.safeDigest === reconciliationReceipt.sprint119ReceiptDigest &&
+    reconciliationReceipt.auditReconciliationDigest === reconciliationReceipt.safeDigest &&
+    reconciliationReceipt.safeSummary.rawProviderMaterialAbsent === true &&
+    reconciliationReceipt.noExecutionFlags.externalCallsZero === true &&
+    reconciliationReceipt.reconciledAgainst.sprint119DerivedFromSprint118 === true &&
+    reconciliationReceipt.reconciledAgainst.sprint118DerivedFromSprint117 === true &&
+    reconciliationReceipt.reconciliationRows.length === 18 &&
+    reconciliationReceipt.reconciliationRows.map((row) => row.sprintNumber).join(",") === "103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120" &&
+    reconciliationReceipt.reconciliationRows.every((row) =>
+      row.externalCalls === 0 &&
+      row.executionAttemptCount === 0 &&
+      row.providerOutboundCallCount === 0 &&
+      row.externalNotificationSendCount === 0 &&
+      row.aiCallCount === 0 &&
+      row.mutationCount === 0 &&
+      row.custodyChainStatus === "sealed_under_safe_custody" &&
+      row.ledgerIntegrityStatus === "integrity_confirmed_under_safe_custody" &&
+      row.continuityStatus === "continuity_confirmed_under_safe_custody" &&
+      row.verificationStatus === "verified_under_safe_custody" &&
+      row.auditStatus === "audited_under_safe_custody" &&
+      row.reconciliationStatus === "reconciled_under_safe_custody"
+    ) &&
+    reconciliationReceipt.counts.auditReconciliationMutationCount === 0 &&
+    reconciliationReceipt.counts.sprint119ContinuityVerificationAuditReceiptMutationCount === 0 &&
+    reconciliationReceipt.counts.sprint118ContinuityVerificationReceiptMutationCount === 0 &&
+    reconciliationReceipt.counts.sprint117ContinuityReceiptMutationCount === 0 &&
+    reconciliationReceipt.counts.executionAttemptCount === 0 &&
+    reconciliationReceipt.counts.providerOutboundCallCount === 0 &&
+    reconciliationReceipt.counts.externalNotificationSendCount === 0 &&
+    reconciliationReceipt.counts.aiCallCount === 0 &&
+    reconciliationReceipt.externalCalls === 0;
 }
 
 function mockCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReady(
