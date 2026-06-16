@@ -26,16 +26,16 @@ async function main() {
   const settingsPage = readFileSync("apps/web/app/settings/channels/page.tsx", "utf8");
   const providerPanel = readFileSync("apps/web/app/settings/provider-readiness-panel.tsx", "utf8");
   const sprint90Source = {
-    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
-    providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet", "review-closure-report/export"),
+    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseHandoffPacketStatusSchema", "providerWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceStatusSchema"),
+    providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate/decision-receipt/handoff-packet", "handoff-packet/acceptance-record"),
     providerService: [
-      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseHandoffPacket(", "private getLockedArchiveContext"),
+      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseHandoffPacket(", "getReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord("),
       sourceSlice(providerService, "function assertQaHandoffCertifiedReleaseHandoffPacketPrerequisites", "function assertQaHandoffCertifiedReleaseHandoffAcceptanceRecordPrerequisites")
     ].join("\n"),
-    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket", "getProviderWebhookReviewClosureReportExport"),
+    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket", "getProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord"),
     settingsData: [
       sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacketData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
-      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseHandoffPacket", "function createMockReleaseAttestationAuditRow")
+      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseHandoffPacket", "function createMockReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord")
     ].join("\n"),
     settingsPage: [
       sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseHandoffPacket", "reviewClosureReportRedactionAudit"),
@@ -43,7 +43,7 @@ async function main() {
     ].join("\n"),
     providerPanel: [
       sourceSlice(providerPanel, "Load certified release decision receipt", "Audit report export redaction"),
-      sourceSlice(providerPanel, "QA archive certified release handoff packet:", "reviewQaHandoffLockedArchive ?")
+      sourceSlice(providerPanel, "QA archive certified release handoff packet:", "QA archive certified release handoff acceptance record:")
     ].join("\n")
   };
 

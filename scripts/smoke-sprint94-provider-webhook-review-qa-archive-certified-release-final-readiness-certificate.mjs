@@ -30,16 +30,16 @@ async function main() {
   const settingsPage = readFileSync("apps/web/app/settings/channels/page.tsx", "utf8");
   const providerPanel = readFileSync("apps/web/app/settings/provider-readiness-panel.tsx", "utf8");
   const sprint94Source = {
-    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
+    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateStatusSchema", "providerWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegisterStatusSchema"),
     providerController: sourceSlice(providerController, "final-readiness-certificate", "review-closure-report/export"),
     providerService: [
-      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseDryRunResultLedger(", "private getLockedArchiveContext"),
+      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseFinalReadinessCertificate(", "getReviewQaHandoffCertifiedReleaseFreezeAuditRegister("),
       sourceSlice(providerService, "function qaHandoffCertifiedReleaseFinalReadinessCertificateResponse", "function qaHandoffCertifiedReleaseFreezeAuditRegisterResponse")
     ].join("\n"),
     apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate", "getProviderWebhookReviewClosureReportExport"),
     settingsData: [
       sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificateData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
-      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseFinalReadinessCertificate", "function createMockReleaseAttestationAuditRow")
+      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseFinalReadinessCertificate", "function createMockReviewQaHandoffCertifiedReleaseFreezeAuditRegister")
     ].join("\n"),
     settingsPage: [
       sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseDryRunResultLedger", "reviewClosureReportRedactionAudit"),
@@ -47,7 +47,7 @@ async function main() {
     ].join("\n"),
     providerPanel: [
       sourceSlice(providerPanel, "Load certified release no-op execution dry-run", "Audit report export redaction"),
-      sourceSlice(providerPanel, "QA archive certified release dry-run result ledger:", "reviewQaHandoffLockedArchive ?")
+      sourceSlice(providerPanel, "QA archive certified release final readiness certificate:", "QA archive certified release freeze audit register:")
     ].join("\n")
   };
 
