@@ -2,6 +2,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewWorkload, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem } from "@ai-omni/shared";
+import type { ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt } from "@ai-omni/shared";
 import { ProviderReadinessPanel } from "./provider-readiness-panel";
 
 describe("ProviderReadinessPanel", () => {
@@ -84,6 +85,7 @@ describe("ProviderReadinessPanel", () => {
       reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealReceipt: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealReceipt(),
       reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt(),
       reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt(),
+      reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt: providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt(),
       reviewClosureReportRedactionAudit: providerWebhookReviewExportRedactionAudit("closure-report-export"),
       reviewClosureExportIntegrity: providerWebhookReviewExportIntegrity(),
       reviewSavedViews: [providerWebhookReviewSavedView()],
@@ -566,6 +568,15 @@ describe("ProviderReadinessPanel", () => {
     expect(html).toContain("117:continuity_confirmed:integrity_confirmed_under_safe_custody:continuity_confirmed_under_safe_custody:sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityreceipt:provider-webhook-certified-release-post-closure-preservation-custody-chain-integrity-ledger-continuity-receipt.json");
     expect(html).toContain("providerOutboundCallCount=0");
     expect(html).toContain("externalCallsZero=true");
+    expect(html).toContain("Load Sprint 118 continuity verification receipt");
+    expect(html).toContain("QA archive certified release Sprint 118 custody chain integrity ledger continuity verification receipt: receiptStatus=issued; verificationStatus=verified; continuityStatus=continuity_confirmed; custodyChainStatus=sealed; ledgerIntegrityStatus=integrity_confirmed; noExecutionStatus=confirmed");
+    expect(html).toContain("safeFilename=provider-webhook-certified-release-custody-chain-integrity-ledger-continuity-verification-receipt.json");
+    expect(html).toContain("continuityVerificationDigest=sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityverificationreceipt");
+    expect(html).toContain("sprint117ReceiptDigest=sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityreceipt");
+    expect(html).toContain("rowRange=103..118");
+    expect(html).toContain("verificationRows=16/16");
+    expect(html).toContain("118:verified:integrity_confirmed_under_safe_custody:continuity_confirmed_under_safe_custody:verified_under_safe_custody:sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityverificationreceipt:provider-webhook-certified-release-custody-chain-integrity-ledger-continuity-verification-receipt.json");
+    expect(html).toContain("rawProviderMaterialAbsent=true");
     expect(html).toContain("safeFilename=provider-webhook-review-qa-handoff-certified-release-go-live-hold-release-authorization-receipt.json");
     expect(html).toContain("goLiveHoldReleaseAuthorizationReceiptDigest=sha256:safeqahandoffcertifiedreleasegoliveholdreleaseauthorizationreceipt");
     expect(html).toContain("goLiveHoldReleaseAuthorizationRows=2/2");
@@ -5227,6 +5238,134 @@ function providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosu
       aiCallCount: 0
     },
     externalCalls: 0
+  };
+}
+
+function providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt(): ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt {
+  const sprint117Receipt = providerWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt();
+  const receiptDigest = "sha256:safeqahandoffcertifiedreleasefinalarchivesealpostclosurepreservationcustodychainintegrityledgercontinuityverificationreceipt";
+  const safeFilename = "provider-webhook-certified-release-custody-chain-integrity-ledger-continuity-verification-receipt.json";
+  const verificationRows: ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt["verificationRows"] = [
+    ...sprint117Receipt.safeRowSummaries.map((row) => ({
+      sprintNumber: row.sprintNumber,
+      artifactLabel: row.artifactLabel,
+      artifactStatus: row.artifactStatus,
+      custodyChainStatus: row.custodyChainSealStatus,
+      ledgerIntegrityStatus: row.custodyChainIntegrityLedgerStatus,
+      continuityStatus: row.custodyChainIntegrityLedgerContinuityStatus,
+      verificationStatus: "verified_under_safe_custody" as const,
+      safeDigest: row.safeDigest,
+      safeFilename: row.safeFilename,
+      generatedAt: row.generatedAt,
+      verifiedAt: "2026-06-16T00:00:00.000Z",
+      externalCalls: 0 as const,
+      executionAttemptCount: 0 as const,
+      providerOutboundCallCount: 0 as const,
+      externalNotificationSendCount: 0 as const,
+      aiCallCount: 0 as const,
+      mutationCount: 0 as const
+    })),
+    {
+      sprintNumber: 118,
+      artifactLabel: "Sprint 118 custody chain integrity ledger continuity verification receipt",
+      artifactStatus: "verified",
+      custodyChainStatus: "sealed_under_safe_custody",
+      ledgerIntegrityStatus: "integrity_confirmed_under_safe_custody",
+      continuityStatus: "continuity_confirmed_under_safe_custody",
+      verificationStatus: "verified_under_safe_custody",
+      safeDigest: receiptDigest,
+      safeFilename,
+      generatedAt: "2026-06-16T00:00:00.000Z",
+      verifiedAt: "2026-06-16T00:00:00.000Z",
+      externalCalls: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      mutationCount: 0
+    }
+  ];
+
+  return {
+    receiptKind: "qa-handoff-locked-archive-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-verification-receipt",
+    receiptStatus: "issued",
+    verificationStatus: "verified",
+    continuityStatus: "continuity_confirmed",
+    custodyChainStatus: "sealed",
+    ledgerIntegrityStatus: "integrity_confirmed",
+    noExecutionStatus: "confirmed",
+    redactionStatus: "passed",
+    tenantScopeStatus: "tenant_scoped",
+    digestContinuityStatus: "confirmed",
+    providerOutboundStatus: "absent",
+    externalNotificationStatus: "absent",
+    aiCallStatus: "absent",
+    externalCalls: 0,
+    sourceSprint: 117,
+    derivedFrom: {
+      sourceSprint: 117,
+      receiptKind: sprint117Receipt.receiptKind,
+      safeDigest: sprint117Receipt.safeDigest,
+      safeFilename: sprint117Receipt.safeFilename,
+      postClosurePreservationCustodyChainIntegrityLedgerContinuityDigest: sprint117Receipt.postClosurePreservationCustodyChainIntegrityLedgerContinuityDigest,
+      rowRangeStart: 103,
+      rowRangeEnd: 117,
+      rowCount: sprint117Receipt.safeRowSummaries.length,
+      externalCallsZero: true
+    },
+    safeFilename,
+    safeDigest: receiptDigest,
+    continuityVerificationDigest: receiptDigest,
+    sprint117ReceiptDigest: sprint117Receipt.safeDigest,
+    generatedAt: "2026-06-16T00:00:00.000Z",
+    verifiedAt: "2026-06-16T00:00:00.000Z",
+    safeSummary: {
+      receiptStatus: "issued",
+      verificationStatus: "verified",
+      continuityStatus: "continuity_confirmed",
+      custodyChainStatus: "sealed",
+      ledgerIntegrityStatus: "integrity_confirmed",
+      noExecutionStatus: "confirmed",
+      externalCallsZero: true,
+      rawProviderMaterialAbsent: true
+    },
+    noExecutionFlags: {
+      externalCallsZero: true,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    },
+    verificationRows,
+    inheritedSprint117ContinuityReceiptSummary: {
+      continuityStatus: sprint117Receipt.postClosurePreservationCustodyChainIntegrityLedgerContinuityStatus,
+      custodyChainStatus: sprint117Receipt.postClosurePreservationCustodyChainSealStatus,
+      ledgerIntegrityStatus: sprint117Receipt.postClosurePreservationCustodyChainIntegrityLedgerStatus,
+      safeDigest: sprint117Receipt.safeDigest,
+      safeFilename: sprint117Receipt.safeFilename,
+      continuityDigest: sprint117Receipt.postClosurePreservationCustodyChainIntegrityLedgerContinuityDigest,
+      rowCount: sprint117Receipt.safeRowSummaries.length,
+      mutationCount: 0,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0,
+      externalCallsZero: true
+    },
+    counts: {
+      continuityVerificationCheckedCount: 1,
+      continuityVerificationMutationCount: 0,
+      sprint117ContinuityReceiptCheckedCount: 1,
+      sprint117ContinuityReceiptMutationCount: 0,
+      custodyChainIntegrityLedgerContinuityRowCount: sprint117Receipt.safeRowSummaries.length,
+      custodyChainIntegrityLedgerContinuitySafeCount: sprint117Receipt.safeRowSummaries.length,
+      verificationRowCount: verificationRows.length,
+      verificationSafeCount: verificationRows.length,
+      executionAttemptCount: 0,
+      providerOutboundCallCount: 0,
+      externalNotificationSendCount: 0,
+      aiCallCount: 0
+    }
   };
 }
 

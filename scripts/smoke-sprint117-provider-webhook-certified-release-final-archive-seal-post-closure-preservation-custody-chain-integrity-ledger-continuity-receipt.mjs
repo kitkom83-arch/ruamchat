@@ -31,7 +31,8 @@ function record(name, passed, detail = "") {
 }
 
 function leaksRawProviderMaterial(value) {
-  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  const serialized = (typeof value === "string" ? value : JSON.stringify(value))
+    .replace(/rawProviderMaterialAbsent/g, "");
   return /"rawPayload"\s*:|"rawSignature"\s*:|"replyToken"\s*:|"senderId"\s*:|"roomId"\s*:|"rawRoomId"\s*:|"rawSenderId"\s*:|"token"\s*:|"secret"\s*:|"authorization"\s*:|"cookie"\s*:|"headers"\s*:|"stack"\s*:|providerRaw|providerMaterial|payloadJson|raw-room|raw-sender|reply-token-must-not-return|message-id-must-not-return|accessToken|webhookSecret|bearer/i.test(serialized);
 }
 
@@ -291,7 +292,7 @@ async function main() {
   const providerPanelResult = sourceSlice(
     providerPanel,
     "reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt ? e",
-    "reviewQaHandoffLockedArchive ? e"
+    "reviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt ? e"
   );
 
   record("package script registration", packageJson.includes('"smoke:sprint117"') && packageJson.includes("smoke-sprint117-provider-webhook-certified-release-final-archive-seal-post-closure-preservation-custody-chain-integrity-ledger-continuity-receipt.mjs"));

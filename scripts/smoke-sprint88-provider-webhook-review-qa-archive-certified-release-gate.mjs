@@ -24,22 +24,22 @@ async function main() {
   const settingsPage = readFileSync("apps/web/app/settings/channels/page.tsx", "utf8");
   const providerPanel = readFileSync("apps/web/app/settings/provider-readiness-panel.tsx", "utf8");
   const sprint88Source = {
-    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema", "providerWebhookUnmatchedInboundBulkReviewRequestSchema"),
-    providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate", "review-closure-report/export"),
+    shared: sourceSlice(shared, "providerWebhookReviewQaHandoffCertifiedReleaseGateStatusSchema", "providerWebhookReviewQaHandoffCertifiedReleaseDecisionReceiptStatusSchema"),
+    providerController: sourceSlice(providerController, "review-qa-handoff-bundle/locked-archive/finalization/release-evidence/verification/certification/closure-ledger/attestation-audit/reconciliation/release-gate", "release-gate/decision-receipt"),
     providerService: [
-      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseGate(", "private getLockedArchiveContext"),
+      sourceSlice(providerService, "getReviewQaHandoffCertifiedReleaseGate(", "getReviewQaHandoffCertifiedReleaseDecisionReceipt("),
       sourceSlice(providerService, "function assertQaHandoffCertifiedReleaseGatePrerequisites", "function assertQaHandoffCertifiedReleaseDecisionReceiptPrerequisites")
     ].join("\n"),
-    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseGate", "getProviderWebhookReviewClosureReportExport"),
+    apiClient: sourceSlice(apiClient, "getProviderWebhookReviewQaHandoffCertifiedReleaseGate", "getProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt"),
     settingsData: [
       sourceSlice(settingsData, "loadSettingsProviderWebhookReviewQaHandoffCertifiedReleaseGateData", "loadSettingsProviderWebhookReviewClosureReportRedactionAuditData"),
-      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseGate", "function createMockReleaseAttestationAuditRow")
+      sourceSlice(settingsData, "function createMockReviewQaHandoffCertifiedReleaseGate", "function createMockReviewQaHandoffCertifiedReleaseDecisionReceipt")
     ].join("\n"),
     settingsPage: [
       sourceSlice(settingsPage, "reviewQaHandoffCertifiedReleaseGate", "reviewClosureReportRedactionAudit"),
       sourceSlice(settingsPage, "loadReviewQaHandoffCertifiedReleaseGate", "loadClosureReportRedactionAudit")
     ].join("\n"),
-    providerPanel: sourceSlice(providerPanel, "Load attestation reconciliation", "Audit report export redaction")
+    providerPanel: sourceSlice(providerPanel, "Load attestation reconciliation", "Load certified release decision receipt")
   };
 
   record("smoke:sprint88 registered",
