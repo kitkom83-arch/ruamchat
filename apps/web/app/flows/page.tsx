@@ -205,6 +205,14 @@ function MockFlowsPage() {
               flow={selectedFlow}
               onSave={(snapshot) => saveVisualFlow(selectedFlow.id, snapshot)}
               onTest={() => runTest(selectedFlow)}
+              onPublish={() => setStatus(selectedFlow.id, "active")}
+              onRenameFlow={(name) => persist(editFlow(flowStore, selectedFlow.id, { name }))}
+              onDuplicateFlow={() => persist(duplicateFlow(flowStore, selectedFlow.id))}
+              onDeleteFlow={() => {
+                const next = { ...flowStore, flows: flowStore.flows.filter((item) => item.id !== selectedFlow.id) };
+                persist(next);
+                setSelectedFlowId(next.flows[0]?.id ?? "");
+              }}
             />
           </section>
         )}
@@ -625,6 +633,10 @@ function ApiFlowsPage() {
               saving={saving}
               onSave={(snapshot) => saveVisualFlow(selectedFlow.id, snapshot)}
               onTest={() => runTest(selectedFlow)}
+              onPublish={() => setStatus(selectedFlow.id, "active")}
+              onRenameFlow={(name) => updateApiFlow(selectedFlow.id, { name }).then((saved) => refreshData(saved.id)).catch((err) => setError(readableFlowError(err)))}
+              onDuplicateFlow={() => duplicateFlowById(selectedFlow.id)}
+              onDeleteFlow={() => archiveFlowById(selectedFlow.id)}
             />
           </section>
         )}

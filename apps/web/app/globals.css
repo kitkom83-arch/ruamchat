@@ -4192,6 +4192,483 @@ dd {
   color: var(--muted);
 }
 
+/* ---- STEP 5: Flow Builder Pro ---- */
+.flowStatusPill {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.flowStatusPill.active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.flowCanvasBtn.publish {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: white;
+}
+
+.flowCanvasBtn.publish:hover {
+  background: #6d28d9;
+}
+
+.flowMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.flowMenuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.flowMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 176px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
+
+.flowMenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.flowMenu button:hover {
+  background: #f1f5f9;
+}
+
+.flowMenu button.danger {
+  color: #dc2626;
+}
+
+.flowPopupMenu {
+  position: fixed;
+  z-index: 50;
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.2);
+}
+
+.flowPopupTitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 800;
+  margin: 2px 6px 4px;
+}
+
+.flowPopupMenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.flowPopupMenu button:hover {
+  background: #f1f5f9;
+}
+
+.flowPopupIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--node-accent, #334155);
+  color: white;
+  flex-shrink: 0;
+}
+
+.flowCanvasStage {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.flowCanvasStage > .flowCanvasScroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.flowNodeToolbar {
+  position: absolute;
+  top: -14px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 5;
+}
+
+.flowNode:hover .flowNodeToolbar,
+.flowNode.selected .flowNodeToolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.flowNodeToolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.flowNodeToolbar button:hover {
+  background: #f1f5f9;
+  color: var(--ink);
+}
+
+.flowNodeToolbar button.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.flowNodeToolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.flowNodeRenameInput {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--brand, #2563eb);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.flowNodeMessage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.flowNodeInlineInput {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #f8fafc;
+  resize: none;
+}
+
+.flowNodeInlineInput:focus {
+  outline: none;
+  border-color: var(--brand, #2563eb);
+  background: white;
+}
+
+.flowNodeChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.flowNodeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowNodeAddContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.flowNodeAddContent:hover {
+  border-color: var(--brand, #2563eb);
+  color: var(--brand, #2563eb);
+}
+
+.flowNodeContinue {
+  position: absolute;
+  right: -12px;
+  bottom: 10px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: var(--node-accent, #2563eb);
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+  z-index: 4;
+}
+
+.flowNodeContinue:hover {
+  transform: scale(1.1);
+}
+
+.flowBottomBar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  z-index: 20;
+}
+
+.flowBottomAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand, #2563eb);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.flowBottomAdd:hover {
+  background: #1d4ed8;
+}
+
+.flowContentList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flowContentRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.flowContentRowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flowContentKind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.flowContentRemove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.flowContentRemove:hover {
+  color: #dc2626;
+}
+
+.flowContentRow input,
+.flowContentRow textarea {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  background: white;
+}
+
+.flowVersionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.flowVersionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+
+.flowVersionRow strong {
+  display: block;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.flowVersionRow small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.flowVersionActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flowCanvasIconBtn.danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.flowPreviewDialog {
+  max-width: 460px;
+  width: 100%;
+}
+
+.flowPreviewBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+
+.flowPreviewStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--node-accent, #334155);
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+
+.flowPreviewStep strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.flowPreviewStep p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  word-break: break-word;
+}
+
+.flowPreviewIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .flowRich {
   display: grid;
   gap: 8px;
