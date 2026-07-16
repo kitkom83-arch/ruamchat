@@ -17,6 +17,17 @@ import { PrismaService } from "./prisma.service.js";
 
 const promptVersion = "ai-router-v1";
 
+// When OPENAI_BASE_URL is set (e.g. Azure AI Foundry v1 endpoint
+// https://<resource>.services.ai.azure.com/openai/v1/) route through it with the
+// standard OpenAI client; otherwise use the default api.openai.com behavior.
+function createOpenAiClient(apiKey: string): OpenAI {
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  if (baseURL) {
+    return new OpenAI({ apiKey, baseURL });
+  }
+  return new OpenAI({ apiKey });
+}
+
 @Injectable()
 export class OpenAiOrchestratorService {
   private readonly client?: OpenAI;
@@ -30,7 +41,7 @@ export class OpenAiOrchestratorService {
     private readonly audit: AuditService
   ) {
     if (process.env.OPENAI_API_KEY && process.env.OPENAI_ALLOW_REAL_CALLS === "true" && process.env.NODE_ENV !== "test") {
-      this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      this.client = createOpenAiClient(process.env.OPENAI_API_KEY);
     }
   }
 
