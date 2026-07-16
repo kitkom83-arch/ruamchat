@@ -555,6 +555,44 @@ describe("ConversationService core API", () => {
     expect(JSON.stringify(auditLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer/i);
   });
 
+  it("enqueues real outbound delivery for manual replies when outbound delivery is enabled", async () => {
+    const { service, outboundQueue, audit, auditLogs } = buildService();
+    const previous = {
+      enabled: process.env.PROVIDER_OUTBOUND_ENABLED,
+      mode: process.env.PROVIDER_OUTBOUND_MODE
+    };
+    process.env.PROVIDER_OUTBOUND_ENABLED = "true";
+    process.env.PROVIDER_OUTBOUND_MODE = "sandbox";
+
+    try {
+      const saved = await service.sendAgentMessage(tenantId, "conv-web-need-human", "00000000-0000-4000-8000-000000000010", {
+        text: "แอดมินรับเรื่องแล้วครับ",
+        senderType: "agent"
+      });
+
+      expect(saved).toMatchObject({
+        conversationId: "conv-web-need-human",
+        direction: "outbound",
+        senderType: "agent",
+        deliveryStatus: "queued"
+      });
+      expect(outboundQueue.enqueueOutbound).toHaveBeenCalledWith("msg-agent-1");
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+        action: "outbound.queued",
+        entityType: "outbound_message",
+        entityId: "msg-agent-1",
+        metadata: expect.objectContaining({ status: "queued" })
+      }));
+      expect(auditLogs.some((log) => log.action === "outbound.mock_queued")).toBe(false);
+      expect(JSON.stringify(auditLogs)).not.toMatch(/accessToken|webhookSecret|botToken|apiKey|Bearer/i);
+    } finally {
+      if (previous.enabled === undefined) delete process.env.PROVIDER_OUTBOUND_ENABLED;
+      else process.env.PROVIDER_OUTBOUND_ENABLED = previous.enabled;
+      if (previous.mode === undefined) delete process.env.PROVIDER_OUTBOUND_MODE;
+      else process.env.PROVIDER_OUTBOUND_MODE = previous.mode;
+    }
+  });
+
   it("blocks manual replies when Customer 360 do-not-contact is enabled and preserves context in audit", async () => {
     const { service, outboundConsent, audit, auditLogs } = buildService();
     outboundConsent.setConsent({ optOut: false, doNotContact: true, suppressedReason: "do_not_contact" });

@@ -6,6 +6,21 @@ export type Platform = z.infer<typeof platformSchema>;
 export const providerSandboxProviderSchema = z.enum(["line", "telegram", "facebook", "instagram"]);
 export type ProviderSandboxProvider = z.infer<typeof providerSandboxProviderSchema>;
 
+/**
+ * Redis pub/sub channel used to bridge webchat outbound replies from the worker
+ * process to the API process, which relays them to customer widgets over SSE.
+ */
+export const WEBCHAT_OUTBOUND_CHANNEL = "webchat:outbound";
+
+export type WebchatOutboundEvent = {
+  tenantId: string;
+  conversationId: string;
+  messageId: string;
+  senderType: string;
+  text: string | null;
+  createdAt: string;
+};
+
 export type ProviderSandboxEnv = Record<string, string | undefined>;
 
 export type ProviderSandboxAllowlistEntry = {

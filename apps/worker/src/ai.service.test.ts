@@ -1,5 +1,47 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkerAiService } from "./ai.service.js";
+
+describe("WorkerAiService.fromEnvironment gating", () => {
+  const originalMode = process.env.AI_MODE;
+  const originalKey = process.env.OPENAI_API_KEY;
+
+  beforeEach(() => {
+    delete process.env.AI_MODE;
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  afterEach(() => {
+    if (originalMode === undefined) delete process.env.AI_MODE;
+    else process.env.AI_MODE = originalMode;
+    if (originalKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalKey;
+  });
+
+  it("stays in mock mode when OPENAI_API_KEY is absent", async () => {
+    delete process.env.OPENAI_API_KEY;
+
+    const service = WorkerAiService.fromEnvironment();
+    const result = await service.analyze({
+      conversationId: "conv-env-1",
+      messages: [{ sender: "user", text: "hello" }]
+    });
+
+    expect(result.mode).toBe("mock");
+  });
+
+  it("stays in mock mode when AI_MODE=mock even if OPENAI_API_KEY is set", async () => {
+    process.env.AI_MODE = "mock";
+    process.env.OPENAI_API_KEY = "sk-should-not-be-used";
+
+    const service = WorkerAiService.fromEnvironment();
+    const result = await service.analyze({
+      conversationId: "conv-env-2",
+      messages: [{ sender: "user", text: "hello" }]
+    });
+
+    expect(result.mode).toBe("mock");
+  });
+});
 
 describe("WorkerAiService", () => {
   it("uses mock mode when no OpenAI client is configured", async () => {

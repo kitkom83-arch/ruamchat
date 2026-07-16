@@ -10,6 +10,7 @@ import { HealthController } from "./controllers/health.controller.js";
 import { ProviderWebhooksController } from "./controllers/provider-webhooks.controller.js";
 import { RoomsController } from "./controllers/rooms.controller.js";
 import { SettingsController } from "./controllers/settings.controller.js";
+import { WebchatController } from "./controllers/webchat.controller.js";
 import { WebhooksController } from "./controllers/webhooks.controller.js";
 import { AuditService } from "./services/audit.service.js";
 import { AnalyticsService } from "./services/analytics.service.js";
@@ -28,10 +29,11 @@ import { PrismaService } from "./services/prisma.service.js";
 import { ProviderWebhookEventsService } from "./services/provider-webhook-events.service.js";
 import { RealtimeGateway } from "./services/realtime.gateway.js";
 import { SettingsService } from "./services/settings.service.js";
+import { WebchatRealtimeService } from "./services/webchat-realtime.service.js";
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
-  controllers: [AiController, AnalyticsController, BroadcastsController, ContactsController, ConversationsController, TasksController, FlowsController, HealthController, ProviderWebhooksController, RoomsController, SettingsController, WebhooksController],
+  controllers: [AiController, AnalyticsController, BroadcastsController, ContactsController, ConversationsController, TasksController, FlowsController, HealthController, ProviderWebhooksController, RoomsController, SettingsController, WebchatController, WebhooksController],
   providers: [
     AnalyticsService,
     AuditService,
@@ -49,7 +51,8 @@ import { SettingsService } from "./services/settings.service.js";
     PrismaService,
     ProviderWebhookEventsService,
     RealtimeGateway,
-    SettingsService
+    SettingsService,
+    WebchatRealtimeService
   ]
 })
 export class AppModule {}
