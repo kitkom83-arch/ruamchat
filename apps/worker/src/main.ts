@@ -1,7 +1,7 @@
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { shouldAutoSend } from "@ai-omni/shared";
+import { shouldAutoSend, WEBCHAT_OUTBOUND_CHANNEL, type WebchatOutboundEvent } from "@ai-omni/shared";
 import crypto from "node:crypto";
 import { WorkerAiService } from "./ai.service.js";
 import {
@@ -10,8 +10,10 @@ import {
   sendLineTextMessage,
   sendMockOutboundText,
   sendTelegramTextMessage,
-  shouldUseRealChannelSend
+  shouldUseRealChannelSend,
+  type OutboundPlatform
 } from "./outbound-sender.js";
+import { buildProviderGuardInput, recipientIdForPlatform } from "./outbound-guard.js";
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) {
@@ -20,8 +22,34 @@ if (!redisUrl) {
 }
 
 const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+const publisher = new Redis(redisUrl, { maxRetriesPerRequest: null });
 const prisma = new PrismaClient();
 const aiService = WorkerAiService.fromEnvironment();
+
+type WebchatOutboundMessage = {
+  id: string;
+  tenantId: string;
+  text: string | null;
+  senderType: string;
+  conversationId: string;
+  createdAt: Date;
+};
+
+async function publishWebchatOutbound(message: WebchatOutboundMessage) {
+  const event: WebchatOutboundEvent = {
+    tenantId: message.tenantId,
+    conversationId: message.conversationId,
+    messageId: message.id,
+    senderType: message.senderType,
+    text: message.text,
+    createdAt: message.createdAt.toISOString()
+  };
+  try {
+    await publisher.publish(WEBCHAT_OUTBOUND_CHANNEL, JSON.stringify(event));
+  } catch (error) {
+    console.error("Failed to publish webchat outbound event", error);
+  }
+}
 
 async function sendOutboundMessage(messageId: string) {
   const message = await prisma.message.findUnique({
@@ -36,10 +64,40 @@ async function sendOutboundMessage(messageId: string) {
     throw new Error(`Message ${messageId} not found`);
   }
 
-  const platform = message.conversation.room.platform;
+  const platform = message.conversation.room.platform as OutboundPlatform;
+  const context = {
+    platform,
+    tenantId: message.tenantId,
+    channelAccountId: message.channelAccountId,
+    channelAccountTenantId: message.channelAccount.tenantId,
+    externalUserId: message.conversation.contactIdentity.externalUserId,
+    externalConversationId: message.conversation.externalConversationId
+  };
+
+  // Webchat replies are delivered to the customer widget over realtime (Redis pub/sub -> SSE),
+  // not through a provider push API.
+  if (platform === "webchat") {
+    await publishWebchatOutbound(message);
+    await prisma.auditLog.create({
+      data: {
+        tenantId: message.tenantId,
+        action: "outbound.webchat_ready",
+        entityType: "message",
+        entityId: message.id,
+        metadata: {
+          platform,
+          channelAccountId: message.channelAccountId,
+          externalUserId: message.conversation.contactIdentity.externalUserId
+        }
+      }
+    });
+    return;
+  }
+
+  const guardInput = buildProviderGuardInput(context);
   const accessToken = resolveToken(message.channelAccount.accessTokenCiphertext);
 
-  if (!shouldUseRealChannelSend()) {
+  if (!guardInput || !shouldUseRealChannelSend(guardInput)) {
     const mockResult = await sendMockOutboundText({
       platform,
       channelAccountId: message.channelAccountId,
@@ -72,36 +130,47 @@ async function sendOutboundMessage(messageId: string) {
     return;
   }
 
+  const guardFields = {
+    tenantId: message.tenantId,
+    channelAccountId: message.channelAccountId,
+    channelAccountTenantId: message.channelAccount.tenantId
+  };
+  const recipientId = recipientIdForPlatform(context);
+
   if (platform === "telegram") {
     await sendTelegramTextMessage({
       token: accessToken,
-      chatId: message.conversation.externalConversationId ?? message.conversation.contactIdentity.externalUserId,
-      text: message.text ?? ""
+      chatId: recipientId,
+      text: message.text ?? "",
+      ...guardFields
     });
   } else if (platform === "line") {
     await sendLineTextMessage({
       token: accessToken,
-      to: message.conversation.contactIdentity.externalUserId,
-      text: message.text ?? ""
+      to: recipientId,
+      text: message.text ?? "",
+      ...guardFields
     });
   } else if (platform === "facebook") {
     await sendFacebookTextMessage({
       token: accessToken,
-      recipientId: message.conversation.contactIdentity.externalUserId,
-      text: message.text ?? ""
+      recipientId,
+      text: message.text ?? "",
+      ...guardFields
     });
   } else if (platform === "instagram") {
     await sendInstagramTextMessage({
       token: accessToken,
-      recipientId: message.conversation.contactIdentity.externalUserId,
-      text: message.text ?? ""
+      recipientId,
+      text: message.text ?? "",
+      ...guardFields
     });
   }
 
   await prisma.auditLog.create({
     data: {
       tenantId: message.tenantId,
-      action: platform === "webchat" ? "outbound.webchat_ready" : "outbound.sent",
+      action: "outbound.sent",
       entityType: "message",
       entityId: message.id,
       metadata: {
@@ -233,6 +302,7 @@ process.on("SIGINT", async () => {
   await aiWorker.close();
   await prisma.$disconnect();
   await connection.quit();
+  await publisher.quit();
   process.exit(0);
 });
 

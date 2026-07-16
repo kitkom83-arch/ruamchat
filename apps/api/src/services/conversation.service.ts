@@ -22,6 +22,7 @@ import { ConversationPriority, ConversationSlaStatus, ConversationStatus, Messag
 import crypto from "node:crypto";
 import { AuditService } from "./audit.service.js";
 import { OutboundConsentService, consentSnapshot } from "./outbound-consent.service.js";
+import { outboundDeliveryEnabled } from "./outbound-mode.js";
 import { OutboundQueueService } from "./outbound-queue.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { RealtimeGateway } from "./realtime.gateway.js";
@@ -857,9 +858,11 @@ export class ConversationService {
       data: { unread: false, unreplied: false, aiState: "human", lastMessageAt: new Date() }
     });
 
+    const deliver = outboundDeliveryEnabled();
+    const deliveryStatus = deliver ? "queued" : "queued_mock";
     const outboundContext = {
       messageId: message.id,
-      status: "queued_mock",
+      status: deliveryStatus,
       platform: conversation.room.platform,
       channelAccountId: conversation.room.channelAccountId,
       roomId: conversation.roomId,
@@ -890,13 +893,16 @@ export class ConversationService {
       tenantId,
       actorUserId,
       conversationId,
-      action: "outbound.mock_queued",
+      action: deliver ? "outbound.queued" : "outbound.mock_queued",
       entityType: "outbound_message",
       entityId: message.id,
       metadata: outboundContext
     });
+    if (deliver) {
+      await this.outboundQueue.enqueueOutbound(message.id);
+    }
     this.realtime.conversationUpdated(tenantId, { conversationId });
-    return { ...this.mapMessage(message), deliveryStatus: "queued_mock" as const };
+    return { ...this.mapMessage(message), deliveryStatus };
   }
 
   async assign(tenantId: string, conversationId: string, actorUserId: string | undefined, request: AssignConversationRequest) {

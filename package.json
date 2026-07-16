@@ -21,6 +21,7 @@
     "local:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
     "postinstall": "npm run prisma:generate",
     "test": "vitest run",
+    "smoke:outbound-golive": "node scripts/smoke-outbound-golive-guard.mjs",
     "typecheck": "npm --workspace @ai-omni/shared run build && npm run typecheck:workspaces",
     "typecheck:workspaces": "npm run typecheck --workspaces --if-present",
     "prisma:generate": "prisma generate --schema apps/api/prisma/schema.prisma",

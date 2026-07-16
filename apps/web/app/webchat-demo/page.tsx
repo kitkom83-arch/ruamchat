@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createKnowledgeAwareMockAiDecision } from "@ai-omni/shared";
 import { createWebchatMessage, getConversationMessages } from "../api-client";
 import { getStoredKnowledgeItems, subscribeStoredKnowledgeItems } from "../ai-knowledge-store";
-import { isApiMode, isMockMode } from "../data-mode";
+import { getApiBaseUrl, isApiMode, isMockMode } from "../data-mode";
 import {
   appendStoredDemoMessage,
   getStoredDemoMessages,
@@ -67,8 +67,28 @@ export default function WebchatDemoPage() {
     };
 
     loadMessages();
+
+    // Poll baseline keeps the widget correct even if realtime is unavailable
+    // (e.g. SSE disabled, or admin replies while provider outbound is off).
     const timer = window.setInterval(loadMessages, 2500);
-    return () => window.clearInterval(timer);
+
+    // Realtime accelerator: the worker publishes webchat replies over Redis
+    // pub/sub, the API relays them via SSE, and we refresh immediately so the
+    // customer sees admin/AI replies without waiting for the next poll.
+    let source: EventSource | undefined;
+    if (typeof window !== "undefined" && typeof window.EventSource !== "undefined") {
+      try {
+        source = new EventSource(`${getApiBaseUrl()}/webchat/stream/${encodeURIComponent(storedConversationId)}`);
+        source.addEventListener("message", () => loadMessages());
+      } catch {
+        source = undefined;
+      }
+    }
+
+    return () => {
+      window.clearInterval(timer);
+      source?.close();
+    };
   }, [apiMode]);
 
   async function sendVisitorMessage(text = draft.trim()) {
