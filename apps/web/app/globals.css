@@ -3761,3 +3761,524 @@ dd {
     max-width: none;
   }
 }
+
+/* ===== STEP 3A: Visual bot builder canvas ===== */
+.flowHeaderRight {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.flowViewToggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.flowViewToggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.flowViewToggle button + button {
+  border-left: 1px solid var(--line);
+}
+
+.flowViewToggle button.active {
+  background: white;
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--brand, #2563eb);
+}
+
+.flowVisualSection {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.flowWorkspace.visualMode {
+  grid-template-columns: 1fr;
+}
+
+.flowWorkspace.visualMode .flowEditorPanel {
+  display: none;
+}
+
+.flowCanvasRoot {
+  display: flex;
+  flex-direction: column;
+  height: 640px;
+  min-height: 0;
+}
+
+.flowCanvasToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+  flex-wrap: wrap;
+}
+
+.flowCanvasToolbarGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flowCanvasTitle {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.flowCanvasDirty {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.flowCanvasBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 12px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+
+.flowCanvasBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.flowCanvasBtn.primary {
+  background: var(--brand, #2563eb);
+  border-color: var(--brand, #2563eb);
+  color: white;
+}
+
+.flowCanvasIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.flowCanvasIconBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.flowCanvasDivider {
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+}
+
+.flowCanvasZoom {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  min-width: 40px;
+  text-align: center;
+}
+
+.flowCanvasBody {
+  display: grid;
+  grid-template-columns: 210px 1fr 260px;
+  min-height: 0;
+  flex: 1;
+}
+
+.flowPalette {
+  border-right: 1px solid var(--line);
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fbfdff;
+}
+
+.flowPaletteHint {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.flowPaletteGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flowPaletteGroup > h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 2px;
+}
+
+.flowPaletteItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 7px 9px;
+  cursor: grab;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: left;
+}
+
+.flowPaletteItem:active {
+  cursor: grabbing;
+}
+
+.flowPaletteIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--node-accent, #334155);
+  color: white;
+  flex-shrink: 0;
+}
+
+.flowPalettePlus {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.flowCanvasScroll {
+  position: relative;
+  overflow: auto;
+  background-color: #f8fafc;
+  background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.flowCanvasLayer {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+.flowCanvasEdges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.flowEdgePath {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 2;
+}
+
+.flowEdgeHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.flowEdgeGroup:hover .flowEdgePath {
+  stroke: #ef4444;
+}
+
+.flowEdgeTemp {
+  fill: none;
+  stroke: var(--brand, #2563eb);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.flowNode {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--node-accent, #334155);
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  padding: 8px 10px;
+  cursor: default;
+  user-select: none;
+}
+
+.flowNode.selected {
+  border-color: var(--brand, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35), 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+.flowNodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: grab;
+}
+
+.flowNodeHeader strong {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.flowNodeHeader:active {
+  cursor: grabbing;
+}
+
+.flowNodeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--node-accent, #334155);
+  color: white;
+  flex-shrink: 0;
+}
+
+.flowNodeType {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.flowNodeSummary {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowNodeHandle {
+  position: absolute;
+  right: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: var(--brand, #2563eb);
+  cursor: crosshair;
+  padding: 0;
+}
+
+.flowCanvasEmpty {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  max-width: 260px;
+}
+
+.flowConfigPanel {
+  border-left: 1px solid var(--line);
+  padding: 14px;
+  overflow-y: auto;
+  background: #fbfdff;
+}
+
+.flowConfigInner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flowConfigHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flowConfigHead strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.flowConfigField {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.flowConfigField input,
+.flowConfigField select,
+.flowConfigField textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: white;
+  color: var(--ink);
+  font-weight: 500;
+  font-family: inherit;
+}
+
+.flowConfigDelete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 8px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.flowConfigEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flowConfigMeta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.flowDialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+}
+
+.flowDialog {
+  width: min(420px, 100%);
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.flowDialogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.flowDialogHeader h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.flowDialogField {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.flowDialogField select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: white;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.flowDialogNote {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.flowDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 1180px) {
+  .flowCanvasBody {
+    grid-template-columns: 170px 1fr 220px;
+  }
+}
+
+@media (max-width: 900px) {
+  .flowHeaderRight {
+    align-items: flex-start;
+  }
+
+  .flowCanvasBody {
+    grid-template-columns: 1fr;
+  }
+
+  .flowPalette {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .flowConfigPanel {
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+}
