@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as mediaModule from "./index.js";
 import {
   applyAiDecisionPolicy,
   aiDecisionSchema,
@@ -4915,5 +4916,64 @@ describe("rich message features (STEP 3B)", () => {
       elements: [{ title: "A" }, { title: "B" }]
     }));
     expect(summary).toContain("2 card");
+  });
+});
+
+describe("media upload validation (STEP 6)", () => {
+  it("classifies mime types into attachment kinds", () => {
+    expect(mediaModule.classifyAttachmentType("image/png")).toBe("image");
+    expect(mediaModule.classifyAttachmentType("image/anything")).toBe("image");
+    expect(mediaModule.classifyAttachmentType("audio/mpeg")).toBe("audio");
+    expect(mediaModule.classifyAttachmentType("application/pdf")).toBe("file");
+    expect(mediaModule.classifyAttachmentType(undefined)).toBe("file");
+  });
+
+  it("accepts an image within the 10MB limit", () => {
+    const result = mediaModule.validateMediaUpload({
+      mimeType: "image/png",
+      sizeBytes: 5 * 1024 * 1024,
+      filename: "photo.png"
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.type).toBe("image");
+      expect(result.limitBytes).toBe(mediaModule.MEDIA_IMAGE_MAX_BYTES);
+    }
+  });
+
+  it("rejects an image above the 10MB limit", () => {
+    const result = mediaModule.validateMediaUpload({
+      mimeType: "image/png",
+      sizeBytes: 11 * 1024 * 1024,
+      filename: "big.png"
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a file above the 25MB limit", () => {
+    const result = mediaModule.validateMediaUpload({
+      mimeType: "application/pdf",
+      sizeBytes: 26 * 1024 * 1024,
+      filename: "big.pdf"
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a zero-byte upload", () => {
+    const result = mediaModule.validateMediaUpload({ mimeType: "image/png", sizeBytes: 0 });
+    expect(result.ok).toBe(false);
+  });
+
+  it("parses a media upload result payload", () => {
+    const parsed = mediaModule.mediaUploadResultSchema.parse({
+      type: "image",
+      url: "/media/tenant-1/abc-photo.png",
+      storageKey: "tenant-1/abc-photo.png",
+      filename: "photo.png",
+      mimeType: "image/png",
+      sizeBytes: 1024
+    });
+    expect(parsed.type).toBe("image");
+    expect(parsed.storageKey).toBe("tenant-1/abc-photo.png");
   });
 });

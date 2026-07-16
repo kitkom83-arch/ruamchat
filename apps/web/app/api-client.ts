@@ -1,5 +1,7 @@
 import {
   agentMessageRequestSchema,
+  mediaUploadRequestSchema,
+  mediaUploadResultSchema,
   analyticsAgentsSchema,
   analyticsAiSchema,
   analyticsAuditSchema,
@@ -197,6 +199,8 @@ import {
   webchatInboundResponseSchema,
   workflowTaskSchema,
   type AgentMessageRequest,
+  type AttachmentInput,
+  type MediaUploadResult,
   type AnalyticsAgents,
   type AnalyticsAi,
   type AnalyticsAudit,
@@ -1797,12 +1801,45 @@ export async function getConversationStatusHistory(conversationId: string): Prom
   return request(`/conversations/${encodeURIComponent(conversationId)}/status-history`, conversationStatusHistorySchema.array());
 }
 
-export async function sendAgentMessage(conversationId: string, text: string): Promise<CoreMessage> {
-  const body: AgentMessageRequest = agentMessageRequestSchema.parse({ text, senderType: "agent" });
+export async function sendAgentMessage(
+  conversationId: string,
+  text: string,
+  attachments: AttachmentInput[] = []
+): Promise<CoreMessage> {
+  const body: AgentMessageRequest = agentMessageRequestSchema.parse({
+    text,
+    senderType: "agent",
+    ...(attachments.length > 0 ? { attachments } : {})
+  });
   return request(`/conversations/${encodeURIComponent(conversationId)}/messages`, coreMessageSchema, {
     method: "POST",
     body: JSON.stringify(body)
   });
+}
+
+export async function uploadMedia(file: File): Promise<MediaUploadResult> {
+  const dataBase64 = await fileToBase64(file);
+  const payload = mediaUploadRequestSchema.parse({
+    filename: file.name || "upload",
+    mimeType: file.type || "application/octet-stream",
+    dataBase64
+  });
+  return request("/media", mediaUploadResultSchema, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  if (typeof btoa === "function") return btoa(binary);
+  return Buffer.from(binary, "binary").toString("base64");
 }
 
 export async function createWebchatMessage(payload: WebchatMessagePayload): Promise<WebchatInboundResponse> {

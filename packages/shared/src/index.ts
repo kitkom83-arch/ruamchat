@@ -714,9 +714,98 @@ export const attachmentInputSchema = z.object({
   storageKey: z.string().optional(),
   filename: z.string().optional(),
   mimeType: z.string().optional(),
-  sizeBytes: z.number().int().nonnegative().optional()
+  sizeBytes: z.number().int().nonnegative().optional(),
+  externalRef: z.string().optional()
 });
 export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
+
+// ---- Media upload (STEP 6) ----
+export const MEDIA_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+export const MEDIA_FILE_MAX_BYTES = 25 * 1024 * 1024;
+
+export const allowedImageMimeTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif"
+] as const;
+
+export const allowedAudioMimeTypes = [
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/wav",
+  "audio/webm",
+  "audio/aac"
+] as const;
+
+export type MediaAttachmentType = Exclude<MessageType, "text" | "event">;
+
+export function classifyAttachmentType(mimeType: string | undefined | null): MediaAttachmentType {
+  const value = (mimeType ?? "").toLowerCase();
+  if ((allowedImageMimeTypes as readonly string[]).includes(value) || value.startsWith("image/")) {
+    return "image";
+  }
+  if ((allowedAudioMimeTypes as readonly string[]).includes(value) || value.startsWith("audio/")) {
+    return "audio";
+  }
+  return "file";
+}
+
+export function mediaSizeLimitFor(type: MediaAttachmentType): number {
+  return type === "image" ? MEDIA_IMAGE_MAX_BYTES : MEDIA_FILE_MAX_BYTES;
+}
+
+export type MediaUploadValidation =
+  | { ok: true; type: MediaAttachmentType; limitBytes: number }
+  | { ok: false; reason: string };
+
+export function validateMediaUpload(input: {
+  mimeType?: string | null;
+  sizeBytes: number;
+  filename?: string | null;
+}): MediaUploadValidation {
+  if (!Number.isFinite(input.sizeBytes) || input.sizeBytes <= 0) {
+    return { ok: false, reason: "File is empty" };
+  }
+  const type = classifyAttachmentType(input.mimeType);
+  const limitBytes = mediaSizeLimitFor(type);
+  if (input.sizeBytes > limitBytes) {
+    const limitMb = Math.round(limitBytes / (1024 * 1024));
+    return { ok: false, reason: `File exceeds the ${limitMb}MB limit for ${type}` };
+  }
+  return { ok: true, type, limitBytes };
+}
+
+export const mediaUploadRequestSchema = z.object({
+  filename: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(255),
+  dataBase64: z.string().min(1)
+});
+export type MediaUploadRequest = z.infer<typeof mediaUploadRequestSchema>;
+
+export const mediaUploadResultSchema = z.object({
+  type: messageTypeSchema.exclude(["text", "event"]),
+  url: z.string().min(1),
+  storageKey: z.string().min(1),
+  filename: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative()
+});
+export type MediaUploadResult = z.infer<typeof mediaUploadResultSchema>;
+
+export const messageAttachmentSchema = z.object({
+  id: z.string().min(1),
+  type: messageTypeSchema.exclude(["text", "event"]),
+  url: z.string().nullable().optional(),
+  storageKey: z.string().nullable().optional(),
+  filename: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  sizeBytes: z.number().int().nonnegative().nullable().optional()
+});
+export type MessageAttachment = z.infer<typeof messageAttachmentSchema>;
 
 export const normalizedInboundMessageSchema = z.object({
   tenantId: z.string().uuid(),
@@ -8183,14 +8272,25 @@ export const coreMessageSchema = z.object({
   text: z.string().default(""),
   createdAt: z.string().datetime(),
   platformMessageId: z.string().min(1),
-  deliveryStatus: coreDeliveryStatusSchema
+  deliveryStatus: coreDeliveryStatusSchema,
+  messageType: messageTypeSchema.default("text"),
+  attachments: z.array(messageAttachmentSchema).default([])
 }).strict();
 export type CoreMessage = z.infer<typeof coreMessageSchema>;
 
 export const agentMessageRequestSchema = z.object({
-  text: z.string().trim().min(1),
-  senderType: z.literal("agent").default("agent")
-}).strict();
+  text: z.string().trim().default(""),
+  senderType: z.literal("agent").default("agent"),
+  attachments: z.array(attachmentInputSchema).optional()
+}).strict().superRefine((value, ctx) => {
+  if (value.text.length === 0 && (value.attachments?.length ?? 0) === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Message must include text or at least one attachment",
+      path: ["text"]
+    });
+  }
+});
 export type AgentMessageRequest = z.infer<typeof agentMessageRequestSchema>;
 
 export const webchatInboundRequestSchema = z.object({

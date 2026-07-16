@@ -4,8 +4,11 @@ import {
   providerOutboundEnabled,
   sendFacebookTextMessage,
   sendInstagramTextMessage,
+  sendLineMediaMessage,
   sendLineTextMessage,
+  sendMetaMediaMessage,
   sendMockOutboundText,
+  sendTelegramMediaMessage,
   sendTelegramTextMessage,
   providerOutboundMode,
   providerSandboxMode,
@@ -240,6 +243,65 @@ describe("outbound sender", () => {
         tenantId: tenantIdForTest,
         channelAccountTenantId: tenantIdForTest
       })).rejects.toThrow("INSTAGRAM_ACCESS_TOKEN is required");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("blocks outbound media senders when the allowlist is empty", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const previous = snapshotEnv(providerEnvKeys);
+    clearProviderEnv();
+
+    try {
+      await expect(sendTelegramMediaMessage({
+        chatId: "55201",
+        mediaType: "image",
+        url: "https://cdn.example.com/photo.png",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("provider_outbound_disabled");
+
+      await expect(sendLineMediaMessage({
+        to: "U123",
+        mediaType: "image",
+        url: "https://cdn.example.com/photo.png",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("provider_outbound_disabled");
+
+      await expect(sendMetaMediaMessage({
+        provider: "facebook",
+        recipientId: "fb-user-381",
+        mediaType: "image",
+        url: "https://cdn.example.com/photo.png",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("provider_outbound_disabled");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("blocks outbound media to non-allowlisted recipients before network access", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await expect(sendTelegramMediaMessage({
+        chatId: "99999",
+        mediaType: "file",
+        url: "https://cdn.example.com/quote.pdf",
+        filename: "quote.pdf",
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      })).rejects.toThrow("recipient_not_allowlisted");
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       restoreEnvSnapshot(previous);

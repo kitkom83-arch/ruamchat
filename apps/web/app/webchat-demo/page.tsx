@@ -1,8 +1,8 @@
 "use client";
 
-import { Bot, MessageCircle, Send, Sparkles, UserRoundCheck, Wifi } from "lucide-react";
-import { useEffect, useState } from "react";
-import { createKnowledgeAwareMockAiDecision } from "@ai-omni/shared";
+import { Bot, MessageCircle, Paperclip, Send, Sparkles, Trash2, UserRoundCheck, Wifi } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createKnowledgeAwareMockAiDecision, validateMediaUpload } from "@ai-omni/shared";
 import { createWebchatMessage, getConversationMessages } from "../api-client";
 import { getStoredKnowledgeItems, subscribeStoredKnowledgeItems } from "../ai-knowledge-store";
 import { getApiBaseUrl, isApiMode, isMockMode } from "../data-mode";
@@ -12,6 +12,7 @@ import {
   mapApiMessageToChatMessage,
   saveStoredDemoMessages,
   subscribeStoredDemoMessages,
+  type ChatAttachment,
   type ChatMessage
 } from "../inbox-data";
 
@@ -29,6 +30,8 @@ export default function WebchatDemoPage() {
   const [aiDraft, setAiDraft] = useState("AI draft mock: แนะนำให้แอดมินทักทายและถามความต้องการของลูกค้า");
   const [apiConversationId, setApiConversationId] = useState("");
   const [apiError, setApiError] = useState("");
+  const [draftAttachments, setDraftAttachments] = useState<ChatAttachment[]>([]);
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isMockMode()) return;
@@ -91,8 +94,34 @@ export default function WebchatDemoPage() {
     };
   }, [apiMode]);
 
+  function handleAttach(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setApiError("");
+    const next: ChatAttachment[] = [];
+    for (const file of Array.from(files)) {
+      const check = validateMediaUpload({ mimeType: file.type, sizeBytes: file.size, filename: file.name });
+      if (!check.ok) {
+        setApiError(check.reason);
+        continue;
+      }
+      next.push({
+        id: `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: check.type,
+        url: URL.createObjectURL(file),
+        filename: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size
+      });
+    }
+    if (next.length > 0) setDraftAttachments((current) => [...current, ...next]);
+  }
+
+  function removeDraftAttachment(id: string) {
+    setDraftAttachments((current) => current.filter((item) => item.id !== id));
+  }
+
   async function sendVisitorMessage(text = draft.trim()) {
-    if (!text) return;
+    if (!text && draftAttachments.length === 0) return;
     if (apiMode) {
       try {
         const result = await createWebchatMessage({
@@ -112,10 +141,12 @@ export default function WebchatDemoPage() {
         setApiError(readableApiError(error));
       }
       setDraft("");
+      setDraftAttachments([]);
       return;
     }
-    appendStoredDemoMessage("customer", text);
+    appendStoredDemoMessage("customer", text, draftAttachments.length > 0 ? draftAttachments : undefined);
     setDraft("");
+    setDraftAttachments([]);
   }
 
   function resetDemo() {
@@ -188,7 +219,50 @@ export default function WebchatDemoPage() {
           ))}
         </div>
 
+        {draftAttachments.length > 0 ? (
+          <div className="composerAttachments" aria-label="Pending attachments">
+            {draftAttachments.map((item) => (
+              <div key={item.id} className="composerAttachmentChip">
+                {item.type === "image" && item.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.url} alt={item.filename ?? "image"} className="composerAttachmentThumb" />
+                ) : (
+                  <Paperclip size={14} />
+                )}
+                <span className="composerAttachmentName">{item.filename}</span>
+                <button
+                  type="button"
+                  className="composerAttachmentRemove"
+                  onClick={() => removeDraftAttachment(item.id)}
+                  aria-label={`Remove ${item.filename}`}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <footer className="widgetComposer">
+          <input
+            ref={attachInputRef}
+            type="file"
+            accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+            multiple
+            hidden
+            onChange={(event) => {
+              handleAttach(event.target.files);
+              event.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            className="composerAttachButton"
+            onClick={() => attachInputRef.current?.click()}
+            aria-label="Attach file or image"
+            title="Attach file or image"
+          >
+            <Paperclip size={16} />
+          </button>
           <input
             aria-label="Visitor message"
             placeholder="พิมพ์ข้อความถึงแอดมิน"
@@ -215,6 +289,7 @@ function readableApiError(error: unknown) {
 }
 
 function WidgetBubble({ message }: { message: ChatMessage }) {
+  const attachments = message.attachments ?? [];
   return (
     <article className={`widgetBubble ${message.sender}`}>
       <div className="messageMeta">
@@ -224,7 +299,35 @@ function WidgetBubble({ message }: { message: ChatMessage }) {
         <span>{message.sender}</span>
         <time>{message.time}</time>
       </div>
-      <p>{message.body}</p>
+      {message.body ? <p>{message.body}</p> : null}
+      {attachments.length > 0 ? (
+        <div className="messageAttachments">
+          {attachments.map((attachment) =>
+            attachment.type === "image" && attachment.url ? (
+              <a key={attachment.id} className="messageImageLink" href={attachment.url} target="_blank" rel="noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={attachment.url} alt={attachment.filename ?? "image"} loading="lazy" />
+              </a>
+            ) : attachment.type === "audio" && attachment.url ? (
+              <audio key={attachment.id} className="messageAudio" src={attachment.url} controls preload="none" />
+            ) : (
+              <a
+                key={attachment.id}
+                className="messageFileLink"
+                href={attachment.url}
+                target="_blank"
+                rel="noreferrer"
+                download={attachment.filename}
+              >
+                <span className="messageFileChip">
+                  <Paperclip size={14} />
+                  <span className="messageFileName">{attachment.filename ?? "Attachment"}</span>
+                </span>
+              </a>
+            )
+          )}
+        </div>
+      ) : null}
     </article>
   );
 }

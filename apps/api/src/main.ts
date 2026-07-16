@@ -7,7 +7,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false, cors: true });
 
   app.use(express.json({
-    limit: "5mb",
+    limit: process.env.API_JSON_BODY_LIMIT ?? "40mb",
     verify: (req: express.Request, _res: express.Response, buf: Buffer) => {
       (req as typeof req & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
     }

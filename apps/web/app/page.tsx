@@ -18,6 +18,7 @@ import {
   Inbox,
   MessageSquareText,
   PanelRightOpen,
+  Paperclip,
   Pin,
   Radio,
   RotateCcw,
@@ -33,9 +34,10 @@ import {
   Workflow
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CannedReply, ConversationAuditLog, ConversationFilter, ConversationPriority, ConversationStatus, ConversationStatusHistory, CoreConversationCard, Customer360, Flow, FlowTestRunResult, InternalNoteVisibility, UpdateTaskRequest } from "@ai-omni/shared";
-import type { Contact, LeadStatus } from "@ai-omni/shared";
+import type { Contact, LeadStatus, AttachmentInput, MediaAttachmentType } from "@ai-omni/shared";
+import { validateMediaUpload } from "@ai-omni/shared";
 import Link from "next/link";
 import {
   appendStoredDemoMessage,
@@ -55,11 +57,13 @@ import {
   mergeDemoConversation,
   mockConversations,
   platformRooms,
+  resolveAttachmentUrl,
   scopeApiConversationsToRoom,
   subscribeDemoConversationInputs,
   webchatDemoConversationId,
   type AiStatus,
   type ChatMessage,
+  type ChatAttachment,
   type ConversationCard,
   type InboxTab,
   type PlatformRoom
@@ -173,6 +177,7 @@ import {
   takeOverConversation as takeOverApiConversation,
   testRunApiFlow,
   unlinkContactIdentity as unlinkApiContactIdentity,
+  uploadMedia,
   updateCustomer360Consent,
   updateConversationPriority,
   updateConversationReadState,
@@ -239,6 +244,14 @@ type BroadcastHistoryPanelRow = {
   roomId?: string | null;
   status: string;
   at?: string | null;
+};
+
+type PendingAttachment = {
+  id: string;
+  attachment: AttachmentInput;
+  previewUrl: string;
+  filename: string;
+  mediaType: MediaAttachmentType;
 };
 
 export default function InboxDashboard() {
@@ -323,6 +336,9 @@ export default function InboxDashboard() {
   const [apiActionLoading, setApiActionLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const [apiCannedReplies, setApiCannedReplies] = useState<CannedReply[]>([]);
   const [apiCannedError, setApiCannedError] = useState("");
   const [apiConversationNotes, setApiConversationNotes] = useState<ReturnType<typeof getVisibleInternalNotes>>([]);
@@ -1053,19 +1069,81 @@ export default function InboxDashboard() {
     setComposer(value);
   }
 
+  async function handleAttachFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setSendError("");
+    setUploadingMedia(true);
+    try {
+      const uploaded: PendingAttachment[] = [];
+      for (const file of Array.from(files)) {
+        const check = validateMediaUpload({ mimeType: file.type, sizeBytes: file.size, filename: file.name });
+        if (!check.ok) {
+          setSendError(check.reason);
+          continue;
+        }
+        if (apiMode) {
+          const result = await uploadMedia(file);
+          uploaded.push({
+            id: `${result.storageKey}`,
+            attachment: {
+              type: result.type,
+              url: result.url,
+              storageKey: result.storageKey,
+              filename: result.filename,
+              mimeType: result.mimeType,
+              sizeBytes: result.sizeBytes
+            },
+            previewUrl: resolveAttachmentUrl(result.url) ?? result.url,
+            filename: result.filename,
+            mediaType: result.type
+          });
+        } else {
+          const previewUrl = URL.createObjectURL(file);
+          uploaded.push({
+            id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            attachment: {
+              type: check.type,
+              url: previewUrl,
+              filename: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size
+            },
+            previewUrl,
+            filename: file.name,
+            mediaType: check.type
+          });
+        }
+      }
+      if (uploaded.length > 0) {
+        setPendingAttachments((current) => [...current, ...uploaded]);
+      }
+    } catch (error) {
+      setSendError(readableApiError(error));
+    } finally {
+      setUploadingMedia(false);
+    }
+  }
+
+  function removePendingAttachment(id: string) {
+    setPendingAttachments((current) => current.filter((item) => item.id !== id));
+  }
+
   async function sendAgentMessage(text = composer.trim()) {
-    if (!selectedConversation || !text) return;
+    if (!selectedConversation) return;
+    const attachments = pendingAttachments.map((item) => item.attachment);
+    if (!text && attachments.length === 0) return;
 
     if (apiMode) {
       setSendLoading(true);
       setSendError("");
       try {
-        await sendApiAgentMessage(selectedConversation.id, text);
+        await sendApiAgentMessage(selectedConversation.id, text, attachments);
         const messages = await getConversationMessages(selectedConversation.id);
         setConversations((current) =>
-          applyApiSentMessagesToConversation(current, selectedConversation.id, messages, text)
+          applyApiSentMessagesToConversation(current, selectedConversation.id, messages, text || "[media]")
         );
         setComposer("");
+        setPendingAttachments([]);
         setApiError("");
         setSendError("");
       } catch (error) {
@@ -1076,8 +1154,17 @@ export default function InboxDashboard() {
       return;
     }
 
+    const localAttachments: ChatAttachment[] = pendingAttachments.map((item) => ({
+      id: item.id,
+      type: item.mediaType,
+      url: item.previewUrl,
+      filename: item.filename,
+      mimeType: item.attachment.mimeType,
+      sizeBytes: item.attachment.sizeBytes
+    }));
+
     if (selectedConversation.id === webchatDemoConversationId) {
-      appendStoredDemoMessage("agent", text);
+      appendStoredDemoMessage("agent", text, localAttachments);
     } else {
       setConversations((current) =>
         applyLocalAgentMessageToConversation(current, selectedConversation.id, text).conversations
@@ -1085,6 +1172,7 @@ export default function InboxDashboard() {
     }
 
     setComposer("");
+    setPendingAttachments([]);
   }
 
   function useAiDraft() {
@@ -2091,18 +2179,67 @@ export default function InboxDashboard() {
             {apiMode && apiCannedError ? <span className="noteText">Canned replies API error: {apiCannedError}</span> : null}
             {apiMode && !apiCannedError && cannedReplies.length === 0 ? <span className="noteText">No persisted canned replies</span> : null}
           </div>
+          {pendingAttachments.length > 0 ? (
+            <div className="composerAttachments" aria-label="Pending attachments">
+              {pendingAttachments.map((item) => (
+                <div key={item.id} className="composerAttachmentChip">
+                  {item.mediaType === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.previewUrl} alt={item.filename} className="composerAttachmentThumb" />
+                  ) : (
+                    <Paperclip size={14} />
+                  )}
+                  <span className="composerAttachmentName">{item.filename}</span>
+                  <button
+                    type="button"
+                    className="composerAttachmentRemove"
+                    onClick={() => removePendingAttachment(item.id)}
+                    aria-label={`Remove ${item.filename}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="composerBox">
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv"
+              multiple
+              hidden
+              onChange={(event) => {
+                void handleAttachFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="composerAttachButton"
+              onClick={() => attachInputRef.current?.click()}
+              disabled={!selectedConversation || uploadingMedia}
+              aria-label="Attach file or image"
+              title="Attach file or image"
+            >
+              <Paperclip size={16} />
+            </button>
             <textarea
               placeholder="Reply in the selected room account"
               value={composer}
               onChange={(event) => handleComposerChange(event.target.value)}
               disabled={!selectedConversation}
             />
-            <button type="button" className="sendButton" onClick={() => sendAgentMessage()} disabled={!selectedConversation || !composer.trim() || sendLoading}>
-              {sendLoading ? "Sending..." : "Send"}
+            <button
+              type="button"
+              className="sendButton"
+              onClick={() => sendAgentMessage()}
+              disabled={!selectedConversation || (!composer.trim() && pendingAttachments.length === 0) || sendLoading || uploadingMedia}
+            >
+              {sendLoading ? "Sending..." : uploadingMedia ? "Uploading..." : "Send"}
             </button>
           </div>
-          {apiMode && sendError ? <p className="noteText">Send failed: {sendError}</p> : null}
+          {sendError ? <p className="noteText">Send failed: {sendError}</p> : null}
         </footer>
       </section>
 
@@ -3178,6 +3315,7 @@ function WorkflowEditorPanel({
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
+  const attachments = message.attachments ?? [];
   return (
     <article className={`messageBubble ${message.sender}`}>
       <div className="messageMeta">
@@ -3190,9 +3328,52 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         <span>{message.sender}</span>
         <time>{message.time}</time>
       </div>
-      <p>{message.body}</p>
+      {message.body ? <p>{message.body}</p> : null}
+      {attachments.length > 0 ? (
+        <div className="messageAttachments">
+          {attachments.map((attachment) => (
+            <MessageAttachmentView key={attachment.id} attachment={attachment} />
+          ))}
+        </div>
+      ) : null}
     </article>
   );
+}
+
+function MessageAttachmentView({ attachment }: { attachment: ChatAttachment }) {
+  if (attachment.type === "image" && attachment.url) {
+    return (
+      <a className="messageImageLink" href={attachment.url} target="_blank" rel="noreferrer" title="Open image">
+        <img src={attachment.url} alt={attachment.filename ?? "image"} loading="lazy" />
+      </a>
+    );
+  }
+  if (attachment.type === "audio" && attachment.url) {
+    return <audio className="messageAudio" src={attachment.url} controls preload="none" />;
+  }
+  const label = attachment.filename ?? "Attachment";
+  const size = formatAttachmentSize(attachment.sizeBytes);
+  const chip = (
+    <span className="messageFileChip">
+      <Paperclip size={14} />
+      <span className="messageFileName">{label}</span>
+      {size ? <span className="messageFileSize">{size}</span> : null}
+    </span>
+  );
+  return attachment.url ? (
+    <a className="messageFileLink" href={attachment.url} target="_blank" rel="noreferrer" download={attachment.filename}>
+      {chip}
+    </a>
+  ) : (
+    chip
+  );
+}
+
+function formatAttachmentSize(bytes: number | undefined): string | null {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function AiStatusBadge({ status }: { status: AiStatus }) {
