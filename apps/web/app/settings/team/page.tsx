@@ -16,6 +16,7 @@ import { updateSettingsTeamMember } from "../../api-client";
 import { dataMode } from "../../data-mode";
 import { mockConversations } from "../../inbox-data";
 import { loadSettingsTeamData } from "../../settings-data";
+import UserManagementPanel from "./UserManagementPanel";
 
 const roles: AgentRole[] = ["owner", "admin", "supervisor", "agent", "viewer"];
 
@@ -147,6 +148,8 @@ export default function TeamSettingsPage() {
           </div>
         )}
       </header>
+
+      <UserManagementPanel />
 
       {error ? <section className="apiErrorBox" role="alert">{error}</section> : null}
       {loading ? <section className="apiLoadingBox">Loading team settings...</section> : null}

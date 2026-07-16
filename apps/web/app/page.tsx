@@ -18,6 +18,7 @@ import {
   Inbox,
   MessageSquareText,
   PanelRightOpen,
+  Paperclip,
   Pin,
   Radio,
   RotateCcw,
@@ -33,7 +34,7 @@ import {
   Workflow
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CannedReply, ConversationAuditLog, ConversationFilter, ConversationPriority, ConversationStatus, ConversationStatusHistory, CoreConversationCard, Customer360, Flow, FlowTestRunResult, InternalNoteVisibility, UpdateTaskRequest } from "@ai-omni/shared";
 import type { Contact, LeadStatus } from "@ai-omni/shared";
 import Link from "next/link";
@@ -266,6 +267,7 @@ export default function InboxDashboard() {
   const [lastFlowResult, setLastFlowResult] = useState<FlowTestRunResult | FlowRunTestResult | null>(null);
   const [agentFilter, setAgentFilter] = useState("all");
   const [composer, setComposer] = useState("");
+  const attachInputRef = useRef<HTMLInputElement | null>(null);
   const [roomsCollapsed, setRoomsCollapsed] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [customerCollapsed, setCustomerCollapsed] = useState(false);
@@ -1051,6 +1053,20 @@ export default function InboxDashboard() {
       return;
     }
     setComposer(value);
+  }
+
+  function handleAttachClick() {
+    attachInputRef.current?.click();
+  }
+
+  function handleAttachFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const names = Array.from(fileList).map((file) => {
+      const kind = file.type.startsWith("image/") ? "รูปภาพ" : "ไฟล์";
+      return `[${kind}: ${file.name}]`;
+    });
+    setComposer((current) => (current ? `${current} ${names.join(" ")}` : names.join(" ")));
+    if (attachInputRef.current) attachInputRef.current.value = "";
   }
 
   async function sendAgentMessage(text = composer.trim()) {
@@ -2092,14 +2108,32 @@ export default function InboxDashboard() {
             {apiMode && !apiCannedError && cannedReplies.length === 0 ? <span className="noteText">No persisted canned replies</span> : null}
           </div>
           <div className="composerBox">
+            <input
+              ref={attachInputRef}
+              type="file"
+              multiple
+              accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.zip"
+              className="composerFileInput"
+              onChange={(event) => handleAttachFiles(event.target.files)}
+            />
+            <button
+              type="button"
+              className="composerAttachButton"
+              onClick={handleAttachClick}
+              disabled={!selectedConversation}
+              aria-label="แนบไฟล์หรือรูปภาพ"
+              title="แนบไฟล์หรือรูปภาพ"
+            >
+              <Paperclip size={18} />
+            </button>
             <textarea
-              placeholder="Reply in the selected room account"
+              placeholder="พิมพ์ข้อความตอบกลับ..."
               value={composer}
               onChange={(event) => handleComposerChange(event.target.value)}
               disabled={!selectedConversation}
             />
             <button type="button" className="sendButton" onClick={() => sendAgentMessage()} disabled={!selectedConversation || !composer.trim() || sendLoading}>
-              {sendLoading ? "Sending..." : "Send"}
+              {sendLoading ? "กำลังส่ง..." : "ส่ง"}
             </button>
           </div>
           {apiMode && sendError ? <p className="noteText">Send failed: {sendError}</p> : null}

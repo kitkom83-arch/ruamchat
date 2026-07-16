@@ -5,6 +5,7 @@ import {
   Bot,
   ContactRound,
   Inbox,
+  LogOut,
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -16,6 +17,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AUTH_ROLE_META, isPathAllowedForRole, type AuthRole, type AuthUser } from "../auth-data";
 
 type NavItem = {
   label: string;
@@ -26,14 +28,14 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Inbox", icon: Inbox, href: "/" },
-  { label: "Analytics", icon: BarChart3, href: "/analytics" },
-  { label: "Contacts", icon: ContactRound, href: "/contacts" },
-  { label: "Broadcasts", icon: Radio, href: "/broadcasts" },
-  { label: "AI Center", icon: Bot, href: "/ai-center" },
-  { label: "Flows", icon: Workflow, href: "/flows" },
-  { label: "Webchat Demo", icon: MessageCircle, href: "/webchat-demo" },
-  { label: "Settings", icon: Settings, href: "/settings/channels", match: "/settings" }
+  { label: "แชท", icon: Inbox, href: "/" },
+  { label: "วิเคราะห์", icon: BarChart3, href: "/analytics" },
+  { label: "ผู้ติดต่อ", icon: ContactRound, href: "/contacts" },
+  { label: "บรอดแคสต์", icon: Radio, href: "/broadcasts" },
+  { label: "เอไอ", icon: Bot, href: "/ai-center" },
+  { label: "บอท/โฟลว์", icon: Workflow, href: "/flows" },
+  { label: "ทดสอบแชท", icon: MessageCircle, href: "/webchat-demo" },
+  { label: "ตั้งค่า", icon: Settings, href: "/settings/channels", match: "/settings" }
 ];
 
 const collapseStorageKey = "ao.sideNav.collapsed";
@@ -44,7 +46,15 @@ function isActive(pathname: string, item: NavItem): boolean {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
-export default function SideNav() {
+export default function SideNav({
+  role,
+  user,
+  onLogout
+}: {
+  role: AuthRole;
+  user: AuthUser;
+  onLogout: () => void;
+}) {
   const pathname = usePathname() ?? "/";
   const [collapsed, setCollapsed] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -73,11 +83,12 @@ export default function SideNav() {
   }
 
   const expanded = hydrated && !collapsed;
+  const visibleItems = navItems.filter((item) => isPathAllowedForRole(role, item.match ?? item.href));
 
   return (
     <aside
       className={expanded ? "sideNav sideNavExpanded" : "sideNav"}
-      aria-label="Main menu"
+      aria-label="เมนูหลัก"
     >
       <div className="sideNavHeader">
         <div className="brandMark">AO</div>
@@ -86,16 +97,16 @@ export default function SideNav() {
           type="button"
           className="sideNavToggle"
           onClick={toggle}
-          aria-label={expanded ? "Collapse menu" : "Expand menu"}
+          aria-label={expanded ? "ยุบเมนู" : "ขยายเมนู"}
           aria-pressed={expanded}
-          title={expanded ? "Collapse menu" : "Expand menu"}
+          title={expanded ? "ยุบเมนู" : "ขยายเมนู"}
         >
           {expanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
       </div>
 
       <nav className="sideNavItems">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const active = isActive(pathname, item);
           return (
             <Link
@@ -112,6 +123,25 @@ export default function SideNav() {
           );
         })}
       </nav>
+
+      <div className="sideNavFooter">
+        {expanded && (
+          <div className="sideNavUser">
+            <strong>{user.displayName}</strong>
+            <span>{AUTH_ROLE_META[role].label}</span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="sideNavLogout"
+          onClick={onLogout}
+          aria-label="ออกจากระบบ"
+          title="ออกจากระบบ"
+        >
+          <LogOut size={18} />
+          {expanded && <span>ออกจากระบบ</span>}
+        </button>
+      </div>
     </aside>
   );
 }
