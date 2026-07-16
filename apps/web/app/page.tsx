@@ -7,6 +7,8 @@ import {
   Bot,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clipboard,
   Clock3,
   Copy,
@@ -264,6 +266,40 @@ export default function InboxDashboard() {
   const [lastFlowResult, setLastFlowResult] = useState<FlowTestRunResult | FlowRunTestResult | null>(null);
   const [agentFilter, setAgentFilter] = useState("all");
   const [composer, setComposer] = useState("");
+  const [roomsCollapsed, setRoomsCollapsed] = useState(false);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [customerCollapsed, setCustomerCollapsed] = useState(false);
+  const [panelsHydrated, setPanelsHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const narrow = window.matchMedia("(max-width: 1280px)").matches;
+    const readCollapsed = (key: string, fallback: boolean) => {
+      const stored = window.localStorage.getItem(key);
+      return stored === null ? fallback : stored === "true";
+    };
+    setRoomsCollapsed(readCollapsed("ao.inbox.rooms.collapsed", narrow));
+    setQueueCollapsed(readCollapsed("ao.inbox.queue.collapsed", false));
+    setCustomerCollapsed(readCollapsed("ao.inbox.customer.collapsed", narrow));
+    setPanelsHydrated(true);
+  }, []);
+
+  const makePanelToggle = (key: string, setter: (updater: (prev: boolean) => boolean) => void) => () => {
+    setter((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(key, String(next));
+      } catch {
+        // ignore persistence errors (e.g. storage disabled)
+      }
+      return next;
+    });
+  };
+
+  const toggleRoomsCollapsed = makePanelToggle("ao.inbox.rooms.collapsed", setRoomsCollapsed);
+  const toggleQueueCollapsed = makePanelToggle("ao.inbox.queue.collapsed", setQueueCollapsed);
+  const toggleCustomerCollapsed = makePanelToggle("ao.inbox.customer.collapsed", setCustomerCollapsed);
+
   const [aiActionStatus, setAiActionStatus] = useState("AI actions ready");
   const [cannedSearch, setCannedSearch] = useState("");
   const [cannedCategory, setCannedCategory] = useState("all");
@@ -1741,17 +1777,47 @@ export default function InboxDashboard() {
     setAiActionStatus(selectedContact.optOutBroadcast ? "Broadcast mock opt-out removed" : "Broadcast mock opt-out enabled");
   }
 
+  const shellClassName = [
+    "appShell",
+    panelsHydrated && roomsCollapsed ? "roomsCollapsed" : "",
+    panelsHydrated && queueCollapsed ? "queueCollapsed" : "",
+    panelsHydrated && customerCollapsed ? "customerCollapsed" : ""
+  ].filter(Boolean).join(" ");
+
   return (
-    <main className="appShell">
-      <aside className="roomsSidebar" aria-label="Platform Rooms sidebar">
+    <main className={shellClassName}>
+      <aside className={roomsCollapsed ? "roomsSidebar collapsed" : "roomsSidebar"} aria-label="Platform Rooms sidebar">
+        {roomsCollapsed && (
+          <button
+            type="button"
+            className="panelRailToggle"
+            onClick={toggleRoomsCollapsed}
+            aria-label="Expand Platform Rooms"
+            title="Expand Platform Rooms"
+          >
+            <ChevronRight size={16} />
+            <span className="panelRailLabel">Rooms</span>
+          </button>
+        )}
         <header className="sectionHeader">
           <div>
             <p className="eyebrow">Inbox Rooms</p>
             <h1>Platform Rooms</h1>
           </div>
-          <button className="iconButton" aria-label="Refresh mock rooms">
-            <RotateCcw size={16} />
-          </button>
+          <div className="panelHeaderActions">
+            <button className="iconButton" aria-label="Refresh mock rooms">
+              <RotateCcw size={16} />
+            </button>
+            <button
+              type="button"
+              className="iconButton panelCollapseToggle"
+              onClick={toggleRoomsCollapsed}
+              aria-label="Collapse Platform Rooms"
+              title="Collapse Platform Rooms"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </div>
         </header>
 
         <label className="searchBox">
@@ -1781,13 +1847,36 @@ export default function InboxDashboard() {
         </div>
       </aside>
 
-      <section className="queuePanel" aria-label="Conversation Queue">
+      <section className={queueCollapsed ? "queuePanel collapsed" : "queuePanel"} aria-label="Conversation Queue">
+        {queueCollapsed && (
+          <button
+            type="button"
+            className="panelRailToggle"
+            onClick={toggleQueueCollapsed}
+            aria-label="Expand Conversation Queue"
+            title="Expand Conversation Queue"
+          >
+            <ChevronRight size={16} />
+            <span className="panelRailLabel">Queue</span>
+          </button>
+        )}
         <header className="queueHeader">
           <div>
             <p className="eyebrow">Conversation Queue</p>
             <h2>{selectedRoom.platformLabel} / {selectedRoom.accountName}</h2>
           </div>
-          <span className="roomBadge">{visibleConversations.length}</span>
+          <div className="panelHeaderActions">
+            <span className="roomBadge">{visibleConversations.length}</span>
+            <button
+              type="button"
+              className="iconButton panelCollapseToggle"
+              onClick={toggleQueueCollapsed}
+              aria-label="Collapse Conversation Queue"
+              title="Collapse Conversation Queue"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </div>
         </header>
 
         {apiMode && (
@@ -2017,8 +2106,32 @@ export default function InboxDashboard() {
         </footer>
       </section>
 
-      <aside className="customerPanel" aria-label="Customer and AI Panel">
-        <CustomerPanel
+      <aside className={customerCollapsed ? "customerPanel collapsed" : "customerPanel"} aria-label="Customer and AI Panel">
+        {customerCollapsed ? (
+          <button
+            type="button"
+            className="panelRailToggle"
+            onClick={toggleCustomerCollapsed}
+            aria-label="Expand Customer panel"
+            title="Expand Customer panel"
+          >
+            <ChevronLeft size={16} />
+            <span className="panelRailLabel">Customer</span>
+          </button>
+        ) : (
+          <>
+            <div className="panelHeaderActions customerCollapseRow">
+              <button
+                type="button"
+                className="iconButton panelCollapseToggle"
+                onClick={toggleCustomerCollapsed}
+                aria-label="Collapse Customer panel"
+                title="Collapse Customer panel"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <CustomerPanel
           conversation={selectedConversation}
           contact={selectedContact}
           relatedConversations={
@@ -2104,7 +2217,9 @@ export default function InboxDashboard() {
           onUnlinkIdentity={unlinkFirstIdentity}
           onSetPrimaryIdentity={setFirstIdentityPrimary}
           onToggleBroadcastOptOut={toggleSelectedBroadcastOptOut}
-        />
+            />
+          </>
+        )}
       </aside>
     </main>
   );
