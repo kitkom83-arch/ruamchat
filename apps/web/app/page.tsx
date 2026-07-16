@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Clipboard,
   Clock3,
-  ContactRound,
   Copy,
   Edit3,
   ExternalLink,
@@ -29,8 +28,7 @@ import {
   UserPlus,
   UserRoundCheck,
   Wifi,
-  Workflow,
-  type LucideIcon
+  Workflow
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -206,15 +204,6 @@ import {
 const tabOptions: Array<{ id: InboxTab; label: string }> = [
   { id: "human", label: "Human" },
   { id: "bot", label: "Bot" }
-];
-
-const navItems: Array<{ label: string; icon: LucideIcon; href: string; active?: boolean }> = [
-  { label: "Inbox", icon: Inbox, href: "/", active: true },
-  { label: "Analytics", icon: BarChart3, href: "/analytics" },
-  { label: "Contacts", icon: ContactRound, href: "/contacts" },
-  { label: "Broadcasts", icon: Radio, href: "/broadcasts" },
-  { label: "AI Center", icon: Bot, href: "/ai-center" },
-  { label: "Flows", icon: Workflow, href: "/flows" }
 ];
 
 const aiStatusClass: Record<AiStatus, string> = {
@@ -1754,18 +1743,6 @@ export default function InboxDashboard() {
 
   return (
     <main className="appShell">
-      <aside className="mainMenu" aria-label="Main menu">
-        <div className="brandMark">AO</div>
-        <span className="menuLabel">Main menu</span>
-        <nav className="navStack">
-          {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={item.active ? "navIcon active" : "navIcon"} aria-label={item.label} title={item.label}>
-              <item.icon size={19} />
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
       <aside className="roomsSidebar" aria-label="Platform Rooms sidebar">
         <header className="sectionHeader">
           <div>

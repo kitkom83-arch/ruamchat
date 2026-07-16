@@ -1,11 +1,8 @@
 "use client";
 
 import {
-  BarChart3,
-  Bot,
   CalendarClock,
   ClipboardCheck,
-  ContactRound,
   Copy,
   Download,
   Eye,
@@ -16,8 +13,7 @@ import {
   Radio,
   Search,
   Send,
-  ShieldAlert,
-  Workflow
+  ShieldAlert
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -82,16 +78,6 @@ import { getStoredContacts, mockContacts, subscribeContacts } from "../crm-data"
 import { isApiMode } from "../data-mode";
 import { platformRooms } from "../inbox-data";
 import type { Contact } from "@ai-omni/shared";
-import type { LucideIcon } from "lucide-react";
-
-const navItems: Array<{ label: string; icon: LucideIcon; href: string; active?: boolean }> = [
-  { label: "Inbox", icon: Inbox, href: "/" },
-  { label: "Analytics", icon: BarChart3, href: "/analytics" },
-  { label: "Contacts", icon: ContactRound, href: "/contacts" },
-  { label: "Broadcasts", icon: Radio, href: "/broadcasts", active: true },
-  { label: "AI Center", icon: Bot, href: "/ai-center" },
-  { label: "Flows", icon: Workflow, href: "/flows" }
-];
 
 const ruleFields: BroadcastSegmentRule["field"][] = ["platform", "roomId", "tag", "leadStatus", "ownerAgent", "lastSeenDays", "hasOpenTask", "priority", "slaStatus", "aiStatus", "status"];
 const operators: BroadcastSegmentRule["operator"][] = ["equals", "not_equals", "contains", "not_contains", "in", "not_in", "greater_than", "less_than", "exists", "not_exists"];
@@ -246,18 +232,6 @@ function MockBroadcastsPage() {
 
   return (
     <main className="broadcastShell">
-      <aside className="mainMenu" aria-label="Main menu">
-        <div className="brandMark">AO</div>
-        <span className="menuLabel">Main menu</span>
-        <nav className="navStack">
-          {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={item.active ? "navIcon active" : "navIcon"} aria-label={item.label} title={item.label}>
-              <item.icon size={19} />
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
       <section className="broadcastPage">
         <header className="broadcastHeader">
           <div>
@@ -890,18 +864,6 @@ function ApiBroadcastsPage() {
 
   return (
     <main className="broadcastShell">
-      <aside className="mainMenu" aria-label="Main menu">
-        <div className="brandMark">AO</div>
-        <span className="menuLabel">Main menu</span>
-        <nav className="navStack">
-          {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={item.active ? "navIcon active" : "navIcon"} aria-label={item.label} title={item.label}>
-              <item.icon size={19} />
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
       <section className="broadcastPage">
         <header className="broadcastHeader">
           <div>

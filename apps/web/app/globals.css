@@ -17,16 +17,170 @@
 
 .flowsShell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 72px 1fr;
   background: var(--bg);
 }
 
 .broadcastShell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 72px 1fr;
   background: var(--bg);
+}
+
+/* Persistent application shell + side navigation (shared across all pages) */
+.appLayout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.appMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.sideNav {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 72px;
+  padding: 14px 10px;
+  background: var(--nav);
+  color: #f8fafc;
+  z-index: 20;
+  transition: width 0.16s ease;
+}
+
+.sideNavExpanded {
+  width: 224px;
+  align-items: stretch;
+  padding: 14px 12px;
+}
+
+.sideNavHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.sideNavExpanded .sideNavHeader {
+  justify-content: flex-start;
+}
+
+.sideNavBrandText {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sideNavToggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.sideNavToggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.sideNavItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.sideNavItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: #cbd5e1;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sideNav:not(.sideNavExpanded) .sideNavItem {
+  justify-content: center;
+  padding: 0;
+}
+
+.sideNavItemIcon {
+  flex: 0 0 auto;
+}
+
+.sideNavItemLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sideNavItem:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.sideNavItem.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+@media (max-width: 760px) {
+  .appLayout {
+    flex-direction: column;
+  }
+
+  .sideNav,
+  .sideNavExpanded {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    overflow-x: auto;
+  }
+
+  .sideNavHeader {
+    min-height: 0;
+  }
+
+  .sideNavItems {
+    flex-direction: row;
+    margin-top: 0;
+  }
+
+  .sideNavBrandText,
+  .sideNavItemLabel {
+    display: none;
+  }
+
+  .sideNav .sideNavItem {
+    justify-content: center;
+    width: 40px;
+    padding: 0;
+  }
+
+  .appMain {
+    min-height: 0;
+  }
 }
 
 .broadcastPage {
@@ -630,9 +784,9 @@ p {
 
 .appShell {
   display: grid;
-  grid-template-columns: 66px 256px 368px minmax(430px, 1fr) 336px;
+  grid-template-columns: 256px 368px minmax(430px, 1fr) 336px;
   height: 100vh;
-  min-width: 1240px;
+  min-width: 1174px;
   overflow: hidden;
 }
 
@@ -1671,7 +1825,7 @@ dd {
 
 @media (max-width: 1100px) {
   .appShell {
-    grid-template-columns: 58px minmax(260px, 34vw) minmax(0, 1fr);
+    grid-template-columns: minmax(260px, 34vw) minmax(0, 1fr);
     grid-template-rows: auto auto;
     min-width: 0;
     height: auto;
@@ -1679,29 +1833,25 @@ dd {
     overflow: auto;
   }
 
-  .mainMenu {
-    grid-row: 1 / span 2;
-  }
-
   .roomsSidebar {
-    grid-column: 2;
+    grid-column: 1;
     grid-row: 1 / span 2;
   }
 
   .queuePanel {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     min-height: 420px;
   }
 
   .chatPanel {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 2;
     min-height: 620px;
   }
 
   .customerPanel {
-    grid-column: 2 / span 2;
+    grid-column: 1 / span 2;
     border-top: 1px solid var(--line);
   }
 }

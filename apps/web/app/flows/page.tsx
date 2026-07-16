@@ -2,8 +2,6 @@
 
 import {
   Archive,
-  BarChart3,
-  Bot,
   CheckCircle2,
   Copy,
   Edit3,
@@ -11,7 +9,6 @@ import {
   Pause,
   Play,
   Plus,
-  Radio,
   RefreshCw,
   RotateCcw,
   Save,
@@ -54,15 +51,6 @@ import { dataMode, isApiMode } from "../data-mode";
 import { createDefaultAdminStore } from "../admin-data";
 import { findContactForConversation, mockContacts } from "../crm-data";
 import { mockConversations, platformRooms } from "../inbox-data";
-import type { LucideIcon } from "lucide-react";
-
-const navItems: Array<{ label: string; icon: LucideIcon; href: string; active?: boolean }> = [
-  { label: "Inbox", icon: Inbox, href: "/" },
-  { label: "Analytics", icon: BarChart3, href: "/analytics" },
-  { label: "Broadcasts", icon: Radio, href: "/broadcasts" },
-  { label: "AI Center", icon: Bot, href: "/ai-center" },
-  { label: "Flows", icon: Workflow, href: "/flows", active: true }
-];
 
 const triggerTypes: FlowTriggerType[] = ["keyword", "first_message", "tag_added", "ai_intent", "status_changed", "manual_test"];
 
@@ -166,18 +154,6 @@ function MockFlowsPage() {
 
   return (
     <main className="flowsShell">
-      <aside className="mainMenu" aria-label="Main menu">
-        <div className="brandMark">AO</div>
-        <span className="menuLabel">Main menu</span>
-        <nav className="navStack">
-          {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={item.active ? "navIcon active" : "navIcon"} aria-label={item.label} title={item.label}>
-              <item.icon size={19} />
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
       <section className="flowsPage">
         <header className="flowsHeader">
           <div>
@@ -555,18 +531,6 @@ function ApiFlowsPage() {
 
   return (
     <main className="flowsShell">
-      <aside className="mainMenu" aria-label="Main menu">
-        <div className="brandMark">AO</div>
-        <span className="menuLabel">Main menu</span>
-        <nav className="navStack">
-          {navItems.map((item) => (
-            <Link key={item.label} href={item.href} className={item.active ? "navIcon active" : "navIcon"} aria-label={item.label} title={item.label}>
-              <item.icon size={19} />
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
       <section className="flowsPage">
         <header className="flowsHeader">
           <div>
