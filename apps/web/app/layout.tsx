@@ -3,8 +3,12 @@ import "./globals.css";
 import AppShell from "./components/AppShell";
 
 export const metadata: Metadata = {
-  title: "AI Omnichannel Chat Rooms",
-  description: "Separated platform rooms with AI-assisted support workflows."
+  title: "YINDEE — แชทออมนิแชนเนล",
+  description: "Separated platform rooms with AI-assisted support workflows.",
+  icons: {
+    icon: "/yindee-logo.png",
+    apple: "/yindee-logo.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

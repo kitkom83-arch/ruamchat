@@ -75,9 +75,10 @@
 
 .sideNavBrandText {
   flex: 1;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #b91c1c;
 }
 
 .sideNavToggle {
@@ -877,16 +878,13 @@ p {
 }
 
 .brandMark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  background: var(--teal);
-  color: white;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #b91c1c;
+  flex-shrink: 0;
 }
 
 .menuLabel {
