@@ -29,7 +29,9 @@ import {
 } from "lucide-react";
 import type { ComponentType, CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Flow, FlowEdge, FlowNode, FlowNodeType } from "@ai-omni/shared";
+import { RICH_MESSAGE_CONFIG_KEY, parseRichMessageConfig, summariseRichMessage } from "@ai-omni/shared";
+import type { Flow, FlowEdge, FlowNode, FlowNodeType, Platform } from "@ai-omni/shared";
+import { RichMessageEditor } from "./RichMessageEditor";
 
 const NODE_WIDTH = 196;
 const NODE_HEIGHT = 74;
@@ -250,7 +252,16 @@ export default function FlowCanvas({ flow, saving = false, onSave, onSaveAndClos
 
   function updateNodeConfig(nodeId: string, key: string, value: unknown) {
     commit({
-      nodes: present.nodes.map((node) => node.id === nodeId ? { ...node, config: { ...node.config, [key]: value } } : node),
+      nodes: present.nodes.map((node) => {
+        if (node.id !== nodeId) return node;
+        const nextConfig = { ...node.config };
+        if (value === undefined) {
+          delete nextConfig[key];
+        } else {
+          nextConfig[key] = value;
+        }
+        return { ...node, config: nextConfig };
+      }),
       edges: present.edges
     });
   }
@@ -445,6 +456,7 @@ export default function FlowCanvas({ flow, saving = false, onSave, onSaveAndClos
           {selectedNode ? (
             <FlowNodeConfig
               node={selectedNode}
+              platformScope={flow.platformScope}
               onLabelChange={(label) => updateNode(selectedNode.id, { label: label || metaFor(selectedNode.type).label })}
               onConfigChange={(key, value) => updateNodeConfig(selectedNode.id, key, value)}
               onDelete={() => deleteNode(selectedNode.id)}
@@ -494,21 +506,28 @@ export default function FlowCanvas({ flow, saving = false, onSave, onSaveAndClos
 }
 
 function summariseConfig(node: FlowNode): string {
-  const entries = Object.entries(node.config ?? {});
-  if (entries.length === 0) return "No settings";
-  return entries.map(([key, value]) => `${key}: ${String(value)}`).join(" · ");
+  const rich = parseRichMessageConfig(node.config);
+  const entries = Object.entries(node.config ?? {}).filter(([key]) => key !== RICH_MESSAGE_CONFIG_KEY);
+  const parts = entries.map(([key, value]) => `${key}: ${String(value)}`);
+  if (rich) parts.push(summariseRichMessage(rich));
+  if (parts.length === 0) return "No settings";
+  return parts.join(" · ");
 }
 
 interface FlowNodeConfigProps {
   node: FlowNode;
+  platformScope?: Platform[];
   onLabelChange: (label: string) => void;
   onConfigChange: (key: string, value: unknown) => void;
   onDelete: () => void;
 }
 
-function FlowNodeConfig({ node, onLabelChange, onConfigChange, onDelete }: FlowNodeConfigProps) {
+const RICH_MESSAGE_NODE_TYPES: ReadonlySet<FlowNodeType> = new Set(["send_message", "ai_reply"]);
+
+function FlowNodeConfig({ node, platformScope, onLabelChange, onConfigChange, onDelete }: FlowNodeConfigProps) {
   const meta = metaFor(node.type);
   const Icon = meta.icon;
+  const richMessage = parseRichMessageConfig(node.config);
   return (
     <div className="flowConfigInner">
       <div className="flowConfigHead" style={{ "--node-accent": meta.accent } as CSSProperties}>
@@ -525,6 +544,14 @@ function FlowNodeConfig({ node, onLabelChange, onConfigChange, onDelete }: FlowN
       </label>
 
       {renderConfigFields(node, onConfigChange)}
+
+      {RICH_MESSAGE_NODE_TYPES.has(node.type) && (
+        <RichMessageEditor
+          value={richMessage}
+          platformScope={platformScope}
+          onChange={(value) => onConfigChange(RICH_MESSAGE_CONFIG_KEY, value ?? undefined)}
+        />
+      )}
 
       <button type="button" className="flowConfigDelete" onClick={onDelete}><Trash2 size={14} /> Delete block</button>
     </div>

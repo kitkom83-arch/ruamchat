@@ -4192,6 +4192,262 @@ dd {
   color: var(--muted);
 }
 
+.flowRich {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+  margin-top: 4px;
+}
+
+.flowRichHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.flowRichHint {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.flowRichRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.flowRichAdd,
+.flowRichRemove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.flowRichRemove {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.flowRichAdd:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.flowRichList {
+  display: grid;
+  gap: 6px;
+}
+
+.flowRichListHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.flowRichItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: white;
+}
+
+.flowRichItemBody {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.flowRichItemDel {
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.flowRichItemDel:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.flowRichCheck {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.flowRichChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.flowRichChipEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 4px 2px 8px;
+  background: white;
+}
+
+.flowRichChipEdit input {
+  border: none;
+  outline: none;
+  font-size: 12px;
+  width: 80px;
+}
+
+.flowRichChipEdit button {
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.flowRichPreview {
+  display: grid;
+  gap: 6px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.flowRichPreviewTag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.flowRichPreviewBody {
+  display: grid;
+  gap: 6px;
+}
+
+.flowRichBubble {
+  background: #e2e8f0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--ink);
+  max-width: 90%;
+}
+
+.flowRichChipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.flowRichChip {
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.flowRichCarousel {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.flowRichCard {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: white;
+  min-width: 150px;
+  max-width: 200px;
+  display: grid;
+  gap: 4px;
+  padding-bottom: 6px;
+}
+
+.flowRichCardImg {
+  height: 68px;
+  background: linear-gradient(135deg, #cbd5e1, #e2e8f0);
+}
+
+.flowRichCardTitle {
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.flowRichCardText {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 8px;
+}
+
+.flowRichCardBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px 0;
+}
+
+.flowRichBtn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #f8fafc;
+}
+
+.flowRichCommands {
+  display: grid;
+  gap: 3px;
+}
+
+.flowRichCommand {
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.flowRichCommand code {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .flowDialogBackdrop {
   position: fixed;
   inset: 0;

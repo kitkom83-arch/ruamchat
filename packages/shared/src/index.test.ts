@@ -4801,3 +4801,119 @@ describe("shared contracts", () => {
     expect(event.status).toBe("sent_mock");
   });
 });
+
+import {
+  richMessageSchema,
+  richButtonSchema,
+  parseRichMessageConfig,
+  summariseRichMessage,
+  richMessageKindPlatform,
+  RICH_MESSAGE_KINDS_BY_PLATFORM,
+  RICH_MESSAGE_KIND_META,
+  RICH_MESSAGE_CONFIG_KEY
+} from "./index.js";
+
+describe("rich message features (STEP 3B)", () => {
+  it("parses a LINE quick reply payload with defaults on buttons", () => {
+    const parsed = richMessageSchema.parse({
+      kind: "line_quick_reply",
+      text: "How can we help?",
+      items: [{ label: "Pricing" }, { label: "Talk to agent", data: "handoff" }]
+    });
+    expect(parsed.kind).toBe("line_quick_reply");
+    if (parsed.kind === "line_quick_reply") {
+      expect(parsed.items).toHaveLength(2);
+    }
+  });
+
+  it("applies the postback default for rich buttons", () => {
+    const button = richButtonSchema.parse({ label: "Buy now", data: "buy" });
+    expect(button.type).toBe("postback");
+  });
+
+  it("enforces the LINE flex carousel 12-bubble limit", () => {
+    const bubbles = Array.from({ length: 13 }, (_, i) => ({ title: `Card ${i}` }));
+    const result = richMessageSchema.safeParse({ kind: "line_flex", altText: "cards", bubbles });
+    expect(result.success).toBe(false);
+  });
+
+  it("defaults the LINE flex layout to bubble", () => {
+    const parsed = richMessageSchema.parse({ kind: "line_flex", altText: "cards", bubbles: [{ title: "Hi" }] });
+    if (parsed.kind === "line_flex") {
+      expect(parsed.layout).toBe("bubble");
+    }
+  });
+
+  it("enforces the LINE buttons template 4-action limit", () => {
+    const actions = Array.from({ length: 5 }, (_, i) => ({ label: `A${i}` }));
+    const result = richMessageSchema.safeParse({ kind: "line_buttons", altText: "menu", text: "Pick one", actions });
+    expect(result.success).toBe(false);
+  });
+
+  it("enforces the Messenger generic template 10-card and 3-button limits", () => {
+    const tooManyCards = Array.from({ length: 11 }, (_, i) => ({ title: `Card ${i}` }));
+    expect(richMessageSchema.safeParse({ kind: "messenger_generic", elements: tooManyCards }).success).toBe(false);
+
+    const tooManyButtons = {
+      kind: "messenger_generic",
+      elements: [{ title: "Card", buttons: Array.from({ length: 4 }, (_, i) => ({ label: `B${i}` })) }]
+    };
+    expect(richMessageSchema.safeParse(tooManyButtons).success).toBe(false);
+  });
+
+  it("enforces the Instagram ice breaker 4-item limit and 80-char question", () => {
+    const tooMany = Array.from({ length: 5 }, (_, i) => ({ question: `Q${i}`, payload: `q${i}` }));
+    expect(richMessageSchema.safeParse({ kind: "instagram_ice_breakers", iceBreakers: tooMany }).success).toBe(false);
+
+    const longQuestion = { kind: "instagram_ice_breakers", iceBreakers: [{ question: "x".repeat(81), payload: "p" }] };
+    expect(richMessageSchema.safeParse(longQuestion).success).toBe(false);
+  });
+
+  it("enforces the 13-item quick reply limit across platforms", () => {
+    const items = Array.from({ length: 14 }, (_, i) => ({ label: `Q${i}` }));
+    for (const kind of ["messenger_quick_replies", "instagram_quick_replies", "webchat_quick_replies"] as const) {
+      expect(richMessageSchema.safeParse({ kind, text: "hi", items }).success).toBe(false);
+    }
+  });
+
+  it("validates Telegram command format and defaults reply keyboard flags", () => {
+    expect(richMessageSchema.safeParse({ kind: "telegram_commands", commands: [{ command: "Start!", description: "bad" }] }).success).toBe(false);
+    const parsed = richMessageSchema.parse({ kind: "telegram_reply_keyboard", text: "menu", rows: [["Yes", "No"]] });
+    if (parsed.kind === "telegram_reply_keyboard") {
+      expect(parsed.resizeKeyboard).toBe(true);
+      expect(parsed.oneTimeKeyboard).toBe(false);
+    }
+  });
+
+  it("round-trips through a send_message node config (backward-compatible)", () => {
+    const message = richMessageSchema.parse({ kind: "webchat_quick_replies", text: "Pick", items: [{ label: "A" }] });
+    const node = flowNodeSchema.parse({
+      id: "node-1",
+      type: "send_message",
+      label: "Send chips",
+      config: { message: "Pick", [RICH_MESSAGE_CONFIG_KEY]: message },
+      position: { x: 0, y: 0 }
+    });
+    const recovered = parseRichMessageConfig(node.config);
+    expect(recovered?.kind).toBe("webchat_quick_replies");
+    expect(parseRichMessageConfig({})).toBeNull();
+    expect(parseRichMessageConfig({ [RICH_MESSAGE_CONFIG_KEY]: { kind: "nope" } })).toBeNull();
+  });
+
+  it("keeps the platform-to-kind map and metadata in sync", () => {
+    for (const [platform, kinds] of Object.entries(RICH_MESSAGE_KINDS_BY_PLATFORM)) {
+      for (const kind of kinds) {
+        expect(RICH_MESSAGE_KIND_META[kind].platform).toBe(platform);
+        expect(richMessageKindPlatform(kind)).toBe(platform);
+      }
+    }
+  });
+
+  it("summarises rich messages for node cards", () => {
+    const summary = summariseRichMessage(richMessageSchema.parse({
+      kind: "messenger_generic",
+      elements: [{ title: "A" }, { title: "B" }]
+    }));
+    expect(summary).toContain("2 card");
+  });
+});
