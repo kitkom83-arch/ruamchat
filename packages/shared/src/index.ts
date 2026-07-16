@@ -1723,7 +1723,8 @@ export const aiDecisionJsonSchema = {
     "reply",
     "summary",
     "tags",
-    "reason"
+    "reason",
+    "matchedKnowledge"
   ],
   properties: {
     intent: { enum: ["pricing", "product_info", "order_status", "appointment", "complaint", "refund", "human_request", "unknown"] },
