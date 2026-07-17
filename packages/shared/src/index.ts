@@ -271,7 +271,9 @@ export type SettingsChannelAccount = z.infer<typeof settingsChannelAccountSchema
 
 export const updateSettingsChannelAccountRequestSchema = z.object({
   accountName: z.string().min(1).optional(),
-  status: z.string().min(1).optional()
+  status: z.string().min(1).optional(),
+  accessToken: z.string().min(1).optional(),
+  webhookSecret: z.string().min(1).optional()
 }).strict();
 export type UpdateSettingsChannelAccountRequest = z.infer<typeof updateSettingsChannelAccountRequestSchema>;
 

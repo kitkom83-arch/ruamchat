@@ -4,6 +4,7 @@ import { Check, Copy, MessageSquareText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import type { ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceipt } from "@ai-omni/shared";
+import type { UpdateSettingsChannelAccountRequest } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
@@ -83,6 +84,7 @@ import {
   loadSettingsProviderWebhookReviewClosureReportRedactionAuditData,
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
+  saveSettingsChannelCredentials,
   loadSettingsProviderWebhookOperatorNotesData,
   loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderWebhookDiagnosticsData,
@@ -114,6 +116,11 @@ const defaultUnmatchedFilters: ProviderWebhookUnmatchedInboundFilters = {
 export default function ChannelSettingsPage() {
   const [copied, setCopied] = useState("");
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
+  const [credentialTokenDrafts, setCredentialTokenDrafts] = useState<Record<string, string>>({});
+  const [credentialSecretDrafts, setCredentialSecretDrafts] = useState<Record<string, string>>({});
+  const [credentialSavingId, setCredentialSavingId] = useState<string | null>(null);
+  const [credentialSaveError, setCredentialSaveError] = useState<Record<string, string>>({});
+  const [credentialSaveOk, setCredentialSaveOk] = useState<Record<string, boolean>>({});
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
   const [unmatchedInboundItems, setUnmatchedInboundItems] = useState<ProviderWebhookUnmatchedInboundItem[]>([]);
@@ -576,6 +583,35 @@ export default function ChannelSettingsPage() {
       active = false;
     };
   }, []);
+
+  const saveChannelCredentials = useCallback(
+    async (channelAccountId: string) => {
+      const token = (credentialTokenDrafts[channelAccountId] ?? "").trim();
+      const secret = (credentialSecretDrafts[channelAccountId] ?? "").trim();
+      if (!token && !secret) return;
+      const payload: UpdateSettingsChannelAccountRequest = {};
+      if (token) payload.accessToken = token;
+      if (secret) payload.webhookSecret = secret;
+      setCredentialSavingId(channelAccountId);
+      setCredentialSaveError((prev) => ({ ...prev, [channelAccountId]: "" }));
+      setCredentialSaveOk((prev) => ({ ...prev, [channelAccountId]: false }));
+      try {
+        const updated = await saveSettingsChannelCredentials(dataMode, channelAccountId, payload);
+        setChannels((prev) => prev.map((item) => (item.id === channelAccountId ? updated : item)));
+        setCredentialTokenDrafts((prev) => ({ ...prev, [channelAccountId]: "" }));
+        setCredentialSecretDrafts((prev) => ({ ...prev, [channelAccountId]: "" }));
+        setCredentialSaveOk((prev) => ({ ...prev, [channelAccountId]: true }));
+      } catch (reason) {
+        setCredentialSaveError((prev) => ({
+          ...prev,
+          [channelAccountId]: reason instanceof Error ? reason.message : "บันทึกคีย์ไม่สำเร็จ"
+        }));
+      } finally {
+        setCredentialSavingId(null);
+      }
+    },
+    [credentialTokenDrafts, credentialSecretDrafts]
+  );
 
   useEffect(() => {
     let active = true;
@@ -3374,6 +3410,57 @@ export default function ChannelSettingsPage() {
                     <dd>{channel.secretConfigured ? channel.secretMasked ?? "configured" : "not configured"}</dd>
                   </div>
                 </dl>
+                <form
+                  className="channelCredentialForm"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveChannelCredentials(channel.id);
+                  }}
+                >
+                  <p className="channelCredentialTitle">ตั้งค่าคีย์เชื่อมต่อ</p>
+                  <label className="channelCredentialField">
+                    <span>{channelCredentialLabels(channel.platform).tokenLabel}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
+                      value={credentialTokenDrafts[channel.id] ?? ""}
+                      onChange={(event) =>
+                        setCredentialTokenDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="channelCredentialField">
+                    <span>{channelCredentialLabels(channel.platform).secretLabel}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
+                      value={credentialSecretDrafts[channel.id] ?? ""}
+                      onChange={(event) =>
+                        setCredentialSecretDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="channelCredentialSave"
+                    disabled={
+                      credentialSavingId === channel.id ||
+                      (!(credentialTokenDrafts[channel.id] ?? "").trim() &&
+                        !(credentialSecretDrafts[channel.id] ?? "").trim())
+                    }
+                  >
+                    {credentialSavingId === channel.id ? "กำลังบันทึก…" : "บันทึกคีย์"}
+                  </button>
+                  <p className="channelCredentialHint">โทเคนจะถูกเข้ารหัสก่อนจัดเก็บ ระบบไม่แสดงค่าดิบกลับมา</p>
+                  {credentialSaveOk[channel.id] ? (
+                    <p className="channelCredentialOk">บันทึกคีย์เรียบร้อย</p>
+                  ) : null}
+                  {credentialSaveError[channel.id] ? (
+                    <p className="channelCredentialError">{credentialSaveError[channel.id]}</p>
+                  ) : null}
+                </form>
                 {channel.webhookUrl ? (
                   <button className="copyWebhookButton" type="button" onClick={() => copyWebhook(channel.webhookUrl ?? "")}>
                     {copied === channel.webhookUrl ? <Check size={15} /> : <Copy size={15} />}
@@ -3409,6 +3496,23 @@ function platformLabel(platform: SettingsChannelAccount["platform"]) {
     instagram: "Instagram"
   };
   return labels[platform];
+}
+
+function channelCredentialLabels(platform: SettingsChannelAccount["platform"]): {
+  tokenLabel: string;
+  secretLabel: string;
+} {
+  switch (platform) {
+    case "line":
+      return { tokenLabel: "Channel access token", secretLabel: "Channel secret" };
+    case "telegram":
+      return { tokenLabel: "Bot token", secretLabel: "Webhook secret" };
+    case "facebook":
+    case "instagram":
+      return { tokenLabel: "Page access token", secretLabel: "App secret / Verify token" };
+    default:
+      return { tokenLabel: "Access token", secretLabel: "Webhook secret" };
+  }
 }
 
 function isOpenUnmatchedItem(item: ProviderWebhookUnmatchedInboundItem) {
