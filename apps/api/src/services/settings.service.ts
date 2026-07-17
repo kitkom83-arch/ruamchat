@@ -11,11 +11,15 @@ import type {
   UpdateSettingsTeamMemberRequest
 } from "@ai-omni/shared";
 import type { Platform } from "@prisma/client";
+import { CryptoService } from "./crypto.service.js";
 import { PrismaService } from "./prisma.service.js";
 
 @Injectable()
 export class SettingsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(CryptoService) private readonly crypto: CryptoService
+  ) {}
 
   async listChannels(tenantId: string) {
     const channels = await this.prisma.channelAccount.findMany({
@@ -37,12 +41,24 @@ export class SettingsService {
 
   async updateChannel(tenantId: string, channelAccountId: string, request: UpdateSettingsChannelAccountRequest) {
     await this.ensureChannel(tenantId, channelAccountId);
+    const data: {
+      displayName?: string;
+      status?: string;
+      accessTokenCiphertext?: string;
+      webhookSecret?: string;
+    } = {
+      displayName: request.accountName,
+      status: request.status
+    };
+    if (request.accessToken !== undefined) {
+      data.accessTokenCiphertext = this.crypto.encrypt(request.accessToken.trim());
+    }
+    if (request.webhookSecret !== undefined) {
+      data.webhookSecret = request.webhookSecret.trim();
+    }
     await this.prisma.channelAccount.update({
       where: { id: channelAccountId },
-      data: {
-        displayName: request.accountName,
-        status: request.status
-      }
+      data
     });
     return this.getChannel(tenantId, channelAccountId);
   }

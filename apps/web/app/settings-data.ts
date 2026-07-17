@@ -118,7 +118,8 @@ import type {
   SettingsCannedReply,
   SettingsChannelAccount,
   SettingsSlaPolicy,
-  SettingsTeamMember
+  SettingsTeamMember,
+  UpdateSettingsChannelAccountRequest
 } from "@ai-omni/shared";
 import {
   archiveProviderWebhookReviewSavedView,
@@ -219,7 +220,8 @@ import {
   getSettingsCannedReplies,
   getSettingsChannels,
   getSettingsSlaPolicies,
-  getSettingsTeam
+  getSettingsTeam,
+  updateSettingsChannel
 } from "./api-client";
 import { createDefaultAdminStore, mockCannedReplies, mockSlaPolicies } from "./admin-data";
 
@@ -645,6 +647,29 @@ export async function loadSettingsChannelsData(mode: DataMode): Promise<Settings
   return {
     mode,
     channels: mockSettingsChannels
+  };
+}
+
+export async function saveSettingsChannelCredentials(
+  mode: DataMode,
+  channelAccountId: string,
+  payload: UpdateSettingsChannelAccountRequest
+): Promise<SettingsChannelAccount> {
+  if (mode === "api") {
+    return updateSettingsChannel(channelAccountId, payload);
+  }
+  const existing = mockSettingsChannels.find((item) => item.id === channelAccountId);
+  if (!existing) {
+    throw new Error("ไม่พบช่องทางที่ต้องการบันทึก");
+  }
+  return {
+    ...existing,
+    accountName: payload.accountName ?? existing.accountName,
+    status: payload.status ?? existing.status,
+    hasAccessToken: payload.accessToken ? true : existing.hasAccessToken,
+    tokenMasked: payload.accessToken ? "configured:redacted" : existing.tokenMasked,
+    secretConfigured: payload.webhookSecret ? true : existing.secretConfigured,
+    secretMasked: payload.webhookSecret ? "configured:redacted" : existing.secretMasked
   };
 }
 

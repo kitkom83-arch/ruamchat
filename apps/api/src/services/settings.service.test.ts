@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsController } from "../controllers/settings.controller.js";
+import { CryptoService } from "./crypto.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { SettingsService } from "./settings.service.js";
 
@@ -45,6 +46,41 @@ describe("SettingsService tenant-scoped API surfaces", () => {
         where: { id: "channel-web" },
         data: { displayName: "Updated Website", status: "paused" }
       }));
+    });
+  });
+
+  it("encrypts access token and stores webhook secret without returning raw values", async () => {
+    await withSettingsRuntime(async ({ service, prisma, crypto }) => {
+      const updated = await service.updateChannel(tenantId, "channel-web", {
+        accessToken: "  raw-secret-token  ",
+        webhookSecret: "  hook-secret  "
+      });
+
+      expect(crypto.encrypt).toHaveBeenCalledWith("raw-secret-token");
+      expect(prisma.channelAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: "channel-web" },
+        data: {
+          displayName: undefined,
+          status: undefined,
+          accessTokenCiphertext: "enc(raw-secret-token)",
+          webhookSecret: "hook-secret"
+        }
+      }));
+      expect(updated).toMatchObject({ id: "channel-web", hasAccessToken: true, secretConfigured: true });
+      const serialized = JSON.stringify(updated);
+      expect(serialized).not.toContain("raw-secret-token");
+      expect(serialized).not.toContain("hook-secret");
+    });
+  });
+
+  it("does not touch token or secret fields when they are not supplied", async () => {
+    await withSettingsRuntime(async ({ service, prisma, crypto }) => {
+      await service.updateChannel(tenantId, "channel-web", { accountName: "Renamed" });
+
+      expect(crypto.encrypt).not.toHaveBeenCalled();
+      const call = prisma.channelAccount.update.mock.calls[0][0];
+      expect(call.data).not.toHaveProperty("accessTokenCiphertext");
+      expect(call.data).not.toHaveProperty("webhookSecret");
     });
   });
 
@@ -154,12 +190,14 @@ async function withSettingsRuntime<T>(
 
 async function buildSettingsRuntime() {
   const { prisma } = buildPrismaFake();
+  const crypto = { encrypt: vi.fn((value: string) => `enc(${value})`), decrypt: vi.fn((value: string) => value) };
 
   @Module({
     controllers: [SettingsController],
     providers: [
       SettingsService,
-      { provide: PrismaService, useValue: prisma }
+      { provide: PrismaService, useValue: prisma },
+      { provide: CryptoService, useValue: crypto }
     ]
   })
   class SettingsRuntimeTestModule {}
@@ -170,6 +208,7 @@ async function buildSettingsRuntime() {
     service: app.get(SettingsService),
     controller: app.get(SettingsController),
     prisma,
+    crypto,
     close: () => app.close()
   };
 }
@@ -214,6 +253,8 @@ function buildPrismaFake() {
         if (!item) throw new Error("missing channel");
         item.displayName = data.displayName ?? item.displayName;
         item.status = data.status ?? item.status;
+        if (data.accessTokenCiphertext !== undefined) item.accessTokenCiphertext = data.accessTokenCiphertext;
+        if (data.webhookSecret !== undefined) item.webhookSecret = data.webhookSecret;
         item.updatedAt = new Date("2026-05-21T05:00:00.000Z");
         return item;
       })
