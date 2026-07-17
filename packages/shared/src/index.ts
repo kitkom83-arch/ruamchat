@@ -8264,7 +8264,15 @@ export type CoreMessageDirection = z.infer<typeof coreMessageDirectionSchema>;
 export const coreMessageSenderTypeSchema = z.enum(["customer", "agent", "ai", "system"]);
 export type CoreMessageSenderType = z.infer<typeof coreMessageSenderTypeSchema>;
 
-export const coreDeliveryStatusSchema = z.enum(["received", "sent_mock", "queued_mock", "failed_mock"]);
+export const coreDeliveryStatusSchema = z.enum([
+  "received",
+  "sent_mock",
+  "queued_mock",
+  "failed_mock",
+  "queued",
+  "sent",
+  "failed"
+]);
 export type CoreDeliveryStatus = z.infer<typeof coreDeliveryStatusSchema>;
 
 export const coreMessageSchema = z.object({
