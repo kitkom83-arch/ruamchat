@@ -52,6 +52,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-aiomni}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aiomni}?schema=public
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      MEDIA_STORAGE: s3
+      MEDIA_PUBLIC_BASE_URL: ${APP_URL}/api/media
       PORT: 4000
     depends_on:
       postgres:
