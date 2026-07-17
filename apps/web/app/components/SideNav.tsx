@@ -80,8 +80,8 @@ export default function SideNav() {
       aria-label="Main menu"
     >
       <div className="sideNavHeader">
-        <div className="brandMark">AO</div>
-        {expanded && <span className="sideNavBrandText">AI Omni</span>}
+        <img className="brandMark" src="/yindee-logo.png" alt="YINDEE" />
+        {expanded && <span className="sideNavBrandText">YINDEE</span>}
         <button
           type="button"
           className="sideNavToggle"
