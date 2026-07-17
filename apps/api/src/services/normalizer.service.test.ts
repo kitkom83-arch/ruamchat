@@ -39,6 +39,53 @@ describe("NormalizerService", () => {
     expect(normalized?.senderType).toBe("customer");
   });
 
+  it("captures Telegram photo attachments with the largest file reference", () => {
+    const normalized = service.telegram(account, {
+      update_id: 1002,
+      message: {
+        message_id: 43,
+        date: 1710000001,
+        from: { id: 123, first_name: "Somchai" },
+        chat: { id: 123, type: "private" },
+        photo: [
+          { file_id: "small-id", file_size: 1024 },
+          { file_id: "large-id", file_size: 8192 }
+        ]
+      }
+    });
+
+    expect(normalized?.messageType).toBe("image");
+    expect(normalized?.attachments).toHaveLength(1);
+    expect(normalized?.attachments?.[0]).toMatchObject({
+      type: "image",
+      storageKey: "telegram:large-id",
+      externalRef: "large-id",
+      sizeBytes: 8192
+    });
+  });
+
+  it("captures Telegram document attachments with filename and mime", () => {
+    const normalized = service.telegram(account, {
+      update_id: 1003,
+      message: {
+        message_id: 44,
+        date: 1710000002,
+        from: { id: 123, first_name: "Somchai" },
+        chat: { id: 123, type: "private" },
+        document: { file_id: "doc-id", file_name: "quote.pdf", mime_type: "application/pdf", file_size: 2048 }
+      }
+    });
+
+    expect(normalized?.messageType).toBe("file");
+    expect(normalized?.attachments?.[0]).toMatchObject({
+      type: "file",
+      filename: "quote.pdf",
+      mimeType: "application/pdf",
+      storageKey: "telegram:doc-id",
+      externalRef: "doc-id"
+    });
+  });
+
   it("normalizes lightweight Telegram demo payloads without update_id", () => {
     const normalized = service.telegram(account, {
       message: {

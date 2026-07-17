@@ -1,6 +1,7 @@
 import type { AiSuggestedReply, ConversationFilter, ConversationPriority, ConversationStatus, CoreConversationCard, CoreMessage, CoreRoom, DataMode, KnowledgeCategory, KnowledgeItem, SlaStatus } from "@ai-omni/shared";
 import { createKnowledgeAwareMockAiDecision, sampleKnowledgeItems, type AIDecision } from "@ai-omni/shared";
 import { getStoredKnowledgeItems, knowledgeStorageKey } from "./ai-knowledge-store";
+import { getApiBaseUrl } from "./data-mode";
 
 export type InboxPlatform = "webchat" | "telegram" | "line" | "facebook" | "instagram";
 export type InboxTab = "human" | "bot";
@@ -24,11 +25,21 @@ export type LinkedIdentity = {
   displayName: string;
 };
 
+export type ChatAttachment = {
+  id: string;
+  type: "image" | "audio" | "file";
+  url?: string;
+  filename?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
 export type ChatMessage = {
   id: string;
   sender: MessageSender;
   body: string;
   time: string;
+  attachments?: ChatAttachment[];
 };
 
 export type ConversationCard = {
@@ -397,12 +408,18 @@ export function filterConversations(
   });
 }
 
-export function createChatMessage(sender: MessageSender, body: string, date = new Date()): ChatMessage {
+export function createChatMessage(
+  sender: MessageSender,
+  body: string,
+  date = new Date(),
+  attachments?: ChatAttachment[]
+): ChatMessage {
   return {
     id: `${sender}-${date.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
     sender,
     body,
-    time: formatMessageTime(date)
+    time: formatMessageTime(date),
+    ...(attachments && attachments.length > 0 ? { attachments } : {})
   };
 }
 
@@ -548,12 +565,30 @@ export function mapApiConversationToCard(conversation: CoreConversationCard, mes
 }
 
 export function mapApiMessageToChatMessage(message: CoreMessage): ChatMessage {
+  const attachments = (message.attachments ?? [])
+    .filter((attachment) => attachment.type === "image" || attachment.type === "audio" || attachment.type === "file")
+    .map((attachment) => ({
+      id: attachment.id,
+      type: attachment.type as ChatAttachment["type"],
+      url: resolveAttachmentUrl(attachment.url),
+      filename: attachment.filename ?? undefined,
+      mimeType: attachment.mimeType ?? undefined,
+      sizeBytes: attachment.sizeBytes ?? undefined
+    }));
   return {
     id: message.id,
     sender: message.senderType === "customer" ? "customer" : message.senderType,
-    body: message.text || "-",
-    time: formatMessageTime(new Date(message.createdAt))
+    body: message.text || (attachments.length > 0 ? "" : "-"),
+    time: formatMessageTime(new Date(message.createdAt)),
+    ...(attachments.length > 0 ? { attachments } : {})
   };
+}
+
+export function resolveAttachmentUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:") || url.startsWith("blob:")) return url;
+  const base = getApiBaseUrl().replace(/\/$/, "");
+  return url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
 }
 
 export function applyApiSentMessagesToConversation(
@@ -644,8 +679,15 @@ export function saveStoredDemoMessages(messages: ChatMessage[]) {
   window.dispatchEvent(new CustomEvent(webchatDemoStorageKey, { detail: store }));
 }
 
-export function appendStoredDemoMessage(sender: MessageSender, body: string, date = new Date()) {
-  const message = createChatMessage(sender, body, date);
+export function appendStoredDemoMessage(
+  sender: MessageSender,
+  body: string,
+  dateOrAttachments?: Date | ChatAttachment[],
+  maybeAttachments?: ChatAttachment[]
+) {
+  const date = dateOrAttachments instanceof Date ? dateOrAttachments : new Date();
+  const attachments = Array.isArray(dateOrAttachments) ? dateOrAttachments : maybeAttachments;
+  const message = createChatMessage(sender, body, date, attachments);
   saveStoredDemoMessages([...getStoredDemoMessages(), message]);
   return message;
 }
@@ -695,10 +737,21 @@ export function formatMessageTime(date: Date) {
 function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ChatMessage>;
+  const attachmentsOk =
+    candidate.attachments === undefined ||
+    (Array.isArray(candidate.attachments) &&
+      candidate.attachments.every(
+        (attachment) =>
+          attachment &&
+          typeof attachment === "object" &&
+          typeof (attachment as ChatAttachment).id === "string" &&
+          ["image", "audio", "file"].includes(String((attachment as ChatAttachment).type))
+      ));
   return (
     typeof candidate.id === "string" &&
     typeof candidate.body === "string" &&
     typeof candidate.time === "string" &&
+    attachmentsOk &&
     ["customer", "agent", "ai", "ai_draft", "automation", "system"].includes(String(candidate.sender))
   );
 }

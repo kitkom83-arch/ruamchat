@@ -1729,6 +1729,128 @@ h3 {
   padding: 0 16px;
 }
 
+.composerAttachButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.composerAttachButton:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.composerAttachButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composerAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.composerAttachmentChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface, #f7f9fc);
+  font-size: 12px;
+  max-width: 220px;
+}
+
+.composerAttachmentThumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.composerAttachmentName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composerAttachmentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.composerAttachmentRemove:hover {
+  color: #d64545;
+}
+
+.messageAttachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.messageImageLink {
+  display: inline-block;
+  max-width: 220px;
+}
+
+.messageImageLink img {
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 8px;
+  display: block;
+}
+
+.messageAudio {
+  width: 240px;
+  max-width: 100%;
+}
+
+.messageFileLink {
+  text-decoration: none;
+}
+
+.messageFileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+  max-width: 240px;
+}
+
+.messageFileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.messageFileSize {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .customerPanel {
   padding: 18px;
   overflow: auto;

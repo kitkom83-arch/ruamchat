@@ -803,7 +803,10 @@ export class ConversationService {
   async sendAgentMessage(tenantId: string, conversationId: string, actorUserId: string | undefined, request: SendMessageRequest | AgentMessageRequest) {
     const conversation = await this.ensureConversation(tenantId, conversationId);
     const text = request.text.trim();
-    if (!text) throw new BadRequestException("Message text is required");
+    const requestAttachments = ("attachments" in request ? request.attachments : undefined) ?? [];
+    if (!text && requestAttachments.length === 0) {
+      throw new BadRequestException("Message text or an attachment is required");
+    }
     const consentContext = await this.outboundConsent.getConversationContext({
       tenantId,
       conversationId,
@@ -838,10 +841,10 @@ export class ConversationService {
         platformMessageId: `internal-${crypto.randomUUID()}`,
         senderType: "agent",
         agentUserId: actorUserId,
-        messageType: "attachments" in request ? request.attachments[0]?.type ?? "text" : "text",
+        messageType: requestAttachments[0]?.type ?? "text",
         text,
         attachments: {
-          create: ("attachments" in request ? request.attachments : []).map((attachment) => ({
+          create: requestAttachments.map((attachment) => ({
             type: attachment.type,
             url: attachment.url,
             storageKey: attachment.storageKey,
@@ -850,7 +853,8 @@ export class ConversationService {
             sizeBytes: attachment.sizeBytes
           }))
         }
-      }
+      },
+      include: { attachments: true }
     });
 
     await this.prisma.conversation.update({
@@ -1456,6 +1460,16 @@ export class ConversationService {
     text: string | null;
     createdAt: Date;
     platformMessageId: string;
+    messageType?: PrismaMessageType | null;
+    attachments?: Array<{
+      id: string;
+      type: PrismaMessageType;
+      url: string | null;
+      storageKey: string | null;
+      filename: string | null;
+      mimeType: string | null;
+      sizeBytes: number | null;
+    }>;
   }) {
     const direction = message.senderType === "user" ? "inbound" : "outbound";
     return {
@@ -1466,7 +1480,17 @@ export class ConversationService {
       text: message.text ?? "",
       createdAt: message.createdAt.toISOString(),
       platformMessageId: message.platformMessageId,
-      deliveryStatus: direction === "outbound" ? "sent_mock" : "received"
+      deliveryStatus: direction === "outbound" ? "sent_mock" : "received",
+      messageType: message.messageType ?? "text",
+      attachments: (message.attachments ?? []).map((attachment) => ({
+        id: attachment.id,
+        type: attachment.type,
+        url: attachment.url,
+        storageKey: attachment.storageKey,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes
+      }))
     };
   }
 

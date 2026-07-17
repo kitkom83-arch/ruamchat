@@ -5,6 +5,7 @@ import {
   applyApiSentMessagesToConversation,
   applyLocalAgentMessageToConversation,
   createChatMessage,
+  mapApiMessageToChatMessage,
   filterConversations,
   getAiDraftText,
   getAiPanelMockActionStatus,
@@ -277,6 +278,38 @@ describe("Inbox Rooms mock filtering", () => {
     expect(conversation?.messages).toBe(beforeMessages);
   });
 
+  it("maps API message attachments into chat attachments", () => {
+    const chat = mapApiMessageToChatMessage({
+      id: "msg-img",
+      conversationId: "conv-1",
+      direction: "inbound",
+      senderType: "customer",
+      text: "",
+      createdAt: "2026-05-21T05:00:00.000Z",
+      platformMessageId: "tg-1",
+      deliveryStatus: "received",
+      messageType: "image",
+      attachments: [
+        {
+          id: "att-1",
+          type: "image",
+          url: "/media/tenant-1/abc-photo.png",
+          filename: "photo.png",
+          mimeType: "image/png",
+          sizeBytes: 2048
+        }
+      ]
+    });
+
+    expect(chat.attachments).toHaveLength(1);
+    expect(chat.attachments?.[0]).toMatchObject({
+      id: "att-1",
+      type: "image",
+      filename: "photo.png"
+    });
+    expect(chat.attachments?.[0]?.url).toContain("/media/tenant-1/abc-photo.png");
+  });
+
   it("maps API-mode manual send responses into the selected conversation", () => {
     const sentAt = new Date("2026-05-21T05:00:00.000Z");
     const conversations = [{ ...mockConversations[0]!, id: "conv-api", messages: [] }];
@@ -290,7 +323,9 @@ describe("Inbox Rooms mock filtering", () => {
         text: "รับเรื่องแล้วครับ",
         createdAt: sentAt.toISOString(),
         platformMessageId: "internal-safe",
-        deliveryStatus: "queued_mock"
+        deliveryStatus: "queued_mock",
+        messageType: "text",
+        attachments: []
       }
     ], "รับเรื่องแล้วครับ", sentAt);
 

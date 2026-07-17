@@ -26,9 +26,9 @@ type TelegramPayload = {
     caption?: string;
     from?: { id: number; first_name?: string; username?: string };
     chat: { id: number | string; type?: string; title?: string; first_name?: string };
-    photo?: unknown[];
-    voice?: unknown;
-    document?: { file_name?: string; mime_type?: string; file_size?: number };
+    photo?: Array<{ file_id?: string; file_unique_id?: string; file_size?: number; width?: number; height?: number }>;
+    voice?: { file_id?: string; mime_type?: string; file_size?: number; duration?: number };
+    document?: { file_id?: string; file_name?: string; mime_type?: string; file_size?: number };
   };
 };
 
@@ -256,7 +256,7 @@ export class NormalizerService {
   }
 
   private telegramMessageType(message: NonNullable<TelegramPayload["message"]>): MessageType {
-    if (message.photo) return "image";
+    if (message.photo && message.photo.length > 0) return "image";
     if (message.voice) return "audio";
     if (message.document) return "file";
     return "text";
@@ -268,14 +268,32 @@ export class NormalizerService {
         type: "file",
         filename: message.document.file_name,
         mimeType: message.document.mime_type,
-        sizeBytes: message.document.file_size
+        sizeBytes: message.document.file_size,
+        // storageKey holds the provider file reference until the worker downloads it (gated).
+        storageKey: message.document.file_id ? `telegram:${message.document.file_id}` : undefined,
+        externalRef: message.document.file_id
       }];
     }
-    if (type === "image") {
-      return [{ type: "image" }];
+    if (type === "image" && message.photo && message.photo.length > 0) {
+      // Telegram sends multiple sizes; pick the largest by file_size.
+      const largest = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0];
+      const fileId = largest?.file_id;
+      return [{
+        type: "image",
+        sizeBytes: largest?.file_size,
+        storageKey: fileId ? `telegram:${fileId}` : undefined,
+        externalRef: fileId
+      }];
     }
     if (type === "audio") {
-      return [{ type: "audio" }];
+      const fileId = message.voice?.file_id;
+      return [{
+        type: "audio",
+        mimeType: message.voice?.mime_type,
+        sizeBytes: message.voice?.file_size,
+        storageKey: fileId ? `telegram:${fileId}` : undefined,
+        externalRef: fileId
+      }];
     }
     return [];
   }

@@ -7,10 +7,14 @@ import { WorkerAiService } from "./ai.service.js";
 import {
   sendFacebookTextMessage,
   sendInstagramTextMessage,
+  sendLineMediaMessage,
   sendLineTextMessage,
+  sendMetaMediaMessage,
   sendMockOutboundText,
+  sendTelegramMediaMessage,
   sendTelegramTextMessage,
   shouldUseRealChannelSend,
+  type OutboundMediaType,
   type OutboundPlatform
 } from "./outbound-sender.js";
 import { buildProviderGuardInput, recipientIdForPlatform } from "./outbound-guard.js";
@@ -56,7 +60,8 @@ async function sendOutboundMessage(messageId: string) {
     where: { id: messageId },
     include: {
       conversation: { include: { room: { include: { channelAccount: true } }, contactIdentity: true } },
-      channelAccount: true
+      channelAccount: true,
+      attachments: true
     }
   });
 
@@ -165,6 +170,23 @@ async function sendOutboundMessage(messageId: string) {
       text: message.text ?? "",
       ...guardFields
     });
+  }
+
+  // Outbound media (STEP 6): only sendable attachments with an absolute URL are pushed,
+  // and each call is still gated by assertProviderOutboundAllowed inside the sender.
+  const sendableAttachments = (message.attachments ?? []).filter(
+    (attachment) => typeof attachment.url === "string" && /^https?:\/\//i.test(attachment.url)
+  );
+  for (const attachment of sendableAttachments) {
+    const mediaType = (attachment.type === "image" || attachment.type === "audio" ? attachment.type : "file") as OutboundMediaType;
+    const url = attachment.url as string;
+    if (platform === "telegram") {
+      await sendTelegramMediaMessage({ token: accessToken, chatId: recipientId, mediaType, url, filename: attachment.filename, ...guardFields });
+    } else if (platform === "line") {
+      await sendLineMediaMessage({ token: accessToken, to: recipientId, mediaType, url, filename: attachment.filename, ...guardFields });
+    } else if (platform === "facebook" || platform === "instagram") {
+      await sendMetaMediaMessage({ token: accessToken, provider: platform, recipientId, mediaType, url, ...guardFields });
+    }
   }
 
   await prisma.auditLog.create({

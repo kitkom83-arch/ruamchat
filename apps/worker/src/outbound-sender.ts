@@ -183,6 +183,146 @@ export async function sendInstagramTextMessage(input: { token?: string | null; r
   }
 }
 
+// ---- Outbound media senders (STEP 6) ----
+// Each mirrors its text counterpart and stays behind assertProviderOutboundAllowed,
+// so nothing leaves the system until the sandbox allowlist is opened.
+
+export type OutboundMediaType = "image" | "audio" | "file";
+
+export async function sendTelegramMediaMessage(
+  input: {
+    token?: string | null;
+    chatId: string;
+    mediaType: OutboundMediaType;
+    url: string;
+    filename?: string | null;
+    caption?: string | null;
+  } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: "telegram",
+    recipientId: input.chatId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token = input.token ?? process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN is required to send a real Telegram media message");
+  }
+
+  const method = input.mediaType === "image" ? "sendPhoto" : "sendDocument";
+  const body: Record<string, unknown> = { chat_id: input.chatId };
+  if (input.mediaType === "image") {
+    body.photo = input.url;
+  } else {
+    body.document = input.url;
+  }
+  if (input.caption) body.caption = input.caption;
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram ${method} failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+export async function sendLineMediaMessage(
+  input: {
+    token?: string | null;
+    to: string;
+    mediaType: OutboundMediaType;
+    url: string;
+    previewUrl?: string | null;
+    filename?: string | null;
+  } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: "line",
+    recipientId: input.to,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token = input.token ?? process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("LINE_CHANNEL_ACCESS_TOKEN is required to send a real LINE media message");
+  }
+
+  const message =
+    input.mediaType === "image"
+      ? { type: "image", originalContentUrl: input.url, previewImageUrl: input.previewUrl ?? input.url }
+      : input.mediaType === "audio"
+        ? { type: "audio", originalContentUrl: input.url, duration: 0 }
+        : { type: "text", text: `File: ${input.filename ?? input.url}\n${input.url}` };
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ to: input.to, messages: [message] })
+  });
+
+  if (!response.ok) {
+    throw new Error(`LINE media push failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+export async function sendMetaMediaMessage(
+  input: {
+    token?: string | null;
+    provider: "facebook" | "instagram";
+    recipientId: string;
+    mediaType: OutboundMediaType;
+    url: string;
+  } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: input.provider,
+    recipientId: input.recipientId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token =
+    input.token ??
+    (input.provider === "facebook"
+      ? process.env.FACEBOOK_PAGE_ACCESS_TOKEN
+      : process.env.INSTAGRAM_ACCESS_TOKEN);
+  if (!token) {
+    throw new Error(
+      `${input.provider === "facebook" ? "FACEBOOK_PAGE_ACCESS_TOKEN" : "INSTAGRAM_ACCESS_TOKEN"} is required to send a real ${input.provider} media message`
+    );
+  }
+
+  const attachmentType = input.mediaType === "image" ? "image" : input.mediaType === "audio" ? "audio" : "file";
+  const response = await fetch("https://graph.facebook.com/v19.0/me/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      recipient: { id: input.recipientId },
+      message: { attachment: { type: attachmentType, payload: { url: input.url, is_reusable: true } } },
+      ...(input.provider === "instagram" ? { messaging_type: "RESPONSE" } : {})
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`${input.provider} media send failed: ${response.status} ${await response.text()}`);
+  }
+}
+
 export function channelMode() {
   return (process.env.META_CHANNEL_MODE ?? process.env.CHANNEL_MODE ?? process.env.AI_MODE ?? "mock").toLowerCase();
 }
