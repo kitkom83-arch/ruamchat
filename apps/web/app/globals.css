@@ -1123,8 +1123,8 @@ p {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  object-fit: cover;
-  background: #b91c1c;
+  object-fit: contain;
+  background: transparent;
   flex-shrink: 0;
 }
 
