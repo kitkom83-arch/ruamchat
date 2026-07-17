@@ -29,6 +29,7 @@ import {
   type AnalyticsApiDashboardData,
   type AnalyticsFilters
 } from "../analytics-data";
+import { useLang } from "../i18n-data";
 import { createDefaultAdminStore, getStoredAdminStore, saveStoredAdminStore, subscribeAdminStore, type AdminStore } from "../admin-data";
 import { getStoredContacts, mockContacts, subscribeContacts } from "../crm-data";
 import { getStoredKnowledgeItems, saveStoredKnowledgeItems, subscribeStoredKnowledgeItems } from "../ai-knowledge-store";
@@ -69,6 +70,7 @@ export default function AnalyticsPage() {
 }
 
 function MockAnalyticsPage() {
+  const { t } = useLang();
   const [adminStore, setAdminStore] = useState<AdminStore>(() => createDefaultAdminStore());
   const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => getStoredKnowledgeItems());
@@ -141,9 +143,9 @@ function MockAnalyticsPage() {
     <main className="analyticsPage">
       <header className="analyticsHeader">
         <div>
-          <p className="eyebrow">Analytics Dashboard</p>
-          <h1>Overview, AI performance, admin productivity</h1>
-          <p className="analyticsLead">Mock/local analytics generated from Inbox, CRM, Admin Tools, SLA, audit logs, and Knowledge Base data.</p>
+          <p className="eyebrow">{t("page.analytics.eyebrow")}</p>
+          <h1>{t("page.analytics.h1")}</h1>
+          <p className="analyticsLead">{t("page.analytics.lead")}</p>
         </div>
         <div className="analyticsActions">
           <button type="button" onClick={exportCsv}><Download size={15} /> Export CSV</button>
@@ -330,6 +332,7 @@ function MockAnalyticsPage() {
 }
 
 function ApiAnalyticsPage() {
+  const { t } = useLang();
   const [filters, setFilters] = useState<AnalyticsFilters>(defaultAnalyticsFilters);
   const [apiData, setApiData] = useState<AnalyticsApiDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -372,9 +375,9 @@ function ApiAnalyticsPage() {
     <main className="analyticsPage">
       <header className="analyticsHeader">
         <div>
-          <p className="eyebrow">Analytics Dashboard</p>
-          <h1>Persisted analytics from backend API</h1>
-          <p className="analyticsLead">API mode reads tenant-scoped persisted conversations, messages, SLA state, tasks, audit logs, and knowledge base counts.</p>
+          <p className="eyebrow">{t("page.analytics.eyebrow")}</p>
+          <h1>{t("page.analytics.h1Api")}</h1>
+          <p className="analyticsLead">{t("page.analytics.leadApi")}</p>
         </div>
         <div className="analyticsActions">
           <button type="button" onClick={() => setFilters({ ...filters })}><RefreshCw size={15} /> Refresh</button>

@@ -9,6 +9,7 @@ import {
   unlinkContactIdentity,
   updateContact
 } from "../api-client";
+import { useLang } from "../i18n-data";
 import {
   addContactNote,
   addContactTag,
@@ -44,6 +45,7 @@ import { dataMode, isApiMode } from "../data-mode";
 const platformOptions: Array<"all" | Platform> = ["all", "webchat", "telegram", "line", "facebook", "instagram"];
 
 export default function ContactsPage() {
+  const { t } = useLang();
   const apiMode = isApiMode();
   const [contacts, setContacts] = useState<Contact[]>(apiMode ? [] : mockContacts);
   const [selectedContactId, setSelectedContactId] = useState("");
@@ -260,8 +262,8 @@ export default function ContactsPage() {
       <section className="contactsListPanel">
         <header className="contactsHeader">
           <div>
-            <p className="eyebrow">CRM</p>
-            <h1>Contacts</h1>
+            <p className="eyebrow">{t("page.contacts.eyebrow")}</p>
+            <h1>{t("page.contacts.h1")}</h1>
           </div>
           <span>{apiMode ? `${dataMode.toUpperCase()} / ` : ""}{visibleContacts.length} shown</span>
         </header>

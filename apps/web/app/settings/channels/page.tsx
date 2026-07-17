@@ -6,6 +6,8 @@ import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderW
 import type { ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceipt } from "@ai-omni/shared";
 import type { UpdateSettingsChannelAccountRequest } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
+import { useLang } from "../../i18n-data";
+import SettingsTabs from "../SettingsTabs";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
   bulkAssignSettingsProviderWebhookUnmatchedInbound,
@@ -114,6 +116,7 @@ const defaultUnmatchedFilters: ProviderWebhookUnmatchedInboundFilters = {
 };
 
 export default function ChannelSettingsPage() {
+  const { t } = useLang();
   const [copied, setCopied] = useState("");
   const [channels, setChannels] = useState<SettingsChannelAccount[]>([]);
   const [credentialTokenDrafts, setCredentialTokenDrafts] = useState<Record<string, string>>({});
@@ -3011,10 +3014,11 @@ export default function ChannelSettingsPage() {
 
   return (
     <main className="settingsPage">
+      <SettingsTabs />
       <header className="settingsHeader">
         <div>
-          <p className="eyebrow">Settings</p>
-          <h1>Channels</h1>
+          <p className="eyebrow">{t("page.settings.eyebrow")}</p>
+          <h1>{t("page.channels.h1")}</h1>
         </div>
         <span className="settingsMode">DATA_MODE={dataMode}</span>
       </header>

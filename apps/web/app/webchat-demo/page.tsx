@@ -4,6 +4,7 @@ import { Bot, MessageCircle, Paperclip, Send, Sparkles, Trash2, UserRoundCheck, 
 import { useEffect, useRef, useState } from "react";
 import { createKnowledgeAwareMockAiDecision, validateMediaUpload } from "@ai-omni/shared";
 import { createWebchatMessage, getConversationMessages } from "../api-client";
+import { useLang } from "../i18n-data";
 import { getStoredKnowledgeItems, subscribeStoredKnowledgeItems } from "../ai-knowledge-store";
 import { getApiBaseUrl, isApiMode, isMockMode } from "../data-mode";
 import {
@@ -24,6 +25,7 @@ const visitorPrompts = [
 const apiConversationStorageKey = "ai-omni-webchat-demo-api-conversation-id";
 
 export default function WebchatDemoPage() {
+  const { t } = useLang();
   const apiMode = isApiMode();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -163,9 +165,9 @@ export default function WebchatDemoPage() {
     <main className="widgetDemoPage">
       <section className="demoIntro">
         <div>
-          <p className="eyebrow">Webchat Demo</p>
-          <h1>Visitor Demo</h1>
-          <p className="demoCopy">{apiMode ? "API mode posts visitor messages to the backend and polls for agent replies." : "Local demo mode uses browser storage only. Send a visitor message here, then open Inbox and select Webchat / Main Website."}</p>
+          <p className="eyebrow">{t("page.webchat.eyebrow")}</p>
+          <h1>{t("page.webchat.h1")}</h1>
+          <p className="demoCopy">{apiMode ? t("page.webchat.leadApi") : t("page.webchat.lead")}</p>
         </div>
         <div className="indicatorRow">
           <span><Wifi size={14} /> Webchat connected</span>

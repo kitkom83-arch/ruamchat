@@ -5,6 +5,7 @@ import {
   Bot,
   ContactRound,
   Inbox,
+  Languages,
   LogOut,
   MessageCircle,
   PanelLeftClose,
@@ -18,9 +19,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AUTH_ROLE_META, isPathAllowedForRole, type AuthRole, type AuthUser } from "../auth-data";
+import { useLang, type TranslationKey } from "../i18n-data";
 
 type NavItem = {
-  label: string;
+  labelKey: TranslationKey;
   icon: LucideIcon;
   href: string;
   /** Optional prefix used for active matching when it differs from href. */
@@ -28,14 +30,14 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "แชท", icon: Inbox, href: "/" },
-  { label: "วิเคราะห์", icon: BarChart3, href: "/analytics" },
-  { label: "ผู้ติดต่อ", icon: ContactRound, href: "/contacts" },
-  { label: "บรอดแคสต์", icon: Radio, href: "/broadcasts" },
-  { label: "เอไอ", icon: Bot, href: "/ai-center" },
-  { label: "บอท/โฟลว์", icon: Workflow, href: "/flows" },
-  { label: "ทดสอบแชท", icon: MessageCircle, href: "/webchat-demo" },
-  { label: "ตั้งค่า", icon: Settings, href: "/settings/channels", match: "/settings" }
+  { labelKey: "nav.chat", icon: Inbox, href: "/" },
+  { labelKey: "nav.analytics", icon: BarChart3, href: "/analytics" },
+  { labelKey: "nav.contacts", icon: ContactRound, href: "/contacts" },
+  { labelKey: "nav.broadcasts", icon: Radio, href: "/broadcasts" },
+  { labelKey: "nav.ai", icon: Bot, href: "/ai-center" },
+  { labelKey: "nav.flows", icon: Workflow, href: "/flows" },
+  { labelKey: "nav.webchat", icon: MessageCircle, href: "/webchat-demo" },
+  { labelKey: "nav.settings", icon: Settings, href: "/settings/channels", match: "/settings" }
 ];
 
 const collapseStorageKey = "ao.sideNav.collapsed";
@@ -56,6 +58,7 @@ export default function SideNav({
   onLogout: () => void;
 }) {
   const pathname = usePathname() ?? "/";
+  const { lang, setLang, t } = useLang();
   const [collapsed, setCollapsed] = useState(true);
   const [hydrated, setHydrated] = useState(false);
 
@@ -88,7 +91,7 @@ export default function SideNav({
   return (
     <aside
       className={expanded ? "sideNav sideNavExpanded" : "sideNav"}
-      aria-label="เมนูหลัก"
+      aria-label={t("nav.menuLabel")}
     >
       <div className="sideNavHeader">
         <img className="brandMark" src="/yindee-logo.png" alt="YINDEE" />
@@ -97,9 +100,9 @@ export default function SideNav({
           type="button"
           className="sideNavToggle"
           onClick={toggle}
-          aria-label={expanded ? "ยุบเมนู" : "ขยายเมนู"}
+          aria-label={expanded ? t("nav.collapse") : t("nav.expand")}
           aria-pressed={expanded}
-          title={expanded ? "ยุบเมนู" : "ขยายเมนู"}
+          title={expanded ? t("nav.collapse") : t("nav.expand")}
         >
           {expanded ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
         </button>
@@ -108,17 +111,18 @@ export default function SideNav({
       <nav className="sideNavItems">
         {visibleItems.map((item) => {
           const active = isActive(pathname, item);
+          const label = t(item.labelKey);
           return (
             <Link
               key={item.href}
               href={item.href}
               className={active ? "sideNavItem active" : "sideNavItem"}
-              aria-label={item.label}
+              aria-label={label}
               aria-current={active ? "page" : undefined}
-              title={item.label}
+              title={label}
             >
               <item.icon size={19} className="sideNavItemIcon" />
-              {expanded && <span className="sideNavItemLabel">{item.label}</span>}
+              {expanded && <span className="sideNavItemLabel">{label}</span>}
             </Link>
           );
         })}
@@ -133,13 +137,29 @@ export default function SideNav({
         )}
         <button
           type="button"
+          className="sideNavLang"
+          onClick={() => setLang(lang === "th" ? "en" : "th")}
+          aria-label={t("lang.toggle")}
+          title={t("lang.toggle")}
+        >
+          <Languages size={18} />
+          {expanded && (
+            <span className="sideNavLangValue">
+              <span className={lang === "th" ? "langOn" : "langOff"}>TH</span>
+              <span className="langSep">/</span>
+              <span className={lang === "en" ? "langOn" : "langOff"}>EN</span>
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
           className="sideNavLogout"
           onClick={onLogout}
-          aria-label="ออกจากระบบ"
-          title="ออกจากระบบ"
+          aria-label={t("nav.logout")}
+          title={t("nav.logout")}
         >
           <LogOut size={18} />
-          {expanded && <span>ออกจากระบบ</span>}
+          {expanded && <span>{t("nav.logout")}</span>}
         </button>
       </div>
     </aside>
