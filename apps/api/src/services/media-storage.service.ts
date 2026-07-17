@@ -2,6 +2,13 @@ import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import {
+  CreateBucketCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client
+} from "@aws-sdk/client-s3";
 
 export type StoredMedia = {
   storageKey: string;
@@ -17,8 +24,12 @@ export type ReadMedia = {
 
 /**
  * Media storage abstraction. Dev/default uses the local disk and serves files
- * back through the API `GET /media/:storageKey` route. Production can switch to
- * a blob/S3 backend via `MEDIA_STORAGE=s3` (stubbed until credentials are wired).
+ * back through the API `GET /media/:tenant/:file` route. Production can switch to
+ * an S3-compatible backend (AWS S3 or MinIO) via `MEDIA_STORAGE=s3`.
+ *
+ * The public URL always stays `${MEDIA_PUBLIC_BASE_URL}/${storageKey}` so the
+ * serving route, worker outbound guards, and inbox rendering are identical in
+ * both modes — only where the bytes live changes.
  */
 @Injectable()
 export class MediaStorageService {
@@ -28,16 +39,14 @@ export class MediaStorageService {
     : path.resolve(process.cwd(), ".media");
   private readonly publicBase = process.env.MEDIA_PUBLIC_BASE_URL ?? "/media";
 
+  // S3 config is only read/used when mode === "s3"; local dev never touches it.
+  private readonly s3Bucket = process.env.S3_BUCKET ?? "";
+  private readonly s3ForcePathStyle = (process.env.S3_FORCE_PATH_STYLE ?? "true").toLowerCase() !== "false";
+  private s3ClientInstance: S3Client | null = null;
+  private bucketReady: Promise<void> | null = null;
+
   storageMode(): string {
     return this.mode;
-  }
-
-  private ensureLocal() {
-    if (this.mode !== "local") {
-      throw new Error(
-        `Media storage mode "${this.mode}" is not configured. Set MEDIA_STORAGE=local for dev, or wire an S3/blob backend before enabling.`
-      );
-    }
   }
 
   private sanitiseFilename(filename: string): string {
@@ -60,13 +69,101 @@ export class MediaStorageService {
     return target;
   }
 
-  async save(input: {
+  // ── S3 helpers ────────────────────────────────────────────────────────────
+
+  private s3Client(): S3Client {
+    if (!this.s3ClientInstance) {
+      if (!this.s3Bucket) {
+        throw new Error("S3 storage is enabled but S3_BUCKET is not set");
+      }
+      const accessKeyId = process.env.S3_ACCESS_KEY;
+      const secretAccessKey = process.env.S3_SECRET_KEY;
+      this.s3ClientInstance = new S3Client({
+        region: process.env.S3_REGION ?? "us-east-1",
+        endpoint: process.env.S3_ENDPOINT || undefined,
+        forcePathStyle: this.s3ForcePathStyle,
+        credentials:
+          accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined
+      });
+    }
+    return this.s3ClientInstance;
+  }
+
+  private ensureBucket(): Promise<void> {
+    if (!this.bucketReady) {
+      this.bucketReady = (async () => {
+        const client = this.s3Client();
+        try {
+          await client.send(new HeadBucketCommand({ Bucket: this.s3Bucket }));
+        } catch {
+          // Bucket missing (or head not permitted) — try to create it. MinIO and
+          // fresh S3 buckets support this; if it already exists this is a no-op.
+          try {
+            await client.send(new CreateBucketCommand({ Bucket: this.s3Bucket }));
+          } catch (createError) {
+            // If another worker created it in a race, HeadBucket next time is fine.
+            const name = (createError as { name?: string })?.name ?? "";
+            if (name !== "BucketAlreadyOwnedByYou" && name !== "BucketAlreadyExists") {
+              throw createError;
+            }
+          }
+        }
+      })();
+    }
+    return this.bucketReady;
+  }
+
+  private async saveToS3(input: {
     tenantId: string;
     filename: string;
     mimeType: string;
     buffer: Buffer;
   }): Promise<StoredMedia> {
-    this.ensureLocal();
+    const storageKey = this.keyFor(input.tenantId, input.filename);
+    await this.ensureBucket();
+    await this.s3Client().send(
+      new PutObjectCommand({
+        Bucket: this.s3Bucket,
+        Key: storageKey,
+        Body: input.buffer,
+        ContentType: input.mimeType,
+        Metadata: {
+          filename: encodeURIComponent(input.filename),
+          checksum: createHash("sha256").update(input.buffer).digest("hex")
+        }
+      })
+    );
+    return {
+      storageKey,
+      url: `${this.publicBase}/${storageKey}`
+    };
+  }
+
+  private async readFromS3(storageKey: string): Promise<ReadMedia> {
+    const response = await this.s3Client().send(
+      new GetObjectCommand({ Bucket: this.s3Bucket, Key: storageKey })
+    );
+    const body = response.Body;
+    if (!body) throw new Error("Media not found");
+    const bytes = await (body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray();
+    const buffer = Buffer.from(bytes);
+    const metaFilename = response.Metadata?.filename;
+    return {
+      buffer,
+      mimeType: response.ContentType ?? "application/octet-stream",
+      filename: metaFilename ? decodeURIComponent(metaFilename) : path.basename(storageKey),
+      sizeBytes: buffer.byteLength
+    };
+  }
+
+  // ── Local helpers ─────────────────────────────────────────────────────────
+
+  private async saveToLocal(input: {
+    tenantId: string;
+    filename: string;
+    mimeType: string;
+    buffer: Buffer;
+  }): Promise<StoredMedia> {
     const storageKey = this.keyFor(input.tenantId, input.filename);
     const target = this.resolvePath(storageKey);
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -87,8 +184,7 @@ export class MediaStorageService {
     };
   }
 
-  async read(storageKey: string): Promise<ReadMedia> {
-    this.ensureLocal();
+  private async readFromLocal(storageKey: string): Promise<ReadMedia> {
     const target = this.resolvePath(storageKey);
     const buffer = await fs.readFile(target);
     let mimeType = "application/octet-stream";
@@ -102,5 +198,23 @@ export class MediaStorageService {
       // metadata is best-effort; fall back to defaults
     }
     return { buffer, mimeType, filename, sizeBytes: buffer.byteLength };
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  async save(input: {
+    tenantId: string;
+    filename: string;
+    mimeType: string;
+    buffer: Buffer;
+  }): Promise<StoredMedia> {
+    if (this.mode === "s3") return this.saveToS3(input);
+    return this.saveToLocal(input);
+  }
+
+  async read(storageKey: string): Promise<ReadMedia> {
+    if (this.mode === "s3") return this.readFromS3(storageKey);
+    // Guard traversal for local reads (resolvePath throws on unsafe keys).
+    return this.readFromLocal(storageKey);
   }
 }
