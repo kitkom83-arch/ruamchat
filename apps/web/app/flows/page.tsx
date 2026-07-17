@@ -6,6 +6,8 @@ import {
   Copy,
   Edit3,
   Inbox,
+  LayoutGrid,
+  List,
   Pause,
   Play,
   Plus,
@@ -18,7 +20,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { AIIntent, ConversationStatus, Flow, FlowTestRunResult as ApiFlowTestRunResult, FlowTriggerType, Platform } from "@ai-omni/shared";
+import type { AIIntent, ConversationStatus, Flow, FlowEdge, FlowNode, FlowTestRunResult as ApiFlowTestRunResult, FlowTriggerType, Platform } from "@ai-omni/shared";
+import FlowCanvas from "./FlowCanvas";
 import {
   createApiFlow,
   deleteApiFlow,
@@ -35,6 +38,7 @@ import {
   createDefaultFlowStore,
   createFlow,
   duplicateFlow,
+  editFlow,
   getFlowRunHistory,
   getFlowStats,
   loadFlowBuilderData,
@@ -79,6 +83,7 @@ function MockFlowsPage() {
     platform: "webchat" as Platform,
     roomId: "webchat-main"
   });
+  const [builderView, setBuilderView] = useState<"visual" | "list">("visual");
 
   useEffect(() => {
     const store = getStoredFlowStore();
@@ -152,6 +157,10 @@ function MockFlowsPage() {
     if (action === "archived") persist(archiveFlow(flowStore, flowId));
   }
 
+  function saveVisualFlow(flowId: string, snapshot: { nodes: FlowNode[]; edges: FlowEdge[] }) {
+    persist(editFlow(flowStore, flowId, { nodes: snapshot.nodes, edges: snapshot.edges }));
+  }
+
   return (
     <main className="flowsShell">
       <section className="flowsPage">
@@ -161,10 +170,16 @@ function MockFlowsPage() {
             <h1>Automation rules for separated platform rooms</h1>
             <p>Mock/local builder for Webchat, Telegram, LINE, Facebook, and Instagram. Tests never call external APIs.</p>
           </div>
-          <div className="flowMetricStrip">
-            <MiniStat label="Automation runs" value={automationMetrics.runs} />
-            <MiniStat label="Success rate" value={`${automationMetrics.successRate}%`} />
-            <MiniStat label="Failed" value={automationMetrics.failed} />
+          <div className="flowHeaderRight">
+            <div className="flowViewToggle" role="group" aria-label="Builder view">
+              <button type="button" className={builderView === "visual" ? "active" : ""} onClick={() => setBuilderView("visual")}><LayoutGrid size={14} /> Visual builder</button>
+              <button type="button" className={builderView === "list" ? "active" : ""} onClick={() => setBuilderView("list")}><List size={14} /> Classic list</button>
+            </div>
+            <div className="flowMetricStrip">
+              <MiniStat label="Automation runs" value={automationMetrics.runs} />
+              <MiniStat label="Success rate" value={`${automationMetrics.successRate}%`} />
+              <MiniStat label="Failed" value={automationMetrics.failed} />
+            </div>
           </div>
         </header>
 
@@ -184,7 +199,17 @@ function MockFlowsPage() {
           </div>
         </section>
 
-        <section className="flowWorkspace">
+        {builderView === "visual" && selectedFlow && (
+          <section className="flowVisualSection">
+            <FlowCanvas
+              flow={selectedFlow}
+              onSave={(snapshot) => saveVisualFlow(selectedFlow.id, snapshot)}
+              onTest={() => runTest(selectedFlow)}
+            />
+          </section>
+        )}
+
+        <section className={builderView === "visual" ? "flowWorkspace visualMode" : "flowWorkspace"}>
           <div className="flowListPanel">
             <div className="blockHeader"><Workflow size={18} /><h2>Flow list</h2></div>
             <div className="flowList">
@@ -349,6 +374,7 @@ function ApiFlowsPage() {
     platform: "webchat" as Platform,
     roomId: "room-webchat"
   });
+  const [builderView, setBuilderView] = useState<"visual" | "list">("visual");
 
   const selectedFlow = flowStore.flows.find((flow) => flow.id === selectedFlowId) ?? flowStore.flows[0];
   const selectedRuns = selectedFlow ? getFlowRunHistory(flowStore, selectedFlow.id) : [];
@@ -460,6 +486,20 @@ function ApiFlowsPage() {
     }
   }
 
+  async function saveVisualFlow(flowId: string, snapshot: { nodes: FlowNode[]; edges: FlowEdge[] }) {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateApiFlow(flowId, { nodes: snapshot.nodes, edges: snapshot.edges });
+      setFormMessage("Flow layout saved to API");
+      await refreshData(saved.id);
+    } catch (err) {
+      setError(readableFlowError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function setStatus(flowId: string, status: Flow["status"]) {
     setSaving(true);
     setError(null);
@@ -538,10 +578,16 @@ function ApiFlowsPage() {
             <h1>Persisted automation rules from backend API</h1>
             <p>API mode reads and writes tenant-scoped flows. Test runs are dry-run only and never call OpenAI or external platforms.</p>
           </div>
-          <div className="flowMetricStrip">
-            <MiniStat label="Automation runs" value={automationMetrics.runs} />
-            <MiniStat label="Dry-run success" value={`${automationMetrics.successRate}%`} />
-            <MiniStat label="Failed" value={automationMetrics.failed} />
+          <div className="flowHeaderRight">
+            <div className="flowViewToggle" role="group" aria-label="Builder view">
+              <button type="button" className={builderView === "visual" ? "active" : ""} onClick={() => setBuilderView("visual")}><LayoutGrid size={14} /> Visual builder</button>
+              <button type="button" className={builderView === "list" ? "active" : ""} onClick={() => setBuilderView("list")}><List size={14} /> Classic list</button>
+            </div>
+            <div className="flowMetricStrip">
+              <MiniStat label="Automation runs" value={automationMetrics.runs} />
+              <MiniStat label="Dry-run success" value={`${automationMetrics.successRate}%`} />
+              <MiniStat label="Failed" value={automationMetrics.failed} />
+            </div>
           </div>
         </header>
 
@@ -572,7 +618,18 @@ function ApiFlowsPage() {
           <p className="formStatus">{formMessage}</p>
         </section>
 
-        <section className="flowWorkspace">
+        {builderView === "visual" && selectedFlow && (
+          <section className="flowVisualSection">
+            <FlowCanvas
+              flow={selectedFlow}
+              saving={saving}
+              onSave={(snapshot) => saveVisualFlow(selectedFlow.id, snapshot)}
+              onTest={() => runTest(selectedFlow)}
+            />
+          </section>
+        )}
+
+        <section className={builderView === "visual" ? "flowWorkspace visualMode" : "flowWorkspace"}>
           <div className="flowListPanel">
             <div className="blockHeader"><Workflow size={18} /><h2>Flow list</h2></div>
             <div className="flowList">
