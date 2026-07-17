@@ -102,6 +102,15 @@
   flex-direction: column;
   gap: 6px;
   margin-top: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.sideNavHeader {
+  flex: 0 0 auto;
 }
 
 .sideNavItem {
@@ -141,6 +150,175 @@
   color: #ffffff;
 }
 
+.sideNavFooter {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sideNavUser {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px;
+  overflow: hidden;
+}
+
+.sideNavUser strong {
+  font-size: 13px;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sideNavUser span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.sideNavLogout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sideNav:not(.sideNavExpanded) .sideNavLogout {
+  justify-content: center;
+  padding: 0;
+}
+
+.sideNavLogout:hover {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+}
+
+/* Login screen (mock front-end auth prototype) */
+.loginScreen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.loginCard {
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.loginBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.loginBrand h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.loginBrand p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.loginField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.loginField input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.loginField input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.loginError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.loginButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--nav);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.loginButton:hover {
+  background: #000000;
+}
+
+.loginHint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.accessDenied {
+  max-width: 520px;
+  margin: 80px auto;
+  padding: 28px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.accessDenied h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.accessDenied p {
+  margin: 0;
+  color: var(--muted);
+}
+
 @media (max-width: 760px) {
   .appLayout {
     flex-direction: column;
@@ -166,6 +344,8 @@
   .sideNavItems {
     flex-direction: row;
     margin-top: 0;
+    overflow-y: hidden;
+    overflow-x: auto;
   }
 
   .sideNavBrandText,
@@ -177,6 +357,22 @@
     justify-content: center;
     width: 40px;
     padding: 0;
+  }
+
+  .sideNavFooter {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .sideNavUser {
+    display: none;
+  }
+
+  .sideNavLogout span {
+    display: none;
   }
 
   .appMain {
@@ -1709,6 +1905,34 @@ h3 {
 
 .composerBox {
   gap: 10px;
+  align-items: flex-end;
+}
+
+.composerFileInput {
+  display: none;
+}
+
+.composerAttachButton {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.composerAttachButton:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.composerAttachButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .composerBox textarea {
@@ -2930,9 +3154,17 @@ dd {
 .providerReadinessSummary {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  align-content: flex-start;
   gap: 7px;
   max-width: 560px;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  scrollbar-width: thin;
 }
 
 .providerReadinessSummary span {
@@ -5133,5 +5365,146 @@ dd {
   .flowConfigPanel {
     border-left: none;
     border-top: 1px solid var(--line);
+  }
+}
+
+/* STEP 4: user/key management panel (mock auth prototype) */
+.userMgmtGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.userMgmtForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.userMgmtAddButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--teal);
+  border-radius: 8px;
+  background: var(--teal);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.userMgmtError {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.userMgmtNotice {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--green);
+}
+
+.userMgmtList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.userMgmtRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.userMgmtRowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.userMgmtUsername {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.userMgmtRole {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.userMgmtRole.chat_admin {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.userMgmtRowActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.userMgmtToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.userMgmtResetInput {
+  height: 34px;
+  width: 130px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.userMgmtRowActions button {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.userMgmtDelete {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  padding: 0;
+  color: var(--red);
+}
+
+.userMgmtRowActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .userMgmtGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
