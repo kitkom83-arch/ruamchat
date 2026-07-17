@@ -784,10 +784,86 @@ p {
 
 .appShell {
   display: grid;
-  grid-template-columns: 256px 368px minmax(430px, 1fr) 336px;
+  grid-template-columns: var(--col-rooms, 256px) var(--col-queue, 368px) minmax(430px, 1fr) var(--col-customer, 336px);
   height: 100vh;
   min-width: 1174px;
   overflow: hidden;
+}
+
+.appShell.roomsCollapsed {
+  --col-rooms: 46px;
+}
+
+.appShell.queueCollapsed {
+  --col-queue: 46px;
+}
+
+.appShell.customerCollapsed {
+  --col-customer: 46px;
+}
+
+.appShell.roomsCollapsed,
+.appShell.queueCollapsed,
+.appShell.customerCollapsed {
+  min-width: auto;
+}
+
+.roomsSidebar.collapsed,
+.queuePanel.collapsed,
+.customerPanel.collapsed {
+  padding: 12px 4px;
+  overflow: hidden;
+}
+
+.roomsSidebar.collapsed > :not(.panelRailToggle),
+.queuePanel.collapsed > :not(.panelRailToggle) {
+  display: none;
+}
+
+.panelRailToggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.panelRailToggle:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--ink, inherit);
+}
+
+.panelRailLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.panelHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.customerCollapseRow {
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.panelCollapseToggle {
+  color: var(--muted);
+}
+
+.panelCollapseToggle:hover {
+  background: rgba(148, 163, 184, 0.16);
 }
 
 .mainMenu {
