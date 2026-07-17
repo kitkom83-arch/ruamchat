@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { AIIntent, ConversationStatus, Flow, FlowEdge, FlowNode, FlowTestRunResult as ApiFlowTestRunResult, FlowTriggerType, Platform } from "@ai-omni/shared";
 import FlowCanvas from "./FlowCanvas";
+import { useLang } from "../i18n-data";
 import {
   createApiFlow,
   deleteApiFlow,
@@ -63,6 +64,7 @@ export default function FlowsPage() {
 }
 
 function MockFlowsPage() {
+  const { t } = useLang();
   const [flowStore, setFlowStore] = useState<FlowStore>(() => createDefaultFlowStore());
   const [selectedFlowId, setSelectedFlowId] = useState("flow-pricing-lead");
   const [lastResult, setLastResult] = useState<FlowRunTestResult | null>(null);
@@ -166,9 +168,9 @@ function MockFlowsPage() {
       <section className="flowsPage">
         <header className="flowsHeader">
           <div>
-            <p className="eyebrow">Flow Builder</p>
-            <h1>Automation rules for separated platform rooms</h1>
-            <p>Mock/local builder for Webchat, Telegram, LINE, Facebook, and Instagram. Tests never call external APIs.</p>
+            <p className="eyebrow">{t("page.flows.eyebrow")}</p>
+            <h1>{t("page.flows.h1")}</h1>
+            <p>{t("page.flows.lead")}</p>
           </div>
           <div className="flowHeaderRight">
             <div className="flowViewToggle" role="group" aria-label="Builder view">
@@ -358,6 +360,7 @@ function MockFlowsPage() {
 }
 
 function ApiFlowsPage() {
+  const { t } = useLang();
   const [flowStore, setFlowStore] = useState<FlowStore>(() => ({ flows: [], runs: [] }));
   const [selectedFlowId, setSelectedFlowId] = useState("");
   const [lastResult, setLastResult] = useState<ApiFlowTestRunResult | null>(null);
@@ -582,9 +585,9 @@ function ApiFlowsPage() {
       <section className="flowsPage">
         <header className="flowsHeader">
           <div>
-            <p className="eyebrow">Flow Builder</p>
-            <h1>Persisted automation rules from backend API</h1>
-            <p>API mode reads and writes tenant-scoped flows. Test runs are dry-run only and never call OpenAI or external platforms.</p>
+            <p className="eyebrow">{t("page.flows.eyebrow")}</p>
+            <h1>{t("page.flows.h1Api")}</h1>
+            <p>{t("page.flows.leadApi")}</p>
           </div>
           <div className="flowHeaderRight">
             <div className="flowViewToggle" role="group" aria-label="Builder view">

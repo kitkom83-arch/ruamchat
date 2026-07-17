@@ -45,6 +45,7 @@ import {
   updateBroadcastCampaign,
   updateBroadcastSegment
 } from "../api-client";
+import { useLang } from "../i18n-data";
 import {
   allBroadcastPlatforms,
   archiveTemplate,
@@ -89,6 +90,7 @@ export default function BroadcastsPage() {
 }
 
 function MockBroadcastsPage() {
+  const { t } = useLang();
   const [store, setStore] = useState<BroadcastStore>(() => createDefaultBroadcastStore());
   const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [selectedCampaignId, setSelectedCampaignId] = useState("camp-line-follow-up");
@@ -235,9 +237,9 @@ function MockBroadcastsPage() {
       <section className="broadcastPage">
         <header className="broadcastHeader">
           <div>
-            <p className="eyebrow">Broadcast Campaigns</p>
-            <h1>Mock campaigns, segmentation, preview, dry run, and local delivery events</h1>
-            <p>Platform/account/room scopes stay separated. Send Mock never calls external APIs.</p>
+            <p className="eyebrow">{t("page.broadcasts.eyebrow")}</p>
+            <h1>{t("page.broadcasts.h1")}</h1>
+            <p>{t("page.broadcasts.lead")}</p>
           </div>
           <div className="broadcastStatus">
             <ShieldAlert size={16} />
@@ -405,6 +407,7 @@ function MockBroadcastsPage() {
 }
 
 function ApiBroadcastsPage() {
+  const { t } = useLang();
   const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
   const [campaignDetail, setCampaignDetail] = useState<BroadcastCampaignDetail | null>(null);
   const [campaignAnalytics, setCampaignAnalytics] = useState<BroadcastCampaignAnalytics | null>(null);
@@ -867,9 +870,9 @@ function ApiBroadcastsPage() {
       <section className="broadcastPage">
         <header className="broadcastHeader">
           <div>
-            <p className="eyebrow">Broadcast Campaigns / API Mode</p>
-            <h1>Persisted campaigns, segments, audience preview, and safe mock send logs</h1>
-            <p>API mode reads and writes backend data. Send test and send now create mock logs only.</p>
+            <p className="eyebrow">{t("page.broadcasts.eyebrowApi")}</p>
+            <h1>{t("page.broadcasts.h1Api")}</h1>
+            <p>{t("page.broadcasts.leadApi")}</p>
           </div>
           <div className="broadcastStatus">
             <ShieldAlert size={16} />

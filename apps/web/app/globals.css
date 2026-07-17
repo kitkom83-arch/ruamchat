@@ -205,6 +205,50 @@
   color: #fecaca;
 }
 
+.sideNavLang {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sideNav:not(.sideNavExpanded) .sideNavLang {
+  justify-content: center;
+  padding: 0;
+}
+
+.sideNavLang:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: #f1f5f9;
+}
+
+.sideNavLangValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.02em;
+}
+
+.sideNavLangValue .langOn {
+  color: #93c5fd;
+  font-weight: 700;
+}
+
+.sideNavLangValue .langOff {
+  color: #64748b;
+}
+
+.sideNavLangValue .langSep {
+  color: #475569;
+}
+
 /* Login screen (mock front-end auth prototype) */
 .loginScreen {
   min-height: 100vh;
@@ -371,7 +415,8 @@
     display: none;
   }
 
-  .sideNavLogout span {
+  .sideNavLogout span,
+  .sideNavLangValue {
     display: none;
   }
 

@@ -47,6 +47,7 @@ import {
   updateKnowledgeDocument,
   updateRoomAiPolicy
 } from "../api-client";
+import { useLang } from "../i18n-data";
 import {
   buildKnowledgeItemsFromApi,
   getChunksForDocument,
@@ -120,6 +121,7 @@ export default function AiCenterPage() {
 }
 
 function MockAiCenterPage() {
+  const { t } = useLang();
   const [items, setItems] = useState<KnowledgeItem[]>(() => getStoredKnowledgeItems());
   const [editing, setEditing] = useState<KnowledgeForm>(() => toForm(createEmptyKnowledgeItem("faq")));
   const [search, setSearch] = useState("");
@@ -201,9 +203,9 @@ function MockAiCenterPage() {
     <main className="aiCenterPage">
       <header className="aiCenterHeader">
         <div>
-          <p className="eyebrow">AI Center</p>
-          <h1>Knowledge Base</h1>
-          <p className="aiCenterCopy">จัดการข้อมูล demo ที่ AI ใช้ตอบลูกค้าใน Inbox และ Webchat mock mode</p>
+          <p className="eyebrow">{t("page.ai.eyebrow")}</p>
+          <h1>{t("page.ai.h1")}</h1>
+          <p className="aiCenterCopy">{t("page.ai.lead")}</p>
         </div>
         <div className="aiCenterStats">
           <span><CheckCircle2 size={15} /> {activeItems.length} active</span>
@@ -310,6 +312,7 @@ function MockAiCenterPage() {
 }
 
 function ApiAiCenterPage() {
+  const { t } = useLang();
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
@@ -575,9 +578,9 @@ function ApiAiCenterPage() {
     <main className="aiCenterPage">
       <header className="aiCenterHeader">
         <div>
-          <p className="eyebrow">AI Center</p>
-          <h1>Knowledge Base</h1>
-          <p className="aiCenterCopy">Backend API mode for knowledge bases, documents, chunks, and room AI policy.</p>
+          <p className="eyebrow">{t("page.ai.eyebrow")}</p>
+          <h1>{t("page.ai.h1")}</h1>
+          <p className="aiCenterCopy">{t("page.ai.leadApi")}</p>
         </div>
         <div className="aiCenterStats">
           <span><CheckCircle2 size={15} /> {activeKnowledgeBaseCount} active KBs</span>

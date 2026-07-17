@@ -68,6 +68,7 @@ import {
   type InboxTab,
   type PlatformRoom
 } from "./inbox-data";
+import { useLang } from "./i18n-data";
 import {
   getContactAnalytics
 } from "./analytics-data";
@@ -255,6 +256,7 @@ type PendingAttachment = {
 };
 
 export default function InboxDashboard() {
+  const { t } = useLang();
   const apiMode = isApiMode();
   const [rooms, setRooms] = useState<PlatformRoom[]>(() => apiMode ? [] : platformRooms);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
@@ -1889,8 +1891,8 @@ export default function InboxDashboard() {
         )}
         <header className="sectionHeader">
           <div>
-            <p className="eyebrow">Inbox Rooms</p>
-            <h1>Platform Rooms</h1>
+            <p className="eyebrow">{t("page.chat.eyebrow")}</p>
+            <h1>{t("page.chat.h1")}</h1>
           </div>
           <div className="panelHeaderActions">
             <button className="iconButton" aria-label="Refresh mock rooms">
