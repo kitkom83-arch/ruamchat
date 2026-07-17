@@ -33,6 +33,17 @@ type ResponsesClient = {
 
 export const defaultOpenAIModel = "gpt-5.4-mini";
 
+// When OPENAI_BASE_URL is set (e.g. Azure AI Foundry v1 endpoint
+// https://<resource>.services.ai.azure.com/openai/v1/) route through it with the
+// standard OpenAI client; otherwise use the default api.openai.com behavior.
+function createResponsesClient(apiKey: string): OpenAI {
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  if (baseURL) {
+    return new OpenAI({ apiKey, baseURL });
+  }
+  return new OpenAI({ apiKey });
+}
+
 export class WorkerAiService {
   constructor(
     private readonly client: ResponsesClient | null,
@@ -45,7 +56,7 @@ export class WorkerAiService {
       return new WorkerAiService(null);
     }
 
-    return new WorkerAiService(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) as unknown as ResponsesClient);
+    return new WorkerAiService(createResponsesClient(process.env.OPENAI_API_KEY) as unknown as ResponsesClient);
   }
 
   async analyze(input: AiAnalysisInput): Promise<AiAnalysisResult> {
