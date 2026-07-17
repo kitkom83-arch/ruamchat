@@ -30,9 +30,9 @@ export default function LoginScreen({
     <div className="loginScreen">
       <form className="loginCard" onSubmit={submit}>
         <div className="loginBrand">
-          <div className="brandMark">AO</div>
+          <img className="brandMark" src="/yindee-logo.png" alt="YINDEE" />
           <div>
-            <h1>AI Omni</h1>
+            <h1>YINDEE</h1>
             <p>เข้าสู่ระบบเพื่อจัดการแชทและตั้งค่า</p>
           </div>
         </div>
