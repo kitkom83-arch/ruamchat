@@ -7,6 +7,7 @@ import type { ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPost
 import type { UpdateSettingsChannelAccountRequest } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import { useLang } from "../../i18n-data";
+import SettingsTabs from "../SettingsTabs";
 import {
   bulkReviewSettingsProviderWebhookUnmatchedInbound,
   bulkAssignSettingsProviderWebhookUnmatchedInbound,
@@ -3013,6 +3014,7 @@ export default function ChannelSettingsPage() {
 
   return (
     <main className="settingsPage">
+      <SettingsTabs />
       <header className="settingsHeader">
         <div>
           <p className="eyebrow">{t("page.settings.eyebrow")}</p>

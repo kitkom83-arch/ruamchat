@@ -163,7 +163,19 @@ export const dictionary = {
 
   // ---- Settings / Channels ----
   "page.settings.eyebrow": { th: "ตั้งค่า", en: "Settings" },
-  "page.channels.h1": { th: "ช่องทาง", en: "Channels" }
+  "page.channels.h1": { th: "ช่องทาง", en: "Channels" },
+
+  // ---- Settings sub-navigation tabs ----
+  "settings.tab.channels": { th: "ช่องทาง", en: "Channels" },
+  "settings.tab.team": { th: "จัดการผู้ใช้", en: "User Management" },
+  "settings.tabs.aria": { th: "เมนูตั้งค่า", en: "Settings navigation" },
+
+  // ---- Settings / Team ----
+  "page.team.eyebrow": { th: "ตั้งค่าทีม", en: "Team Settings" },
+  "page.team.h1": {
+    th: "แอดมิน นโยบาย SLA และข้อความสำเร็จรูป",
+    en: "Agents, SLA policies, canned replies"
+  }
 } satisfies Record<string, Entry>;
 
 export type TranslationKey = keyof typeof dictionary;

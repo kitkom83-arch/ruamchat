@@ -16,11 +16,14 @@ import { updateSettingsTeamMember } from "../../api-client";
 import { dataMode } from "../../data-mode";
 import { mockConversations } from "../../inbox-data";
 import { loadSettingsTeamData } from "../../settings-data";
+import { useLang } from "../../i18n-data";
+import SettingsTabs from "../SettingsTabs";
 import UserManagementPanel from "./UserManagementPanel";
 
 const roles: AgentRole[] = ["owner", "admin", "supervisor", "agent", "viewer"];
 
 export default function TeamSettingsPage() {
+  const { t } = useLang();
   const [store, setStore] = useState<AdminStore>(() => createDefaultAdminStore());
   const [members, setMembers] = useState<SettingsTeamMember[]>([]);
   const [slaPolicies, setSlaPolicies] = useState<SettingsSlaPolicy[]>([]);
@@ -134,10 +137,11 @@ export default function TeamSettingsPage() {
 
   return (
     <main className="settingsPage">
+      <SettingsTabs />
       <header className="settingsHeader">
         <div>
-          <p className="eyebrow">Team Settings</p>
-          <h1>Agents, SLA policies, canned replies</h1>
+          <p className="eyebrow">{t("page.team.eyebrow")}</p>
+          <h1>{t("page.team.h1")}</h1>
         </div>
         {dataMode === "api" ? (
           <span className="settingsMode">DATA_MODE=api</span>
