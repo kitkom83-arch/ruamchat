@@ -8290,6 +8290,213 @@ export const flowEdgeSchema = z.object({
 }).strict();
 export type FlowEdge = z.infer<typeof flowEdgeSchema>;
 
+// ---------------------------------------------------------------------------
+// Rich message features (STEP 3B)
+// Platform-specific interactive message payloads authored in the visual flow
+// builder. These are additive helpers stored inside a send_message node's
+// free-form `config` under the `richMessage` key, so existing flows remain
+// valid and no existing schema changes are required (fully backward-compatible).
+// Limits below follow each platform's official developer documentation:
+//  - LINE: quick reply max 13 items, Flex carousel max 12 bubbles, buttons
+//    template max 4 actions.
+//  - Telegram: inline keyboard buttons carry callback_data (1-64 bytes) or a url.
+//  - Messenger: generic template max 10 elements, max 3 buttons/card, title &
+//    subtitle max 80 chars; quick replies max 13 (title max 20 chars).
+//  - Instagram: ice breakers max 4 (question max 80 chars); quick replies max 13.
+//  - Webchat: quick-reply chips (in-house surface).
+// ---------------------------------------------------------------------------
+export const richMessageActionTypeSchema = z.enum(["postback", "uri", "message"]);
+export type RichMessageActionType = z.infer<typeof richMessageActionTypeSchema>;
+
+export const richButtonSchema = z.object({
+  type: richMessageActionTypeSchema.default("postback"),
+  label: z.string().min(1).max(40),
+  data: z.string().max(1000).optional(),
+  url: z.string().max(2000).optional()
+}).strict();
+export type RichButton = z.infer<typeof richButtonSchema>;
+
+export const richQuickReplyItemSchema = z.object({
+  label: z.string().min(1).max(20),
+  data: z.string().max(1000).optional(),
+  imageUrl: z.string().max(2000).optional()
+}).strict();
+export type RichQuickReplyItem = z.infer<typeof richQuickReplyItemSchema>;
+
+export const richFlexBubbleSchema = z.object({
+  title: z.string().max(200).optional(),
+  text: z.string().max(2000).optional(),
+  imageUrl: z.string().max(2000).optional(),
+  actions: z.array(richButtonSchema).max(4).default([])
+}).strict();
+export type RichFlexBubble = z.infer<typeof richFlexBubbleSchema>;
+
+export const richGenericElementSchema = z.object({
+  title: z.string().min(1).max(80),
+  subtitle: z.string().max(80).optional(),
+  imageUrl: z.string().max(2000).optional(),
+  defaultActionUrl: z.string().max(2000).optional(),
+  buttons: z.array(richButtonSchema).max(3).default([])
+}).strict();
+export type RichGenericElement = z.infer<typeof richGenericElementSchema>;
+
+export const richIceBreakerSchema = z.object({
+  question: z.string().min(1).max(80),
+  payload: z.string().min(1).max(1000)
+}).strict();
+export type RichIceBreaker = z.infer<typeof richIceBreakerSchema>;
+
+export const richTelegramCommandSchema = z.object({
+  command: z.string().min(1).max(32).regex(/^[a-z0-9_]+$/, "Use lowercase letters, digits, and underscores only"),
+  description: z.string().min(1).max(256)
+}).strict();
+export type RichTelegramCommand = z.infer<typeof richTelegramCommandSchema>;
+
+export const richMessageKindSchema = z.enum([
+  "line_quick_reply",
+  "line_flex",
+  "line_buttons",
+  "telegram_inline_keyboard",
+  "telegram_reply_keyboard",
+  "telegram_commands",
+  "messenger_generic",
+  "messenger_quick_replies",
+  "instagram_ice_breakers",
+  "instagram_quick_replies",
+  "webchat_quick_replies"
+]);
+export type RichMessageKind = z.infer<typeof richMessageKindSchema>;
+
+export const richMessageSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("line_quick_reply"),
+    text: z.string().min(1).max(2000),
+    items: z.array(richQuickReplyItemSchema).min(1).max(13)
+  }).strict(),
+  z.object({
+    kind: z.literal("line_flex"),
+    altText: z.string().min(1).max(400),
+    layout: z.enum(["bubble", "carousel"]).default("bubble"),
+    bubbles: z.array(richFlexBubbleSchema).min(1).max(12)
+  }).strict(),
+  z.object({
+    kind: z.literal("line_buttons"),
+    altText: z.string().min(1).max(400),
+    text: z.string().min(1).max(160),
+    thumbnailUrl: z.string().max(2000).optional(),
+    actions: z.array(richButtonSchema).min(1).max(4)
+  }).strict(),
+  z.object({
+    kind: z.literal("telegram_inline_keyboard"),
+    text: z.string().min(1).max(4096),
+    rows: z.array(z.array(richButtonSchema).min(1).max(8)).min(1).max(100)
+  }).strict(),
+  z.object({
+    kind: z.literal("telegram_reply_keyboard"),
+    text: z.string().min(1).max(4096),
+    rows: z.array(z.array(z.string().min(1).max(64)).min(1).max(8)).min(1).max(20),
+    resizeKeyboard: z.boolean().default(true),
+    oneTimeKeyboard: z.boolean().default(false)
+  }).strict(),
+  z.object({
+    kind: z.literal("telegram_commands"),
+    commands: z.array(richTelegramCommandSchema).min(1).max(100)
+  }).strict(),
+  z.object({
+    kind: z.literal("messenger_generic"),
+    elements: z.array(richGenericElementSchema).min(1).max(10)
+  }).strict(),
+  z.object({
+    kind: z.literal("messenger_quick_replies"),
+    text: z.string().min(1).max(640),
+    items: z.array(richQuickReplyItemSchema).min(1).max(13)
+  }).strict(),
+  z.object({
+    kind: z.literal("instagram_ice_breakers"),
+    iceBreakers: z.array(richIceBreakerSchema).min(1).max(4)
+  }).strict(),
+  z.object({
+    kind: z.literal("instagram_quick_replies"),
+    text: z.string().min(1).max(640),
+    items: z.array(richQuickReplyItemSchema).min(1).max(13)
+  }).strict(),
+  z.object({
+    kind: z.literal("webchat_quick_replies"),
+    text: z.string().min(1).max(2000),
+    items: z.array(richQuickReplyItemSchema).min(1).max(13)
+  }).strict()
+]);
+export type RichMessage = z.infer<typeof richMessageSchema>;
+
+export const RICH_MESSAGE_KINDS_BY_PLATFORM: Record<Platform, RichMessageKind[]> = {
+  line: ["line_quick_reply", "line_flex", "line_buttons"],
+  telegram: ["telegram_inline_keyboard", "telegram_reply_keyboard", "telegram_commands"],
+  facebook: ["messenger_generic", "messenger_quick_replies"],
+  instagram: ["instagram_ice_breakers", "instagram_quick_replies"],
+  webchat: ["webchat_quick_replies"]
+};
+
+export interface RichMessageKindMeta {
+  kind: RichMessageKind;
+  platform: Platform;
+  label: string;
+  description: string;
+}
+
+export const RICH_MESSAGE_KIND_META: Record<RichMessageKind, RichMessageKindMeta> = {
+  line_quick_reply: { kind: "line_quick_reply", platform: "line", label: "Quick Reply", description: "Up to 13 tappable suggestions shown under the message." },
+  line_flex: { kind: "line_flex", platform: "line", label: "Flex / Carousel", description: "Rich bubble or carousel (max 12 bubbles) with image, text and actions." },
+  line_buttons: { kind: "line_buttons", platform: "line", label: "Buttons Template", description: "Text card with up to 4 action buttons." },
+  telegram_inline_keyboard: { kind: "telegram_inline_keyboard", platform: "telegram", label: "Inline Keyboard", description: "Buttons attached to the message with callback data or URLs." },
+  telegram_reply_keyboard: { kind: "telegram_reply_keyboard", platform: "telegram", label: "Reply Keyboard", description: "Custom keyboard shown in place of the system keyboard." },
+  telegram_commands: { kind: "telegram_commands", platform: "telegram", label: "Bot Commands", description: "Slash-command menu registered for the bot." },
+  messenger_generic: { kind: "messenger_generic", platform: "facebook", label: "Generic Template", description: "Carousel of up to 10 cards, each with up to 3 buttons." },
+  messenger_quick_replies: { kind: "messenger_quick_replies", platform: "facebook", label: "Quick Replies", description: "Up to 13 quick reply chips (title max 20 chars)." },
+  instagram_ice_breakers: { kind: "instagram_ice_breakers", platform: "instagram", label: "Ice Breakers", description: "Up to 4 starter questions shown at the top of a new chat." },
+  instagram_quick_replies: { kind: "instagram_quick_replies", platform: "instagram", label: "Quick Replies", description: "Up to 13 quick reply chips (title max 20 chars)." },
+  webchat_quick_replies: { kind: "webchat_quick_replies", platform: "webchat", label: "Quick-reply Chips", description: "Suggested reply chips shown in the web chat widget." }
+};
+
+export const RICH_MESSAGE_CONFIG_KEY = "richMessage";
+
+export function richMessageKindPlatform(kind: RichMessageKind): Platform {
+  return RICH_MESSAGE_KIND_META[kind].platform;
+}
+
+export function parseRichMessageConfig(config: Record<string, unknown> | null | undefined): RichMessage | null {
+  if (!config) return null;
+  const raw = config[RICH_MESSAGE_CONFIG_KEY];
+  if (raw == null) return null;
+  const parsed = richMessageSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+export function summariseRichMessage(message: RichMessage): string {
+  const meta = RICH_MESSAGE_KIND_META[message.kind];
+  switch (message.kind) {
+    case "line_quick_reply":
+    case "messenger_quick_replies":
+    case "instagram_quick_replies":
+    case "webchat_quick_replies":
+      return `${meta.label}: ${message.items.length} item(s)`;
+    case "line_flex":
+      return `${meta.label}: ${message.bubbles.length} bubble(s)`;
+    case "line_buttons":
+      return `${meta.label}: ${message.actions.length} button(s)`;
+    case "telegram_inline_keyboard":
+    case "telegram_reply_keyboard":
+      return `${meta.label}: ${message.rows.length} row(s)`;
+    case "telegram_commands":
+      return `${meta.label}: ${message.commands.length} command(s)`;
+    case "messenger_generic":
+      return `${meta.label}: ${message.elements.length} card(s)`;
+    case "instagram_ice_breakers":
+      return `${meta.label}: ${message.iceBreakers.length} question(s)`;
+    default:
+      return meta.label;
+  }
+}
+
 export const flowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
