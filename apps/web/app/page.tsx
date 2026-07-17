@@ -68,7 +68,7 @@ import {
   type InboxTab,
   type PlatformRoom
 } from "./inbox-data";
-import { useLang } from "./i18n-data";
+import { useLang, type TranslationKey } from "./i18n-data";
 import {
   getContactAnalytics
 } from "./analytics-data";
@@ -193,7 +193,6 @@ import {
   filterTaskDashboardRows,
   mapApiTaskDashboardRows,
   mapMockTaskDashboardRows,
-  taskStatusLabel,
   type TaskDashboardDueFilter,
   type TaskDashboardRow,
   type TaskDashboardStatusFilter
@@ -236,6 +235,83 @@ const apiAgentIds: Record<string, string> = {
   "agent-beam": "00000000-0000-4000-8000-000000000013"
 };
 const unassignedTaskAssignee = "unassigned";
+
+const priorityDisplayKey: Record<ConversationPriority, TranslationKey> = {
+  low: "inbox.priority.low",
+  medium: "inbox.priority.medium",
+  high: "inbox.priority.high",
+  urgent: "inbox.priority.urgent"
+};
+const statusDisplayKey: Record<ConversationStatus, TranslationKey> = {
+  open: "inbox.status.open",
+  pending: "inbox.status.pending",
+  follow_up: "inbox.status.follow_up",
+  resolved: "inbox.status.resolved",
+  closed: "inbox.status.closed",
+  spam: "inbox.status.spam"
+};
+const aiStatusDisplayKey: Record<AiStatus, TranslationKey> = {
+  "AI Off": "inbox.ai.off",
+  Suggest: "inbox.ai.suggest",
+  "AI Active": "inbox.ai.active",
+  "Need Human": "inbox.ai.needHuman",
+  "Human Taken": "inbox.ai.humanTaken",
+  Closed: "inbox.ai.closed"
+};
+const filterDisplayKey: Record<ConversationFilter, TranslationKey> = {
+  all: "inbox.filter.all",
+  my: "inbox.filter.my",
+  my_inbox: "inbox.filter.my",
+  unassigned: "inbox.filter.unassigned",
+  sla_warning: "inbox.filter.sla_warning",
+  sla_breached: "inbox.filter.sla_breached",
+  ai_active: "inbox.filter.ai_active",
+  need_human: "inbox.filter.need_human",
+  unread: "inbox.filter.unread",
+  unreplied: "inbox.filter.unreplied",
+  follow_up: "inbox.filter.follow_up",
+  closed: "inbox.filter.closed",
+  spam: "inbox.filter.spam"
+};
+const tabDisplayKey: Record<InboxTab, TranslationKey> = {
+  human: "inbox.tab.human",
+  bot: "inbox.tab.bot"
+};
+const senderDisplayKey: Record<string, TranslationKey> = {
+  ai: "inbox.sender.ai",
+  ai_draft: "inbox.sender.ai_draft",
+  automation: "inbox.sender.automation",
+  system: "inbox.sender.system",
+  agent: "inbox.sender.agent",
+  customer: "inbox.sender.customer"
+};
+const conversationStatusDisplayKey: Record<"all" | ConversationStatus, TranslationKey> = {
+  all: "inbox.val.all",
+  ...statusDisplayKey
+};
+const conversationPriorityDisplayKey: Record<"all" | ConversationPriority, TranslationKey> = {
+  all: "inbox.val.all",
+  ...priorityDisplayKey
+};
+const slaFilterDisplayKey: Record<"all" | "ok" | "warning" | "breached", TranslationKey> = {
+  all: "inbox.val.all",
+  ok: "inbox.sla.ok",
+  warning: "inbox.sla.warning",
+  breached: "inbox.sla.breached"
+};
+const taskStatusFilterDisplayKey: Record<TaskDashboardStatusFilter, TranslationKey> = {
+  open: "inbox.task.open",
+  completed: "inbox.task.completedWord",
+  all: "inbox.val.all"
+};
+const taskDueFilterDisplayKey: Record<TaskDashboardDueFilter, TranslationKey> = {
+  all: "inbox.val.all",
+  due: "inbox.due.due",
+  due_soon: "inbox.due.dueSoon",
+  overdue: "inbox.due.overdue",
+  upcoming: "inbox.due.upcoming",
+  follow_up: "inbox.due.followUp"
+};
 
 type BroadcastHistoryPanelRow = {
   id: string;
@@ -1882,11 +1958,11 @@ export default function InboxDashboard() {
             type="button"
             className="panelRailToggle"
             onClick={toggleRoomsCollapsed}
-            aria-label="Expand Platform Rooms"
-            title="Expand Platform Rooms"
+            aria-label={t("inbox.rooms.expand")}
+            title={t("inbox.rooms.expand")}
           >
             <ChevronRight size={16} />
-            <span className="panelRailLabel">Rooms</span>
+            <span className="panelRailLabel">{t("inbox.rooms.rail")}</span>
           </button>
         )}
         <header className="sectionHeader">
@@ -1895,15 +1971,15 @@ export default function InboxDashboard() {
             <h1>{t("page.chat.h1")}</h1>
           </div>
           <div className="panelHeaderActions">
-            <button className="iconButton" aria-label="Refresh mock rooms">
+            <button className="iconButton" aria-label={t("inbox.rooms.refresh")}>
               <RotateCcw size={16} />
             </button>
             <button
               type="button"
               className="iconButton panelCollapseToggle"
               onClick={toggleRoomsCollapsed}
-              aria-label="Collapse Platform Rooms"
-              title="Collapse Platform Rooms"
+              aria-label={t("inbox.rooms.collapse")}
+              title={t("inbox.rooms.collapse")}
             >
               <ChevronLeft size={16} />
             </button>
@@ -1912,7 +1988,7 @@ export default function InboxDashboard() {
 
         <label className="searchBox">
           <Search size={16} />
-          <input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder="Search room" aria-label="Search room" />
+          <input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder={t("inbox.rooms.search")} aria-label={t("inbox.rooms.search")} />
         </label>
 
         <div className="roomGroups">
@@ -1930,7 +2006,7 @@ export default function InboxDashboard() {
                 aria-pressed={selectedRoom.id === room.id}
               >
                 <span>{room.roomName}</span>
-                <small>{apiMode ? roomCounts[room.id] ?? 0 : getRoomConversationCount(room.id, conversations)} conversations</small>
+                <small>{apiMode ? roomCounts[room.id] ?? 0 : getRoomConversationCount(room.id, conversations)} {t("inbox.rooms.conversations")}</small>
               </button>
             </section>
           ))}
@@ -1943,16 +2019,16 @@ export default function InboxDashboard() {
             type="button"
             className="panelRailToggle"
             onClick={toggleQueueCollapsed}
-            aria-label="Expand Conversation Queue"
-            title="Expand Conversation Queue"
+            aria-label={t("inbox.queue.expand")}
+            title={t("inbox.queue.expand")}
           >
             <ChevronRight size={16} />
-            <span className="panelRailLabel">Queue</span>
+            <span className="panelRailLabel">{t("inbox.queue.rail")}</span>
           </button>
         )}
         <header className="queueHeader">
           <div>
-            <p className="eyebrow">Conversation Queue</p>
+            <p className="eyebrow">{t("inbox.queue.title")}</p>
             <h2>{selectedRoom.platformLabel} / {selectedRoom.accountName}</h2>
           </div>
           <div className="panelHeaderActions">
@@ -1961,8 +2037,8 @@ export default function InboxDashboard() {
               type="button"
               className="iconButton panelCollapseToggle"
               onClick={toggleQueueCollapsed}
-              aria-label="Collapse Conversation Queue"
-              title="Collapse Conversation Queue"
+              aria-label={t("inbox.queue.collapse")}
+              title={t("inbox.queue.collapse")}
             >
               <ChevronLeft size={16} />
             </button>
@@ -1971,7 +2047,7 @@ export default function InboxDashboard() {
 
         {apiMode && (
           <div className={apiError ? "collisionBanner" : "collisionBanner soft"}>
-            <Wifi size={16} /> {apiError || (apiLoading ? "Loading API data..." : `API mode connected via ${dataMode}`)}
+            <Wifi size={16} /> {apiError || (apiLoading ? t("inbox.queue.loadingApi") : `${t("inbox.queue.apiConnected")} ${dataMode}`)}
           </div>
         )}
 
@@ -1983,7 +2059,7 @@ export default function InboxDashboard() {
               type="button"
               onClick={() => setTab(item.id)}
             >
-              {item.label}
+              {t(tabDisplayKey[item.id])}
             </button>
           ))}
         </div>
@@ -1996,7 +2072,7 @@ export default function InboxDashboard() {
               type="button"
               onClick={() => setFilter(item.id)}
             >
-              {item.label}
+              {t(filterDisplayKey[item.id])}
             </button>
           ))}
         </div>
@@ -2006,15 +2082,15 @@ export default function InboxDashboard() {
           <input
             value={conversationSearch}
             onChange={(event) => setConversationSearch(event.target.value)}
-            placeholder="Search conversations"
-            aria-label="Search conversations"
+            placeholder={t("inbox.search.conversations")}
+            aria-label={t("inbox.search.conversations")}
           />
         </label>
 
         <label className="agentFilter">
-          <span>Agent</span>
+          <span>{t("inbox.select.agent")}</span>
           <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} aria-label="Filter by agent">
-            <option value="all">All agents</option>
+            <option value="all">{t("inbox.select.allAgents")}</option>
             {taskAssigneeAgents.map((agent) => (
               <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>
             ))}
@@ -2023,38 +2099,38 @@ export default function InboxDashboard() {
 
         <div className="queueSelectGrid" aria-label="Conversation search filters">
           <label>
-            <span>Status</span>
+            <span>{t("inbox.select.status")}</span>
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | ConversationStatus)} aria-label="Filter by status">
-              {conversationStatusFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+              {conversationStatusFilterOptions.map((item) => <option key={item} value={item}>{t(conversationStatusDisplayKey[item])}</option>)}
             </select>
           </label>
           <label>
-            <span>Priority</span>
+            <span>{t("inbox.select.priority")}</span>
             <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as "all" | ConversationPriority)} aria-label="Filter by priority">
-              {conversationPriorityFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+              {conversationPriorityFilterOptions.map((item) => <option key={item} value={item}>{t(conversationPriorityDisplayKey[item])}</option>)}
             </select>
           </label>
           <label>
-            <span>Read</span>
+            <span>{t("inbox.select.read")}</span>
             <select value={unreadFilter} onChange={(event) => setUnreadFilter(event.target.value as "all" | "unread" | "read")} aria-label="Filter by read state">
-              <option value="all">all</option>
-              <option value="unread">unread</option>
-              <option value="read">read</option>
+              <option value="all">{t("inbox.val.all")}</option>
+              <option value="unread">{t("inbox.read.unread")}</option>
+              <option value="read">{t("inbox.read.read")}</option>
             </select>
           </label>
           <label>
             <span>SLA</span>
             <select value={slaFilter} onChange={(event) => setSlaFilter(event.target.value as "all" | "ok" | "warning" | "breached")} aria-label="Filter by SLA">
-              {slaFilterOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+              {slaFilterOptions.map((item) => <option key={item} value={item}>{t(slaFilterDisplayKey[item])}</option>)}
             </select>
           </label>
           <label>
-            <span>Sort</span>
+            <span>{t("inbox.select.sort")}</span>
             <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "latest_desc" | "latest_asc" | "updated_desc" | "updated_asc")} aria-label="Sort conversations">
-              <option value="latest_desc">latest first</option>
-              <option value="latest_asc">latest last</option>
-              <option value="updated_desc">updated first</option>
-              <option value="updated_asc">updated last</option>
+              <option value="latest_desc">{t("inbox.sort.latestDesc")}</option>
+              <option value="latest_asc">{t("inbox.sort.latestAsc")}</option>
+              <option value="updated_desc">{t("inbox.sort.updatedDesc")}</option>
+              <option value="updated_asc">{t("inbox.sort.updatedAsc")}</option>
             </select>
           </label>
         </div>
@@ -2083,11 +2159,11 @@ export default function InboxDashboard() {
         <div className="conversationList">
           {visibleConversations.length === 0 ? (
             <EmptyState
-              title="No conversations in this view"
+              title={t("inbox.empty.noConversations")}
               body={
                 selectedRoom.id === "webchat-main"
-                  ? "Open /webchat-demo and send a visitor message to create a Webchat demo conversation."
-                  : `${selectedRoom.platformLabel} / ${selectedRoom.accountName} has no ${tab} conversations for ${filterLabel(filter)}.`
+                  ? t("inbox.empty.webchatBody")
+                  : `${selectedRoom.platformLabel} / ${selectedRoom.accountName} ${t("inbox.empty.roomHasNo")} ${t(tabDisplayKey[tab])} ${t("inbox.empty.convFor")} ${t(filterDisplayKey[filter])}.`
               }
             />
           ) : (
@@ -2104,7 +2180,7 @@ export default function InboxDashboard() {
         </div>
         {apiMode && hasMoreApiConversations && (
           <button className="loadMoreButton" type="button" onClick={() => setConversationLimit((current) => current + apiConversationPageSize)} disabled={apiLoading}>
-            {apiLoading ? "Loading..." : "Load more"}
+            {apiLoading ? t("inbox.common.loading") : t("inbox.queue.loadMore")}
           </button>
         )}
       </section>
@@ -2143,7 +2219,7 @@ export default function InboxDashboard() {
             <div className="collisionBanner"><AlertTriangle size={16} /> {selectedCollision.typingText}</div>
           )}
           {!apiMode && selectedCollision?.lockedByAssignment && (
-            <div className="collisionBanner soft"><UserRoundCheck size={16} /> Locked by assignment: {selectedCollision.ownerText}</div>
+            <div className="collisionBanner soft"><UserRoundCheck size={16} /> {t("inbox.chat.lockedByAssignment")}: {selectedCollision.ownerText}</div>
           )}
           {!apiMode && selectedCollision?.viewingText && (
             <div className="collisionBanner soft"><Clock3 size={16} /> {selectedCollision.viewingText}</div>
@@ -2151,7 +2227,7 @@ export default function InboxDashboard() {
           {selectedConversation ? (
             selectedConversation.messages.map((message) => <MessageBubble key={message.id} message={message} />)
           ) : (
-            <EmptyState title="Select a conversation" body="Conversation list is scoped to the selected platform room and account." />
+            <EmptyState title={t("inbox.empty.selectConversation")} body={t("inbox.empty.selectConversationBody")} />
           )}
         </div>
         <footer className="composerPanel">
@@ -2165,21 +2241,21 @@ export default function InboxDashboard() {
           <div className="cannedReplyBar">
             <label className="searchBox cannedSearch">
               <Search size={15} />
-              <input value={cannedSearch} onChange={(event) => setCannedSearch(event.target.value)} placeholder="Search canned replies" aria-label="Search canned replies" />
+              <input value={cannedSearch} onChange={(event) => setCannedSearch(event.target.value)} placeholder={t("inbox.composer.searchCanned")} aria-label={t("inbox.composer.searchCanned")} />
             </label>
-            <select value={cannedCategory} onChange={(event) => setCannedCategory(event.target.value)} aria-label="Canned reply category">
-              <option value="all">All categories</option>
-              <option value="general">General</option>
-              <option value="sales">Sales</option>
-              <option value="support">Support</option>
+            <select value={cannedCategory} onChange={(event) => setCannedCategory(event.target.value)} aria-label={t("inbox.composer.cannedCategory")}>
+              <option value="all">{t("inbox.composer.allCategories")}</option>
+              <option value="general">{t("inbox.composer.general")}</option>
+              <option value="sales">{t("inbox.composer.sales")}</option>
+              <option value="support">{t("inbox.composer.support")}</option>
             </select>
             {cannedReplies.slice(0, 4).map((reply) => (
               <button key={reply.id} type="button" onClick={() => applyCannedReply(reply.id)} disabled={!selectedConversation}>
                 {reply.shortcut}
               </button>
             ))}
-            {apiMode && apiCannedError ? <span className="noteText">Canned replies API error: {apiCannedError}</span> : null}
-            {apiMode && !apiCannedError && cannedReplies.length === 0 ? <span className="noteText">No persisted canned replies</span> : null}
+            {apiMode && apiCannedError ? <span className="noteText">{t("inbox.composer.cannedError")}: {apiCannedError}</span> : null}
+            {apiMode && !apiCannedError && cannedReplies.length === 0 ? <span className="noteText">{t("inbox.composer.noCanned")}</span> : null}
           </div>
           {pendingAttachments.length > 0 ? (
             <div className="composerAttachments" aria-label="Pending attachments">
@@ -2196,7 +2272,7 @@ export default function InboxDashboard() {
                     type="button"
                     className="composerAttachmentRemove"
                     onClick={() => removePendingAttachment(item.id)}
-                    aria-label={`Remove ${item.filename}`}
+                    aria-label={`${t("inbox.composer.remove")} ${item.filename}`}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -2221,13 +2297,13 @@ export default function InboxDashboard() {
               className="composerAttachButton"
               onClick={() => attachInputRef.current?.click()}
               disabled={!selectedConversation || uploadingMedia}
-              aria-label="Attach file or image"
-              title="Attach file or image"
+              aria-label={t("inbox.composer.attach")}
+              title={t("inbox.composer.attach")}
             >
               <Paperclip size={16} />
             </button>
             <textarea
-              placeholder="Reply in the selected room account"
+              placeholder={t("inbox.composer.reply")}
               value={composer}
               onChange={(event) => handleComposerChange(event.target.value)}
               disabled={!selectedConversation}
@@ -2238,10 +2314,10 @@ export default function InboxDashboard() {
               onClick={() => sendAgentMessage()}
               disabled={!selectedConversation || (!composer.trim() && pendingAttachments.length === 0) || sendLoading || uploadingMedia}
             >
-              {sendLoading ? "Sending..." : uploadingMedia ? "Uploading..." : "Send"}
+              {sendLoading ? t("inbox.composer.sending") : uploadingMedia ? t("inbox.composer.uploading") : t("inbox.composer.send")}
             </button>
           </div>
-          {sendError ? <p className="noteText">Send failed: {sendError}</p> : null}
+          {sendError ? <p className="noteText">{t("inbox.composer.sendFailed")}: {sendError}</p> : null}
         </footer>
       </section>
 
@@ -2251,11 +2327,11 @@ export default function InboxDashboard() {
             type="button"
             className="panelRailToggle"
             onClick={toggleCustomerCollapsed}
-            aria-label="Expand Customer panel"
-            title="Expand Customer panel"
+            aria-label={t("inbox.customer.expand")}
+            title={t("inbox.customer.expand")}
           >
             <ChevronLeft size={16} />
-            <span className="panelRailLabel">Customer</span>
+            <span className="panelRailLabel">{t("inbox.customer.rail")}</span>
           </button>
         ) : (
           <>
@@ -2264,8 +2340,8 @@ export default function InboxDashboard() {
                 type="button"
                 className="iconButton panelCollapseToggle"
                 onClick={toggleCustomerCollapsed}
-                aria-label="Collapse Customer panel"
-                title="Collapse Customer panel"
+                aria-label={t("inbox.customer.collapse")}
+                title={t("inbox.customer.collapse")}
               >
                 <ChevronRight size={16} />
               </button>
@@ -2281,7 +2357,7 @@ export default function InboxDashboard() {
           aiActionStatus={aiActionStatus}
           aiLoading={apiAiLoading}
           aiError={apiAiError}
-          assignedAgentName={apiMode ? apiCustomer360?.owner ?? "Unassigned" : selectedAssignedAgent?.name ?? "Unassigned"}
+          assignedAgentName={apiMode ? apiCustomer360?.owner ?? t("inbox.chat.unassigned") : selectedAssignedAgent?.name ?? t("inbox.chat.unassigned")}
           apiMode={apiMode}
           customerLoading={apiCustomerLoading}
           customerError={apiCustomerError}
@@ -2403,52 +2479,53 @@ function TaskDashboardPanel({
   onTaskAssigneeChange: (task: TaskDashboardRow, agentId: string) => void;
   onTaskDueChange: (task: TaskDashboardRow, dueAt: string) => void;
 }) {
+  const { t } = useLang();
   const openCount = rows.filter((task) => task.status === "open").length;
   const completedCount = rows.filter((task) => task.status === "done").length;
   return (
     <section className="taskDashboardPanel" aria-label="Task dashboard">
       <header className="taskDashboardHeader">
         <div>
-          <p className="eyebrow">Task Dashboard</p>
-          <h3>{openCount} open / {completedCount} completed</h3>
+          <p className="eyebrow">{t("inbox.task.title")}</p>
+          <h3>{openCount} {t("inbox.task.openWord")} / {completedCount} {t("inbox.task.completedWord")}</h3>
         </div>
-        <button className="iconButton" type="button" onClick={onRefresh} disabled={loading} aria-label="Refresh task dashboard">
+        <button className="iconButton" type="button" onClick={onRefresh} disabled={loading} aria-label={t("inbox.task.refresh")}>
           <RotateCcw size={15} />
         </button>
       </header>
 
       <div className="taskDashboardFilters" aria-label="Task filters">
         <label>
-          <span>Status</span>
+          <span>{t("inbox.select.status")}</span>
           <select value={status} onChange={(event) => onStatusChange(event.target.value as TaskDashboardStatusFilter)} aria-label="Filter tasks by status">
-            <option value="open">open</option>
-            <option value="completed">completed</option>
-            <option value="all">all</option>
+            <option value="open">{t("inbox.task.open")}</option>
+            <option value="completed">{t("inbox.task.completedWord")}</option>
+            <option value="all">{t("inbox.val.all")}</option>
           </select>
         </label>
         <label>
-          <span>Due</span>
+          <span>{t("inbox.task.due")}</span>
           <select value={due} onChange={(event) => onDueChange(event.target.value as TaskDashboardDueFilter)} aria-label="Filter tasks by due date">
-            <option value="all">all</option>
-            <option value="due">due</option>
-            <option value="due_soon">due soon</option>
-            <option value="overdue">overdue</option>
-            <option value="upcoming">upcoming</option>
-            <option value="follow_up">follow-up</option>
+            <option value="all">{t("inbox.val.all")}</option>
+            <option value="due">{t("inbox.due.due")}</option>
+            <option value="due_soon">{t("inbox.due.dueSoon")}</option>
+            <option value="overdue">{t("inbox.due.overdue")}</option>
+            <option value="upcoming">{t("inbox.due.upcoming")}</option>
+            <option value="follow_up">{t("inbox.due.followUp")}</option>
           </select>
         </label>
         <label>
-          <span>Assignee</span>
+          <span>{t("inbox.task.assignee")}</span>
           <select value={assignee} onChange={(event) => onAssigneeChange(event.target.value)} aria-label="Filter tasks by assignee">
-            <option value="all">all</option>
+            <option value="all">{t("inbox.val.all")}</option>
             {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
           </select>
         </label>
       </div>
 
-      {apiMode && error && <EmptyState title="Task API error" body={error} />}
-      {apiMode && loading && !error && <p className="taskDashboardHint">Loading persisted tasks...</p>}
-      {!loading && !error && rows.length === 0 && <p className="taskDashboardHint">{apiMode ? "No persisted tasks returned" : "No local tasks in this view"}</p>}
+      {apiMode && error && <EmptyState title={t("inbox.task.apiError")} body={error} />}
+      {apiMode && loading && !error && <p className="taskDashboardHint">{t("inbox.task.loadingPersisted")}</p>}
+      {!loading && !error && rows.length === 0 && <p className="taskDashboardHint">{apiMode ? t("inbox.task.noPersisted") : t("inbox.task.noLocal")}</p>}
 
       {!error && rows.length > 0 && (
         <div className="taskDashboardList">
@@ -2458,24 +2535,24 @@ function TaskDashboardPanel({
                 <strong>{task.title}</strong>
                 <span>{task.platformLabel} / {task.accountName}</span>
                 <small>{task.channelAccountId} / {task.roomId} / {task.conversationId}</small>
-                <small>{task.assigneeName ?? task.assigneeUserId ?? "Unassigned"} / {task.dueAt ? formatTaskDate(task.dueAt) : "No due date"}</small>
-                <small>Priority: {task.conversationPriority}</small>
+                <small>{task.assigneeName ?? task.assigneeUserId ?? t("inbox.chat.unassigned")} / {task.dueAt ? formatTaskDate(task.dueAt) : t("inbox.task.noDue")}</small>
+                <small>{t("inbox.task.priorityPrefix")}: {t(priorityDisplayKey[task.conversationPriority])}</small>
               </div>
               <div className="taskDashboardEditGrid">
                 <label>
-                  <span>Assignee</span>
+                  <span>{t("inbox.task.assignee")}</span>
                   <select
                     value={task.source === "api" ? localAgentIdForApiUserId(task.assigneeUserId) : task.assigneeUserId ?? unassignedTaskAssignee}
                     onChange={(event) => onTaskAssigneeChange(task, event.target.value)}
                     disabled={updatingId === task.id || task.status !== "open"}
                     aria-label={`Assign task ${task.title}`}
                   >
-                    <option value={unassignedTaskAssignee}>Unassigned</option>
+                    <option value={unassignedTaskAssignee}>{t("inbox.chat.unassigned")}</option>
                     {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
                   </select>
                 </label>
                 <label>
-                  <span>Due date</span>
+                  <span>{t("inbox.task.dueDate")}</span>
                   <input
                     type="datetime-local"
                     value={toDateTimeLocalValue(task.dueAt)}
@@ -2489,13 +2566,13 @@ function TaskDashboardPanel({
                   onClick={() => onTaskDueChange(task, "")}
                   disabled={updatingId === task.id || task.status !== "open" || !task.dueAt}
                 >
-                  Clear
+                  {t("inbox.task.clear")}
                 </button>
               </div>
               <div className="taskDashboardActions">
-                <span className={`taskStatus ${task.status}`}>{taskStatusLabel(task.status)}</span>
+                <span className={`taskStatus ${task.status}`}>{task.status === "done" ? t("inbox.task.statusCompleted") : t("inbox.task.statusOpen")}</span>
                 <button type="button" onClick={() => onOpenConversation(task)}>
-                  <ExternalLink size={13} /> Open
+                  <ExternalLink size={13} /> {t("inbox.task.open")}
                 </button>
                 <button
                   className={actionFeedbackClassName("task-complete", completingId === task.id ? "task-complete" : null)}
@@ -2503,7 +2580,7 @@ function TaskDashboardPanel({
                   onClick={() => onCompleteTask(task)}
                   disabled={task.status !== "open" || completingId === task.id || updatingId === task.id}
                 >
-                  <CheckCircle2 size={13} /> {completingId === task.id ? "Saving" : "Done"}
+                  <CheckCircle2 size={13} /> {completingId === task.id ? t("inbox.task.saving") : t("inbox.task.done")}
                 </button>
               </div>
             </article>
@@ -2525,6 +2602,7 @@ function ConversationButton({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useLang();
   const assignedAgent = getAssignedAgent(adminStore, conversation.id);
   const priority = conversation.priority;
   const status = conversation.status;
@@ -2545,7 +2623,7 @@ function ConversationButton({
       <p>{conversation.lastMessage}</p>
       <div className="cardMeta">
         <AiStatusBadge status={conversation.aiStatus} />
-        <span>{conversation.assignedAgent ?? (assignedAgent ? `${assignedAgent.name} / ${assignedAgent.status}` : "Unassigned")}</span>
+        <span>{conversation.assignedAgent ?? (assignedAgent ? `${assignedAgent.name} / ${assignedAgent.status}` : t("inbox.chat.unassigned"))}</span>
       </div>
       <div className="badgeRow">
         <PriorityBadge priority={priority} />
@@ -2614,47 +2692,48 @@ function ChatHeader({
   onAddNote: () => void;
   onCopySummary: () => void;
 }) {
+  const { t } = useLang();
   return (
     <header className="chatHeader">
       <div className="chatTitle">
-        <h2>{conversation?.customerName ?? "No conversation selected"}</h2>
+        <h2>{conversation?.customerName ?? t("inbox.chat.noConversationSelected")}</h2>
         <p>{room.platformLabel} / {room.accountName}</p>
         <div className="headerMeta">
           {conversation && <AiStatusBadge status={conversation.aiStatus} />}
-          <span>{assignedAgentName ?? "Unassigned"}</span>
+          <span>{assignedAgentName ?? t("inbox.chat.unassigned")}</span>
           <PriorityBadge priority={priority} />
           <StatusBadge status={status} />
           {sla && <SlaBadge status={sla.status} text={sla.text} />}
-          {collision?.lockedByAssignment && <span>Soft warning</span>}
+          {collision?.lockedByAssignment && <span>{t("inbox.chat.softWarning")}</span>}
         </div>
       </div>
       <div className="chatActions">
-        <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={!conversation}><UserRoundCheck size={15} /> Take Over</button>
-        <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi} disabled={!conversation}><Bot size={15} /> Return to AI</button>
-        <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={!conversation}><UserPlus size={15} /> Assign to Me</button>
-        <button className={actionFeedbackClassName("unassign", activeActionKey)} type="button" onClick={onUnassign} disabled={!conversation}><UserMinus size={15} /> Unassign</button>
-        <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={!conversation}><Clock3 size={15} /> Follow Up</button>
-        <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved} disabled={!conversation}><CheckCircle2 size={15} /> Resolved</button>
-        <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen} disabled={!conversation}><RotateCcw size={15} /> Reopen</button>
-        <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={!conversation}><CheckCircle2 size={15} /> Read</button>
-        <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={!conversation}><MessageSquareText size={15} /> Replied</button>
-        <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={!conversation}><Clock3 size={15} /> SLA Soon</button>
-        <button className={actionFeedbackClassName("toolbar-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={!conversation}><Clipboard size={15} /> Create Task</button>
-        <button className={actionFeedbackClassName("toolbar-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={!conversation}><Edit3 size={15} /> Add Note</button>
-        <button type="button" onClick={onCopySummary} disabled={!conversation}><Copy size={15} /> Copy Summary</button>
+        <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={!conversation}><UserRoundCheck size={15} /> {t("inbox.action.takeOver")}</button>
+        <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi} disabled={!conversation}><Bot size={15} /> {t("inbox.action.returnToAi")}</button>
+        <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={!conversation}><UserPlus size={15} /> {t("inbox.action.assignToMe")}</button>
+        <button className={actionFeedbackClassName("unassign", activeActionKey)} type="button" onClick={onUnassign} disabled={!conversation}><UserMinus size={15} /> {t("inbox.action.unassign")}</button>
+        <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={!conversation}><Clock3 size={15} /> {t("inbox.action.followUp")}</button>
+        <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved} disabled={!conversation}><CheckCircle2 size={15} /> {t("inbox.action.resolved")}</button>
+        <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen} disabled={!conversation}><RotateCcw size={15} /> {t("inbox.action.reopen")}</button>
+        <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={!conversation}><CheckCircle2 size={15} /> {t("inbox.action.read")}</button>
+        <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={!conversation}><MessageSquareText size={15} /> {t("inbox.action.replied")}</button>
+        <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={!conversation}><Clock3 size={15} /> {t("inbox.action.slaSoon")}</button>
+        <button className={actionFeedbackClassName("toolbar-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={!conversation}><Clipboard size={15} /> {t("inbox.action.createTask")}</button>
+        <button className={actionFeedbackClassName("toolbar-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={!conversation}><Edit3 size={15} /> {t("inbox.action.addNote")}</button>
+        <button type="button" onClick={onCopySummary} disabled={!conversation}><Copy size={15} /> {t("inbox.action.copySummary")}</button>
         <select className={actionFeedbackClassName("assign", activeActionKey)} value="" onChange={(event) => event.target.value && onAssign(event.target.value)} disabled={!conversation} aria-label="Assign conversation">
-          <option value="">Assign</option>
+          <option value="">{t("inbox.action.assign")}</option>
           {assignableAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
         <select className={actionFeedbackClassName("transfer", activeActionKey)} value="" onChange={(event) => event.target.value && onTransfer(event.target.value)} disabled={!conversation} aria-label="Transfer conversation">
-          <option value="">Transfer</option>
+          <option value="">{t("inbox.action.transfer")}</option>
           {assignableAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name} / {agent.status}</option>)}
         </select>
         <select className={actionFeedbackClassName("priority", activeActionKey)} value={priority} onChange={(event) => onPriorityChange(event.target.value as ConversationPriority)} disabled={!conversation} aria-label="Change priority">
-          {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          {priorityOptions.map((item) => <option key={item} value={item}>{t(priorityDisplayKey[item])}</option>)}
         </select>
         <select className={actionFeedbackClassName("status", activeActionKey)} value={status} onChange={(event) => onStatusChange(event.target.value as ConversationStatus)} disabled={!conversation} aria-label="Change status">
-          {statusOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          {statusOptions.map((item) => <option key={item} value={item}>{t(statusDisplayKey[item])}</option>)}
         </select>
       </div>
     </header>
@@ -2826,14 +2905,15 @@ function CustomerPanel({
   onSetPrimaryIdentity: () => void;
   onToggleBroadcastOptOut: () => void;
 }) {
+  const { t } = useLang();
   if (!conversation) {
     return (
       <div className="panelBlock">
         <div className="blockHeader">
           <PanelRightOpen size={17} />
-          <h3>Customer 360</h3>
+          <h3>{t("inbox.customer.title")}</h3>
         </div>
-        <EmptyState title="No customer selected" body="Select a conversation to see Customer 360 and AI context." />
+        <EmptyState title={t("inbox.customer.noSelected")} body={t("inbox.customer.noSelectedBody")} />
       </div>
     );
   }
@@ -2843,9 +2923,9 @@ function CustomerPanel({
       <div className="panelBlock">
         <div className="blockHeader">
           <PanelRightOpen size={17} />
-          <h3>Customer 360</h3>
+          <h3>{t("inbox.customer.title")}</h3>
         </div>
-        <EmptyState title="Loading Customer 360" body="Fetching persisted contact and identity data from the API." />
+        <EmptyState title={t("inbox.customer.loadingTitle")} body={t("inbox.customer.loadingBody")} />
       </div>
     );
   }
@@ -2855,9 +2935,9 @@ function CustomerPanel({
       <div className="panelBlock">
         <div className="blockHeader">
           <PanelRightOpen size={17} />
-          <h3>Customer 360</h3>
+          <h3>{t("inbox.customer.title")}</h3>
         </div>
-        <EmptyState title="Customer 360 API error" body={customerError} />
+        <EmptyState title={t("inbox.customer.errorTitle")} body={customerError} />
       </div>
     );
   }
@@ -2867,27 +2947,27 @@ function CustomerPanel({
       <section className="panelBlock">
         <div className="blockHeader">
           <PanelRightOpen size={17} />
-          <h3>Customer 360</h3>
+          <h3>{t("inbox.customer.title")}</h3>
         </div>
         <dl className="profileGrid">
-          <div><dt>Name</dt><dd>{contact?.displayName ?? conversation.customerName}</dd></div>
-          <div><dt>Email</dt><dd>{contact?.email ?? conversation.customerEmail}</dd></div>
-          <div><dt>Phone</dt><dd>{contact?.phone ?? conversation.customerPhone}</dd></div>
-          <div><dt>Owner</dt><dd>{assignedAgentName}</dd></div>
-          <div><dt>Priority</dt><dd><PriorityBadge priority={priority} /></dd></div>
-          <div><dt>SLA</dt><dd>{sla ? <SlaBadge status={sla.status} text={sla.text} /> : "No SLA"}</dd></div>
-          <div><dt>Status</dt><dd><StatusBadge status={status} /></dd></div>
-          <div><dt>Lead status</dt><dd>{contact?.leadStatus ?? "new"}</dd></div>
+          <div><dt>{t("inbox.customer.name")}</dt><dd>{contact?.displayName ?? conversation.customerName}</dd></div>
+          <div><dt>{t("inbox.customer.email")}</dt><dd>{contact?.email ?? conversation.customerEmail}</dd></div>
+          <div><dt>{t("inbox.customer.phone")}</dt><dd>{contact?.phone ?? conversation.customerPhone}</dd></div>
+          <div><dt>{t("inbox.customer.owner")}</dt><dd>{assignedAgentName}</dd></div>
+          <div><dt>{t("inbox.customer.priority")}</dt><dd><PriorityBadge priority={priority} /></dd></div>
+          <div><dt>SLA</dt><dd>{sla ? <SlaBadge status={sla.status} text={sla.text} /> : t("inbox.customer.noSla")}</dd></div>
+          <div><dt>{t("inbox.customer.status")}</dt><dd><StatusBadge status={status} /></dd></div>
+          <div><dt>{t("inbox.customer.leadStatus")}</dt><dd>{contact?.leadStatus ?? "new"}</dd></div>
         </dl>
         <div className="crmActionGrid">
-          <Link href={contact ? `/contacts?contact=${contact.id}` : "/contacts"} className="crmLinkButton"><ExternalLink size={14} /> Open Full Contact</Link>
-          <button className={actionFeedbackClassName("customer-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={workflowLoading}>Add Note</button>
-          <button className={actionFeedbackClassName("customer-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={workflowLoading}>Create Task</button>
-          <button type="button" onClick={onLinkIdentity} disabled={!contact}>Link Identity</button>
-          <button type="button" onClick={onCreateContact}>Create New Contact</button>
-          <button type="button" onClick={onUnlinkIdentity} disabled={!contact || contact.identities.length <= 1}>Unlink Identity</button>
-          <button type="button" onClick={onSetPrimaryIdentity} disabled={!contact}>Set Primary</button>
-          <button type="button" onClick={() => onLeadStatusChange("follow_up")} disabled={!contact}>Set Follow Up</button>
+          <Link href={contact ? `/contacts?contact=${contact.id}` : "/contacts"} className="crmLinkButton"><ExternalLink size={14} /> {t("inbox.customer.openFullContact")}</Link>
+          <button className={actionFeedbackClassName("customer-add-note", activeActionKey)} type="button" onClick={onAddNote} disabled={workflowLoading}>{t("inbox.action.addNote")}</button>
+          <button className={actionFeedbackClassName("customer-create-task", activeActionKey)} type="button" onClick={onCreateTask} disabled={workflowLoading}>{t("inbox.action.createTask")}</button>
+          <button type="button" onClick={onLinkIdentity} disabled={!contact}>{t("inbox.customer.linkIdentity")}</button>
+          <button type="button" onClick={onCreateContact}>{t("inbox.customer.createNewContact")}</button>
+          <button type="button" onClick={onUnlinkIdentity} disabled={!contact || contact.identities.length <= 1}>{t("inbox.customer.unlinkIdentity")}</button>
+          <button type="button" onClick={onSetPrimaryIdentity} disabled={!contact}>{t("inbox.customer.setPrimary")}</button>
+          <button type="button" onClick={() => onLeadStatusChange("follow_up")} disabled={!contact}>{t("inbox.customer.setFollowUp")}</button>
         </div>
       </section>
 
@@ -2921,60 +3001,60 @@ function CustomerPanel({
       <section className="panelBlock">
         <div className="blockHeader">
           <Radio size={17} />
-          <h3>Broadcast history</h3>
+          <h3>{t("inbox.bcast.title")}</h3>
         </div>
         <dl className="profileGrid">
-          <div><dt>Opt-out</dt><dd>{contact?.optOutBroadcast ? `Yes / ${contact.suppressedReason ?? "suppressed"}` : "No"}</dd></div>
-          <div><dt>Last campaign</dt><dd>{lastBroadcastCampaignName}</dd></div>
-          {apiMode && <div><dt>External calls</dt><dd>{broadcastHistorySummary?.externalCalls ?? 0}</dd></div>}
+          <div><dt>{t("inbox.bcast.optOut")}</dt><dd>{contact?.optOutBroadcast ? `${t("inbox.common.yes")} / ${contact.suppressedReason ?? "suppressed"}` : t("inbox.common.no")}</dd></div>
+          <div><dt>{t("inbox.bcast.lastCampaign")}</dt><dd>{lastBroadcastCampaignName}</dd></div>
+          {apiMode && <div><dt>{t("inbox.bcast.externalCalls")}</dt><dd>{broadcastHistorySummary?.externalCalls ?? 0}</dd></div>}
         </dl>
-        <button className="smallPanelButton" type="button" onClick={onToggleBroadcastOptOut} disabled={!contact || workflowLoading}>{contact?.optOutBroadcast ? "Allow broadcast" : "Opt out broadcast"}</button>
-        {apiMode && <p className="noteText">Broadcast consent and history are loaded from the API for this tenant. Provider outbound remains disabled.</p>}
+        <button className="smallPanelButton" type="button" onClick={onToggleBroadcastOptOut} disabled={!contact || workflowLoading}>{contact?.optOutBroadcast ? t("inbox.bcast.allow") : t("inbox.bcast.optOutBtn")}</button>
+        {apiMode && <p className="noteText">{t("inbox.bcast.note")}</p>}
         <div className="miniList">
           {broadcastHistoryRows.slice(0, 3).map((item) => <p key={item.id}>{item.campaignName} / {item.platform} / {item.status}{item.roomId ? ` / ${item.roomId}` : ""}</p>)}
-          {broadcastHistoryRows.length === 0 && <p>{apiMode ? "No persisted API broadcast history yet" : "No broadcast history yet"}</p>}
+          {broadcastHistoryRows.length === 0 && <p>{apiMode ? t("inbox.bcast.noneApi") : t("inbox.bcast.none")}</p>}
         </div>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <Clipboard size={17} />
-          <h3>Quick actions</h3>
+          <h3>{t("inbox.quick.title")}</h3>
         </div>
         <div className="aiActionGrid">
-          <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={workflowLoading}>Assign to Me</button>
-          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={workflowLoading}>Take Over</button>
-          <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi}>Return to AI</button>
-          <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={workflowLoading}>Mark Follow Up</button>
-          <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved}>Mark Resolved</button>
-          <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen}>Reopen</button>
-          <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={workflowLoading}>Mark Read</button>
-          <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={workflowLoading}>Mark Replied</button>
-          <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={workflowLoading}>SLA Due Soon</button>
-          <button className={actionFeedbackClassName("quick-add-note", activeActionKey)} type="button" onClick={onQuickAddNote} disabled={workflowLoading}>Add Note</button>
-          <button className={actionFeedbackClassName("quick-create-task", activeActionKey)} type="button" onClick={onCreateAdminTask} disabled={workflowLoading}>Create Task</button>
-          <button type="button" onClick={onCopySummary}>Copy Summary</button>
+          <button className={actionFeedbackClassName("assign-to-me", activeActionKey)} type="button" onClick={onAssignToMe} disabled={workflowLoading}>{t("inbox.action.assignToMe")}</button>
+          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver} disabled={workflowLoading}>{t("inbox.action.takeOver")}</button>
+          <button className={actionFeedbackClassName("return-to-ai", activeActionKey)} type="button" onClick={onReturnToAi}>{t("inbox.action.returnToAi")}</button>
+          <button className={actionFeedbackClassName("follow-up", activeActionKey)} type="button" onClick={onMarkFollowUp} disabled={workflowLoading}>{t("inbox.quick.markFollowUp")}</button>
+          <button className={actionFeedbackClassName("resolved", activeActionKey)} type="button" onClick={onMarkResolved}>{t("inbox.quick.markResolved")}</button>
+          <button className={actionFeedbackClassName("reopen", activeActionKey)} type="button" onClick={onReopen}>{t("inbox.action.reopen")}</button>
+          <button className={actionFeedbackClassName("read", activeActionKey)} type="button" onClick={onMarkRead} disabled={workflowLoading}>{t("inbox.quick.markRead")}</button>
+          <button className={actionFeedbackClassName("replied", activeActionKey)} type="button" onClick={onMarkReplied} disabled={workflowLoading}>{t("inbox.quick.markReplied")}</button>
+          <button className={actionFeedbackClassName("sla-soon", activeActionKey)} type="button" onClick={onSetDueSoonSla} disabled={workflowLoading}>{t("inbox.quick.slaDueSoon")}</button>
+          <button className={actionFeedbackClassName("quick-add-note", activeActionKey)} type="button" onClick={onQuickAddNote} disabled={workflowLoading}>{t("inbox.action.addNote")}</button>
+          <button className={actionFeedbackClassName("quick-create-task", activeActionKey)} type="button" onClick={onCreateAdminTask} disabled={workflowLoading}>{t("inbox.action.createTask")}</button>
+          <button type="button" onClick={onCopySummary}>{t("inbox.action.copySummary")}</button>
         </div>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <BarChart3 size={17} />
-          <h3>Mini analytics</h3>
+          <h3>{t("inbox.mini.title")}</h3>
         </div>
         <dl className="profileGrid">
-          <div><dt>Conversations</dt><dd>{contactAnalytics.conversationCount}</dd></div>
-          <div><dt>Last response</dt><dd>{contactAnalytics.lastResponseTime}</dd></div>
-          <div><dt>Current SLA</dt><dd>{contactAnalytics.currentSlaState}</dd></div>
-          <div><dt>AI confidence</dt><dd>{Math.round(contactAnalytics.latestAiConfidence * 100)}%</dd></div>
-          <div><dt>Handoff history</dt><dd>{contactAnalytics.handoffHistoryCount}</dd></div>
+          <div><dt>{t("inbox.mini.conversations")}</dt><dd>{contactAnalytics.conversationCount}</dd></div>
+          <div><dt>{t("inbox.mini.lastResponse")}</dt><dd>{contactAnalytics.lastResponseTime}</dd></div>
+          <div><dt>{t("inbox.mini.currentSla")}</dt><dd>{contactAnalytics.currentSlaState}</dd></div>
+          <div><dt>{t("inbox.mini.aiConfidence")}</dt><dd>{Math.round(contactAnalytics.latestAiConfidence * 100)}%</dd></div>
+          <div><dt>{t("inbox.mini.handoffHistory")}</dt><dd>{contactAnalytics.handoffHistoryCount}</dd></div>
         </dl>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <MessageSquareText size={17} />
-          <h3>Linked identities</h3>
+          <h3>{t("inbox.identities.title")}</h3>
         </div>
         <div className="identityList">
           {(contact?.identities ?? conversation.linkedIdentities).map((identity) => (
@@ -2990,33 +3070,33 @@ function CustomerPanel({
       <section className="panelBlock">
         <div className="blockHeader">
           <Tags size={17} />
-          <h3>Tags</h3>
+          <h3>{t("inbox.tags.title")}</h3>
         </div>
         <div className="tagRow panelTags">
           {(contact?.tags ?? conversation.tags).map((tag) => <button className="tagPillButton" key={tag} type="button" onClick={() => onRemoveTag(tag)}>{tag}</button>)}
         </div>
-        <button className="smallPanelButton" type="button" onClick={onAddTag} disabled={!contact}>Add vip tag</button>
+        <button className="smallPanelButton" type="button" onClick={onAddTag} disabled={!contact}>{t("inbox.tags.addVip")}</button>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <FileText size={17} />
-          <h3>Internal notes</h3>
+          <h3>{t("inbox.notes.title")}</h3>
         </div>
         <div className="noteEditor">
-          <textarea value={noteDraft} onChange={(event) => onNoteDraftChange(event.target.value)} placeholder="Write an internal note..." />
+          <textarea value={noteDraft} onChange={(event) => onNoteDraftChange(event.target.value)} placeholder={t("inbox.notes.placeholder")} />
           <select value={noteVisibility} onChange={(event) => onNoteVisibilityChange(event.target.value as InternalNoteVisibility)}>
-            <option value="team">Team</option>
-            <option value="supervisor">Supervisor</option>
+            <option value="team">{t("inbox.notes.team")}</option>
+            <option value="supervisor">{t("inbox.notes.supervisor")}</option>
           </select>
-          <button className={actionFeedbackClassName("internal-note-save", activeActionKey)} type="button" onClick={onAddInternalNote} disabled={!noteDraft.trim() || workflowLoading}>Add Note</button>
+          <button className={actionFeedbackClassName("internal-note-save", activeActionKey)} type="button" onClick={onAddInternalNote} disabled={!noteDraft.trim() || workflowLoading}>{t("inbox.action.addNote")}</button>
         </div>
         <div className="inlineActions">
-          <button type="button" onClick={onPinInternalNote} disabled={notes.length === 0 || apiMode}><Pin size={13} /> Pin</button>
-          <button type="button" onClick={onEditInternalNote} disabled={notes.length === 0 || apiMode}><Edit3 size={13} /> Edit</button>
-          <button type="button" onClick={onDeleteInternalNote} disabled={notes.length === 0 || apiMode}><Trash2 size={13} /> Delete</button>
+          <button type="button" onClick={onPinInternalNote} disabled={notes.length === 0 || apiMode}><Pin size={13} /> {t("inbox.notes.pin")}</button>
+          <button type="button" onClick={onEditInternalNote} disabled={notes.length === 0 || apiMode}><Edit3 size={13} /> {t("inbox.notes.edit")}</button>
+          <button type="button" onClick={onDeleteInternalNote} disabled={notes.length === 0 || apiMode}><Trash2 size={13} /> {t("inbox.notes.delete")}</button>
         </div>
-        {apiMode && workflowLoading && <p className="noteText">Loading workflow data...</p>}
+        {apiMode && workflowLoading && <p className="noteText">{t("inbox.notes.loadingWorkflow")}</p>}
         {apiMode && workflowError && <p className="noteText">{workflowError}</p>}
         <div className="miniList">
           {(contact?.notes ?? []).slice(0, 4).map((note) => (
@@ -3036,7 +3116,7 @@ function CustomerPanel({
       <section className="panelBlock">
         <div className="blockHeader">
           <CheckCircle2 size={17} />
-          <h3>Open tasks</h3>
+          <h3>{t("inbox.openTasks.title")}</h3>
         </div>
         <div className="miniList">
           {adminTasks.slice(0, 3).map((task) => <p key={task.id}>{task.title}</p>)}
@@ -3048,15 +3128,15 @@ function CustomerPanel({
                 : ""}
             </p>
           ))}
-          {adminTasks.length === 0 && !contact?.tasks.some((task) => task.status === "open") && <p>No open tasks</p>}
+          {adminTasks.length === 0 && !contact?.tasks.some((task) => task.status === "open") && <p>{t("inbox.openTasks.none")}</p>}
         </div>
-        <button className={actionFeedbackClassName("task-complete", activeActionKey, "smallPanelButton")} type="button" onClick={onMarkTaskDone} disabled={workflowLoading || !(apiMode ? adminTasks.length > 0 : contact?.tasks.some((task) => task.status === "open"))}>Mark first task done</button>
+        <button className={actionFeedbackClassName("task-complete", activeActionKey, "smallPanelButton")} type="button" onClick={onMarkTaskDone} disabled={workflowLoading || !(apiMode ? adminTasks.length > 0 : contact?.tasks.some((task) => task.status === "open"))}>{t("inbox.openTasks.markFirstDone")}</button>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <MessageSquareText size={17} />
-          <h3>Related conversations</h3>
+          <h3>{t("inbox.related.title")}</h3>
         </div>
         <div className="identityList">
           {relatedConversations.map((item) => (
@@ -3069,17 +3149,17 @@ function CustomerPanel({
               </small>
             </div>
           ))}
-          {relatedConversations.length === 0 && <p className="noteText">No linked conversations yet</p>}
+          {relatedConversations.length === 0 && <p className="noteText">{t("inbox.related.none")}</p>}
         </div>
       </section>
 
       <section className="panelBlock">
         <div className="blockHeader">
           <ShieldAlert size={17} />
-          <h3>Audit log</h3>
+          <h3>{t("inbox.audit.title")}</h3>
         </div>
         <div className="identityList">
-          {apiMode && auditError && <p className="noteText">Audit log API error: {auditError}</p>}
+          {apiMode && auditError && <p className="noteText">{t("inbox.audit.error")}: {auditError}</p>}
           {auditLogs.slice(0, 6).map((log) => (
             <div key={log.id} className="identityRow">
               <strong>{log.action}</strong>
@@ -3087,7 +3167,7 @@ function CustomerPanel({
               <small>{formatAuditTimelineContext(log.metadata)} / {new Date(log.createdAt).toLocaleString("th-TH")}</small>
             </div>
           ))}
-          {auditLogs.length === 0 && !auditError && <p className="noteText">No audit logs yet</p>}
+          {auditLogs.length === 0 && !auditError && <p className="noteText">{t("inbox.audit.none")}</p>}
         </div>
       </section>
 
@@ -3095,10 +3175,10 @@ function CustomerPanel({
         <section className="panelBlock">
           <div className="blockHeader">
             <Clock3 size={17} />
-            <h3>Status history</h3>
+            <h3>{t("inbox.statusHistory.title")}</h3>
           </div>
           <div className="identityList">
-            {statusHistoryError && <p className="noteText">Status history API error: {statusHistoryError}</p>}
+            {statusHistoryError && <p className="noteText">{t("inbox.statusHistory.error")}: {statusHistoryError}</p>}
             {statusHistory.slice(0, 5).map((item) => (
               <div key={item.id} className="identityRow">
                 <strong>{item.fromStatus ?? "new"}{" -> "}{item.toStatus}</strong>
@@ -3106,7 +3186,7 @@ function CustomerPanel({
                 <small>{item.platform} / {item.channelAccountId} / {item.roomId} / {new Date(item.createdAt).toLocaleString("th-TH")}</small>
               </div>
             ))}
-            {statusHistory.length === 0 && !statusHistoryError && <p className="noteText">No status changes yet</p>}
+            {statusHistory.length === 0 && !statusHistoryError && <p className="noteText">{t("inbox.statusHistory.none")}</p>}
           </div>
         </section>
       )}
@@ -3114,39 +3194,39 @@ function CustomerPanel({
       <section className="panelBlock">
         <div className="blockHeader">
           <Workflow size={17} />
-          <h3>Matching Automations</h3>
+          <h3>{t("inbox.autom.title")}</h3>
         </div>
         <div className="identityList">
           {matchingFlows.slice(0, 4).map((flow) => (
             <div key={flow.id} className="identityRow">
               <strong>{flow.name}</strong>
               <span>{flow.triggerType} / {flow.platformScope.join(", ")}</span>
-              <small>{flow.roomIds.length > 0 ? flow.roomIds.join(", ") : "all scoped rooms"}</small>
+              <small>{flow.roomIds.length > 0 ? flow.roomIds.join(", ") : t("inbox.autom.allScoped")}</small>
               <div className="inlineActions">
-                <button type="button" onClick={() => onRunFlow(flow.id)}>Run Flow</button>
-                <Link href={`/flows?flow=${flow.id}`} className="crmLinkButton"><ExternalLink size={13} /> View Flow</Link>
+                <button type="button" onClick={() => onRunFlow(flow.id)}>{t("inbox.autom.runFlow")}</button>
+                <Link href={`/flows?flow=${flow.id}`} className="crmLinkButton"><ExternalLink size={13} /> {t("inbox.autom.viewFlow")}</Link>
               </div>
             </div>
           ))}
-          {matchingFlows.length === 0 && <p className="noteText">No active automation matches this selected conversation.</p>}
+          {matchingFlows.length === 0 && <p className="noteText">{t("inbox.autom.noMatch")}</p>}
         </div>
         <div className="miniList">
-          <strong>Recent Flow Runs</strong>
+          <strong>{t("inbox.autom.recentRuns")}</strong>
           {recentFlowRuns.map((run) => (
-            <p key={run.id}>{run.status} / {run.resultSummary} / {run.steps.length} steps</p>
+            <p key={run.id}>{run.status} / {run.resultSummary} / {run.steps.length} {t("inbox.autom.steps")}</p>
           ))}
-          {recentFlowRuns.length === 0 && <p>No recent flow runs for this conversation</p>}
+          {recentFlowRuns.length === 0 && <p>{t("inbox.autom.noRecent")}</p>}
         </div>
         {lastFlowResult && lastFlowResult.flowRun.conversationId === conversation.id && (
           <div className="sourceList">
-            <strong>Last run steps</strong>
+            <strong>{t("inbox.autom.lastSteps")}</strong>
             {lastFlowResult.flowRun.steps.slice(0, 5).map((step) => (
               <article key={step.id} className="sourceItem">
                 <span>{step.nodeType} / {step.status}</span>
                 <small>{step.error ?? JSON.stringify(step.output ?? {})}</small>
               </article>
             ))}
-            <p>Audit logs created: {lastFlowResult.state.auditLogsCreated.length}</p>
+            <p>{t("inbox.autom.auditCreated")}: {lastFlowResult.state.auditLogsCreated.length}</p>
           </div>
         )}
       </section>
@@ -3154,25 +3234,25 @@ function CustomerPanel({
       <section className="panelBlock aiPanel">
         <div className="blockHeader">
           <Bot size={17} />
-          <h3>AI Summary</h3>
+          <h3>{t("inbox.aiSummary.title")}</h3>
         </div>
-        {apiMode && aiLoading && <p className="noteText">Loading AI suggestion from API...</p>}
-        {apiMode && aiError && <EmptyState title="AI suggestion API error" body={aiError} />}
+        {apiMode && aiLoading && <p className="noteText">{t("inbox.aiSummary.loading")}</p>}
+        {apiMode && aiError && <EmptyState title={t("inbox.aiSummary.errorTitle")} body={aiError} />}
         <p className="summaryText">{conversation.aiSummary}</p>
         <dl className="aiGrid">
-          <div><dt>AI Decision</dt><dd>{conversation.aiDecision}</dd></div>
-          <div><dt>Intent</dt><dd>{conversation.intent}</dd></div>
-          <div><dt>Confidence</dt><dd>{Math.round(conversation.confidence * 100)}%</dd></div>
-          <div><dt>Risk level</dt><dd>{conversation.riskLevel}</dd></div>
-          <div><dt>Next action</dt><dd>{conversation.nextAction}</dd></div>
-          <div><dt>Suggested reply</dt><dd>{conversation.aiAnalysis?.reply ?? conversation.nextAction}</dd></div>
-          <div><dt>Requires human</dt><dd>{conversation.aiAnalysis?.requiresHuman ? "Yes" : conversation.aiStatus === "Need Human" ? "Yes" : "No"}</dd></div>
-          {apiMode && <div><dt>External calls</dt><dd>{conversation.aiSuggestionExternalCalls ?? 0}</dd></div>}
+          <div><dt>{t("inbox.aiSummary.decision")}</dt><dd>{conversation.aiDecision}</dd></div>
+          <div><dt>{t("inbox.aiSummary.intent")}</dt><dd>{conversation.intent}</dd></div>
+          <div><dt>{t("inbox.aiSummary.confidence")}</dt><dd>{Math.round(conversation.confidence * 100)}%</dd></div>
+          <div><dt>{t("inbox.aiSummary.riskLevel")}</dt><dd>{conversation.riskLevel}</dd></div>
+          <div><dt>{t("inbox.aiSummary.nextAction")}</dt><dd>{conversation.nextAction}</dd></div>
+          <div><dt>{t("inbox.aiSummary.suggestedReply")}</dt><dd>{conversation.aiAnalysis?.reply ?? conversation.nextAction}</dd></div>
+          <div><dt>{t("inbox.aiSummary.requiresHuman")}</dt><dd>{conversation.aiAnalysis?.requiresHuman ? t("inbox.common.yes") : conversation.aiStatus === "Need Human" ? t("inbox.common.yes") : t("inbox.common.no")}</dd></div>
+          {apiMode && <div><dt>{t("inbox.aiSummary.externalCalls")}</dt><dd>{conversation.aiSuggestionExternalCalls ?? 0}</dd></div>}
         </dl>
         <div className="sourceList">
-          <strong>Knowledge Sources</strong>
+          <strong>{t("inbox.aiSummary.knowledgeSources")}</strong>
           {(conversation.aiAnalysis?.matchedKnowledge ?? []).length === 0 ? (
-            <p>No active knowledge matched.</p>
+            <p>{t("inbox.aiSummary.noKnowledge")}</p>
           ) : (
             conversation.aiAnalysis?.matchedKnowledge?.map((source) => (
               <article key={source.id} className="sourceItem">
@@ -3183,12 +3263,12 @@ function CustomerPanel({
           )}
         </div>
         <div className="aiActionGrid">
-          <button type="button" onClick={onViewSource} disabled={aiLoading}>View Source</button>
-          <button type="button" onClick={onCopySuggestedReply} disabled={aiLoading}>Copy Suggested Reply</button>
-          <button type="button" onClick={onUseDraft} disabled={aiLoading}>Use AI Draft</button>
-          <button type="button" onClick={onMarkWrong} disabled={aiLoading}>Mark as Wrong</button>
-          <button type="button" onClick={onRegenerate} disabled={aiLoading}>Regenerate Draft</button>
-          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver}>Take Over</button>
+          <button type="button" onClick={onViewSource} disabled={aiLoading}>{t("inbox.aiSummary.viewSource")}</button>
+          <button type="button" onClick={onCopySuggestedReply} disabled={aiLoading}>{t("inbox.aiSummary.copySuggested")}</button>
+          <button type="button" onClick={onUseDraft} disabled={aiLoading}>{t("inbox.aiSummary.useDraft")}</button>
+          <button type="button" onClick={onMarkWrong} disabled={aiLoading}>{t("inbox.aiSummary.markWrong")}</button>
+          <button type="button" onClick={onRegenerate} disabled={aiLoading}>{t("inbox.aiSummary.regenerate")}</button>
+          <button className={actionFeedbackClassName("take-over", activeActionKey)} type="button" onClick={onTakeOver}>{t("inbox.action.takeOver")}</button>
         </div>
         <p className="aiActionStatus">{aiActionStatus}</p>
       </section>
@@ -3243,6 +3323,7 @@ function WorkflowEditorPanel({
   onSaveTask: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useLang();
   const copy = getWorkflowEditorCopy(mode);
   const isNote = mode === "note";
   const noteCopy = getWorkflowEditorCopy("note");
@@ -3263,12 +3344,12 @@ function WorkflowEditorPanel({
             aria-label="Internal note text"
           />
           <select value={noteVisibility} onChange={(event) => onNoteVisibilityChange(event.target.value as InternalNoteVisibility)} aria-label="Note visibility">
-            <option value="team">Team</option>
-            <option value="supervisor">Supervisor</option>
+            <option value="team">{t("inbox.notes.team")}</option>
+            <option value="supervisor">{t("inbox.notes.supervisor")}</option>
           </select>
           <div className="workflowButtonRow">
             <button className={actionFeedbackClassName("note-save", activeActionKey)} type="button" onClick={onSaveNote} disabled={!noteDraft.trim() || workflowLoading}>
-              {workflowLoading ? "Saving..." : noteCopy.primaryLabel}
+              {workflowLoading ? t("inbox.workflow.saving") : noteCopy.primaryLabel}
             </button>
             <button type="button" onClick={onCancel} disabled={workflowLoading}>{noteCopy.cancelLabel}</button>
           </div>
@@ -3289,11 +3370,11 @@ function WorkflowEditorPanel({
             aria-label="Task details"
           />
           <select value={taskPriorityDraft} onChange={(event) => onTaskPriorityDraftChange(event.target.value as ConversationPriority)} aria-label="Task priority">
-            {priorityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            {priorityOptions.map((item) => <option key={item} value={item}>{t(priorityDisplayKey[item])}</option>)}
           </select>
           <div className="workflowInlineGrid">
             <select value={taskAssigneeDraft} onChange={(event) => onTaskAssigneeDraftChange(event.target.value)} aria-label="Task assignee">
-              <option value={unassignedTaskAssignee}>Unassigned</option>
+              <option value={unassignedTaskAssignee}>{t("inbox.chat.unassigned")}</option>
               {taskAssigneeAgents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
             </select>
             <input
@@ -3305,7 +3386,7 @@ function WorkflowEditorPanel({
           </div>
           <div className="workflowButtonRow">
             <button className={actionFeedbackClassName("task-save", activeActionKey)} type="button" onClick={onSaveTask} disabled={!taskTitleDraft.trim() || workflowLoading}>
-              {workflowLoading ? "Creating..." : taskCopy.primaryLabel}
+              {workflowLoading ? t("inbox.workflow.creating") : taskCopy.primaryLabel}
             </button>
             <button type="button" onClick={onCancel} disabled={workflowLoading}>{taskCopy.cancelLabel}</button>
           </div>
@@ -3317,7 +3398,9 @@ function WorkflowEditorPanel({
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
+  const { t } = useLang();
   const attachments = message.attachments ?? [];
+  const senderKey = senderDisplayKey[message.sender];
   return (
     <article className={`messageBubble ${message.sender}`}>
       <div className="messageMeta">
@@ -3327,7 +3410,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         {message.sender === "system" && <ShieldAlert size={13} />}
         {message.sender === "agent" && <UserRoundCheck size={13} />}
         {message.sender === "customer" && <MessageSquareText size={13} />}
-        <span>{message.sender}</span>
+        <span>{senderKey ? t(senderKey) : message.sender}</span>
         <time>{message.time}</time>
       </div>
       {message.body ? <p>{message.body}</p> : null}
@@ -3379,15 +3462,18 @@ function formatAttachmentSize(bytes: number | undefined): string | null {
 }
 
 function AiStatusBadge({ status }: { status: AiStatus }) {
-  return <span className={`aiBadge ${aiStatusClass[status]}`}>{status}</span>;
+  const { t } = useLang();
+  return <span className={`aiBadge ${aiStatusClass[status]}`}>{t(aiStatusDisplayKey[status])}</span>;
 }
 
 function PriorityBadge({ priority }: { priority: ConversationPriority }) {
-  return <span className={`priorityBadge ${priority}`}>{priority}</span>;
+  const { t } = useLang();
+  return <span className={`priorityBadge ${priority}`}>{t(priorityDisplayKey[priority])}</span>;
 }
 
 function StatusBadge({ status }: { status: ConversationStatus }) {
-  return <span className={`statusBadge ${status}`}>{status}</span>;
+  const { t } = useLang();
+  return <span className={`statusBadge ${status}`}>{t(statusDisplayKey[status])}</span>;
 }
 
 function SlaBadge({ status, text }: { status: string; text: string }) {
@@ -3402,10 +3488,6 @@ function EmptyState({ title, body }: { title: string; body: string }) {
       <p>{body}</p>
     </div>
   );
-}
-
-function filterLabel(filter: ConversationFilter) {
-  return filterOptions.find((item) => item.id === filter)?.label ?? filter;
 }
 
 function isAdminConversationFilter(filter: ConversationFilter): filter is AdminConversationFilter {
