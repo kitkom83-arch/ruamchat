@@ -9,6 +9,7 @@ import {
   sendMetaMediaMessage,
   sendMockOutboundText,
   sendTelegramMediaMessage,
+  sendTelegramOutbound,
   sendTelegramTextMessage,
   providerOutboundMode,
   providerSandboxMode,
@@ -360,6 +361,225 @@ describe("outbound sender", () => {
         channelAccountTenantId: tenantIdForTest
       })).rejects.toThrow("recipient_not_allowlisted");
       expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe("sendTelegramOutbound", () => {
+  function okFetch() {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+  }
+
+  function telegramCalls(fetchSpy: ReturnType<typeof okFetch>) {
+    return fetchSpy.mock.calls.map((call) => {
+      const url = String(call[0]);
+      const method = url.slice(url.lastIndexOf("/") + 1);
+      const init = call[1] as RequestInit | undefined;
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      return { method, body };
+    });
+  }
+
+  it("sends only the photo (no empty sendMessage) for an image-only message", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: null,
+        attachments: [{ type: "image", url: "https://cdn.example.com/photo.png", mimeType: "image/png" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendPhoto");
+      expect(calls[0].body.photo).toBe("https://cdn.example.com/photo.png");
+      expect(calls.some((c) => c.method === "sendMessage")).toBe(false);
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not call sendMessage when a whitespace-only text ships with an image", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: "   ",
+        attachments: [{ type: "image", url: "https://cdn.example.com/photo.png", mimeType: "image/png" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendPhoto");
+      expect(calls[0].body.caption).toBeUndefined();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends the text as a caption on the photo for a text+image message", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: "here you go",
+        attachments: [{ type: "image", url: "https://cdn.example.com/photo.png", mimeType: "image/png" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendPhoto");
+      expect(calls[0].body.caption).toBe("here you go");
+      expect(calls.some((c) => c.method === "sendMessage")).toBe(false);
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("routes a non-image attachment to sendDocument", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: null,
+        attachments: [{ type: "file", url: "https://cdn.example.com/quote.pdf", filename: "quote.pdf", mimeType: "application/pdf" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendDocument");
+      expect(calls[0].body.document).toBe("https://cdn.example.com/quote.pdf");
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("treats an image/* mime type as a photo even when the type is generic", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: null,
+        attachments: [{ type: "file", url: "https://cdn.example.com/pic.jpg", mimeType: "image/jpeg" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendPhoto");
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends a standalone text message when there are no attachments (unchanged)", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: "hello there",
+        attachments: [],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("sendMessage");
+      expect(calls[0].body.text).toBe("hello there");
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("skips non-absolute attachment URLs and sends nothing for an empty message", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: "",
+        attachments: [{ type: "image", url: "/media/tenant/photo.png", mimeType: "image/png" }],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends text + both attachments, caption only on the first", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramOutbound({
+        token: "test-token",
+        chatId: "55201",
+        text: "two files",
+        attachments: [
+          { type: "image", url: "https://cdn.example.com/a.png", mimeType: "image/png" },
+          { type: "file", url: "https://cdn.example.com/b.pdf", mimeType: "application/pdf" }
+        ],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      const calls = telegramCalls(fetchSpy);
+      expect(calls.map((c) => c.method)).toEqual(["sendPhoto", "sendDocument"]);
+      expect(calls[0].body.caption).toBe("two files");
+      expect(calls[1].body.caption).toBeUndefined();
     } finally {
       restoreEnvSnapshot(previous);
       fetchSpy.mockRestore();
