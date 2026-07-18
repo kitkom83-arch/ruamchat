@@ -104,7 +104,8 @@ export function isProviderSandboxRecipientAllowed(provider: ProviderSandboxProvi
   const normalizedRecipient = recipientId.trim();
   if (!normalizedRecipient) return false;
   return parseProviderSandboxAllowlist(env).some((entry) =>
-    (entry.provider === "all" || entry.provider === provider) && entry.recipientId === normalizedRecipient
+    (entry.provider === "all" || entry.provider === provider) &&
+    (entry.recipientId === "*" || entry.recipientId === normalizedRecipient)
   );
 }
 

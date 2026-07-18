@@ -150,6 +150,63 @@ describe("outbound sender", () => {
     }
   });
 
+  it("provider wildcard 'telegram:*' allows any telegram recipient but not other providers", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:*", meta: true });
+
+    try {
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "999888777" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "brand-new-chat-id" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "line", recipientId: "U123" })).reason).toBe("recipient_not_allowlisted");
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
+  });
+
+  it("bare wildcard '*' allows every provider and recipient", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "*", meta: true });
+
+    try {
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "line", recipientId: "U-anything" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "any-chat" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "facebook", recipientId: "fb-anyone" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "instagram", recipientId: "ig-anyone" })).allowed).toBe(true);
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
+  });
+
+  it("per-provider wildcard 'TELEGRAM_SANDBOX_ALLOWLIST=*' allows any telegram recipient", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    clearProviderEnv();
+    process.env.PROVIDER_OUTBOUND_MODE = "real";
+    process.env.PROVIDER_OUTBOUND_ENABLED = "true";
+    process.env.PROVIDER_SANDBOX_MODE = "enabled";
+    process.env.CHANNEL_MODE = "real";
+    process.env.TELEGRAM_SANDBOX_ALLOWLIST = "*";
+
+    try {
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "55201" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "never-seen-before" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "line", recipientId: "U123" })).reason).toBe("recipient_not_allowlisted");
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
+  });
+
+  it("without a wildcard, non-allowlisted recipients stay blocked (existing behavior preserved)", () => {
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "55201" })).allowed).toBe(true);
+      expect(validateProviderOutboundGuard(lineGuard({ provider: "telegram", recipientId: "55202" })).reason).toBe("recipient_not_allowlisted");
+    } finally {
+      restoreEnvSnapshot(previous);
+    }
+  });
+
   it("real LINE sender is disabled by default even when a token-like value exists", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const previous = snapshotEnv(providerEnvKeys);
