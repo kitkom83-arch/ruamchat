@@ -17,9 +17,11 @@ import { PrismaService } from "./prisma.service.js";
 
 const promptVersion = "ai-router-v1";
 
-// When OPENAI_BASE_URL is set (e.g. Azure AI Foundry v1 endpoint
-// https://<resource>.services.ai.azure.com/openai/v1/) route through it with the
-// standard OpenAI client; otherwise use the default api.openai.com behavior.
+// When OPENAI_BASE_URL is set route through it with the standard OpenAI client;
+// otherwise use the default api.openai.com behavior. This enables OpenAI-compatible
+// providers such as Google Gemini's free OpenAI endpoint
+// (https://generativelanguage.googleapis.com/v1beta/openai/), Groq, or OpenRouter,
+// as well as Azure AI Foundry v1 (https://<resource>.services.ai.azure.com/openai/v1/).
 function createOpenAiClient(apiKey: string): OpenAI {
   const baseURL = process.env.OPENAI_BASE_URL?.trim();
   if (baseURL) {
@@ -195,9 +197,12 @@ export class OpenAiOrchestratorService {
   }
 
   private async callOpenAI(model: string, messages: Array<{ senderType: string; text: string | null }>, knowledge: Array<{ id: string; title: string; body: string }>) {
-    const input = [
+    // Use the Chat Completions API (not the Responses API) so the same code path works
+    // across OpenAI and OpenAI-compatible providers (Gemini free tier, Groq, OpenRouter),
+    // which only implement chat.completions with response_format json_schema.
+    const chatMessages = [
       {
-        role: "system",
+        role: "system" as const,
         content: [
           "You are an omnichannel Thai customer support and sales assistant.",
           "Return only JSON that matches the schema.",
@@ -206,7 +211,7 @@ export class OpenAiOrchestratorService {
         ].join("\n")
       },
       {
-        role: "user",
+        role: "user" as const,
         content: JSON.stringify({
           conversation: messages.map((message) => ({
             sender: message.senderType,
@@ -221,12 +226,12 @@ export class OpenAiOrchestratorService {
       }
     ];
 
-    const response = await this.client!.responses.create({
+    const response = await this.client!.chat.completions.create({
       model,
-      input,
-      text: {
-        format: {
-          type: "json_schema",
+      messages: chatMessages,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
           name: "ai_decision",
           strict: true,
           schema: aiDecisionJsonSchema
@@ -234,8 +239,9 @@ export class OpenAiOrchestratorService {
       }
     } as never);
 
-    const text = (response as { output_text?: string }).output_text ?? "{}";
-    return parseAiDecisionWithFallback(JSON.parse(text), "OpenAI output did not match AI schema");
+    const text = (response as { choices?: Array<{ message?: { content?: string | null } }> })
+      .choices?.[0]?.message?.content ?? "{}";
+    return parseAiDecisionWithFallback(safeJsonParse(text), "OpenAI output did not match AI schema");
   }
 
   private fallbackDecision(text: string, knowledge: Array<{ id: string; title: string; category: string; body: string; updatedAt: Date }>, forced = false): AIDecision {
@@ -309,6 +315,26 @@ export class OpenAiOrchestratorService {
         }
       }
     });
+  }
+}
+
+// Parse provider output defensively. Some OpenAI-compatible providers (e.g. Gemini)
+// may wrap JSON in Markdown code fences or return non-JSON on failure. Return an empty
+// object on failure so parseAiDecisionWithFallback downgrades to the fallback decision
+// instead of throwing an unhandled JSON.parse error.
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenced?.[1]) {
+      try {
+        return JSON.parse(fenced[1]);
+      } catch {
+        return {};
+      }
+    }
+    return {};
   }
 }
 
