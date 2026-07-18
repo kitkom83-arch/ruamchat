@@ -1,11 +1,25 @@
 import { Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { shouldAutoSend, shouldHandoff, type AIDecision } from "@ai-omni/shared";
 import { AuditService } from "./audit.service.js";
 import { ConversationService } from "./conversation.service.js";
 import { OpenAiOrchestratorService } from "./openai-orchestrator.service.js";
 import { PrismaService } from "./prisma.service.js";
+
+const { chatCompletionsCreate, openAiConstructor } = vi.hoisted(() => ({
+  chatCompletionsCreate: vi.fn(),
+  openAiConstructor: vi.fn()
+}));
+
+vi.mock("openai", () => ({
+  default: class MockOpenAI {
+    chat = { completions: { create: chatCompletionsCreate } };
+    constructor(options: unknown) {
+      openAiConstructor(options);
+    }
+  }
+}));
 
 const tenantId = "00000000-0000-4000-8000-000000000001";
 
@@ -151,6 +165,105 @@ describe("OpenAiOrchestratorService safe suggestions", () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+describe("OpenAiOrchestratorService OpenAI-compatible provider calls", () => {
+  const savedEnv = {
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_ALLOW_REAL_CALLS: process.env.OPENAI_ALLOW_REAL_CALLS,
+    OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
+    NODE_ENV: process.env.NODE_ENV
+  };
+
+  beforeEach(() => {
+    chatCompletionsCreate.mockReset();
+    openAiConstructor.mockReset();
+    process.env.OPENAI_API_KEY = "test-gemini-key";
+    process.env.OPENAI_ALLOW_REAL_CALLS = "true";
+    process.env.OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    process.env.OPENAI_MODEL = "gemini-2.5-flash";
+    // Constructor gates on NODE_ENV !== "test", so simulate a non-test runtime.
+    process.env.NODE_ENV = "production";
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
+
+  it("routes through chat.completions with the configured base URL and parses choices[0].message.content", async () => {
+    const providerDecision: AIDecision = {
+      intent: "pricing",
+      sentiment: "neutral",
+      priority: "medium",
+      confidence: 0.92,
+      riskLevel: "low",
+      requiresHuman: false,
+      nextAction: "auto_reply",
+      reply: "แพ็กเกจ Pro ราคา 1,000 บาทครับ",
+      summary: "Customer asks about Pro pricing.",
+      tags: ["pricing"],
+      reason: "High-confidence pricing FAQ match.",
+      matchedKnowledge: []
+    };
+    chatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify(providerDecision) } }]
+    });
+
+    const mocks = buildMocks();
+    const service = new OpenAiOrchestratorService(mocks.prisma as never, mocks.conversations as never, mocks.audit as never);
+
+    const suggestion = await service.suggest(tenantId, "conv-web");
+
+    expect(openAiConstructor).toHaveBeenCalledWith(expect.objectContaining({
+      apiKey: "test-gemini-key",
+      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    }));
+    expect(chatCompletionsCreate).toHaveBeenCalledTimes(1);
+    expect(chatCompletionsCreate).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gemini-2.5-flash",
+      messages: expect.arrayContaining([
+        expect.objectContaining({ role: "system" }),
+        expect.objectContaining({ role: "user" })
+      ]),
+      response_format: expect.objectContaining({
+        type: "json_schema",
+        json_schema: expect.objectContaining({ name: "ai_decision", strict: true })
+      })
+    }));
+    const callArgs = chatCompletionsCreate.mock.calls[0][0];
+    expect(typeof callArgs.messages[1].content).toBe("string");
+    expect(suggestion).toMatchObject({
+      status: "completed",
+      summary: "Customer asks about Pro pricing.",
+      intent: "pricing",
+      externalCalls: 0
+    });
+  });
+
+  it("downgrades to the fallback decision when the provider returns non-JSON content", async () => {
+    chatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: "Sorry, I cannot help with that." } }]
+    });
+
+    const mocks = buildMocks();
+    const service = new OpenAiOrchestratorService(mocks.prisma as never, mocks.conversations as never, mocks.audit as never);
+
+    const suggestion = await service.suggest(tenantId, "conv-web");
+
+    expect(chatCompletionsCreate).toHaveBeenCalledTimes(1);
+    expect(suggestion).toMatchObject({
+      status: "completed",
+      requiresHuman: true,
+      externalCalls: 0
+    });
   });
 });
 
