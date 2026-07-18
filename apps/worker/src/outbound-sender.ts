@@ -232,6 +232,69 @@ export async function sendTelegramMediaMessage(
   }
 }
 
+// Attachment shape the worker passes through from Prisma (Message.attachments).
+export type TelegramOutboundAttachment = {
+  type?: string | null;
+  url?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+};
+
+/**
+ * Orchestrates a full Telegram outbound message (text + attachments).
+ *
+ * Rules (fixes the "message text is empty" 400 crash):
+ *  - Text is only sent via sendMessage when it is a non-empty trimmed string.
+ *  - When attachments exist, the text rides along as the caption on the FIRST
+ *    attachment instead of a separate sendMessage, so image-only replies never
+ *    trigger an empty sendMessage call.
+ *  - Images (MessageType `image` or an `image/*` mime type) go via sendPhoto,
+ *    everything else via sendDocument.
+ *  - Only attachments with an absolute http(s) URL are sendable; Telegram fetches
+ *    the media from our public MEDIA_PUBLIC_BASE_URL.
+ */
+export async function sendTelegramOutbound(
+  input: {
+    token?: string | null;
+    chatId: string;
+    text?: string | null;
+    attachments?: TelegramOutboundAttachment[] | null;
+  } & ProviderTextGuardInput
+) {
+  const guardFields: ProviderTextGuardInput = {
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  };
+
+  const rawText = input.text ?? "";
+  const hasText = rawText.trim().length > 0;
+  const sendable = (input.attachments ?? []).filter(
+    (attachment): attachment is TelegramOutboundAttachment & { url: string } =>
+      typeof attachment.url === "string" && /^https?:\/\//i.test(attachment.url)
+  );
+
+  // Text-only message keeps the original standalone sendMessage behavior.
+  if (hasText && sendable.length === 0) {
+    await sendTelegramTextMessage({ token: input.token, chatId: input.chatId, text: rawText, ...guardFields });
+  }
+
+  for (let index = 0; index < sendable.length; index += 1) {
+    const attachment = sendable[index];
+    const isImage = attachment.type === "image" || (attachment.mimeType?.toLowerCase().startsWith("image/") ?? false);
+    const caption = hasText && index === 0 ? rawText : undefined;
+    await sendTelegramMediaMessage({
+      token: input.token,
+      chatId: input.chatId,
+      mediaType: isImage ? "image" : "file",
+      url: attachment.url,
+      filename: attachment.filename,
+      caption,
+      ...guardFields
+    });
+  }
+}
+
 export async function sendLineMediaMessage(
   input: {
     token?: string | null;

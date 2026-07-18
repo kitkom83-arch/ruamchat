@@ -11,8 +11,7 @@ import {
   sendLineTextMessage,
   sendMetaMediaMessage,
   sendMockOutboundText,
-  sendTelegramMediaMessage,
-  sendTelegramTextMessage,
+  sendTelegramOutbound,
   shouldUseRealChannelSend,
   type OutboundMediaType,
   type OutboundPlatform
@@ -143,13 +142,33 @@ async function sendOutboundMessage(messageId: string) {
   const recipientId = recipientIdForPlatform(context);
 
   if (platform === "telegram") {
-    await sendTelegramTextMessage({
+    // Telegram: send text + media together so image-only replies never call
+    // sendMessage with empty text (the 400 "message text is empty" crash), and
+    // text rides along as the caption on the first attachment.
+    await sendTelegramOutbound({
       token: accessToken,
       chatId: recipientId,
-      text: message.text ?? "",
+      text: message.text,
+      attachments: message.attachments ?? [],
       ...guardFields
     });
-  } else if (platform === "line") {
+    await prisma.auditLog.create({
+      data: {
+        tenantId: message.tenantId,
+        action: "outbound.sent",
+        entityType: "message",
+        entityId: message.id,
+        metadata: {
+          platform,
+          channelAccountId: message.channelAccountId,
+          externalUserId: message.conversation.contactIdentity.externalUserId
+        }
+      }
+    });
+    return;
+  }
+
+  if (platform === "line") {
     await sendLineTextMessage({
       token: accessToken,
       to: recipientId,
@@ -180,9 +199,7 @@ async function sendOutboundMessage(messageId: string) {
   for (const attachment of sendableAttachments) {
     const mediaType = (attachment.type === "image" || attachment.type === "audio" ? attachment.type : "file") as OutboundMediaType;
     const url = attachment.url as string;
-    if (platform === "telegram") {
-      await sendTelegramMediaMessage({ token: accessToken, chatId: recipientId, mediaType, url, filename: attachment.filename, ...guardFields });
-    } else if (platform === "line") {
+    if (platform === "line") {
       await sendLineMediaMessage({ token: accessToken, to: recipientId, mediaType, url, filename: attachment.filename, ...guardFields });
     } else if (platform === "facebook" || platform === "instagram") {
       await sendMetaMediaMessage({ token: accessToken, provider: platform, recipientId, mediaType, url, ...guardFields });
