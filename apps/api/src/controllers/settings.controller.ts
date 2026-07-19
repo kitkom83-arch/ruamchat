@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, Inject, Param, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Inject, Param, Patch, Post, Req } from "@nestjs/common";
+import type { Request } from "express";
 import {
   updateSettingsCannedReplyRequestSchema,
   updateSettingsChannelAccountRequestSchema,
@@ -6,12 +7,42 @@ import {
   updateSettingsTeamMemberRequestSchema
 } from "@ai-omni/shared";
 import { SettingsService } from "../services/settings.service.js";
+import { TelegramChannelService } from "../services/telegram-channel.service.js";
 
 const defaultTenantId = "00000000-0000-4000-8000-000000000001";
 
 @Controller("settings")
 export class SettingsController {
-  constructor(@Inject(SettingsService) private readonly settings: SettingsService) {}
+  constructor(
+    @Inject(SettingsService) private readonly settings: SettingsService,
+    @Inject(TelegramChannelService) private readonly telegram: TelegramChannelService
+  ) {}
+
+  @Get("channels/:channelAccountId/telegram/bot-info")
+  async telegramBotInfo(
+    @Param("channelAccountId") channelAccountId: string,
+    @Headers("x-tenant-id") tenant = defaultTenantId
+  ) {
+    return this.telegram.getBotInfo(tenant, channelAccountId);
+  }
+
+  @Post("channels/:channelAccountId/telegram/test-connection")
+  async telegramTestConnection(
+    @Param("channelAccountId") channelAccountId: string,
+    @Req() req: Request,
+    @Headers("x-tenant-id") tenant = defaultTenantId
+  ) {
+    return this.telegram.testConnection(tenant, channelAccountId, requestOrigin(req));
+  }
+
+  @Post("channels/:channelAccountId/telegram/set-webhook")
+  async telegramSetWebhook(
+    @Param("channelAccountId") channelAccountId: string,
+    @Req() req: Request,
+    @Headers("x-tenant-id") tenant = defaultTenantId
+  ) {
+    return this.telegram.setWebhook(tenant, channelAccountId, requestOrigin(req));
+  }
 
   @Get("channels")
   async listChannels(@Headers("x-tenant-id") tenant = defaultTenantId) {
@@ -88,4 +119,23 @@ export class SettingsController {
   ) {
     return this.settings.updateCannedReply(tenant, replyId, updateSettingsCannedReplyRequestSchema.parse(body));
   }
+}
+
+/**
+ * Best-effort public origin (protocol + host) from the incoming request, used
+ * as a fallback when PUBLIC_BASE_URL / APP_URL are not configured. Honours
+ * reverse-proxy headers set by Caddy in production.
+ */
+function requestOrigin(req: Request): string | undefined {
+  const forwardedHost = headerValue(req.headers["x-forwarded-host"]) ?? headerValue(req.headers.host);
+  if (!forwardedHost) return undefined;
+  const forwardedProto = headerValue(req.headers["x-forwarded-proto"]);
+  const proto = forwardedProto ?? (req.protocol || "https");
+  return `${proto}://${forwardedHost}`;
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0]?.split(",")[0]?.trim();
+  if (typeof value === "string") return value.split(",")[0]?.trim();
+  return undefined;
 }
