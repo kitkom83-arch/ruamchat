@@ -170,6 +170,9 @@ import {
   scheduleBroadcastCampaignRequestSchema,
   setPrimaryIdentityRequestSchema,
   settingsChannelAccountSchema,
+  telegramBotInfoSchema,
+  telegramSetWebhookResultSchema,
+  telegramTestConnectionResultSchema,
   settingsCannedReplySchema,
   settingsSlaPolicySchema,
   settingsTeamMemberSchema,
@@ -1877,6 +1880,26 @@ export async function updateSettingsChannel(channelAccountId: string, payload: U
     method: "PATCH",
     body: JSON.stringify(body)
   });
+}
+
+export async function getTelegramBotInfo(channelAccountId: string) {
+  return request(`/settings/channels/${encodeURIComponent(channelAccountId)}/telegram/bot-info`, telegramBotInfoSchema);
+}
+
+export async function testTelegramConnection(channelAccountId: string) {
+  return request(
+    `/settings/channels/${encodeURIComponent(channelAccountId)}/telegram/test-connection`,
+    telegramTestConnectionResultSchema,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export async function setTelegramWebhook(channelAccountId: string) {
+  return request(
+    `/settings/channels/${encodeURIComponent(channelAccountId)}/telegram/set-webhook`,
+    telegramSetWebhookResultSchema,
+    { method: "POST", body: JSON.stringify({}) }
+  );
 }
 
 export async function getSettingsTeam(): Promise<SettingsTeamMember[]> {

@@ -119,6 +119,9 @@ import type {
   SettingsChannelAccount,
   SettingsSlaPolicy,
   SettingsTeamMember,
+  TelegramBotInfo,
+  TelegramSetWebhookResult,
+  TelegramTestConnectionResult,
   UpdateSettingsChannelAccountRequest
 } from "@ai-omni/shared";
 import {
@@ -221,6 +224,9 @@ import {
   getSettingsChannels,
   getSettingsSlaPolicies,
   getSettingsTeam,
+  getTelegramBotInfo,
+  testTelegramConnection,
+  setTelegramWebhook,
   updateSettingsChannel
 } from "./api-client";
 import { createDefaultAdminStore, mockCannedReplies, mockSlaPolicies } from "./admin-data";
@@ -670,6 +676,49 @@ export async function saveSettingsChannelCredentials(
     tokenMasked: payload.accessToken ? "configured:redacted" : existing.tokenMasked,
     secretConfigured: payload.webhookSecret ? true : existing.secretConfigured,
     secretMasked: payload.webhookSecret ? "configured:redacted" : existing.secretMasked
+  };
+}
+
+const mockTelegramWebhookUrl =
+  "https://chat.bn9.one/api/webhooks/telegram/00000000-0000-4000-8000-000000000021";
+
+export async function loadTelegramBotInfo(mode: DataMode, channelAccountId: string): Promise<TelegramBotInfo> {
+  if (mode === "api") {
+    return getTelegramBotInfo(channelAccountId);
+  }
+  return { id: 7237, username: "yindee_demo_bot", firstName: "YINDEE Demo", canJoinGroups: true };
+}
+
+export async function runTelegramConnectionTest(
+  mode: DataMode,
+  channelAccountId: string
+): Promise<TelegramTestConnectionResult> {
+  if (mode === "api") {
+    return testTelegramConnection(channelAccountId);
+  }
+  return {
+    tokenOk: true,
+    webhookOk: true,
+    botUsername: "yindee_demo_bot",
+    currentWebhookUrl: mockTelegramWebhookUrl,
+    expectedWebhookUrl: mockTelegramWebhookUrl,
+    pendingUpdateCount: 0,
+    lastErrorMessage: null
+  };
+}
+
+export async function runTelegramSetWebhook(
+  mode: DataMode,
+  channelAccountId: string
+): Promise<TelegramSetWebhookResult> {
+  if (mode === "api") {
+    return setTelegramWebhook(channelAccountId);
+  }
+  return {
+    ok: true,
+    expectedWebhookUrl: mockTelegramWebhookUrl,
+    secretApplied: false,
+    description: "Webhook was set (demo)"
   };
 }
 

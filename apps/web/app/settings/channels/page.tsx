@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProviderReadiness, ProviderWebhookCandidateConversation, ProviderWebhookEvent, ProviderWebhookOperatorNote, ProviderWebhookReviewAlerts, ProviderWebhookReviewClosureChecklistStep, ProviderWebhookReviewClosureEvidence, ProviderWebhookReviewClosureEvidenceExport, ProviderWebhookReviewExportIntegrity, ProviderWebhookReviewExportManifest, ProviderWebhookReviewQaHandoffBundle, ProviderWebhookReviewQaHandoffBundleExport, ProviderWebhookReviewQaHandoffAcceptanceLock, ProviderWebhookReviewQaHandoffArchiveFinalization, ProviderWebhookReviewQaHandoffArchiveIntegrity, ProviderWebhookReviewQaHandoffFinalizationReceipt, ProviderWebhookReviewQaHandoffFinalizationSignOffResponse, ProviderWebhookReviewQaHandoffLockedArchiveExport, ProviderWebhookReviewQaHandoffLockedArchiveStatus, ProviderWebhookReviewQaHandoffReleaseEvidence, ProviderWebhookReviewQaHandoffReleaseCertification, ProviderWebhookReviewQaHandoffReleaseAttestationAudit, ProviderWebhookReviewQaHandoffReleaseAttestationReconciliationRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseGate, ProviderWebhookReviewQaHandoffCertifiedReleaseDecisionReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffAcceptanceRecord, ProviderWebhookReviewQaHandoffCertifiedReleaseDryRunResultLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalReadinessCertificate, ProviderWebhookReviewQaHandoffCertifiedReleaseFreezeAuditRegister, ProviderWebhookReviewQaHandoffCertifiedReleaseRollbackRehearsalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseControlRoomPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseCutoverChecklistReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperatorCommandReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchWindowConfirmationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseGoLiveHoldReleaseAuthorizationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseLaunchApprovalReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoExecutionLockReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffReadinessPacket, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsHandoffAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringReadinessLedger, ProviderWebhookReviewQaHandoffCertifiedReleaseOperationsCustodyMonitoringCloseoutSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalNoExecutionEvidenceRollup, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalEvidenceIndexRegressionGuardrailReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealOperationalClosureReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationContinuityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainSealReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseNoopExecutionDryRun, ProviderWebhookReviewQaHandoffCertifiedReleaseHandoffPacket, ProviderWebhookReviewQaHandoffReleaseClosureLedger, ProviderWebhookReviewQaHandoffReleaseVerification, ProviderWebhookReviewQaHandoffRetentionAudit, ProviderWebhookReviewQaHandoffRetentionManifest, ProviderWebhookReviewQaHandoffReceipt, ProviderWebhookReviewQaHandoffSignOffResponse, ProviderWebhookReviewExportRedactionAudit, ProviderWebhookReviewClosureReport, ProviderWebhookReviewClosureReportExport, ProviderWebhookReviewEscalationReason, ProviderWebhookReviewMetrics, ProviderWebhookReviewResolutionOutcome, ProviderWebhookReviewResolutionSummary, ProviderWebhookReviewSavedView, ProviderWebhookReviewTriage, ProviderWebhookReviewTriageFilters, ProviderWebhookReviewWorkload, ProviderWebhookSandboxEventRequest, ProviderWebhookUnmatchedInboundBulkAssignmentResponse, ProviderWebhookUnmatchedInboundBulkEscalationResponse, ProviderWebhookUnmatchedInboundBulkResolutionResponse, ProviderWebhookUnmatchedInboundBulkReviewResponse, ProviderWebhookUnmatchedInboundDiagnostics, ProviderWebhookUnmatchedInboundExport, ProviderWebhookUnmatchedInboundExportFormat, ProviderWebhookUnmatchedInboundFilters, ProviderWebhookUnmatchedInboundHistory, ProviderWebhookUnmatchedInboundItem, ProviderWebhookUnmatchedInboundPage, SettingsChannelAccount } from "@ai-omni/shared";
 import type { ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceReceipt, ProviderWebhookReviewQaHandoffCertifiedReleaseFinalArchiveSealPostClosurePreservationCustodyChainIntegrityLedgerContinuityVerificationAuditReconciliationAcceptanceContinuitySealReceipt } from "@ai-omni/shared";
 import type { UpdateSettingsChannelAccountRequest } from "@ai-omni/shared";
+import type { TelegramBotInfo, TelegramTestConnectionResult } from "@ai-omni/shared";
 import { dataMode } from "../../data-mode";
 import { useLang } from "../../i18n-data";
 import SettingsTabs from "../SettingsTabs";
@@ -87,6 +88,9 @@ import {
   linkSettingsProviderWebhookUnmatchedInboundConversation,
   loadSettingsChannelsData,
   saveSettingsChannelCredentials,
+  loadTelegramBotInfo,
+  runTelegramConnectionTest,
+  runTelegramSetWebhook,
   loadSettingsProviderWebhookOperatorNotesData,
   loadSettingsProviderWebhookCandidateData,
   loadSettingsProviderWebhookDiagnosticsData,
@@ -124,6 +128,13 @@ export default function ChannelSettingsPage() {
   const [credentialSavingId, setCredentialSavingId] = useState<string | null>(null);
   const [credentialSaveError, setCredentialSaveError] = useState<Record<string, string>>({});
   const [credentialSaveOk, setCredentialSaveOk] = useState<Record<string, boolean>>({});
+  const [telegramBotInfo, setTelegramBotInfo] = useState<Record<string, TelegramBotInfo>>({});
+  const [telegramBotInfoLoading, setTelegramBotInfoLoading] = useState<Record<string, boolean>>({});
+  const [telegramTestResult, setTelegramTestResult] = useState<Record<string, TelegramTestConnectionResult>>({});
+  const [telegramTestingId, setTelegramTestingId] = useState<string | null>(null);
+  const [telegramTestError, setTelegramTestError] = useState<Record<string, string>>({});
+  const [telegramWebhookSavingId, setTelegramWebhookSavingId] = useState<string | null>(null);
+  const [telegramWebhookMessage, setTelegramWebhookMessage] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [providerReadiness, setProviderReadiness] = useState<ProviderReadiness | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<ProviderWebhookEvent[]>([]);
   const [unmatchedInboundItems, setUnmatchedInboundItems] = useState<ProviderWebhookUnmatchedInboundItem[]>([]);
@@ -573,6 +584,11 @@ export default function ChannelSettingsPage() {
       .then((data) => {
         if (!active) return;
         setChannels(data.channels);
+        for (const channel of data.channels) {
+          if (channel.platform === "telegram" && channel.hasAccessToken) {
+            void loadTelegramBot(channel.id);
+          }
+        }
       })
       .catch((reason) => {
         if (!active) return;
@@ -614,6 +630,90 @@ export default function ChannelSettingsPage() {
       }
     },
     [credentialTokenDrafts, credentialSecretDrafts]
+  );
+
+  const loadTelegramBot = useCallback(async (channelAccountId: string) => {
+    setTelegramBotInfoLoading((prev) => ({ ...prev, [channelAccountId]: true }));
+    try {
+      const info = await loadTelegramBotInfo(dataMode, channelAccountId);
+      setTelegramBotInfo((prev) => ({ ...prev, [channelAccountId]: info }));
+    } catch {
+      setTelegramBotInfo((prev) => {
+        const next = { ...prev };
+        delete next[channelAccountId];
+        return next;
+      });
+    } finally {
+      setTelegramBotInfoLoading((prev) => ({ ...prev, [channelAccountId]: false }));
+    }
+  }, []);
+
+  const testTelegram = useCallback(
+    async (channelAccountId: string) => {
+      setTelegramTestingId(channelAccountId);
+      setTelegramTestError((prev) => ({ ...prev, [channelAccountId]: "" }));
+      try {
+        const result = await runTelegramConnectionTest(dataMode, channelAccountId);
+        setTelegramTestResult((prev) => ({ ...prev, [channelAccountId]: result }));
+        if (result.botUsername) {
+          setTelegramBotInfo((prev) => {
+            const existing = prev[channelAccountId];
+            return {
+              ...prev,
+              [channelAccountId]: {
+                id: existing?.id ?? 0,
+                username: result.botUsername,
+                firstName: existing?.firstName ?? null,
+                canJoinGroups: existing?.canJoinGroups ?? null
+              }
+            };
+          });
+        }
+      } catch (reason) {
+        setTelegramTestError((prev) => ({
+          ...prev,
+          [channelAccountId]: reason instanceof Error ? reason.message : t("channels.telegram.testFail")
+        }));
+      } finally {
+        setTelegramTestingId(null);
+      }
+    },
+    [t]
+  );
+
+  const setTelegramWebhookHandler = useCallback(
+    async (channelAccountId: string) => {
+      setTelegramWebhookSavingId(channelAccountId);
+      setTelegramWebhookMessage((prev) => {
+        const next = { ...prev };
+        delete next[channelAccountId];
+        return next;
+      });
+      try {
+        const result = await runTelegramSetWebhook(dataMode, channelAccountId);
+        setTelegramWebhookMessage((prev) => ({
+          ...prev,
+          [channelAccountId]: {
+            ok: result.ok,
+            text: result.ok
+              ? t("channels.telegram.setWebhookOk")
+              : result.description ?? t("channels.telegram.setWebhookFail")
+          }
+        }));
+        await testTelegram(channelAccountId);
+      } catch (reason) {
+        setTelegramWebhookMessage((prev) => ({
+          ...prev,
+          [channelAccountId]: {
+            ok: false,
+            text: reason instanceof Error ? reason.message : t("channels.telegram.setWebhookFail")
+          }
+        }));
+      } finally {
+        setTelegramWebhookSavingId(null);
+      }
+    },
+    [t, testTelegram]
   );
 
   useEffect(() => {
@@ -3121,6 +3221,102 @@ export default function ChannelSettingsPage() {
                     <p className="channelCredentialError">{credentialSaveError[channel.id]}</p>
                   ) : null}
                 </form>
+                {channel.platform === "telegram" ? (
+                  <section className="telegramDiagnostics">
+                    <p className="channelCredentialTitle">{t("channels.telegram.section")}</p>
+                    <p className="telegramBotLine">
+                      {telegramBotInfoLoading[channel.id] ? (
+                        <span>{t("channels.telegram.loadingBot")}</span>
+                      ) : telegramBotInfo[channel.id]?.username ? (
+                        <>
+                          <strong>{t("channels.telegram.botLabel")}:</strong>{" "}
+                          <span>@{telegramBotInfo[channel.id]?.username}</span>
+                          {telegramBotInfo[channel.id]?.id ? (
+                            <span className="telegramBotId">
+                              {" "}
+                              · {t("channels.telegram.botId")}: {telegramBotInfo[channel.id]?.id}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span>{t("channels.telegram.botUnknown")}</span>
+                      )}
+                    </p>
+                    <div className="telegramDiagnosticsActions">
+                      <button
+                        type="button"
+                        className="channelCredentialSave"
+                        onClick={() => void testTelegram(channel.id)}
+                        disabled={telegramTestingId === channel.id}
+                      >
+                        {telegramTestingId === channel.id
+                          ? t("channels.telegram.testing")
+                          : t("channels.telegram.testButton")}
+                      </button>
+                      <button
+                        type="button"
+                        className="channelCredentialSave"
+                        onClick={() => void setTelegramWebhookHandler(channel.id)}
+                        disabled={telegramWebhookSavingId === channel.id}
+                      >
+                        {telegramWebhookSavingId === channel.id
+                          ? t("channels.telegram.settingWebhook")
+                          : t("channels.telegram.setWebhookButton")}
+                      </button>
+                    </div>
+                    {telegramTestResult[channel.id] ? (
+                      <ul className="telegramDiagnosticsResult">
+                        <li className={telegramTestResult[channel.id]?.tokenOk ? "telegramOk" : "telegramFail"}>
+                          {telegramTestResult[channel.id]?.tokenOk ? "✅" : "❌"}{" "}
+                          {telegramTestResult[channel.id]?.tokenOk
+                            ? t("channels.telegram.tokenOk")
+                            : t("channels.telegram.tokenFail")}
+                        </li>
+                        <li className={telegramTestResult[channel.id]?.webhookOk ? "telegramOk" : "telegramFail"}>
+                          {telegramTestResult[channel.id]?.webhookOk ? "✅" : "❌"}{" "}
+                          {telegramTestResult[channel.id]?.webhookOk
+                            ? t("channels.telegram.webhookOk")
+                            : t("channels.telegram.webhookFail")}
+                        </li>
+                        <li className="telegramDetail">
+                          <span>{t("channels.telegram.expectedWebhook")}:</span>{" "}
+                          <code>{telegramTestResult[channel.id]?.expectedWebhookUrl}</code>
+                        </li>
+                        <li className="telegramDetail">
+                          <span>{t("channels.telegram.currentWebhook")}:</span>{" "}
+                          <code>
+                            {telegramTestResult[channel.id]?.currentWebhookUrl ||
+                              t("channels.telegram.currentWebhookNone")}
+                          </code>
+                        </li>
+                        {typeof telegramTestResult[channel.id]?.pendingUpdateCount === "number" ? (
+                          <li className="telegramDetail">
+                            <span>{t("channels.telegram.pendingUpdates")}:</span>{" "}
+                            {telegramTestResult[channel.id]?.pendingUpdateCount}
+                          </li>
+                        ) : null}
+                        {telegramTestResult[channel.id]?.lastErrorMessage ? (
+                          <li className="telegramFail">
+                            <span>{t("channels.telegram.lastError")}:</span>{" "}
+                            {telegramTestResult[channel.id]?.lastErrorMessage}
+                          </li>
+                        ) : null}
+                      </ul>
+                    ) : null}
+                    {telegramTestError[channel.id] ? (
+                      <p className="channelCredentialError">{telegramTestError[channel.id]}</p>
+                    ) : null}
+                    {telegramWebhookMessage[channel.id] ? (
+                      <p
+                        className={
+                          telegramWebhookMessage[channel.id]?.ok ? "channelCredentialOk" : "channelCredentialError"
+                        }
+                      >
+                        {telegramWebhookMessage[channel.id]?.text}
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
                 {channel.webhookUrl ? (
                   <button className="copyWebhookButton" type="button" onClick={() => copyWebhook(channel.webhookUrl ?? "")}>
                     {copied === channel.webhookUrl ? <Check size={15} /> : <Copy size={15} />}

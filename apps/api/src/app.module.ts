@@ -31,6 +31,7 @@ import { PrismaService } from "./services/prisma.service.js";
 import { ProviderWebhookEventsService } from "./services/provider-webhook-events.service.js";
 import { RealtimeGateway } from "./services/realtime.gateway.js";
 import { SettingsService } from "./services/settings.service.js";
+import { TelegramChannelService } from "./services/telegram-channel.service.js";
 import { WebchatRealtimeService } from "./services/webchat-realtime.service.js";
 
 @Module({
@@ -55,6 +56,7 @@ import { WebchatRealtimeService } from "./services/webchat-realtime.service.js";
     ProviderWebhookEventsService,
     RealtimeGateway,
     SettingsService,
+    TelegramChannelService,
     WebchatRealtimeService
   ]
 })

@@ -278,6 +278,34 @@ export const updateSettingsChannelAccountRequestSchema = z.object({
 }).strict();
 export type UpdateSettingsChannelAccountRequest = z.infer<typeof updateSettingsChannelAccountRequestSchema>;
 
+// ---- Telegram channel diagnostics (bot info / test connection / set webhook) ----
+export const telegramBotInfoSchema = z.object({
+  id: z.number().int(),
+  username: z.string().nullable(),
+  firstName: z.string().nullable(),
+  canJoinGroups: z.boolean().nullable()
+}).strict();
+export type TelegramBotInfo = z.infer<typeof telegramBotInfoSchema>;
+
+export const telegramTestConnectionResultSchema = z.object({
+  tokenOk: z.boolean(),
+  webhookOk: z.boolean(),
+  botUsername: z.string().nullable(),
+  currentWebhookUrl: z.string().nullable(),
+  expectedWebhookUrl: z.string().min(1),
+  pendingUpdateCount: z.number().int().nonnegative().nullable(),
+  lastErrorMessage: z.string().nullable()
+}).strict();
+export type TelegramTestConnectionResult = z.infer<typeof telegramTestConnectionResultSchema>;
+
+export const telegramSetWebhookResultSchema = z.object({
+  ok: z.boolean(),
+  expectedWebhookUrl: z.string().min(1),
+  secretApplied: z.boolean(),
+  description: z.string().nullable()
+}).strict();
+export type TelegramSetWebhookResult = z.infer<typeof telegramSetWebhookResultSchema>;
+
 export const settingsTeamMemberSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
