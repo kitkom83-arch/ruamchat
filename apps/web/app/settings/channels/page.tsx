@@ -3026,6 +3026,127 @@ export default function ChannelSettingsPage() {
       {error ? <section className="apiErrorBox" role="alert">{error}</section> : null}
       {loading ? <section className="apiLoadingBox">Loading channel settings...</section> : null}
 
+      <h2 className="channelSectionHeading">เชื่อมต่อช่องทาง</h2>
+      <section className="channelGrid" aria-label="Channel webhook settings">
+        {groupedChannels.map(([platform, items]) => (
+          <div key={platform} className="channelPlatformGroup">
+            <h2>{platformLabel(platform as SettingsChannelAccount["platform"])}</h2>
+            {items.map((channel) => (
+              <article key={channel.id} className="channelPanel">
+                <div className="channelPanelTop">
+                  <MessageSquareText size={18} />
+                  <div>
+                    <h3>{channel.accountName}</h3>
+                    <p>Status: {channel.status}</p>
+                  </div>
+                </div>
+                <dl className="channelMeta">
+                  <div>
+                    <dt>Channel account ID</dt>
+                    <dd>{channel.id}</dd>
+                  </div>
+                  <div>
+                    <dt>Account key</dt>
+                    <dd>{channel.accountKey ?? "not configured"}</dd>
+                  </div>
+                  <div>
+                    <dt>Webhook URL</dt>
+                    <dd>{channel.webhookUrl ?? "not configured"}</dd>
+                  </div>
+                  <div>
+                    <dt>Last inbound</dt>
+                    <dd>{formatDate(channel.lastInboundAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Last message</dt>
+                    <dd>{formatDate(channel.lastMessageAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Access token</dt>
+                    <dd>{channel.hasAccessToken ? channel.tokenMasked ?? "configured" : "not configured"}</dd>
+                  </div>
+                  <div>
+                    <dt>Webhook secret</dt>
+                    <dd>{channel.secretConfigured ? channel.secretMasked ?? "configured" : "not configured"}</dd>
+                  </div>
+                </dl>
+                <form
+                  className="channelCredentialForm"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveChannelCredentials(channel.id);
+                  }}
+                >
+                  <p className="channelCredentialTitle">ตั้งค่าคีย์เชื่อมต่อ</p>
+                  <label className="channelCredentialField">
+                    <span>{channelCredentialLabels(channel.platform).tokenLabel}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
+                      value={credentialTokenDrafts[channel.id] ?? ""}
+                      onChange={(event) =>
+                        setCredentialTokenDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="channelCredentialField">
+                    <span>{channelCredentialLabels(channel.platform).secretLabel}</span>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
+                      value={credentialSecretDrafts[channel.id] ?? ""}
+                      onChange={(event) =>
+                        setCredentialSecretDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="channelCredentialSave"
+                    disabled={
+                      credentialSavingId === channel.id ||
+                      (!(credentialTokenDrafts[channel.id] ?? "").trim() &&
+                        !(credentialSecretDrafts[channel.id] ?? "").trim())
+                    }
+                  >
+                    {credentialSavingId === channel.id ? "กำลังบันทึก…" : "บันทึกคีย์"}
+                  </button>
+                  <p className="channelCredentialHint">โทเคนจะถูกเข้ารหัสก่อนจัดเก็บ ระบบไม่แสดงค่าดิบกลับมา</p>
+                  {credentialSaveOk[channel.id] ? (
+                    <p className="channelCredentialOk">บันทึกคีย์เรียบร้อย</p>
+                  ) : null}
+                  {credentialSaveError[channel.id] ? (
+                    <p className="channelCredentialError">{credentialSaveError[channel.id]}</p>
+                  ) : null}
+                </form>
+                {channel.webhookUrl ? (
+                  <button className="copyWebhookButton" type="button" onClick={() => copyWebhook(channel.webhookUrl ?? "")}>
+                    {copied === channel.webhookUrl ? <Check size={15} /> : <Copy size={15} />}
+                    {copied === channel.webhookUrl ? "Copied" : "Copy webhook URL"}
+                  </button>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ))}
+        {!loading && !error && channels.length === 0 ? (
+          <article className="channelPanel">
+            <div className="channelPanelTop">
+              <MessageSquareText size={18} />
+              <div>
+                <h2>No channels configured</h2>
+                <p>No persisted channel accounts were returned.</p>
+              </div>
+            </div>
+          </article>
+        ) : null}
+      </section>
+
+      <details className="advancedToolsPanel">
+        <summary className="advancedToolsSummary">🔧 เครื่องมือขั้นสูงสำหรับผู้ดูแลระบบ (การตรวจสอบ / QA / diagnostics)</summary>
+        <p className="advancedToolsNote">ผู้ใช้ทั่วไปไม่ต้องเปิดส่วนนี้</p>
       <ProviderReadinessPanel
         readiness={providerReadiness}
         loading={providerLoading}
@@ -3370,123 +3491,7 @@ export default function ChannelSettingsPage() {
         onCreateOperatorNote={createOperatorNote}
         onExportUnmatchedInbound={exportUnmatchedQueue}
       />
-
-      <section className="channelGrid" aria-label="Channel webhook settings">
-        {groupedChannels.map(([platform, items]) => (
-          <div key={platform} className="channelPlatformGroup">
-            <h2>{platformLabel(platform as SettingsChannelAccount["platform"])}</h2>
-            {items.map((channel) => (
-              <article key={channel.id} className="channelPanel">
-                <div className="channelPanelTop">
-                  <MessageSquareText size={18} />
-                  <div>
-                    <h3>{channel.accountName}</h3>
-                    <p>Status: {channel.status}</p>
-                  </div>
-                </div>
-                <dl className="channelMeta">
-                  <div>
-                    <dt>Channel account ID</dt>
-                    <dd>{channel.id}</dd>
-                  </div>
-                  <div>
-                    <dt>Account key</dt>
-                    <dd>{channel.accountKey ?? "not configured"}</dd>
-                  </div>
-                  <div>
-                    <dt>Webhook URL</dt>
-                    <dd>{channel.webhookUrl ?? "not configured"}</dd>
-                  </div>
-                  <div>
-                    <dt>Last inbound</dt>
-                    <dd>{formatDate(channel.lastInboundAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Last message</dt>
-                    <dd>{formatDate(channel.lastMessageAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Access token</dt>
-                    <dd>{channel.hasAccessToken ? channel.tokenMasked ?? "configured" : "not configured"}</dd>
-                  </div>
-                  <div>
-                    <dt>Webhook secret</dt>
-                    <dd>{channel.secretConfigured ? channel.secretMasked ?? "configured" : "not configured"}</dd>
-                  </div>
-                </dl>
-                <form
-                  className="channelCredentialForm"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void saveChannelCredentials(channel.id);
-                  }}
-                >
-                  <p className="channelCredentialTitle">ตั้งค่าคีย์เชื่อมต่อ</p>
-                  <label className="channelCredentialField">
-                    <span>{channelCredentialLabels(channel.platform).tokenLabel}</span>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
-                      value={credentialTokenDrafts[channel.id] ?? ""}
-                      onChange={(event) =>
-                        setCredentialTokenDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <label className="channelCredentialField">
-                    <span>{channelCredentialLabels(channel.platform).secretLabel}</span>
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      placeholder="เว้นว่าง = ไม่เปลี่ยน"
-                      value={credentialSecretDrafts[channel.id] ?? ""}
-                      onChange={(event) =>
-                        setCredentialSecretDrafts((prev) => ({ ...prev, [channel.id]: event.target.value }))
-                      }
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="channelCredentialSave"
-                    disabled={
-                      credentialSavingId === channel.id ||
-                      (!(credentialTokenDrafts[channel.id] ?? "").trim() &&
-                        !(credentialSecretDrafts[channel.id] ?? "").trim())
-                    }
-                  >
-                    {credentialSavingId === channel.id ? "กำลังบันทึก…" : "บันทึกคีย์"}
-                  </button>
-                  <p className="channelCredentialHint">โทเคนจะถูกเข้ารหัสก่อนจัดเก็บ ระบบไม่แสดงค่าดิบกลับมา</p>
-                  {credentialSaveOk[channel.id] ? (
-                    <p className="channelCredentialOk">บันทึกคีย์เรียบร้อย</p>
-                  ) : null}
-                  {credentialSaveError[channel.id] ? (
-                    <p className="channelCredentialError">{credentialSaveError[channel.id]}</p>
-                  ) : null}
-                </form>
-                {channel.webhookUrl ? (
-                  <button className="copyWebhookButton" type="button" onClick={() => copyWebhook(channel.webhookUrl ?? "")}>
-                    {copied === channel.webhookUrl ? <Check size={15} /> : <Copy size={15} />}
-                    {copied === channel.webhookUrl ? "Copied" : "Copy webhook URL"}
-                  </button>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        ))}
-        {!loading && !error && channels.length === 0 ? (
-          <article className="channelPanel">
-            <div className="channelPanelTop">
-              <MessageSquareText size={18} />
-              <div>
-                <h2>No channels configured</h2>
-                <p>No persisted channel accounts were returned.</p>
-              </div>
-            </div>
-          </article>
-        ) : null}
-      </section>
+      </details>
     </main>
   );
 }
