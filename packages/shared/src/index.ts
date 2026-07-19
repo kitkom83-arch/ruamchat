@@ -19,6 +19,8 @@ export type WebchatOutboundEvent = {
   senderType: string;
   text: string | null;
   createdAt: string;
+  // Optional AI-suggested tappable follow-up labels for the webchat widget to render as chips.
+  quickReplies?: string[];
 };
 
 export type ProviderSandboxEnv = Record<string, string | undefined>;
@@ -1767,7 +1769,10 @@ export const aiDecisionSchema = z.object({
   summary: z.string(),
   tags: z.array(z.string()).default([]),
   reason: z.string(),
-  matchedKnowledge: z.array(aiMatchedKnowledgeSchema).optional()
+  matchedKnowledge: z.array(aiMatchedKnowledgeSchema).optional(),
+  // Optional AI-suggested tappable follow-up buttons (max 3, short labels).
+  // Nullish so an OpenAI strict-schema `null` (or an absent field) both map to "no buttons".
+  quickReplies: z.array(z.string().trim().min(1).max(20)).max(3).nullish()
 }).strict();
 export type AIDecision = z.infer<typeof aiDecisionSchema>;
 
@@ -1844,7 +1849,8 @@ export const aiDecisionJsonSchema = {
     "summary",
     "tags",
     "reason",
-    "matchedKnowledge"
+    "matchedKnowledge",
+    "quickReplies"
   ],
   properties: {
     intent: { enum: ["pricing", "product_info", "order_status", "appointment", "complaint", "refund", "human_request", "unknown"] },
@@ -1871,6 +1877,12 @@ export const aiDecisionJsonSchema = {
           matchReason: { type: "string" }
         }
       }
+    },
+    quickReplies: {
+      // Up to 3 short next-step buttons in the visitor's language. `null` when unhelpful.
+      type: ["array", "null"],
+      maxItems: 3,
+      items: { type: "string", maxLength: 20 }
     }
   }
 } as const;
@@ -8633,6 +8645,81 @@ export function summariseRichMessage(message: RichMessage): string {
       return `${meta.label}: ${message.iceBreakers.length} question(s)`;
     default:
       return meta.label;
+  }
+}
+
+/** Max length allowed for a single quick-reply label (matches richQuickReplyItemSchema). */
+export const QUICK_REPLY_LABEL_MAX_LENGTH = 20;
+/** Max number of AI-suggested quick-reply buttons attached to an auto-reply. */
+export const QUICK_REPLY_MAX_ITEMS = 3;
+
+/**
+ * Sanitise AI-suggested quick-reply labels into a safe, de-duplicated list:
+ * trims whitespace, drops empties, clamps each label to 20 chars, removes
+ * duplicates, and caps the list at 3 items. Returns [] when nothing is usable.
+ */
+export function normalizeQuickReplyLabels(labels: readonly (string | null | undefined)[] | null | undefined): string[] {
+  if (!labels) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of labels) {
+    if (typeof raw !== "string") continue;
+    const label = raw.trim().slice(0, QUICK_REPLY_LABEL_MAX_LENGTH).trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(label);
+    if (result.length >= QUICK_REPLY_MAX_ITEMS) break;
+  }
+  return result;
+}
+
+function clampText(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) : text;
+}
+
+/**
+ * Build a platform-appropriate quick-reply {@link RichMessage} from a short text and a
+ * set of AI-suggested labels, reusing the existing rich-message schema shapes.
+ *
+ * Returns `null` when there are no usable labels or the platform has no quick-reply
+ * support, so callers can silently fall back to the plain-text reply.
+ */
+export function buildQuickReplyRichMessage(
+  platform: Platform,
+  text: string,
+  labels: readonly (string | null | undefined)[] | null | undefined
+): RichMessage | null {
+  const items = normalizeQuickReplyLabels(labels);
+  if (items.length === 0) return null;
+
+  const trimmed = (text ?? "").trim();
+  const fallbackPrompt = /[\u0E00-\u0E7F]/.test(trimmed) || trimmed.length === 0
+    ? "เลือกหัวข้อถัดไปได้เลยครับ"
+    : "Choose a next step:";
+  const baseText = trimmed.length > 0 ? trimmed : fallbackPrompt;
+  const chips = items.map((label) => ({ label }));
+
+  switch (platform) {
+    case "line":
+      return { kind: "line_quick_reply", text: clampText(baseText, 2000), items: chips };
+    case "telegram":
+      return {
+        kind: "telegram_reply_keyboard",
+        text: clampText(baseText, 4096),
+        rows: [items],
+        resizeKeyboard: true,
+        oneTimeKeyboard: true
+      };
+    case "facebook":
+      return { kind: "messenger_quick_replies", text: clampText(baseText, 640), items: chips };
+    case "instagram":
+      return { kind: "instagram_quick_replies", text: clampText(baseText, 640), items: chips };
+    case "webchat":
+      return { kind: "webchat_quick_replies", text: clampText(baseText, 2000), items: chips };
+    default:
+      return null;
   }
 }
 

@@ -183,6 +183,151 @@ export async function sendInstagramTextMessage(input: { token?: string | null; r
   }
 }
 
+// ---- Quick-reply senders ----
+// Native, tappable follow-up buttons attached to an AI auto-reply. Each mirrors
+// its text counterpart and stays behind assertProviderOutboundAllowed, so nothing
+// leaves the system until the sandbox allowlist is opened. Callers wrap these in
+// try/catch so a quick-reply failure never breaks the plain-text auto-reply.
+
+export async function sendLineQuickReply(
+  input: { token?: string | null; to: string; text: string; labels: string[] } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: "line",
+    recipientId: input.to,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token = input.token ?? process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("LINE_CHANNEL_ACCESS_TOKEN is required to send a real LINE quick reply");
+  }
+
+  const response = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      to: input.to,
+      messages: [
+        {
+          type: "text",
+          text: input.text,
+          quickReply: {
+            items: input.labels.map((label) => ({
+              type: "action",
+              action: { type: "message", label, text: label }
+            }))
+          }
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`LINE quick reply push failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+export async function sendTelegramReplyKeyboard(
+  input: {
+    token?: string | null;
+    chatId: string;
+    text: string;
+    rows: string[][];
+    resizeKeyboard?: boolean;
+    oneTimeKeyboard?: boolean;
+  } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: "telegram",
+    recipientId: input.chatId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token = input.token ?? process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN is required to send a real Telegram reply keyboard");
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: input.chatId,
+      text: input.text,
+      reply_markup: {
+        keyboard: input.rows.map((row) => row.map((label) => ({ text: label }))),
+        resize_keyboard: input.resizeKeyboard ?? true,
+        one_time_keyboard: input.oneTimeKeyboard ?? true
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram reply keyboard failed: ${response.status} ${await response.text()}`);
+  }
+}
+
+export async function sendMetaQuickReplies(
+  input: {
+    token?: string | null;
+    provider: "facebook" | "instagram";
+    recipientId: string;
+    text: string;
+    labels: string[];
+  } & ProviderTextGuardInput
+) {
+  assertProviderOutboundAllowed({
+    provider: input.provider,
+    recipientId: input.recipientId,
+    tenantId: input.tenantId,
+    channelAccountId: input.channelAccountId,
+    channelAccountTenantId: input.channelAccountTenantId
+  });
+
+  const token =
+    input.token ??
+    (input.provider === "facebook"
+      ? process.env.FACEBOOK_PAGE_ACCESS_TOKEN
+      : process.env.INSTAGRAM_ACCESS_TOKEN);
+  if (!token) {
+    throw new Error(
+      `${input.provider === "facebook" ? "FACEBOOK_PAGE_ACCESS_TOKEN" : "INSTAGRAM_ACCESS_TOKEN"} is required to send a real ${input.provider} quick reply`
+    );
+  }
+
+  const response = await fetch("https://graph.facebook.com/v19.0/me/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      recipient: { id: input.recipientId },
+      message: {
+        text: input.text,
+        quick_replies: input.labels.map((label) => ({
+          content_type: "text",
+          title: label,
+          payload: label
+        }))
+      },
+      ...(input.provider === "instagram" ? { messaging_type: "RESPONSE" } : {})
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`${input.provider} quick reply send failed: ${response.status} ${await response.text()}`);
+  }
+}
+
 // ---- Outbound media senders (STEP 6) ----
 // Each mirrors its text counterpart and stays behind assertProviderOutboundAllowed,
 // so nothing leaves the system until the sandbox allowlist is opened.

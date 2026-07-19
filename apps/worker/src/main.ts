@@ -1,17 +1,27 @@
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { shouldAutoSend, WEBCHAT_OUTBOUND_CHANNEL, type WebchatOutboundEvent } from "@ai-omni/shared";
+import {
+  buildQuickReplyRichMessage,
+  normalizeQuickReplyLabels,
+  shouldAutoSend,
+  WEBCHAT_OUTBOUND_CHANNEL,
+  type Platform,
+  type WebchatOutboundEvent
+} from "@ai-omni/shared";
 import crypto from "node:crypto";
 import { WorkerAiService } from "./ai.service.js";
 import {
   sendFacebookTextMessage,
   sendInstagramTextMessage,
   sendLineMediaMessage,
+  sendLineQuickReply,
   sendLineTextMessage,
   sendMetaMediaMessage,
+  sendMetaQuickReplies,
   sendMockOutboundText,
   sendTelegramOutbound,
+  sendTelegramReplyKeyboard,
   shouldUseRealChannelSend,
   type OutboundMediaType,
   type OutboundPlatform
@@ -36,6 +46,7 @@ type WebchatOutboundMessage = {
   senderType: string;
   conversationId: string;
   createdAt: Date;
+  quickReplies?: string[];
 };
 
 async function publishWebchatOutbound(message: WebchatOutboundMessage) {
@@ -45,7 +56,8 @@ async function publishWebchatOutbound(message: WebchatOutboundMessage) {
     messageId: message.id,
     senderType: message.senderType,
     text: message.text,
-    createdAt: message.createdAt.toISOString()
+    createdAt: message.createdAt.toISOString(),
+    ...(message.quickReplies && message.quickReplies.length > 0 ? { quickReplies: message.quickReplies } : {})
   };
   try {
     await publisher.publish(WEBCHAT_OUTBOUND_CHANNEL, JSON.stringify(event));
@@ -221,6 +233,165 @@ async function sendOutboundMessage(messageId: string) {
   });
 }
 
+/**
+ * Send AI-suggested quick-reply buttons as a native rich message for the room's platform.
+ *
+ * Runs as a best-effort follow-up to the plain-text auto-reply (which has already been sent),
+ * so every failure path here is swallowed by the caller: an unsupported platform, an empty
+ * label set, a blocked sandbox guard, a missing token, or a provider error must never break
+ * the auto-reply. Reuses the shared quick-reply builder and the same guard/token plumbing as
+ * sendOutboundMessage.
+ */
+async function deliverQuickReplies(messageId: string, labels: string[]) {
+  const cleanLabels = normalizeQuickReplyLabels(labels);
+  if (cleanLabels.length === 0) {
+    return;
+  }
+
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: {
+      conversation: { include: { room: { include: { channelAccount: true } }, contactIdentity: true } },
+      channelAccount: true
+    }
+  });
+
+  if (!message) {
+    return;
+  }
+
+  const platform = message.conversation.room.platform as OutboundPlatform;
+  const richMessage = buildQuickReplyRichMessage(platform as Platform, message.text ?? "", cleanLabels);
+  if (!richMessage) {
+    return;
+  }
+
+  // Webchat quick replies ride the same Redis pub/sub bridge as the text reply; the widget
+  // renders them as tappable chips.
+  if (platform === "webchat") {
+    await publishWebchatOutbound({
+      id: message.id,
+      tenantId: message.tenantId,
+      text: null,
+      senderType: message.senderType,
+      conversationId: message.conversationId,
+      createdAt: message.createdAt,
+      quickReplies: cleanLabels
+    });
+    await prisma.auditLog.create({
+      data: {
+        tenantId: message.tenantId,
+        action: "outbound.quick_replies_ready",
+        entityType: "message",
+        entityId: message.id,
+        metadata: { platform, kind: richMessage.kind, count: cleanLabels.length }
+      }
+    });
+    return;
+  }
+
+  const context = {
+    platform,
+    tenantId: message.tenantId,
+    channelAccountId: message.channelAccountId,
+    channelAccountTenantId: message.channelAccount.tenantId,
+    externalUserId: message.conversation.contactIdentity.externalUserId,
+    externalConversationId: message.conversation.externalConversationId
+  };
+  const guardInput = buildProviderGuardInput(context);
+  const accessToken = resolveToken(message.channelAccount.accessTokenCiphertext);
+
+  // Mirror sendOutboundMessage: when real provider sends are gated off (mock/sandbox) or no token
+  // is available, record an audit entry and stop — the plain-text reply already went out.
+  if (!guardInput || !shouldUseRealChannelSend(guardInput)) {
+    await prisma.auditLog.create({
+      data: {
+        tenantId: message.tenantId,
+        action: "outbound.quick_replies_mock",
+        entityType: "message",
+        entityId: message.id,
+        metadata: { platform, kind: richMessage.kind, count: cleanLabels.length }
+      }
+    });
+    return;
+  }
+
+  if (!accessToken) {
+    await prisma.auditLog.create({
+      data: {
+        tenantId: message.tenantId,
+        action: "outbound.quick_replies_skipped_missing_token",
+        entityType: "message",
+        entityId: message.id,
+        metadata: { platform }
+      }
+    });
+    return;
+  }
+
+  const guardFields = {
+    tenantId: message.tenantId,
+    channelAccountId: message.channelAccountId,
+    channelAccountTenantId: message.channelAccount.tenantId
+  };
+  const recipientId = recipientIdForPlatform(context);
+
+  switch (richMessage.kind) {
+    case "line_quick_reply":
+      await sendLineQuickReply({
+        token: accessToken,
+        to: recipientId,
+        text: richMessage.text,
+        labels: richMessage.items.map((item) => item.label),
+        ...guardFields
+      });
+      break;
+    case "telegram_reply_keyboard":
+      await sendTelegramReplyKeyboard({
+        token: accessToken,
+        chatId: recipientId,
+        text: richMessage.text,
+        rows: richMessage.rows,
+        resizeKeyboard: richMessage.resizeKeyboard,
+        oneTimeKeyboard: richMessage.oneTimeKeyboard,
+        ...guardFields
+      });
+      break;
+    case "messenger_quick_replies":
+      await sendMetaQuickReplies({
+        token: accessToken,
+        provider: "facebook",
+        recipientId,
+        text: richMessage.text,
+        labels: richMessage.items.map((item) => item.label),
+        ...guardFields
+      });
+      break;
+    case "instagram_quick_replies":
+      await sendMetaQuickReplies({
+        token: accessToken,
+        provider: "instagram",
+        recipientId,
+        text: richMessage.text,
+        labels: richMessage.items.map((item) => item.label),
+        ...guardFields
+      });
+      break;
+    default:
+      return;
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      tenantId: message.tenantId,
+      action: "outbound.quick_replies_sent",
+      entityType: "message",
+      entityId: message.id,
+      metadata: { platform, kind: richMessage.kind, count: cleanLabels.length }
+    }
+  });
+}
+
 function resolveToken(ciphertext: string | null) {
   if (!ciphertext) return null;
   try {
@@ -315,6 +486,18 @@ async function runAiSuggestion(conversationId: string) {
       }
     });
     await sendOutboundMessage(message.id);
+
+    // Additive: after the plain-text auto-reply is delivered, attach AI-suggested quick-reply
+    // buttons as a native rich message per platform. Best-effort — any failure here is logged
+    // and swallowed so it never breaks the auto-reply that already went out.
+    const quickReplies = normalizeQuickReplyLabels(decision.quickReplies);
+    if (quickReplies.length > 0) {
+      try {
+        await deliverQuickReplies(message.id, quickReplies);
+      } catch (error) {
+        console.error(`Quick-reply delivery failed for message ${message.id}; text reply already sent`, error);
+      }
+    }
   }
 }
 
