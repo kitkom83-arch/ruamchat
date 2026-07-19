@@ -59,6 +59,80 @@ import { mockConversations, platformRooms } from "../inbox-data";
 
 const triggerTypes: FlowTriggerType[] = ["keyword", "first_message", "tag_added", "ai_intent", "status_changed", "manual_test"];
 
+type PlatformChoice = Platform | "all";
+
+const platformChoices: { value: PlatformChoice; label: string; hint: string }[] = [
+  { value: "telegram", label: "Telegram", hint: "บอทแชท/กลุ่ม/แชนแนล" },
+  { value: "line", label: "LINE", hint: "LINE Official Account" },
+  { value: "facebook", label: "Facebook", hint: "Messenger เพจ" },
+  { value: "instagram", label: "Instagram", hint: "Direct Message" },
+  { value: "webchat", label: "Webchat", hint: "แชทบนเว็บไซต์" },
+  { value: "all", label: "ทุกแพลตฟอร์ม", hint: "สร้างโฟลว์ใช้ได้ทุกช่องทาง" }
+];
+
+function platformLabel(value: PlatformChoice): string {
+  return platformChoices.find((choice) => choice.value === value)?.label ?? value;
+}
+
+const FLOW_TEMPLATES_KEY = "yindee.flowTemplates.v1";
+
+type FlowFormState = {
+  name: string;
+  description: string;
+  triggerType: FlowTriggerType;
+  keyword: string;
+  intent: string;
+  tag: string;
+  status: string;
+  platform: string;
+  roomId: string;
+};
+
+type FlowTemplate = {
+  id: string;
+  name: string;
+  config: FlowFormState;
+};
+
+function loadFlowTemplates(): FlowTemplate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(FLOW_TEMPLATES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as FlowTemplate[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistFlowTemplates(templates: FlowTemplate[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FLOW_TEMPLATES_KEY, JSON.stringify(templates));
+  } catch {
+    // ignore quota / serialization errors in this presentational scaffold
+  }
+}
+
+type TelegramSettingsState = {
+  mode: "private" | "group" | "channel";
+  groupId: string;
+  channelUsername: string;
+  welcomeNewMembers: boolean;
+  filterSpam: boolean;
+  autoPost: boolean;
+};
+
+const defaultTelegramSettings: TelegramSettingsState = {
+  mode: "private",
+  groupId: "",
+  channelUsername: "",
+  welcomeNewMembers: true,
+  filterSpam: false,
+  autoPost: false
+};
+
 export default function FlowsPage() {
   return isApiMode() ? <ApiFlowsPage /> : <MockFlowsPage />;
 }
@@ -386,9 +460,54 @@ function ApiFlowsPage() {
     roomId: "room-webchat"
   });
   const [builderView, setBuilderView] = useState<"visual" | "list">("visual");
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformChoice | null>(null);
+  const [templates, setTemplates] = useState<FlowTemplate[]>([]);
+  const [templateName, setTemplateName] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [telegramSettings, setTelegramSettings] = useState<TelegramSettingsState>(defaultTelegramSettings);
 
   const selectedFlow = flowStore.flows.find((flow) => flow.id === selectedFlowId) ?? flowStore.flows[0];
   const selectedRuns = selectedFlow ? getFlowRunHistory(flowStore, selectedFlow.id) : [];
+
+  useEffect(() => {
+    setTemplates(loadFlowTemplates());
+  }, []);
+
+  function choosePlatform(platform: PlatformChoice) {
+    setSelectedPlatform(platform);
+    setForm((current) => ({ ...current, platform, roomId: "all" }));
+  }
+
+  function saveCurrentAsTemplate() {
+    const name = templateName.trim();
+    if (!name) return;
+    const template: FlowTemplate = { id: `tpl-${Date.now()}`, name, config: { ...form } };
+    setTemplates((current) => {
+      const next = [...current.filter((item) => item.name !== name), template];
+      persistFlowTemplates(next);
+      return next;
+    });
+    setSelectedTemplateId(template.id);
+    setTemplateName("");
+  }
+
+  function applyTemplate(id: string) {
+    const template = templates.find((item) => item.id === id);
+    if (!template) return;
+    setForm({ ...template.config });
+    if (template.config.platform) {
+      setSelectedPlatform(template.config.platform as PlatformChoice);
+    }
+  }
+
+  function deleteTemplate(id: string) {
+    setTemplates((current) => {
+      const next = current.filter((item) => item.id !== id);
+      persistFlowTemplates(next);
+      return next;
+    });
+    setSelectedTemplateId((current) => (current === id ? "" : current));
+  }
 
   const automationMetrics = useMemo(() => {
     const total = flowStore.runs.length;
@@ -611,6 +730,33 @@ function ApiFlowsPage() {
         {error && <section className="errorBand" role="alert"><strong>API error</strong><span>{error}</span></section>}
         {loading && <section className="loadingBand"><RefreshCw size={16} /> Loading Flow Builder API data...</section>}
 
+        {selectedPlatform === null ? (
+          <section className="flowCreatePanel platformPicker">
+            <div className="blockHeader"><LayoutGrid size={18} /><h2>เลือกแพลตฟอร์มที่จะสร้างบอท/โฟลว์</h2></div>
+            <p className="formStatus">เลือกช่องทางที่ต้องการก่อน แล้วเราจะเปิดตัวสร้างโฟลว์ให้พร้อมใช้งาน</p>
+            <div className="platformPickerGrid">
+              {platformChoices.map((choice) => (
+                <button
+                  key={choice.value}
+                  type="button"
+                  className="platformPickerCard"
+                  onClick={() => choosePlatform(choice.value)}
+                >
+                  <strong>{choice.label}</strong>
+                  <span>{choice.hint}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+        <>
+        <section className="flowScopeRow platformBackBar">
+          <span className="statusPill draft">แพลตฟอร์ม: {platformLabel(selectedPlatform)}</span>
+          <button type="button" className="platformChangeButton" onClick={() => setSelectedPlatform(null)}>
+            <RotateCcw size={13} /> เปลี่ยน
+          </button>
+        </section>
+
         <section className="flowCreatePanel">
           <div className="blockHeader"><Plus size={18} /><h2>Create / Edit Flow</h2></div>
           <div className="flowFormGrid">
@@ -627,6 +773,58 @@ function ApiFlowsPage() {
             <button type="button" onClick={saveSelectedFlow} disabled={saving || !selectedFlow}><Save size={15} /> Save selected</button>
           </div>
           <p className="formStatus">{formMessage}</p>
+        </section>
+
+        <section className="flowCreatePanel">
+          <div className="blockHeader"><Save size={18} /><h2>แม่แบบบอทที่บันทึกไว้</h2></div>
+          <div className="flowFormGrid">
+            <label>ชื่อแม่แบบ<input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="เช่น บอทตอบราคา" /></label>
+            <button type="button" onClick={saveCurrentAsTemplate} disabled={!templateName.trim()}><Save size={15} /> บันทึกเป็นแม่แบบ</button>
+          </div>
+          {templates.length === 0 ? (
+            <p className="formStatus">ยังไม่มีแม่แบบที่บันทึกไว้</p>
+          ) : (
+            <div className="flowList templateList">
+              {templates.map((template) => (
+                <article key={template.id} className={template.id === selectedTemplateId ? "flowListItem selected" : "flowListItem"}>
+                  <button type="button" onClick={() => setSelectedTemplateId(template.id)}>
+                    <strong>{template.name}</strong>
+                    <small>{platformLabel((template.config.platform || "all") as PlatformChoice)} · {template.config.triggerType}</small>
+                  </button>
+                  <div className="flowButtonRow">
+                    <button type="button" onClick={() => applyTemplate(template.id)}><RotateCcw size={13} /> ใช้แม่แบบนี้</button>
+                    <button type="button" onClick={() => deleteTemplate(template.id)}><Trash2 size={13} /> ลบ</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          <p className="formStatus">แม่แบบถูกบันทึกไว้บนเบราว์เซอร์นี้เท่านั้น</p>
+        </section>
+
+        <section className="flowCreatePanel">
+          <div className="blockHeader"><Workflow size={18} /><h2>{selectedPlatform === "telegram" ? "ตั้งค่าพิเศษสำหรับ Telegram" : "ตั้งค่าพิเศษของแพลตฟอร์ม"}</h2></div>
+          <span className="statusPill draft previewBadge">ตัวอย่างหน้าตา · ยังไม่เชื่อมต่อ Telegram จริง</span>
+          {selectedPlatform === "telegram" ? (
+            <>
+              <div className="flowFormGrid">
+                <label>โหมดการทำงาน<select value={telegramSettings.mode} onChange={(event) => setTelegramSettings({ ...telegramSettings, mode: event.target.value as TelegramSettingsState["mode"] })}>
+                  <option value="private">แชทส่วนตัว</option>
+                  <option value="group">กลุ่ม</option>
+                  <option value="channel">แชนแนล</option>
+                </select></label>
+                <label>Group ID<input value={telegramSettings.groupId} onChange={(event) => setTelegramSettings({ ...telegramSettings, groupId: event.target.value })} placeholder="-1001234567890" /></label>
+                <label>Channel username<input value={telegramSettings.channelUsername} onChange={(event) => setTelegramSettings({ ...telegramSettings, channelUsername: event.target.value })} placeholder="@yourchannel" /></label>
+              </div>
+              <div className="flowScopeRow telegramToggles">
+                <label className="toggleField"><input type="checkbox" checked={telegramSettings.welcomeNewMembers} onChange={(event) => setTelegramSettings({ ...telegramSettings, welcomeNewMembers: event.target.checked })} /> ต้อนรับสมาชิกใหม่</label>
+                <label className="toggleField"><input type="checkbox" checked={telegramSettings.filterSpam} onChange={(event) => setTelegramSettings({ ...telegramSettings, filterSpam: event.target.checked })} /> กรองสแปม</label>
+                <label className="toggleField"><input type="checkbox" checked={telegramSettings.autoPost} onChange={(event) => setTelegramSettings({ ...telegramSettings, autoPost: event.target.checked })} /> โพสต์อัตโนมัติ</label>
+              </div>
+            </>
+          ) : (
+            <p className="formStatus">ยังไม่มีตัวเลือกพิเศษสำหรับแพลตฟอร์มนี้</p>
+          )}
         </section>
 
         {builderView === "visual" && selectedFlow && (
@@ -757,6 +955,8 @@ function ApiFlowsPage() {
             </div>
           )}
         </section>
+        </>
+        )}
       </section>
     </main>
   );
