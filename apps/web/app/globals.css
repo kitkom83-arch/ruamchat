@@ -3213,6 +3213,52 @@ dd {
   margin: 0 auto;
 }
 
+.channelSectionHeading {
+  max-width: 1120px;
+  margin: 0 auto 12px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.advancedToolsPanel {
+  max-width: 1120px;
+  margin: 20px auto 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.advancedToolsSummary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  list-style: none;
+}
+
+.advancedToolsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.advancedToolsSummary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--muted);
+}
+
+.advancedToolsPanel[open] > .advancedToolsSummary::before {
+  content: "▾";
+}
+
+.advancedToolsNote {
+  margin: 6px 0 12px 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .providerReadinessPanel {
   display: grid;
   gap: 14px;
