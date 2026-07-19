@@ -14,7 +14,10 @@ import {
   providerOutboundMode,
   providerSandboxMode,
   validateProviderOutboundGuard,
-  shouldUseRealChannelSend
+  shouldUseRealChannelSend,
+  sendLineQuickReply,
+  sendTelegramReplyKeyboard,
+  sendMetaQuickReplies
 } from "./outbound-sender.js";
 
 describe("outbound sender", () => {
@@ -580,6 +583,125 @@ describe("sendTelegramOutbound", () => {
       expect(calls.map((c) => c.method)).toEqual(["sendPhoto", "sendDocument"]);
       expect(calls[0].body.caption).toBe("two files");
       expect(calls[1].body.caption).toBeUndefined();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+describe("quick-reply senders", () => {
+  function okFetch() {
+    return vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+  }
+
+  it("blocks a LINE quick reply before network access when recipient is not allowlisted", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "line:U123" });
+
+    try {
+      await expect(
+        sendLineQuickReply({
+          token: "test-token",
+          to: "U999",
+          text: "hi",
+          labels: ["ดูสินค้า"],
+          tenantId: tenantIdForTest,
+          channelAccountTenantId: tenantIdForTest
+        })
+      ).rejects.toThrow("recipient_not_allowlisted");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends a LINE push carrying quickReply action items", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "line:U123" });
+
+    try {
+      await sendLineQuickReply({
+        token: "test-token",
+        to: "U123",
+        text: "สวัสดีค่ะ",
+        labels: ["ดูสินค้าทั้งหมด", "วิธีสั่งซื้อ"],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(String((init as RequestInit).body)) as any;
+      expect(body.messages[0].type).toBe("text");
+      expect(body.messages[0].quickReply.items).toHaveLength(2);
+      expect(body.messages[0].quickReply.items[0].action).toMatchObject({
+        type: "message",
+        label: "ดูสินค้าทั้งหมด",
+        text: "ดูสินค้าทั้งหมด"
+      });
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends a Telegram reply keyboard with button rows", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "telegram:55201" });
+
+    try {
+      await sendTelegramReplyKeyboard({
+        token: "test-token",
+        chatId: "55201",
+        text: "เลือกได้เลย",
+        rows: [["ดูสินค้า", "สั่งซื้อ"]],
+        resizeKeyboard: true,
+        oneTimeKeyboard: true,
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(String((init as RequestInit).body)) as any;
+      expect(body.reply_markup.keyboard).toEqual([[{ text: "ดูสินค้า" }, { text: "สั่งซื้อ" }]]);
+      expect(body.reply_markup.one_time_keyboard).toBe(true);
+    } finally {
+      restoreEnvSnapshot(previous);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("sends Messenger quick_replies for facebook", async () => {
+    const fetchSpy = okFetch();
+    const previous = snapshotEnv(providerEnvKeys);
+    setSandboxEnv({ allowlist: "facebook:fb-user-381", meta: true });
+
+    try {
+      await sendMetaQuickReplies({
+        token: "test-token",
+        provider: "facebook",
+        recipientId: "fb-user-381",
+        text: "hi",
+        labels: ["Browse", "How to order"],
+        tenantId: tenantIdForTest,
+        channelAccountTenantId: tenantIdForTest
+      });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(String((init as RequestInit).body)) as any;
+      expect(body.message.quick_replies).toHaveLength(2);
+      expect(body.message.quick_replies[0]).toMatchObject({
+        content_type: "text",
+        title: "Browse",
+        payload: "Browse"
+      });
     } finally {
       restoreEnvSnapshot(previous);
       fetchSpy.mockRestore();

@@ -4811,8 +4811,96 @@ import {
   richMessageKindPlatform,
   RICH_MESSAGE_KINDS_BY_PLATFORM,
   RICH_MESSAGE_KIND_META,
-  RICH_MESSAGE_CONFIG_KEY
+  RICH_MESSAGE_CONFIG_KEY,
+  buildQuickReplyRichMessage,
+  normalizeQuickReplyLabels
 } from "./index.js";
+
+describe("AI quick-reply buttons", () => {
+  const baseDecision = {
+    intent: "product_info" as const,
+    sentiment: "neutral" as const,
+    priority: "low" as const,
+    confidence: 0.9,
+    riskLevel: "low" as const,
+    requiresHuman: false,
+    nextAction: "auto_reply" as const,
+    reply: "สวัสดีค่ะ",
+    summary: "greeting",
+    reason: "customer greeting"
+  };
+
+  it("parses an optional quickReplies array on the AI decision", () => {
+    const decision = aiDecisionSchema.parse({
+      ...baseDecision,
+      quickReplies: ["ดูสินค้าทั้งหมด", "วิธีสั่งซื้อ", "คุยกับแอดมิน"]
+    });
+    expect(decision.quickReplies).toEqual(["ดูสินค้าทั้งหมด", "วิธีสั่งซื้อ", "คุยกับแอดมิน"]);
+  });
+
+  it("stays backward compatible when quickReplies is absent or null", () => {
+    expect(aiDecisionSchema.parse(baseDecision).quickReplies ?? null).toBeNull();
+    expect(aiDecisionSchema.parse({ ...baseDecision, quickReplies: null }).quickReplies ?? null).toBeNull();
+  });
+
+  it("normalizes labels: trims, clamps, dedupes case-insensitively, caps at 3", () => {
+    const result = normalizeQuickReplyLabels([
+      "  ดูสินค้า  ",
+      "ดูสินค้า",
+      "This label is definitely longer than twenty characters",
+      "",
+      null,
+      "How to order",
+      "how to order",
+      "Talk to admin"
+    ]);
+    expect(result).toEqual(["ดูสินค้า", "This label is defini", "How to order"]);
+    expect(result.every((label) => label.length <= 20)).toBe(true);
+  });
+
+  it("returns [] for null/undefined/empty input", () => {
+    expect(normalizeQuickReplyLabels(null)).toEqual([]);
+    expect(normalizeQuickReplyLabels(undefined)).toEqual([]);
+    expect(normalizeQuickReplyLabels([" ", "", null])).toEqual([]);
+  });
+
+  it("builds a platform-appropriate quick-reply rich message per platform", () => {
+    const labels = ["ดูสินค้าทั้งหมด", "วิธีสั่งซื้อ"];
+
+    const line = buildQuickReplyRichMessage("line", "reply", labels);
+    expect(line?.kind).toBe("line_quick_reply");
+    expect(richMessageSchema.safeParse(line).success).toBe(true);
+
+    const telegram = buildQuickReplyRichMessage("telegram", "reply", labels);
+    expect(telegram?.kind).toBe("telegram_reply_keyboard");
+    expect(richMessageSchema.safeParse(telegram).success).toBe(true);
+
+    const webchat = buildQuickReplyRichMessage("webchat", "reply", labels);
+    expect(webchat?.kind).toBe("webchat_quick_replies");
+    expect(richMessageSchema.safeParse(webchat).success).toBe(true);
+
+    const messenger = buildQuickReplyRichMessage("facebook", "reply", labels);
+    expect(messenger?.kind).toBe("messenger_quick_replies");
+    expect(richMessageSchema.safeParse(messenger).success).toBe(true);
+
+    const instagram = buildQuickReplyRichMessage("instagram", "reply", labels);
+    expect(instagram?.kind).toBe("instagram_quick_replies");
+    expect(richMessageSchema.safeParse(instagram).success).toBe(true);
+  });
+
+  it("returns null when there are no usable labels", () => {
+    expect(buildQuickReplyRichMessage("line", "reply", [])).toBeNull();
+    expect(buildQuickReplyRichMessage("line", "reply", ["  ", ""])).toBeNull();
+    expect(buildQuickReplyRichMessage("webchat", "reply", null)).toBeNull();
+  });
+
+  it("falls back to a prompt in the visitor's language when reply text is empty", () => {
+    const thai = buildQuickReplyRichMessage("webchat", "อยากได้ข้อมูล", ["ก"]);
+    expect(thai && "text" in thai ? thai.text : "").toBe("อยากได้ข้อมูล");
+    const emptyThai = buildQuickReplyRichMessage("webchat", "", ["ก"]);
+    expect(emptyThai && "text" in emptyThai ? emptyThai.text : "").toBe("เลือกหัวข้อถัดไปได้เลยครับ");
+  });
+});
 
 describe("rich message features (STEP 3B)", () => {
   it("parses a LINE quick reply payload with defaults on buttons", () => {

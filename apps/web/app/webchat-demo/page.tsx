@@ -32,6 +32,7 @@ export default function WebchatDemoPage() {
   const [aiDraft, setAiDraft] = useState("AI draft mock: แนะนำให้แอดมินทักทายและถามความต้องการของลูกค้า");
   const [apiConversationId, setApiConversationId] = useState("");
   const [apiError, setApiError] = useState("");
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [draftAttachments, setDraftAttachments] = useState<ChatAttachment[]>([]);
   const attachInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +85,18 @@ export default function WebchatDemoPage() {
     if (typeof window !== "undefined" && typeof window.EventSource !== "undefined") {
       try {
         source = new EventSource(`${getApiBaseUrl()}/webchat/stream/${encodeURIComponent(storedConversationId)}`);
-        source.addEventListener("message", () => loadMessages());
+        source.addEventListener("message", (event) => {
+          loadMessages();
+          // AI auto-replies may ship tappable quick-reply chips alongside the text.
+          try {
+            const data = JSON.parse((event as MessageEvent).data) as { quickReplies?: unknown };
+            if (Array.isArray(data.quickReplies) && data.quickReplies.length > 0) {
+              setQuickReplies(data.quickReplies.filter((label): label is string => typeof label === "string"));
+            }
+          } catch {
+            // Ignore malformed payloads; the poll baseline keeps messages correct.
+          }
+        });
       } catch {
         source = undefined;
       }
@@ -124,6 +136,8 @@ export default function WebchatDemoPage() {
 
   async function sendVisitorMessage(text = draft.trim()) {
     if (!text && draftAttachments.length === 0) return;
+    // Tapping any composer action clears the previous AI quick-reply chips.
+    setQuickReplies([]);
     if (apiMode) {
       try {
         const result = await createWebchatMessage({
@@ -212,6 +226,16 @@ export default function WebchatDemoPage() {
             }}
           />
         </div>
+
+        {quickReplies.length > 0 ? (
+          <div className="visitorPrompts aiQuickReplies" aria-label="AI quick replies">
+            {quickReplies.map((label) => (
+              <button key={label} type="button" onClick={() => sendVisitorMessage(label)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="visitorPrompts">
           {visitorPrompts.map((prompt) => (

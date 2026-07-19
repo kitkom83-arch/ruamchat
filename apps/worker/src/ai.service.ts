@@ -84,6 +84,7 @@ export class WorkerAiService {
               "- Use handoff and set requiresHuman true for refunds, complaints, requests to talk to a human, payments, account deletion, or personal-data changes.",
               "- Use suggest_reply only when you are genuinely uncertain or missing information to answer safely.",
               "Prefer auto_reply for confident, safe answers so the customer gets an instant response.",
+              "When nextAction is auto_reply and it clearly helps the customer, propose up to 3 short, relevant next-step buttons in quickReplies (for example: browse all products, how to order, shipping info, talk to a human). Each label must be tappable, under 20 characters, and in the visitor's language (Thai for Thai). Leave quickReplies empty or null when buttons would not help or nextAction is not auto_reply.",
               "Use Thai for reply and summary when the visitor writes Thai."
             ].join("\n")
           },
