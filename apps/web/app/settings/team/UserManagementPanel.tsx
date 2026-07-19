@@ -102,7 +102,7 @@ export default function UserManagementPanel() {
         {error ? <p className="userMgmtError" role="alert">{error}</p> : null}
         {notice ? <p className="userMgmtNotice">{notice}</p> : null}
 
-        <form className="userMgmtForm" onSubmit={submitNewUser}>
+        <form className="userMgmtForm userMgmtForm--add" onSubmit={submitNewUser}>
           <label className="settingsInlineField">
             <span>ชื่อผู้ใช้</span>
             <input value={draft.username} onChange={(event) => setDraft((c) => ({ ...c, username: event.target.value }))} placeholder="เช่น may" />
@@ -137,23 +137,25 @@ export default function UserManagementPanel() {
                 </span>
               </div>
               <div className="userMgmtRowActions">
-                <label className="userMgmtToggle" title="เปิด/ปิด การรีเซ็ตรหัสผ่าน">
+                <div className="userMgmtResetGroup">
+                  <label className="userMgmtToggle" title="เปิด/ปิด การรีเซ็ตรหัสผ่าน">
+                    <input
+                      type="checkbox"
+                      checked={user.passwordResetEnabled}
+                      onChange={(event) => persist(setPasswordResetEnabled(store, user.id, event.target.checked))}
+                    />
+                    <span>รีรหัส</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={user.passwordResetEnabled}
-                    onChange={(event) => persist(setPasswordResetEnabled(store, user.id, event.target.checked))}
+                    type="password"
+                    className="userMgmtResetInput"
+                    placeholder="รหัสใหม่"
+                    value={resetDrafts[user.id] ?? ""}
+                    disabled={!user.passwordResetEnabled}
+                    onChange={(event) => setResetDrafts((current) => ({ ...current, [user.id]: event.target.value }))}
                   />
-                  <span>รีรหัส</span>
-                </label>
-                <input
-                  type="password"
-                  className="userMgmtResetInput"
-                  placeholder="รหัสใหม่"
-                  value={resetDrafts[user.id] ?? ""}
-                  disabled={!user.passwordResetEnabled}
-                  onChange={(event) => setResetDrafts((current) => ({ ...current, [user.id]: event.target.value }))}
-                />
-                <button type="button" onClick={() => handleReset(user.id)} disabled={!user.passwordResetEnabled}>รีเซ็ต</button>
+                  <button type="button" onClick={() => handleReset(user.id)} disabled={!user.passwordResetEnabled}>รีเซ็ต</button>
+                </div>
                 <button
                   type="button"
                   className="userMgmtDelete"
@@ -177,7 +179,7 @@ export default function UserManagementPanel() {
             <p>ค่าเหล่านี้เก็บแยกของแต่ละแอดมินหลัก (ของใครของมัน)</p>
           </div>
         </div>
-        <form className="userMgmtForm" onSubmit={saveSettings}>
+        <form className="userMgmtForm userMgmtForm--settings" onSubmit={saveSettings}>
           <label className="settingsInlineField">
             <span>ชื่อแบรนด์</span>
             <input value={settingsDraft.brandName} onChange={(event) => setSettingsDraft((c) => ({ ...c, brandName: event.target.value }))} placeholder="ruamchat" />
